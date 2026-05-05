@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Allianz Drilling — Field Operations</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+<style>
+/* ── Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0c0f;
+  --bg2:       #111318;
+  --bg3:       #181c22;
+  --border:    #252a33;
+  --accent:    #e8a020;
+  --accent2:   #d44f1a;
+  --green:     #27ae60;
+  --red:       #c0392b;
+  --yellow:    #f39c12;
+  --blue:      #2980b9;
+  --text:      #e8e4dc;
+  --muted:     #6b7280;
+  --font-head: 'Bebas Neue', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'IBM Plex Sans', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 64px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-family: var(--font-head);
+  font-size: 28px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.logo span { color: var(--text); }
+
+.header-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  line-height: 1.6;
+}
+#db-count { color: var(--accent); }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+.shell {
+  display: flex;
+  min-height: calc(100vh - 64px);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+}
+
+.sidebar-section {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.sidebar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.upload-zone {
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(232,160,32,0.05);
+}
+.upload-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.upload-zone .up-icon { font-size: 24px; margin-bottom: 6px; }
+.upload-zone p { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+#import-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.2s;
+}
+#import-btn:hover { background: #f0b030; }
+#import-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+#import-log {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted);
+  max-height: 100px;
+  overflow-y: auto;
+}
+#import-log .ok  { color: var(--green); }
+#import-log .err { color: var(--red); }
+#import-log .skip { color: var(--yellow); }
+
+.danger-btn {
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+  margin-top: auto;
+}
+.danger-btn:hover { background: rgba(192,57,43,0.15); }
+
+/* Nav tabs */
+nav {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active {
+  background: var(--bg3);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+}
+.nav-item .icon { font-size: 16px; }
+
+/* Main content */
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Common components ───────────────────────────────────────────── */
+.section-title {
+  font-family: var(--font-head);
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* KPI cards */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1200px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+
+.kpi {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 16px 18px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.4s ease both;
+}
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.kpi.warn::before { background: var(--yellow); }
+.kpi.crit::before { background: var(--red); }
+.kpi.good::before { background: var(--green); }
+
+.kpi-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.kpi-value {
+  font-family: var(--font-head);
+  font-size: 32px;
+  letter-spacing: 1px;
+  color: var(--text);
+  line-height: 1;
+}
+.kpi-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Filters */
+.filter-bar {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.filter-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-align: left;
+}
+.filter-toggle:hover { background: var(--bg3); }
+.filter-toggle .arrow { transition: transform 0.2s; color: var(--muted); }
+.filter-toggle.open .arrow { transform: rotate(180deg); }
+
+.filter-body {
+  display: none;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.filter-body.open {
+  display: grid;
+}
+@media (max-width: 1100px) { .filter-body { grid-template-columns: repeat(2, 1fr); } }
+
+.filter-group label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.filter-group select,
+.filter-group input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 3px;
+  outline: none;
+}
+.filter-group select:focus,
+.filter-group input:focus { border-color: var(--accent); }
+
+.filter-group select[multiple] { height: 90px; }
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.btn-primary {
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: #f0b030; }
+.btn-ghost {
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+/* Table */
+.table-wrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.table-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.table-count span { color: var(--accent); }
+.btn-csv {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+.btn-csv:hover { border-color: var(--accent); color: var(--accent); }
+
+.tbl-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+thead { position: sticky; top: 0; z-index: 2; }
+thead th {
+  background: var(--bg3);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 9px;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+thead th:hover { color: var(--accent); cursor: pointer; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+tbody tr:hover { background: var(--bg3); }
+tbody td {
+  padding: 7px 12px;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+tbody td[contenteditable=true] {
+  cursor: text;
+  outline: none;
+}
+tbody td[contenteditable=true]:focus {
+  background: rgba(232,160,32,0.08);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.badge-drill  { background: rgba(39,174,96,0.2);  color: var(--green); }
+.badge-repair { background: rgba(192,57,43,0.2);  color: var(--red); }
+.badge-standby{ background: rgba(243,156,18,0.2); color: var(--yellow); }
+.badge-travel { background: rgba(100,100,100,0.2);color: var(--muted); }
+.badge-other  { background: rgba(41,128,185,0.2); color: var(--blue); }
+
+/* ── Charts grid ─────────────────────────────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+}
+.chart-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.chart-card canvas { max-height: 280px; }
+
+/* Anomaly table */
+.anomaly-row td:nth-child(3) .badge { font-size: 10px; padding: 3px 8px; }
+.severity-critical { background: rgba(192,57,43,0.25); color: #e74c3c; }
+.severity-warning  { background: rgba(230,126,34,0.25); color: #e67e22; }
+.severity-caution  { background: rgba(243,156,18,0.25); color: #f39c12; }
+.severity-info     { background: rgba(41,128,185,0.25); color: #3498db; }
+
+/* Heatmap */
+#heatmap-container {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.heatmap-table { border-collapse: separate; border-spacing: 3px; }
+.heatmap-table th {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+  padding: 3px 6px;
+  white-space: nowrap;
+  text-align: center;
+}
+.heatmap-cell {
+  width: 36px;
+  height: 28px;
+  border-radius: 2px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.8);
+  vertical-align: middle;
+}
+
+/* Hole selector */
+.hole-selector {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.hole-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.hole-btn:hover, .hole-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(232,160,32,0.08);
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 12px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  border-radius: 4px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 2;
+}
+.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">Allianz <span>Drilling</span></div>
+  <div class="header-meta">
+    Field Operations Intelligence<br>
+    <span id="db-count">—</span> activity records in database
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Import -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Import Reports</div>
+      <div class="upload-zone" id="drop-zone">
+        <input type="file" id="file-input" multiple accept=".pdf" />
+        <div class="up-icon">📄</div>
+        <p>Drop PDFs here<br>or click to browse</p>
+      </div>
+      <button id="import-btn" disabled>Import to Database</button>
+      <div id="import-log"></div>
+    </div>
+
+    <!-- Nav -->
+    <div class="sidebar-label" style="padding:0 20px;margin-bottom:8px;">Views</div>
+    <nav>
+      <button class="nav-item active" data-page="activities">
+        <span class="icon">📋</span> Activities
+      </button>
+      <button class="nav-item" data-page="consumables">
+        <span class="icon">🧪</span> Consumables
+      </button>
+      <button class="nav-item" data-page="crew">
+        <span class="icon">👷</span> Crew
+      </button>
+      <button class="nav-item" data-page="analytics">
+        <span class="icon">📊</span> Analytics
+      </button>
+    </nav>
+
+    <!-- Danger -->
+    <button class="danger-btn" id="clear-btn">⚠ Clear Database</button>
+  </aside>
+
+  <!-- Main -->
+  <main>
+
+    <!-- ── Activities ──────────────────────────────────────────── -->
+    <section class="page active" id="page-activities">
+      <h2 class="section-title">Activity Log</h2>
+
+      <div class="filter-bar">
+        <button class="filter-toggle" id="act-filter-toggle">
+          🔍 &nbsp; Filters &amp; Search
+          <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="act-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-dates" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Hole #</label>
+            <select id="f-holes" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Site</label>
+            <select id="f-sites" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Activity Code</label>
+            <select id="f-codes" multiple></select>
+          </div>
+          <div class="filter-group" style="grid-column:1/-1">
+            <label>Keyword Search (notes / code)</label>
+            <input type="text" id="f-search" placeholder="e.g. lost circulation, repairs…" />
+          </div>
+          <div class="filter-actions" style="grid-column:1/-1">
+            <button class="btn-primary" onclick="loadActivities()">Apply</button>
+            <button class="btn-ghost" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="act-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('activities')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="act-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Hole #</th><th>Site</th>
+                <th>Time From</th><th>Time To</th><th>Duration</th>
+                <th>Bit Type</th><th>Ø</th>
+                <th>From m</th><th>To m</th><th>Metres</th>
+                <th>Code</th><th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="act-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Consumables ─────────────────────────────────────────── -->
+    <section class="page" id="page-consumables">
+      <h2 class="section-title">Consumables</h2>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="con-filter-toggle">
+          🔍 &nbsp; Filters <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="con-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-con-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadConsumables()">Apply</button>
+            <button class="btn-ghost" onclick="document.getElementById('f-con-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadConsumables()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="con-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('consumables')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="con-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th></tr></thead>
+            <tbody id="con-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Crew ────────────────────────────────────────────────── -->
+    <section class="page" id="page-crew">
+      <h2 class="section-title">Crew — People on Board</h2>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="crew-filter-toggle">
+          🔍 &nbsp; Filters <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="crew-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-crew-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadCrew()">Apply</button>
+            <button class="btn-ghost" onclick="document.getElementById('f-crew-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadCrew()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="crew-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('crew')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="crew-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
+            <tbody id="crew-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Analytics ──────────────────────────────────────────── -->
+    <section class="page" id="page-analytics">
+      <h2 class="section-title">Analytics &amp; Anomalies</h2>
+
+      <div class="hole-selector" id="hole-selector">
+        <button class="hole-btn active" data-hole="all">All Holes</button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row" id="kpi-row">
+        <div class="kpi stagger-1"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
+        <div class="kpi stagger-2"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
+        <div class="kpi stagger-3"><div class="kpi-label">Repairs / Maint.</div><div class="kpi-value" id="kpi-repair">—</div></div>
+        <div class="kpi stagger-4"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
+        <div class="kpi stagger-5"><div class="kpi-label">Total Metres Drilled</div><div class="kpi-value" id="kpi-metres">—</div></div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Time Breakdown by Day</div>
+          <canvas id="chart-daily"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Cumulative Metres Drilled</div>
+          <canvas id="chart-cumulative"></canvas>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Drilling Efficiency % by Day</div>
+          <canvas id="chart-efficiency"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Metres per Drill Run</div>
+          <canvas id="chart-runs"></canvas>
+        </div>
+      </div>
+
+      <!-- Anomalies -->
+      <div style="margin-bottom:16px;">
+        <h2 class="section-title">🚨 Anomaly Report</h2>
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <div class="table-count"><span id="anom-count">—</span> anomalies detected</div>
+            <button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ Export CSV</button>
+          </div>
+          <div class="tbl-scroll">
+            <table id="anom-table">
+              <thead><tr><th>Date</th><th>Hole</th><th>Type</th><th>Detail</th></tr></thead>
+              <tbody id="anom-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="chart-card" style="margin-bottom:20px;">
+        <div class="chart-title">Non-Productive Time Heatmap</div>
+        <div id="heatmap-container"></div>
+        <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:8px;">
+          Black = none &nbsp;·&nbsp; 🟡 Yellow = moderate &nbsp;·&nbsp; 🔴 Red = high non-productive time
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+// Change this to your Render/Railway backend URL after deploying
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://drillops-api.onrender.com';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let pendingFiles = [];
+let filterOpts   = { dates: [], holes: [], sites: [], codes: [] };
+let activitiesData = [];
+let consumablesData = [];
+let crewData = [];
+let anomaliesData = [];
+let charts = {};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderLeftColor = type === 'err' ? 'var(--red)' : type === 'warn' ? 'var(--yellow)' : 'var(--accent)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getSelectedValues(selectId) {
+  const sel = document.getElementById(selectId);
+  return [...sel.selectedOptions].map(o => o.value);
+}
+
+function populateSelect(id, values, allSelected = true) {
+  const sel = document.getElementById(id);
+  const prev = getSelectedValues(id);
+  sel.innerHTML = '';
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = v;
+    opt.selected = allSelected || prev.includes(v);
+    sel.appendChild(opt);
+  });
+}
+
+function codeBadge(code) {
+  if (!code) return '';
+  const c = code.toLowerCase();
+  let cls = 'badge-other';
+  if (c.includes('drill_core') || c.includes('drill_chip')) cls = 'badge-drill';
+  else if (c.includes('repair')) cls = 'badge-repair';
+  else if (c.includes('standby') || c.includes('grout') || c.includes('logger')) cls = 'badge-standby';
+  else if (c.includes('travel')) cls = 'badge-travel';
+  return `<span class="badge ${cls}">${escHtml(code)}</span>`;
+}
+
+function fmt(v, decimals=2) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = parseFloat(v);
+  return isNaN(n) ? '' : n.toFixed(decimals);
+}
+
+async function updateDbCount() {
+  try {
+    const f = await fetch(`${API}/filters`);
+    const d = await f.json();
+    document.getElementById('db-count').textContent = d.total_rows.toLocaleString();
+    filterOpts = d;
+    populateSelect('f-dates', d.dates);
+    populateSelect('f-holes', d.holes);
+    populateSelect('f-sites', d.sites);
+    populateSelect('f-codes', d.codes);
+    populateSelect('f-con-dates', d.dates);
+    populateSelect('f-crew-dates', d.dates);
+    buildHoleSelector(d.holes);
+  } catch(e) {
+    document.getElementById('db-count').textContent = 'API offline';
+  }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.dataset.page;
+    document.getElementById(`page-${page}`).classList.add('active');
+    if (page === 'activities')  loadActivities();
+    if (page === 'consumables') loadConsumables();
+    if (page === 'crew')        loadCrew();
+    if (page === 'analytics')   loadAnalytics('all');
+  });
+});
+
+// ── Collapsible filters ────────────────────────────────────────────────────────
+['act', 'con', 'crew'].forEach(prefix => {
+  const toggle = document.getElementById(`${prefix}-filter-toggle`);
+  if (!toggle) return;
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('open');
+    document.getElementById(`${prefix}-filter-body`).classList.toggle('open');
+  });
+});
+
+// ── File upload & import ───────────────────────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const importBtn = document.getElementById('import-btn');
+
+fileInput.addEventListener('change', e => {
+  pendingFiles = [...e.target.files];
+  importBtn.disabled = pendingFiles.length === 0;
+  importBtn.textContent = pendingFiles.length > 0
+    ? `Import ${pendingFiles.length} file(s)`
+    : 'Import to Database';
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  pendingFiles = [...e.dataTransfer.files].filter(f => f.name.endsWith('.pdf'));
+  importBtn.disabled = pendingFiles.length === 0;
+  importBtn.textContent = pendingFiles.length > 0 ? `Import ${pendingFiles.length} file(s)` : 'Import to Database';
+});
+
+importBtn.addEventListener('click', async () => {
+  if (!pendingFiles.length) return;
+  importBtn.disabled = true;
+  importBtn.innerHTML = '<span class="spinner"></span> Importing…';
+  const log = document.getElementById('import-log');
+  log.innerHTML = '';
+  let total = 0;
+  for (const file of pendingFiles) {
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/import`, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (d.status === 'imported') {
+        log.innerHTML += `<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`;
+        total += d.rows;
+      } else {
+        log.innerHTML += `<div class="skip">⚠ ${file.name} (already imported)</div>`;
+      }
+    } catch(e) {
+      log.innerHTML += `<div class="err">✗ ${file.name} — ${e.message}</div>`;
+    }
+  }
+  importBtn.textContent = 'Import to Database';
+  importBtn.disabled = false;
+  pendingFiles = [];
+  fileInput.value = '';
+  await updateDbCount();
+  if (total > 0) {
+    toast(`✓ Imported ${total} new rows`);
+    loadActivities();
+  }
+});
+
+// ── Clear DB ──────────────────────────────────────────────────────────────────
+document.getElementById('clear-btn').addEventListener('click', async () => {
+  if (!confirm('Clear ALL data from the database? This cannot be undone.')) return;
+  await fetch(`${API}/reset`, { method: 'DELETE' });
+  toast('Database cleared', 'warn');
+  await updateDbCount();
+  loadActivities();
+});
+
+// ── Activities ────────────────────────────────────────────────────────────────
+function resetFilters() {
+  document.querySelectorAll('#act-filter-body select').forEach(s =>
+    [...s.options].forEach(o => o.selected = true)
+  );
+  document.getElementById('f-search').value = '';
+  loadActivities();
+}
+
+async function loadActivities() {
+  const dates  = getSelectedValues('f-dates').join(',');
+  const holes  = getSelectedValues('f-holes').join(',');
+  const sites  = getSelectedValues('f-sites').join(',');
+  const codes  = getSelectedValues('f-codes').join(',');
+  const search = document.getElementById('f-search').value.trim();
+  const params = new URLSearchParams({ dates, holes, sites, codes });
+  if (search) params.set('search', search);
+  try {
+    const res = await fetch(`${API}/activities?${params}`);
+    activitiesData = await res.json();
+    renderActivities(activitiesData);
+  } catch(e) {
+    document.getElementById('act-body').innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:20px">API offline — is the backend running?</td></tr>`;
+  }
+}
+
+function renderActivities(rows) {
+  document.getElementById('act-count').textContent = rows.length.toLocaleString();
+  const tbody = document.getElementById('act-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="big">📭</div>No records match your filters</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr data-id="${r.id}">
+      <td>${escHtml(r.date)}</td>
+      <td>${escHtml(r.hole_num)}</td>
+      <td>${escHtml(r.site_name)}</td>
+      <td>${escHtml(r.time_from)}</td>
+      <td>${escHtml(r.time_to)}</td>
+      <td>${escHtml(r.total_time)}</td>
+      <td>${escHtml(r.bit_type)}</td>
+      <td>${escHtml(r.diameter)}</td>
+      <td>${fmt(r.metres_from)}</td>
+      <td>${fmt(r.metres_to)}</td>
+      <td>${fmt(r.total_metres)}</td>
+      <td>${codeBadge(r.code)}</td>
+      <td contenteditable="true" data-col="notes" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
+    </tr>
+  `).join('');
+
+  // Editable cells
+  tbody.querySelectorAll('[contenteditable]').forEach(cell => {
+    cell.addEventListener('blur', async () => {
+      const row  = cell.closest('tr');
+      const id   = row.dataset.id;
+      const col  = cell.dataset.col;
+      const val  = cell.textContent.trim();
+      try {
+        await fetch(`${API}/activities/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [col]: val }),
+        });
+        toast('✓ Saved');
+      } catch(e) { toast('Save failed', 'err'); }
+    });
+  });
+}
+
+// ── Consumables ───────────────────────────────────────────────────────────────
+async function loadConsumables() {
+  const dates = getSelectedValues('f-con-dates').join(',');
+  try {
+    const res = await fetch(`${API}/consumables?dates=${dates}`);
+    consumablesData = await res.json();
+    renderTable('con-body', 'con-count', consumablesData,
+      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.consumable)}</td><td>${escHtml(r.type)}</td><td>${escHtml(r.quantity)}</td><td>${escHtml(r.unit)}</td></tr>`, 7);
+  } catch(e) {}
+}
+
+// ── Crew ──────────────────────────────────────────────────────────────────────
+async function loadCrew() {
+  const dates = getSelectedValues('f-crew-dates').join(',');
+  try {
+    const res = await fetch(`${API}/crew?dates=${dates}`);
+    crewData = await res.json();
+    renderTable('crew-body', 'crew-count', crewData,
+      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.role)}</td><td>${escHtml(r.name)}</td><td>${escHtml(r.hours)}</td></tr>`, 6);
+  } catch(e) {}
+}
+
+function renderTable(bodyId, countId, rows, rowFn, cols) {
+  document.getElementById(countId).textContent = rows.length.toLocaleString();
+  const tbody = document.getElementById(bodyId);
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty-state"><div class="big">📭</div>No records yet</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(rowFn).join('');
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function buildHoleSelector(holes) {
+  const sel = document.getElementById('hole-selector');
+  const existing = [...sel.querySelectorAll('[data-hole]')].map(b => b.dataset.hole);
+  holes.forEach(h => {
+    if (!existing.includes(h)) {
+      const btn = document.createElement('button');
+      btn.className = 'hole-btn';
+      btn.dataset.hole = h;
+      btn.textContent = h;
+      btn.addEventListener('click', () => {
+        sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAnalytics(h);
+      });
+      sel.appendChild(btn);
+    }
+  });
+  sel.querySelector('[data-hole=all]').addEventListener('click', () => {
+    sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+    sel.querySelector('[data-hole=all]').classList.add('active');
+    loadAnalytics('all');
+  });
+}
+
+const CAT_COLORS = {
+  'Productive Drilling':  '#27ae60',
+  'Tripping Rods':        '#3498db',
+  'Circulation':          '#9b59b6',
+  'Repairs':              '#e74c3c',
+  'Standby / Delays':     '#f39c12',
+  'Travel':               '#7f8c8d',
+  'Safety & Admin':       '#1abc9c',
+  'Other':                '#555e6b',
+};
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+async function loadAnalytics(hole) {
+  try {
+    const res = await fetch(`${API}/analytics?hole=${hole}`);
+    const d = await res.json();
+
+    // KPIs
+    const k = d.kpis;
+    document.getElementById('kpi-total').textContent  = k.total_hours  + ' h';
+    document.getElementById('kpi-drill').textContent  = k.drill_hours  + ' h';
+    document.getElementById('kpi-eff').textContent    = k.efficiency   + '% efficiency';
+    document.getElementById('kpi-repair').textContent = k.repair_hours + ' h';
+    document.getElementById('kpi-delay').textContent  = k.delay_hours  + ' h';
+    document.getElementById('kpi-metres').textContent = k.total_metres + ' m';
+
+    // Colour the KPI cards
+    document.querySelectorAll('.kpi')[2].className = 'kpi ' + (k.repair_hours >= 4 ? 'crit' : 'good');
+    document.querySelectorAll('.kpi')[3].className = 'kpi ' + (k.delay_hours  >= 6 ? 'warn' : 'good');
+
+    // Chart 1 — daily breakdown stacked bar
+    buildDailyChart(d.daily_categories);
+
+    // Chart 2 — cumulative metres line
+    buildCumulativeChart(d.drill_runs);
+
+    // Chart 3 — efficiency bar
+    buildEfficiencyChart(d.daily_categories);
+
+    // Chart 4 — metres per run
+    buildRunChart(d.drill_runs);
+
+    // Anomalies
+    anomaliesData = d.anomalies;
+    renderAnomalies(d.anomalies);
+
+    // Heatmap
+    renderHeatmap(d.heatmap, d.daily_categories);
+
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function buildDailyChart(data) {
+  destroyChart('daily');
+  if (!data.length) return;
+
+  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const cats     = Object.keys(CAT_COLORS);
+  const datasets = cats.map(cat => ({
+    label: cat,
+    data: dates.map(d => {
+      const row = data.find(r => r.date === d && r.category === cat);
+      return row ? +row.hours.toFixed(2) : 0;
+    }),
+    backgroundColor: CAT_COLORS[cat],
+    borderWidth: 0,
+  })).filter(ds => ds.data.some(v => v > 0));
+
+  const ctx = document.getElementById('chart-daily').getContext('2d');
+  charts['daily'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: dates, datasets },
+    options: {
+      plugins: { legend: { labels: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 10 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+        y: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
+
+function buildCumulativeChart(runs) {
+  destroyChart('cumulative');
+  if (!runs.length) return;
+  const ctx = document.getElementById('chart-cumulative').getContext('2d');
+  charts['cumulative'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: runs.map((r,i) => i+1),
+      datasets: [{
+        label: 'Cumulative Metres',
+        data: runs.map(r => r.cumulative),
+        borderColor: '#e8a020',
+        backgroundColor: 'rgba(232,160,32,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#e8a020',
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
+        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
+
+function buildEfficiencyChart(data) {
+  destroyChart('efficiency');
+  if (!data.length) return;
+  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const totalByDate = {};
+  const drillByDate = {};
+  data.forEach(r => {
+    totalByDate[r.date] = (totalByDate[r.date] || 0) + r.hours;
+    if (r.category === 'Productive Drilling')
+      drillByDate[r.date] = (drillByDate[r.date] || 0) + r.hours;
+  });
+  const efficiencies = dates.map(d => totalByDate[d] ? +((drillByDate[d]||0)/totalByDate[d]*100).toFixed(1) : 0);
+  const colors = efficiencies.map(e => e < 20 ? '#e74c3c' : e < 40 ? '#f39c12' : '#27ae60');
+  const ctx = document.getElementById('chart-efficiency').getContext('2d');
+  charts['efficiency'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Efficiency %',
+        data: efficiencies,
+        backgroundColor: colors,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        annotation: {},
+      },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+        y: { max: 100, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => v+'%' }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
+
+function buildRunChart(runs) {
+  destroyChart('runs');
+  if (!runs.length) return;
+  const ctx = document.getElementById('chart-runs').getContext('2d');
+  const avg = runs.reduce((s,r) => s+r.total_metres, 0) / runs.length;
+  charts['runs'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: runs.map((r,i) => i+1),
+      datasets: [{
+        label: 'Metres',
+        data: runs.map(r => r.total_metres),
+        backgroundColor: runs.map(r => r.total_metres < 1 ? '#e74c3c' : '#3498db'),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const r = runs[items[0].dataIndex];
+              return `${r.date} — Run #${items[0].dataIndex+1}`;
+            },
+            afterBody: (items) => {
+              const r = runs[items[0].dataIndex];
+              return r.notes ? [r.notes.substring(0,60)] : [];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
+        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
+
+function renderAnomalies(anomalies) {
+  document.getElementById('anom-count').textContent = anomalies.length;
+  const tbody = document.getElementById('anom-body');
+  if (!anomalies.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:20px;color:var(--green);font-family:var(--font-mono);font-size:12px">✓ No anomalies detected</td></tr>`;
+    return;
+  }
+  const icons = { critical:'🔴', warning:'🟠', caution:'🟡', info:'🔵' };
+  tbody.innerHTML = anomalies.map(a => `
+    <tr class="anomaly-row">
+      <td>${escHtml(a.date)}</td>
+      <td>${escHtml(a.hole)}</td>
+      <td><span class="badge severity-${a.severity}">${icons[a.severity]||''} ${escHtml(a.type)}</span></td>
+      <td>${escHtml(a.detail)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderHeatmap(heatmap, daily) {
+  if (!heatmap.length) {
+    document.getElementById('heatmap-container').innerHTML = '<p style="color:var(--muted);font-family:var(--font-mono);font-size:11px">No data</p>';
+    return;
+  }
+  const dates = [...new Set(daily.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const cats  = ['Repairs', 'Standby / Delays', 'Circulation'];
+  const maxVal = Math.max(...heatmap.map(r => r.hours), 1);
+
+  function heatColor(h) {
+    if (!h) return '#111318';
+    const t = h / maxVal;
+    if (t < 0.3) return `rgba(243,156,18,${0.2+t*0.6})`;
+    return `rgba(192,57,43,${0.3+t*0.7})`;
+  }
+
+  let html = '<table class="heatmap-table"><thead><tr><th></th>';
+  dates.forEach(d => html += `<th>${d.split('/').slice(0,2).join('/')}</th>`);
+  html += '</tr></thead><tbody>';
+
+  cats.forEach(cat => {
+    html += `<tr><th style="text-align:left;white-space:nowrap;padding-right:12px">${cat}</th>`;
+    dates.forEach(d => {
+      const row  = heatmap.find(r => r.date === d && r.category === cat);
+      const val  = row ? row.hours : 0;
+      const bg   = heatColor(val);
+      const label = val > 0.1 ? val.toFixed(1) : '';
+      html += `<td class="heatmap-cell" style="background:${bg}" title="${cat} — ${d}: ${val.toFixed(1)}h">${label}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmap-container').innerHTML = html;
+}
+
+function dateSortKey(d) {
+  try {
+    const [day, mon, yr] = d.split('/');
+    return parseInt(yr)*10000 + parseInt(mon)*100 + parseInt(day);
+  } catch { return 0; }
+}
+
+// ── CSV Download ──────────────────────────────────────────────────────────────
+function downloadCSV(type) {
+  let rows, filename;
+  if (type === 'activities')  { rows = activitiesData;  filename = 'activities.csv'; }
+  if (type === 'consumables') { rows = consumablesData; filename = 'consumables.csv'; }
+  if (type === 'crew')        { rows = crewData;        filename = 'crew.csv'; }
+  if (type === 'anomalies')   { rows = anomaliesData;   filename = 'anomalies.csv'; }
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const csv  = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = filename;
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  await updateDbCount();
+  await loadActivities();
+})();
+</script>
+</body>
+</html>
