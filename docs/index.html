@@ -557,9 +557,13 @@ tbody td[contenteditable=true] {
   cursor: text;
   outline: none;
 }
+tbody td[contenteditable=true]:hover {
+  background: rgba(232,160,32,0.04);
+}
 tbody td[contenteditable=true]:focus {
   background: rgba(232,160,32,0.08);
   box-shadow: inset 0 0 0 1px var(--accent);
+  white-space: nowrap;
 }
 
 .badge {
@@ -841,6 +845,7 @@ tbody td[contenteditable=true]:focus {
                 <th>Bit Type</th><th>Ø</th>
                 <th>From m</th><th>To m</th><th>Metres</th>
                 <th>Code</th><th>Notes</th>
+                <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th>
               </tr>
             </thead>
             <tbody id="act-body"></tbody>
@@ -1340,7 +1345,7 @@ async function loadActivities() {
     activitiesData = await res.json();
     renderActivities(activitiesData);
   } catch(e) {
-    document.getElementById('act-body').innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:20px">API offline — is the backend running?</td></tr>`;
+    document.getElementById('act-body').innerHTML = `<tr><td colspan="17" style="color:var(--red);padding:20px">API offline — is the backend running?</td></tr>`;
   }
 }
 
@@ -1348,34 +1353,65 @@ function renderActivities(rows) {
   document.getElementById('act-count').textContent = rows.length.toLocaleString();
   const tbody = document.getElementById('act-body');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="big">📭</div>No records match your filters</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17"><div class="empty-state"><div class="big">📭</div>No records match your filters</div></td></tr>`;
     return;
   }
+
+  // Columns: [data-col, display value, numeric?]
   tbody.innerHTML = rows.map(r => `
     <tr data-id="${r.id}">
-      <td>${escHtml(r.date)}</td>
-      <td>${escHtml(r.hole_num)}</td>
-      <td>${escHtml(r.site_name)}</td>
-      <td>${escHtml(r.time_from)}</td>
-      <td>${escHtml(r.time_to)}</td>
-      <td>${escHtml(r.total_time)}</td>
-      <td>${escHtml(r.bit_type)}</td>
-      <td>${escHtml(r.diameter)}</td>
-      <td>${fmt(r.metres_from)}</td>
-      <td>${fmt(r.metres_to)}</td>
-      <td>${fmt(r.total_metres)}</td>
-      <td>${codeBadge(r.code)}</td>
-      <td contenteditable="true" data-col="notes" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
+      <td contenteditable="true" data-col="date">${escHtml(r.date)}</td>
+      <td contenteditable="true" data-col="hole_num">${escHtml(r.hole_num)}</td>
+      <td contenteditable="true" data-col="site_name">${escHtml(r.site_name)}</td>
+      <td contenteditable="true" data-col="time_from">${escHtml(r.time_from)}</td>
+      <td contenteditable="true" data-col="time_to">${escHtml(r.time_to)}</td>
+      <td contenteditable="true" data-col="total_time">${escHtml(r.total_time)}</td>
+      <td contenteditable="true" data-col="bit_type">${escHtml(r.bit_type)}</td>
+      <td contenteditable="true" data-col="diameter">${escHtml(r.diameter)}</td>
+      <td contenteditable="true" data-col="metres_from" data-numeric="true">${fmt(r.metres_from)}</td>
+      <td contenteditable="true" data-col="metres_to"   data-numeric="true">${fmt(r.metres_to)}</td>
+      <td contenteditable="true" data-col="total_metres" data-numeric="true" data-cost-trigger="true">${fmt(r.total_metres)}</td>
+      <td contenteditable="true" data-col="code" data-cost-trigger="true">${escHtml(r.code)}</td>
+      <td contenteditable="true" data-col="notes">${escHtml(r.notes)}</td>
+      <td contenteditable="true" data-col="unit_rate"   data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.unit_rate != null ? r.unit_rate.toFixed(2) : ''}</td>
+      <td contenteditable="true" data-col="quantity"    data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity != null ? r.quantity.toFixed(2) : ''}</td>
+      <td contenteditable="true" data-col="line_cost"   data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost != null ? r.line_cost.toFixed(2) : ''}</td>
+      <td contenteditable="true" data-col="rate_basis"  style="color:var(--muted);font-size:10px">${escHtml(r.rate_basis||'')}</td>
     </tr>
   `).join('');
 
-  // Editable cells
+  // Attach save-on-blur to every editable cell
   tbody.querySelectorAll('[contenteditable]').forEach(cell => {
     cell.addEventListener('blur', async () => {
-      const row  = cell.closest('tr');
-      const id   = row.dataset.id;
-      const col  = cell.dataset.col;
-      const val  = cell.textContent.trim();
+      const row = cell.closest('tr');
+      const id  = row.dataset.id;
+      const col = cell.dataset.col;
+      let val   = cell.textContent.trim();
+
+      // Parse numeric fields
+      if (cell.dataset.numeric) {
+        val = val === '' ? null : parseFloat(val);
+      }
+
+      // If a cost-trigger field changed, recalculate line_cost = unit_rate × quantity
+      if (cell.dataset.costTrigger) {
+        const unitRateCell = row.querySelector('[data-col="unit_rate"]');
+        const quantityCell = row.querySelector('[data-col="quantity"]');
+        const lineCostCell = row.querySelector('[data-col="line_cost"]');
+        const ur = parseFloat(unitRateCell.textContent) || 0;
+        const qty = parseFloat(quantityCell.textContent) || 0;
+        if (ur > 0 && qty > 0) {
+          const newCost = (ur * qty).toFixed(2);
+          lineCostCell.textContent = newCost;
+          // Save line_cost too
+          await fetch(`${API}/activities/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ line_cost: parseFloat(newCost) }),
+          }).catch(() => {});
+        }
+      }
+
       try {
         await fetch(`${API}/activities/${id}`, {
           method: 'PATCH',
@@ -1384,6 +1420,17 @@ function renderActivities(rows) {
         });
         toast('✓ Saved');
       } catch(e) { toast('Save failed', 'err'); }
+    });
+
+    // Prevent Enter key from adding newlines — move to next cell instead
+    cell.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const cells = [...cell.closest('tr').querySelectorAll('[contenteditable]')];
+        const next  = cells[cells.indexOf(cell) + 1];
+        if (next) next.focus();
+      }
+      // Tab already moves to next cell natively
     });
   });
 }
