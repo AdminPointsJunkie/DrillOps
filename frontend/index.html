@@ -679,6 +679,12 @@ tbody td[contenteditable=true]:focus {
       <button class="nav-item" data-page="analytics">
         <span class="icon">📊</span> Analytics
       </button>
+      <button class="nav-item" data-page="costing">
+        <span class="icon">💰</span> Costing
+      </button>
+      <button class="nav-item" data-page="rates">
+        <span class="icon">📄</span> Schedule of Rates
+      </button>
     </nav>
 
     <!-- Danger -->
@@ -879,6 +885,131 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
+    <!-- ── Costing ────────────────────────────────────────────── -->
+    <section class="page" id="page-costing">
+      <h2 class="section-title">💰 Costing Summary</h2>
+
+      <div class="kpi-row" id="cost-kpi-row">
+        <div class="kpi stagger-1"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
+        <div class="kpi stagger-2"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
+        <div class="kpi stagger-3"><div class="kpi-label">Non-Drilling Cost</div><div class="kpi-value" id="cost-nondrilling">—</div></div>
+        <div class="kpi stagger-4"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="cost-metres">—</div></div>
+        <div class="kpi stagger-5"><div class="kpi-label">Cost per Metre</div><div class="kpi-value" id="cost-per-m">—</div></div>
+      </div>
+
+      <!-- By hole summary -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Hole</h3>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="cost-hole-count">—</span> holes</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_holes')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-hole-table">
+            <thead><tr><th>Hole #</th><th>Total Cost</th><th>Drilling $</th><th>Non-Drilling $</th><th>Metres</th><th>$/m</th><th>Activities</th></tr></thead>
+            <tbody id="cost-hole-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- By date -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Day</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="cost-date-count">—</span> days</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_dates')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-date-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Daily Cost</th><th>Metres</th></tr></thead>
+          <tbody id="cost-date-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Line-item detail -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:24px 0 12px;">Line Item Detail</h3>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="cost-filter-toggle">
+          🔍 &nbsp; Filter by Hole / Date <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="cost-filter-body">
+          <div class="filter-group">
+            <label>Hole #</label>
+            <select id="f-cost-holes" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-cost-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadCosting()">Apply</button>
+            <button class="btn-ghost" onclick="resetCostFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="cost-line-count">—</span> priced rows</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-line-table">
+            <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
+            <tbody id="cost-line-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Schedule of Rates ──────────────────────────────────── -->
+    <section class="page" id="page-rates">
+      <h2 class="section-title">📄 Schedule of Rates</h2>
+
+      <!-- Year selector + add year -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <div class="hole-selector" id="rate-year-selector" style="margin-bottom:0"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+          <input id="new-year-input" type="text" placeholder="e.g. 2026"
+            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;" />
+          <button class="btn-primary" onclick="copyRatesYear()">Copy from selected year →</button>
+        </div>
+      </div>
+
+      <!-- Drilling rates table -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Drilling Rates — $/metre by bit type &amp; depth</h3>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="dr-count">—</span> rate bands</div>
+          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addDrillingRate()">+ Add Row</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="dr-table">
+            <thead><tr><th>Year</th><th>Bit Type</th><th>Depth From</th><th>Depth To</th><th>Rate ($/m)</th><th></th></tr></thead>
+            <tbody id="dr-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Hourly/daily rates table -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Hourly / Daily Rates</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="hr-count">—</span> rates</div>
+          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addHourlyRate()">+ Add Row</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="hr-table">
+            <thead><tr><th>Year</th><th>Code</th><th>Description</th><th>Rate ($)</th><th>Unit</th><th></th></tr></thead>
+            <tbody id="hr-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:12px;">
+        ✏️ Click any cell to edit — changes save automatically. Add a new year by typing it above and clicking Copy.
+      </p>
+    </section>
+
   </main>
 </div>
 
@@ -890,7 +1021,7 @@ tbody td[contenteditable=true]:focus {
 // Change this to your Render/Railway backend URL after deploying
 const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:8000'
-  : 'https://api.drillops.com.au';
+  : 'https://drillops-api.onrender.com';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let pendingFiles = [];
@@ -1443,12 +1574,20 @@ function dateSortKey(d) {
 }
 
 // ── CSV Download ──────────────────────────────────────────────────────────────
+let costingHolesData = [], costingDatesData = [], costingLinesData = [];
+let drillingRatesData = [], hourlyRatesData = [];
+
 function downloadCSV(type) {
-  let rows, filename;
-  if (type === 'activities')  { rows = activitiesData;  filename = 'activities.csv'; }
-  if (type === 'consumables') { rows = consumablesData; filename = 'consumables.csv'; }
-  if (type === 'crew')        { rows = crewData;        filename = 'crew.csv'; }
-  if (type === 'anomalies')   { rows = anomaliesData;   filename = 'anomalies.csv'; }
+  const map = {
+    activities:     [activitiesData,    'activities.csv'],
+    consumables:    [consumablesData,   'consumables.csv'],
+    crew:           [crewData,          'crew.csv'],
+    anomalies:      [anomaliesData,     'anomalies.csv'],
+    costing_holes:  [costingHolesData,  'costing_by_hole.csv'],
+    costing_dates:  [costingDatesData,  'costing_by_date.csv'],
+    costing_lines:  [costingLinesData,  'costing_lines.csv'],
+  };
+  const [rows, filename] = map[type] || [null, null];
   if (!rows || !rows.length) return;
   const keys = Object.keys(rows[0]);
   const csv  = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
@@ -1458,7 +1597,271 @@ function downloadCSV(type) {
   a.click();
 }
 
+// ── Costing ───────────────────────────────────────────────────────────────────
+function resetCostFilters() {
+  ['f-cost-holes','f-cost-dates'].forEach(id =>
+    [...document.getElementById(id).options].forEach(o => o.selected = true));
+  loadCosting();
+}
+
+async function loadCosting() {
+  const holes = getSelectedValues('f-cost-holes').join(',');
+  const dates = getSelectedValues('f-cost-dates').join(',');
+  const params = new URLSearchParams();
+  if (holes) params.set('holes', holes);
+  if (dates) params.set('dates', dates);
+
+  try {
+    const res = await fetch(`${API}/costing?${params}`);
+    const d   = await res.json();
+
+    costingHolesData = d.by_hole;
+    costingDatesData = d.by_date;
+
+    // KPIs
+    const grand = d.grand_total;
+    const totalDrill    = d.by_hole.reduce((s, r) => s + (r.drilling_cost || 0), 0);
+    const totalNonDrill = d.by_hole.reduce((s, r) => s + (r.non_drilling_cost || 0), 0);
+    const totalM        = d.by_hole.reduce((s, r) => s + (r.total_metres || 0), 0);
+    document.getElementById('cost-grand').textContent      = '$' + grand.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-drilling').textContent   = '$' + totalDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-nondrilling').textContent= '$' + totalNonDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-metres').textContent     = totalM.toFixed(1) + ' m';
+    document.getElementById('cost-per-m').textContent      = totalM > 0 ? '$' + (grand / totalM).toFixed(2) : '—';
+
+    // By hole table
+    document.getElementById('cost-hole-count').textContent = d.by_hole.length;
+    document.getElementById('cost-hole-body').innerHTML = d.by_hole.map(r => `
+      <tr>
+        <td>${escHtml(r.hole_num)}</td>
+        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>$${(r.drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>$${(r.non_drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>${(r.total_metres||0).toFixed(1)}</td>
+        <td>${r.total_metres > 0 ? '$'+(r.total_cost/r.total_metres).toFixed(2) : '—'}</td>
+        <td>${r.activity_count}</td>
+      </tr>`).join('') || '<tr><td colspan="7" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced data yet — import PDFs first</td></tr>';
+
+    // By date table
+    document.getElementById('cost-date-count').textContent = d.by_date.length;
+    document.getElementById('cost-date-body').innerHTML = d.by_date.map(r => `
+      <tr>
+        <td>${escHtml(r.date)}</td>
+        <td>${escHtml(r.hole_num)}</td>
+        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>${(r.total_metres||0).toFixed(1)}</td>
+      </tr>`).join('');
+
+    // Line items — load from activities with cost fields
+    await loadCostingLines(holes, dates);
+
+  } catch(e) { console.error(e); }
+}
+
+async function loadCostingLines(holes, dates) {
+  const params = new URLSearchParams();
+  if (holes) params.set('holes', holes);
+  if (dates) params.set('dates', dates);
+  const res = await fetch(`${API}/activities?${params}`);
+  const all = await res.json();
+  const priced = all.filter(r => r.line_cost != null);
+  costingLinesData = priced;
+  document.getElementById('cost-line-count').textContent = priced.length;
+  document.getElementById('cost-line-body').innerHTML = priced.map(r => `
+    <tr>
+      <td>${escHtml(r.date)}</td>
+      <td>${escHtml(r.hole_num)}</td>
+      <td>${codeBadge(r.code)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
+      <td>${r.total_metres != null ? r.total_metres.toFixed(2) : ''}</td>
+      <td style="color:var(--muted);font-size:10px">${escHtml(r.rate_basis||'')}</td>
+      <td>$${(r.unit_rate||0).toFixed(2)}</td>
+      <td>${(r.quantity||0).toFixed(2)}</td>
+      <td style="color:var(--accent);font-weight:600">$${(r.line_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    </tr>`).join('') || '<tr><td colspan="9" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced activity rows</td></tr>';
+}
+
+// ── Schedule of Rates ─────────────────────────────────────────────────────────
+let activeRateYear = null;
+
+function buildRateYearSelector(years) {
+  const sel = document.getElementById('rate-year-selector');
+  sel.innerHTML = '';
+  years.forEach((y, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'hole-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = y;
+    btn.dataset.year = y;
+    btn.addEventListener('click', () => {
+      sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeRateYear = y;
+      loadRates(y);
+    });
+    sel.appendChild(btn);
+  });
+  if (years.length) {
+    activeRateYear = years[0];
+    loadRates(years[0]);
+  }
+}
+
+async function loadRates(year) {
+  try {
+    const [drRes, hrRes] = await Promise.all([
+      fetch(`${API}/rates/drilling?year=${year}`),
+      fetch(`${API}/rates/hourly?year=${year}`),
+    ]);
+    drillingRatesData = await drRes.json();
+    hourlyRatesData   = await hrRes.json();
+    renderDrillingRates(drillingRatesData);
+    renderHourlyRates(hourlyRatesData);
+  } catch(e) { console.error(e); }
+}
+
+function renderDrillingRates(rows) {
+  document.getElementById('dr-count').textContent = rows.length;
+  document.getElementById('dr-body').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" data-table="drilling">
+      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
+      <td contenteditable="true" data-col="bit_type">${escHtml(r.bit_type)}</td>
+      <td contenteditable="true" data-col="depth_from">${r.depth_from}</td>
+      <td contenteditable="true" data-col="depth_to">${r.depth_to}</td>
+      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
+      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEditListeners('drilling');
+}
+
+function renderHourlyRates(rows) {
+  document.getElementById('hr-count').textContent = rows.length;
+  document.getElementById('hr-body').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" data-table="hourly">
+      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
+      <td contenteditable="true" data-col="code">${escHtml(r.code)}</td>
+      <td contenteditable="true" data-col="description">${escHtml(r.description||'')}</td>
+      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
+      <td contenteditable="true" data-col="unit">${escHtml(r.unit)}</td>
+      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEditListeners('hourly');
+}
+
+function attachRateEditListeners(table) {
+  const bodyId = table === 'drilling' ? 'dr-body' : 'hr-body';
+  document.getElementById(bodyId).querySelectorAll('[contenteditable]').forEach(cell => {
+    cell.addEventListener('blur', async () => {
+      const row = cell.closest('tr');
+      const id  = row.dataset.id;
+      const col = cell.dataset.col;
+      let val   = cell.textContent.trim().replace(/^\$/, '');
+      if (['rate','depth_from','depth_to'].includes(col)) val = parseFloat(val);
+      try {
+        await fetch(`${API}/rates/${table}/${id}`, {
+          method: 'PATCH',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({[col]: val}),
+        });
+        toast('✓ Rate saved');
+      } catch(e) { toast('Save failed','err'); }
+    });
+  });
+}
+
+async function deleteRate(table, id) {
+  if (!confirm('Delete this rate?')) return;
+  await fetch(`${API}/rates/${table}/${id}`, {method: 'DELETE'});
+  toast('Rate deleted', 'warn');
+  loadRates(activeRateYear);
+}
+
+async function addDrillingRate() {
+  const year = activeRateYear || '2025';
+  await fetch(`${API}/rates/drilling`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({year, bit_type:'HQ_HQ3', depth_from:0, depth_to:100, rate:0}),
+  });
+  loadRates(year);
+  toast('New drilling rate row added');
+}
+
+async function addHourlyRate() {
+  const year = activeRateYear || '2025';
+  await fetch(`${API}/rates/hourly`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({year, code:'NEW_CODE', description:'', rate:0, unit:'hour'}),
+  });
+  loadRates(year);
+  toast('New hourly rate row added');
+}
+
+async function copyRatesYear() {
+  const newYear = document.getElementById('new-year-input').value.trim();
+  if (!newYear || !/^\d{4}$/.test(newYear)) { toast('Enter a valid 4-digit year','err'); return; }
+  if (!activeRateYear) { toast('Select a source year first','err'); return; }
+
+  // Copy all drilling rates
+  for (const r of drillingRatesData) {
+    await fetch(`${API}/rates/drilling`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({year: newYear, bit_type: r.bit_type, depth_from: r.depth_from, depth_to: r.depth_to, rate: r.rate}),
+    });
+  }
+  // Copy all hourly rates
+  for (const r of hourlyRatesData) {
+    await fetch(`${API}/rates/hourly`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({year: newYear, code: r.code, description: r.description, rate: r.rate, unit: r.unit}),
+    });
+  }
+
+  toast(`✓ Rates copied to ${newYear} — now edit to update values`);
+  document.getElementById('new-year-input').value = '';
+
+  // Refresh year selector
+  const res  = await fetch(`${API}/rates/years`);
+  const data = await res.json();
+  buildRateYearSelector(data.years);
+  // Activate the new year
+  document.querySelectorAll('#rate-year-selector .hole-btn').forEach(b => {
+    if (b.dataset.year === newYear) b.click();
+  });
+}
+
+async function initRatesTab() {
+  try {
+    const res  = await fetch(`${API}/rates/years`);
+    const data = await res.json();
+    buildRateYearSelector(data.years);
+  } catch(e) {}
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
+// Extend nav handler to cover new pages
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const page = btn.dataset.page;
+    if (page === 'costing') {
+      // populate filter selects from cached filterOpts
+      populateSelect('f-cost-holes', filterOpts.holes || []);
+      populateSelect('f-cost-dates', filterOpts.dates || []);
+      loadCosting();
+    }
+    if (page === 'rates') initRatesTab();
+  });
+});
+
+// Collapsible filter for costing
+const costToggle = document.getElementById('cost-filter-toggle');
+if (costToggle) {
+  costToggle.addEventListener('click', () => {
+    costToggle.classList.toggle('open');
+    document.getElementById('cost-filter-body').classList.toggle('open');
+  });
+}
+
 (async () => {
   await updateDbCount();
   await loadActivities();
