@@ -1,893 +1,1871 @@
-"""
-DrillOps — FastAPI Backend
-Database: Supabase (PostgreSQL)
-Includes: Schedule of Rates per year, auto-pricing on PDF import
-"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Allianz Drilling — Field Operations</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
 
-import re
-import os
-from io import BytesIO
-from typing import Optional
-
-import pdfplumber
-import pandas as pd
-import psycopg2
-import psycopg2.extras
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-
-# ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="DrillOps API", version="2.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://www.drillops.com.au",
-        "https://drillops.com.au",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:5500",
-    ],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable is not set.")
-
-
-def get_conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-
-
-# ── Schema ────────────────────────────────────────────────────────────────────
-def init_db():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-
-            # Activities — now includes cost columns
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS activities (
-                    id              SERIAL PRIMARY KEY,
-                    source_file     TEXT,
-                    date            TEXT,
-                    hole_num        TEXT,
-                    site_name       TEXT,
-                    location        TEXT,
-                    drill_rig       TEXT,
-                    client          TEXT,
-                    contract        TEXT,
-                    shift           TEXT,
-                    time_from       TEXT,
-                    time_to         TEXT,
-                    total_time      TEXT,
-                    bit_type        TEXT,
-                    diameter        TEXT,
-                    metres_from     FLOAT,
-                    metres_to       FLOAT,
-                    total_metres    FLOAT,
-                    code            TEXT,
-                    notes           TEXT,
-                    rate_year       TEXT,
-                    unit_rate       FLOAT,
-                    quantity        FLOAT,
-                    line_cost       FLOAT,
-                    rate_basis      TEXT
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS consumables (
-                    id          SERIAL PRIMARY KEY,
-                    source_file TEXT,
-                    date        TEXT,
-                    hole_num    TEXT,
-                    site_name   TEXT,
-                    consumable  TEXT,
-                    type        TEXT,
-                    quantity    TEXT,
-                    unit        TEXT
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS crew (
-                    id          SERIAL PRIMARY KEY,
-                    source_file TEXT,
-                    date        TEXT,
-                    hole_num    TEXT,
-                    site_name   TEXT,
-                    role        TEXT,
-                    name        TEXT,
-                    hours       TEXT
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS imported_files (
-                    filename TEXT PRIMARY KEY
-                )
-            """)
-
-            # ── Rates tables ─────────────────────────────────────────────────
-            # Drilling rates: depth-banded $/m by bit type & year
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS drilling_rates (
-                    id          SERIAL PRIMARY KEY,
-                    year        TEXT NOT NULL,
-                    bit_type    TEXT NOT NULL,
-                    depth_from  FLOAT NOT NULL,
-                    depth_to    FLOAT NOT NULL,
-                    rate        FLOAT NOT NULL
-                )
-            """)
-
-            # Hourly/daily rates: active, standby, equipment etc
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS hourly_rates (
-                    id          SERIAL PRIMARY KEY,
-                    year        TEXT NOT NULL,
-                    code        TEXT NOT NULL,
-                    description TEXT,
-                    rate        FLOAT NOT NULL,
-                    unit        TEXT NOT NULL
-                )
-            """)
-
-        conn.commit()
-
-
-init_db()
-
-# ── Seed 2025 rates from the uploaded schedule ────────────────────────────────
-def seed_2025_rates():
-    """Insert the 2025/2026 schedule of rates if not already present."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS n FROM drilling_rates WHERE year='2025'")
-            if cur.fetchone()["n"] > 0:
-                return  # already seeded
-
-            YEAR = "2025"
-
-            # Drilling rates — $/m by bit type and depth band
-            drilling = [
-                # HQ/HQ3 Triple Tube wireline 96mm
-                (YEAR, "HQ_HQ3",    0,   100, 46.00),
-                (YEAR, "HQ_HQ3",  100,   200, 51.00),
-                (YEAR, "HQ_HQ3",  200,   300, 59.00),
-                (YEAR, "HQ_HQ3",  300,   400, 66.00),
-                (YEAR, "HQ_HQ3",  400,   500, 70.00),
-                # 4c 101.6mm Core
-                (YEAR, "4C",        0,   100, 51.00),
-                (YEAR, "4C",      100,   200, 62.00),
-                (YEAR, "4C",      200,   300, 76.00),
-                (YEAR, "4C",      300,   400, 81.00),
-                (YEAR, "4C",      400,   500, 95.00),
-                # Chip / PCD or Blade 99-125mm (3.5-5 inch)
-                (YEAR, "PCD_S",     0,   200, 51.00),
-                (YEAR, "PCD_S",   200,   300, 61.00),
-                (YEAR, "PCD_S",   400,   500, 90.00),
-                # Chip / PCD or Blade 125-175mm (5-7 inch)
-                (YEAR, "PCD_M",     0,   200, 60.00),
-                (YEAR, "PCD_M",   200,   300, 73.00),
-                (YEAR, "PCD_M",   400,   500, 103.00),
-                # Chip / PCD or Blade 175-305mm (7-10 inch)
-                (YEAR, "PCD_L",     0,   200, 76.00),
-                (YEAR, "PCD_L",   200,   300, 86.00),
-                # Hammer 3.5-5 inch
-                (YEAR, "HAMMER_S",  0,   100, 196.00),
-                (YEAR, "HAMMER_S",100,   200, 239.00),
-                (YEAR, "HAMMER_S",200,   300, 278.00),
-                (YEAR, "HAMMER_S",300,   400, 324.00),
-                (YEAR, "HAMMER_S",400,   500, 367.00),
-                (YEAR, "HAMMER_S",500,   600, 422.00),
-                # Hammer 5-7 inch
-                (YEAR, "HAMMER_M",  0,   100, 227.00),
-                (YEAR, "HAMMER_M",100,   200, 273.00),
-                (YEAR, "HAMMER_M",200,   300, 327.00),
-                (YEAR, "HAMMER_M",300,   400, 374.00),
-            ]
-            psycopg2.extras.execute_batch(cur, """
-                INSERT INTO drilling_rates (year, bit_type, depth_from, depth_to, rate)
-                VALUES (%s, %s, %s, %s, %s)
-            """, drilling)
-
-            # Hourly / daily rates
-            hourly = [
-                (YEAR, "H_Active",          "Active drilling rate (per hour)",             745.00,  "hour"),
-                (YEAR, "H_Inactive",         "Inactive / standby rate (per hour)",          675.00,  "hour"),
-                (YEAR, "H_Standby_NoCrew",   "Standby without crew (per day)",             4470.00,  "day"),
-                (YEAR, "H_Min_Shift",        "Minimum shift rate (per shift)",             8940.00,  "shift"),
-                (YEAR, "D_Backhoe",          "Backhoe day rate (with operator)",           1850.00,  "day"),
-                (YEAR, "D_Backhoe_Standby",  "Backhoe standby rate",                        620.00,  "day"),
-                (YEAR, "D_Water_Cart",       "Water cart day rate (20,000L)",              1650.00,  "day"),
-                (YEAR, "D_Water_Cart_Standby","Water cart standby rate",                    550.00,  "day"),
-                (YEAR, "MOB",                "Mobilisation to site",                      38760.00,  "event"),
-                (YEAR, "DEMOB",              "Demobilisation from site",                  38760.00,  "event"),
-            ]
-            psycopg2.extras.execute_batch(cur, """
-                INSERT INTO hourly_rates (year, code, description, rate, unit)
-                VALUES (%s, %s, %s, %s, %s)
-            """, hourly)
-
-        conn.commit()
-
-
-seed_2025_rates()
-
-# ── Pricing engine ────────────────────────────────────────────────────────────
-
-# Map activity codes to rate categories
-ACTIVE_CODES = {
-    "Drill_Core", "Drill_Chip_or_Open_hole",
-    "H_Tripping_Rods", "H_Circulation_Flush", "H_Circulation_Lost",
-    "H_Reaming", "H_Change_Drill_Mthd", "H_Surface_Setup",
-    "H_Casing_Install", "H_Rig_Cementing", "H_Mud_Mixing",
-    "H_Water_Flow_Measure", "H_Repairs", "H_Training",
-    "H_Safety_Prestart", "H_Safety_Contractor",
+<style>
+/* ── Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0c0f;
+  --bg2:       #111318;
+  --bg3:       #181c22;
+  --border:    #252a33;
+  --accent:    #e8a020;
+  --accent2:   #d44f1a;
+  --green:     #27ae60;
+  --red:       #c0392b;
+  --yellow:    #f39c12;
+  --blue:      #2980b9;
+  --text:      #e8e4dc;
+  --muted:     #6b7280;
+  --font-head: 'Bebas Neue', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'IBM Plex Sans', sans-serif;
 }
 
-STANDBY_CODES = {
-    "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Logger",
-    "H_Standby_Grout", "H_Standby_Cement_Set",
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-DAY_RATE_CODES = {
-    "D_Backhoe":               ("D_Backhoe",           "day"),
-    "D_Backhoe - Day Rate":    ("D_Backhoe",           "day"),
-    "D_Backhoe - Standby Rate":("D_Backhoe_Standby",   "day"),
-    "D_Water_Cart_Day_Rate":   ("D_Water_Cart",        "day"),
-    "D_Water Cart - Standby Rate": ("D_Water_Cart_Standby", "day"),
-    "D_Water_Cart":            ("D_Water_Cart",        "day"),
+/* Grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
 }
 
-# Bit type code → drilling_rates.bit_type lookup key
-BIT_TYPE_MAP = {
-    "HQ_HQ3": "HQ_HQ3",
-    "HQ":     "HQ_HQ3",
-    "NQ":     "HQ_HQ3",
-    "PCD":    "PCD_S",
+/* ── Header ──────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 64px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
+.logo {
+  font-family: var(--font-head);
+  font-size: 28px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.logo span { color: var(--text); }
 
-def time_str_to_hours(t: str) -> float:
-    try:
-        h, m = t.split(":")
-        return int(h) + int(m) / 60
-    except:
-        return 0.0
+.header-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  line-height: 1.6;
+}
+#db-count { color: var(--accent); }
 
+/* ── Layout ──────────────────────────────────────────────────────── */
+.shell {
+  display: flex;
+  min-height: calc(100vh - 64px);
+}
 
-def get_drilling_rate(cur, year: str, bit_type_key: str, depth: float) -> Optional[float]:
-    """Return $/m rate for the given bit type and depth from the rates table."""
-    cur.execute("""
-        SELECT rate FROM drilling_rates
-        WHERE year = %s AND bit_type = %s
-          AND depth_from <= %s AND depth_to > %s
-        ORDER BY depth_from
-        LIMIT 1
-    """, (year, bit_type_key, depth, depth))
-    row = cur.fetchone()
-    return float(row["rate"]) if row else None
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+}
 
+.sidebar-section {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
 
-def get_hourly_rate(cur, year: str, code: str) -> Optional[float]:
-    cur.execute("SELECT rate FROM hourly_rates WHERE year=%s AND code=%s", (year, code))
-    row = cur.fetchone()
-    return float(row["rate"]) if row else None
+.sidebar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
 
+.upload-zone {
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(232,160,32,0.05);
+}
+.upload-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.upload-zone .up-icon { font-size: 24px; margin-bottom: 6px; }
+.upload-zone p { font-size: 12px; color: var(--muted); line-height: 1.4; }
 
-def extract_year_from_date(date_str: str) -> str:
-    """Extract 4-digit year from d/m/yyyy or similar."""
-    m = re.search(r"(\d{4})", date_str)
-    if m:
-        return m.group(1)
-    # fallback: 2-digit year at end
-    m2 = re.search(r"/(\d{2})$", date_str)
-    if m2:
-        yr = int(m2.group(1))
-        return str(2000 + yr)
-    return "2025"
+#import-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.2s;
+}
+#import-btn:hover { background: #f0b030; }
+#import-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
 
+#import-log {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted);
+  max-height: 100px;
+  overflow-y: auto;
+}
+#import-log .ok  { color: var(--green); }
+#import-log .err { color: var(--red); }
+#import-log .skip { color: var(--yellow); }
 
-def price_activity(cur, row: dict) -> dict:
-    """
-    Calculate unit_rate, quantity, line_cost, rate_basis for one activity row.
-    Returns the row dict with pricing fields added.
-    """
-    code         = row.get("code", "") or ""
-    total_time   = row.get("total_time", "") or ""
-    total_metres = row.get("total_metres")
-    metres_to    = row.get("metres_to")
-    bit_type     = row.get("bit_type", "") or ""
-    date_str     = row.get("date", "") or ""
-    year         = extract_year_from_date(date_str) if date_str else "2025"
-    # map to the closest rate year available
-    rate_year = year
+.danger-btn {
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+  margin-top: auto;
+}
+.danger-btn:hover { background: rgba(192,57,43,0.15); }
 
-    hours    = time_str_to_hours(total_time)
-    unit_rate  = None
-    quantity   = None
-    line_cost  = None
-    rate_basis = None
+/* Nav tabs */
+nav {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
-    # ── 1. Drilling metres ────────────────────────────────────────────────
-    if code in ("Drill_Core", "Drill_Chip_or_Open_hole") and total_metres and total_metres > 0:
-        bit_key = BIT_TYPE_MAP.get(bit_type.upper().replace(" ", "_"), None)
-        if not bit_key:
-            # try to infer from code
-            bit_key = "PCD_S" if "Chip" in code else "HQ_HQ3"
-        # use mid-point depth for band lookup
-        depth_mid = (metres_to or 0)
-        rate = get_drilling_rate(cur, rate_year, bit_key, depth_mid)
-        if rate:
-            unit_rate  = rate
-            quantity   = total_metres
-            line_cost  = round(rate * total_metres, 2)
-            rate_basis = f"$/m @ {depth_mid:.0f}m depth ({bit_key})"
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active {
+  background: var(--bg3);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+}
+.nav-item .icon { font-size: 16px; }
 
-    # ── 2. Day-rate equipment ─────────────────────────────────────────────
-    elif code in DAY_RATE_CODES or any(k in code for k in DAY_RATE_CODES):
-        matched = next((v for k, v in DAY_RATE_CODES.items() if k in code or code in k), None)
-        if matched:
-            rate_code, unit = matched
-            rate = get_hourly_rate(cur, rate_year, rate_code)
-            if rate:
-                unit_rate  = rate
-                quantity   = 1
-                line_cost  = rate
-                rate_basis = f"${rate:,.2f}/{unit}"
+/* Main content */
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
 
-    # ── 3. Standby (inactive rate) ────────────────────────────────────────
-    elif code in STANDBY_CODES or "Standby" in code:
-        rate = get_hourly_rate(cur, rate_year, "H_Inactive")
-        if rate and hours > 0:
-            unit_rate  = rate
-            quantity   = round(hours, 2)
-            line_cost  = round(rate * hours, 2)
-            rate_basis = f"inactive $/hr × {hours:.2f}h"
+.page { display: none; }
+.page.active { display: block; }
 
-    # ── 4. Active rate (everything else operational) ──────────────────────
-    elif hours > 0 and (code in ACTIVE_CODES or any(a in code for a in ("H_", "Crew_Travel"))):
-        rate = get_hourly_rate(cur, rate_year, "H_Active")
-        if rate:
-            unit_rate  = rate
-            quantity   = round(hours, 2)
-            line_cost  = round(rate * hours, 2)
-            rate_basis = f"active $/hr × {hours:.2f}h"
+/* ── Common components ───────────────────────────────────────────── */
+.section-title {
+  font-family: var(--font-head);
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 
-    row["rate_year"] = rate_year
-    row["unit_rate"] = unit_rate
-    row["quantity"]  = quantity
-    row["line_cost"] = line_cost
-    row["rate_basis"] = rate_basis
-    return row
+/* KPI cards */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1200px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
 
+.kpi {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 16px 18px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.4s ease both;
+}
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.kpi.warn::before { background: var(--yellow); }
+.kpi.crit::before { background: var(--red); }
+.kpi.good::before { background: var(--green); }
 
-# ── PDF Parsing ───────────────────────────────────────────────────────────────
+.kpi-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.kpi-value {
+  font-family: var(--font-head);
+  font-size: 32px;
+  letter-spacing: 1px;
+  color: var(--text);
+  line-height: 1;
+}
+.kpi-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
 
-def parse_header(text):
-    patterns = {
-        "client":    r"CLIENT:\s*(.+?)\s+CONTRACT #:",
-        "contract":  r"CONTRACT #:\s*(\S+)",
-        "date":      r"DATE:\s*(\S+)",
-        "hole_num":  r"HOLE #:\s*(\S+)",
-        "shift":     r"SHIFT:\s*(\S+)",
-        "site_name": r"SITE NAME:\s*(\S+)",
-        "location":  r"LOCATION:\s*(\S+)",
-        "drill_rig": r"DRILL RIG #\s*(\S+)",
+/* Filters */
+.filter-bar {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.filter-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-align: left;
+}
+.filter-toggle:hover { background: var(--bg3); }
+.filter-toggle .arrow { transition: transform 0.2s; color: var(--muted); }
+.filter-toggle.open .arrow { transform: rotate(180deg); }
+
+.filter-body {
+  display: none;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.filter-body.open {
+  display: grid;
+}
+@media (max-width: 1100px) { .filter-body { grid-template-columns: repeat(2, 1fr); } }
+
+.filter-group label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.filter-group select,
+.filter-group input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 3px;
+  outline: none;
+}
+.filter-group select:focus,
+.filter-group input:focus { border-color: var(--accent); }
+
+.filter-group select[multiple] { height: 90px; }
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.btn-primary {
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: #f0b030; }
+.btn-ghost {
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+/* Table */
+.table-wrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.table-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.table-count span { color: var(--accent); }
+.btn-csv {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+.btn-csv:hover { border-color: var(--accent); color: var(--accent); }
+
+.tbl-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+thead { position: sticky; top: 0; z-index: 2; }
+thead th {
+  background: var(--bg3);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 9px;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+thead th:hover { color: var(--accent); cursor: pointer; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+tbody tr:hover { background: var(--bg3); }
+tbody td {
+  padding: 7px 12px;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+tbody td[contenteditable=true] {
+  cursor: text;
+  outline: none;
+}
+tbody td[contenteditable=true]:focus {
+  background: rgba(232,160,32,0.08);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.badge-drill  { background: rgba(39,174,96,0.2);  color: var(--green); }
+.badge-repair { background: rgba(192,57,43,0.2);  color: var(--red); }
+.badge-standby{ background: rgba(243,156,18,0.2); color: var(--yellow); }
+.badge-travel { background: rgba(100,100,100,0.2);color: var(--muted); }
+.badge-other  { background: rgba(41,128,185,0.2); color: var(--blue); }
+
+/* ── Charts grid ─────────────────────────────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+}
+.chart-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.chart-card canvas { max-height: 280px; }
+
+/* Anomaly table */
+.anomaly-row td:nth-child(3) .badge { font-size: 10px; padding: 3px 8px; }
+.severity-critical { background: rgba(192,57,43,0.25); color: #e74c3c; }
+.severity-warning  { background: rgba(230,126,34,0.25); color: #e67e22; }
+.severity-caution  { background: rgba(243,156,18,0.25); color: #f39c12; }
+.severity-info     { background: rgba(41,128,185,0.25); color: #3498db; }
+
+/* Heatmap */
+#heatmap-container {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.heatmap-table { border-collapse: separate; border-spacing: 3px; }
+.heatmap-table th {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+  padding: 3px 6px;
+  white-space: nowrap;
+  text-align: center;
+}
+.heatmap-cell {
+  width: 36px;
+  height: 28px;
+  border-radius: 2px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.8);
+  vertical-align: middle;
+}
+
+/* Hole selector */
+.hole-selector {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.hole-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.hole-btn:hover, .hole-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(232,160,32,0.08);
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 12px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  border-radius: 4px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 2;
+}
+.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">Allianz <span>Drilling</span></div>
+  <div class="header-meta">
+    Field Operations Intelligence<br>
+    <span id="db-count">—</span> activity records in database
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Import -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Import Reports</div>
+      <div class="upload-zone" id="drop-zone">
+        <input type="file" id="file-input" multiple accept=".pdf" />
+        <div class="up-icon">📄</div>
+        <p>Drop PDFs here<br>or click to browse</p>
+      </div>
+      <button id="import-btn" disabled>Import to Database</button>
+      <div id="import-log"></div>
+    </div>
+
+    <!-- Nav -->
+    <div class="sidebar-label" style="padding:0 20px;margin-bottom:8px;">Views</div>
+    <nav>
+      <button class="nav-item active" data-page="activities">
+        <span class="icon">📋</span> Activities
+      </button>
+      <button class="nav-item" data-page="consumables">
+        <span class="icon">🧪</span> Consumables
+      </button>
+      <button class="nav-item" data-page="crew">
+        <span class="icon">👷</span> Crew
+      </button>
+      <button class="nav-item" data-page="analytics">
+        <span class="icon">📊</span> Analytics
+      </button>
+      <button class="nav-item" data-page="costing">
+        <span class="icon">💰</span> Costing
+      </button>
+      <button class="nav-item" data-page="rates">
+        <span class="icon">📄</span> Schedule of Rates
+      </button>
+    </nav>
+
+    <!-- Danger -->
+    <button class="danger-btn" id="clear-btn">⚠ Clear Database</button>
+  </aside>
+
+  <!-- Main -->
+  <main>
+
+    <!-- ── Activities ──────────────────────────────────────────── -->
+    <section class="page active" id="page-activities">
+      <h2 class="section-title">Activity Log</h2>
+
+      <div class="filter-bar">
+        <button class="filter-toggle" id="act-filter-toggle">
+          🔍 &nbsp; Filters &amp; Search
+          <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="act-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-dates" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Hole #</label>
+            <select id="f-holes" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Site</label>
+            <select id="f-sites" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Activity Code</label>
+            <select id="f-codes" multiple></select>
+          </div>
+          <div class="filter-group" style="grid-column:1/-1">
+            <label>Keyword Search (notes / code)</label>
+            <input type="text" id="f-search" placeholder="e.g. lost circulation, repairs…" />
+          </div>
+          <div class="filter-actions" style="grid-column:1/-1">
+            <button class="btn-primary" onclick="loadActivities()">Apply</button>
+            <button class="btn-ghost" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="act-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('activities')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="act-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Hole #</th><th>Site</th>
+                <th>Time From</th><th>Time To</th><th>Duration</th>
+                <th>Bit Type</th><th>Ø</th>
+                <th>From m</th><th>To m</th><th>Metres</th>
+                <th>Code</th><th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="act-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Consumables ─────────────────────────────────────────── -->
+    <section class="page" id="page-consumables">
+      <h2 class="section-title">Consumables</h2>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="con-filter-toggle">
+          🔍 &nbsp; Filters <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="con-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-con-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadConsumables()">Apply</button>
+            <button class="btn-ghost" onclick="document.getElementById('f-con-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadConsumables()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="con-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('consumables')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="con-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th></tr></thead>
+            <tbody id="con-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Crew ────────────────────────────────────────────────── -->
+    <section class="page" id="page-crew">
+      <h2 class="section-title">Crew — People on Board</h2>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="crew-filter-toggle">
+          🔍 &nbsp; Filters <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="crew-filter-body">
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-crew-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadCrew()">Apply</button>
+            <button class="btn-ghost" onclick="document.getElementById('f-crew-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadCrew()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="crew-count">—</span> rows</div>
+          <button class="btn-csv" onclick="downloadCSV('crew')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="crew-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
+            <tbody id="crew-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Analytics ──────────────────────────────────────────── -->
+    <section class="page" id="page-analytics">
+      <h2 class="section-title">Analytics &amp; Anomalies</h2>
+
+      <div class="hole-selector" id="hole-selector">
+        <button class="hole-btn active" data-hole="all">All Holes</button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row" id="kpi-row">
+        <div class="kpi stagger-1"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
+        <div class="kpi stagger-2"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
+        <div class="kpi stagger-3"><div class="kpi-label">Repairs / Maint.</div><div class="kpi-value" id="kpi-repair">—</div></div>
+        <div class="kpi stagger-4"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
+        <div class="kpi stagger-5"><div class="kpi-label">Total Metres Drilled</div><div class="kpi-value" id="kpi-metres">—</div></div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Time Breakdown by Day</div>
+          <canvas id="chart-daily"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Cumulative Metres Drilled</div>
+          <canvas id="chart-cumulative"></canvas>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Drilling Efficiency % by Day</div>
+          <canvas id="chart-efficiency"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Metres per Drill Run</div>
+          <canvas id="chart-runs"></canvas>
+        </div>
+      </div>
+
+      <!-- Anomalies -->
+      <div style="margin-bottom:16px;">
+        <h2 class="section-title">🚨 Anomaly Report</h2>
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <div class="table-count"><span id="anom-count">—</span> anomalies detected</div>
+            <button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ Export CSV</button>
+          </div>
+          <div class="tbl-scroll">
+            <table id="anom-table">
+              <thead><tr><th>Date</th><th>Hole</th><th>Type</th><th>Detail</th></tr></thead>
+              <tbody id="anom-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="chart-card" style="margin-bottom:20px;">
+        <div class="chart-title">Non-Productive Time Heatmap</div>
+        <div id="heatmap-container"></div>
+        <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:8px;">
+          Black = none &nbsp;·&nbsp; 🟡 Yellow = moderate &nbsp;·&nbsp; 🔴 Red = high non-productive time
+        </p>
+      </div>
+    </section>
+
+    <!-- ── Costing ────────────────────────────────────────────── -->
+    <section class="page" id="page-costing">
+      <h2 class="section-title">💰 Costing Summary</h2>
+
+      <div class="kpi-row" id="cost-kpi-row">
+        <div class="kpi stagger-1"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
+        <div class="kpi stagger-2"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
+        <div class="kpi stagger-3"><div class="kpi-label">Non-Drilling Cost</div><div class="kpi-value" id="cost-nondrilling">—</div></div>
+        <div class="kpi stagger-4"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="cost-metres">—</div></div>
+        <div class="kpi stagger-5"><div class="kpi-label">Cost per Metre</div><div class="kpi-value" id="cost-per-m">—</div></div>
+      </div>
+
+      <!-- By hole summary -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Hole</h3>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="cost-hole-count">—</span> holes</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_holes')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-hole-table">
+            <thead><tr><th>Hole #</th><th>Total Cost</th><th>Drilling $</th><th>Non-Drilling $</th><th>Metres</th><th>$/m</th><th>Activities</th></tr></thead>
+            <tbody id="cost-hole-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- By date -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Day</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="cost-date-count">—</span> days</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_dates')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-date-table">
+            <thead><tr><th>Date</th><th>Hole #</th><th>Daily Cost</th><th>Metres</th></tr></thead>
+          <tbody id="cost-date-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Line-item detail -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:24px 0 12px;">Line Item Detail</h3>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="cost-filter-toggle">
+          🔍 &nbsp; Filter by Hole / Date <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="cost-filter-body">
+          <div class="filter-group">
+            <label>Hole #</label>
+            <select id="f-cost-holes" multiple></select>
+          </div>
+          <div class="filter-group">
+            <label>Date</label>
+            <select id="f-cost-dates" multiple></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadCosting()">Apply</button>
+            <button class="btn-ghost" onclick="resetCostFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="cost-line-count">—</span> priced rows</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="cost-line-table">
+            <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
+            <tbody id="cost-line-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Schedule of Rates ──────────────────────────────────── -->
+    <section class="page" id="page-rates">
+      <h2 class="section-title">📄 Schedule of Rates</h2>
+
+      <!-- Year selector + add year -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <div class="hole-selector" id="rate-year-selector" style="margin-bottom:0"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+          <input id="new-year-input" type="text" placeholder="e.g. 2026"
+            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;" />
+          <button class="btn-primary" onclick="copyRatesYear()">Copy from selected year →</button>
+        </div>
+      </div>
+
+      <!-- Drilling rates table -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Drilling Rates — $/metre by bit type &amp; depth</h3>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="dr-count">—</span> rate bands</div>
+          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addDrillingRate()">+ Add Row</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="dr-table">
+            <thead><tr><th>Year</th><th>Bit Type</th><th>Depth From</th><th>Depth To</th><th>Rate ($/m)</th><th></th></tr></thead>
+            <tbody id="dr-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Hourly/daily rates table -->
+      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Hourly / Daily Rates</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="hr-count">—</span> rates</div>
+          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addHourlyRate()">+ Add Row</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="hr-table">
+            <thead><tr><th>Year</th><th>Code</th><th>Description</th><th>Rate ($)</th><th>Unit</th><th></th></tr></thead>
+            <tbody id="hr-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:12px;">
+        ✏️ Click any cell to edit — changes save automatically. Add a new year by typing it above and clicking Copy.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+// Change this to your Render/Railway backend URL after deploying
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://drillops-api.onrender.com';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let pendingFiles = [];
+let filterOpts   = { dates: [], holes: [], sites: [], codes: [] };
+let activitiesData = [];
+let consumablesData = [];
+let crewData = [];
+let anomaliesData = [];
+let charts = {};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderLeftColor = type === 'err' ? 'var(--red)' : type === 'warn' ? 'var(--yellow)' : 'var(--accent)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getSelectedValues(selectId) {
+  const sel = document.getElementById(selectId);
+  return [...sel.selectedOptions].map(o => o.value);
+}
+
+function populateSelect(id, values, allSelected = true) {
+  const sel = document.getElementById(id);
+  const prev = getSelectedValues(id);
+  sel.innerHTML = '';
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = v;
+    opt.selected = allSelected || prev.includes(v);
+    sel.appendChild(opt);
+  });
+}
+
+function codeBadge(code) {
+  if (!code) return '';
+  const c = code.toLowerCase();
+  let cls = 'badge-other';
+  if (c.includes('drill_core') || c.includes('drill_chip')) cls = 'badge-drill';
+  else if (c.includes('repair')) cls = 'badge-repair';
+  else if (c.includes('standby') || c.includes('grout') || c.includes('logger')) cls = 'badge-standby';
+  else if (c.includes('travel')) cls = 'badge-travel';
+  return `<span class="badge ${cls}">${escHtml(code)}</span>`;
+}
+
+function fmt(v, decimals=2) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = parseFloat(v);
+  return isNaN(n) ? '' : n.toFixed(decimals);
+}
+
+async function updateDbCount() {
+  try {
+    const f = await fetch(`${API}/filters`);
+    const d = await f.json();
+    document.getElementById('db-count').textContent = d.total_rows.toLocaleString();
+    filterOpts = d;
+    populateSelect('f-dates', d.dates);
+    populateSelect('f-holes', d.holes);
+    populateSelect('f-sites', d.sites);
+    populateSelect('f-codes', d.codes);
+    populateSelect('f-con-dates', d.dates);
+    populateSelect('f-crew-dates', d.dates);
+    buildHoleSelector(d.holes);
+  } catch(e) {
+    document.getElementById('db-count').textContent = 'API offline';
+  }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.dataset.page;
+    document.getElementById(`page-${page}`).classList.add('active');
+    if (page === 'activities')  loadActivities();
+    if (page === 'consumables') loadConsumables();
+    if (page === 'crew')        loadCrew();
+    if (page === 'analytics')   loadAnalytics('all');
+  });
+});
+
+// ── Collapsible filters ────────────────────────────────────────────────────────
+['act', 'con', 'crew'].forEach(prefix => {
+  const toggle = document.getElementById(`${prefix}-filter-toggle`);
+  if (!toggle) return;
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('open');
+    document.getElementById(`${prefix}-filter-body`).classList.toggle('open');
+  });
+});
+
+// ── File upload & import ───────────────────────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const importBtn = document.getElementById('import-btn');
+
+fileInput.addEventListener('change', e => {
+  pendingFiles = [...e.target.files];
+  importBtn.disabled = pendingFiles.length === 0;
+  importBtn.textContent = pendingFiles.length > 0
+    ? `Import ${pendingFiles.length} file(s)`
+    : 'Import to Database';
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  pendingFiles = [...e.dataTransfer.files].filter(f => f.name.endsWith('.pdf'));
+  importBtn.disabled = pendingFiles.length === 0;
+  importBtn.textContent = pendingFiles.length > 0 ? `Import ${pendingFiles.length} file(s)` : 'Import to Database';
+});
+
+importBtn.addEventListener('click', async () => {
+  if (!pendingFiles.length) return;
+  importBtn.disabled = true;
+  importBtn.innerHTML = '<span class="spinner"></span> Importing…';
+  const log = document.getElementById('import-log');
+  log.innerHTML = '';
+  let total = 0;
+  for (const file of pendingFiles) {
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/import`, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (d.status === 'imported') {
+        log.innerHTML += `<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`;
+        total += d.rows;
+      } else {
+        log.innerHTML += `<div class="skip">⚠ ${file.name} (already imported)</div>`;
+      }
+    } catch(e) {
+      log.innerHTML += `<div class="err">✗ ${file.name} — ${e.message}</div>`;
     }
-    meta = {}
-    for key, pat in patterns.items():
-        m = re.search(pat, text, re.IGNORECASE)
-        meta[key] = m.group(1).strip() if m else ""
-    return meta
+  }
+  importBtn.textContent = 'Import to Database';
+  importBtn.disabled = false;
+  pendingFiles = [];
+  fileInput.value = '';
+  await updateDbCount();
+  if (total > 0) {
+    toast(`✓ Imported ${total} new rows`);
+    loadActivities();
+  }
+});
 
+// ── Clear DB ──────────────────────────────────────────────────────────────────
+document.getElementById('clear-btn').addEventListener('click', async () => {
+  if (!confirm('Clear ALL data from the database? This cannot be undone.')) return;
+  await fetch(`${API}/reset`, { method: 'DELETE' });
+  toast('Database cleared', 'warn');
+  await updateDbCount();
+  loadActivities();
+});
 
-def parse_activities(text, header, filename):
-    time_pat = r"\d{1,2}:\d{2}"
-    row_re = re.compile(
-        r"^(.*?)(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})"
-        r"(?:\s+(HQ_HQ3|PCD|NQ|HQ)\s+(\S+))?"
-        r"(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?"
-        r"(?:\s+([\w_]+))?\s*$",
-        re.IGNORECASE,
-    )
-    rows = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or len(re.findall(time_pat, line)) < 2:
-            continue
-        m = row_re.match(line)
-        if m:
-            notes, tf, tt, total, bit_type, diam, mf, mt, mto, code = m.groups()
-            rows.append({
-                "source_file":  filename,
-                "date":         header.get("date", ""),
-                "hole_num":     header.get("hole_num", ""),
-                "site_name":    header.get("site_name", ""),
-                "location":     header.get("location", ""),
-                "drill_rig":    header.get("drill_rig", ""),
-                "client":       header.get("client", ""),
-                "contract":     header.get("contract", ""),
-                "shift":        header.get("shift", ""),
-                "time_from":    tf,
-                "time_to":      tt,
-                "total_time":   total,
-                "bit_type":     bit_type or "",
-                "diameter":     diam or "",
-                "metres_from":  float(mf)  if mf  else None,
-                "metres_to":    float(mt)  if mt  else None,
-                "total_metres": float(mto) if mto else None,
-                "code":         code or "",
-                "notes":        notes.strip(),
-                # pricing — filled in next step
-                "rate_year":    None,
-                "unit_rate":    None,
-                "quantity":     None,
-                "line_cost":    None,
-                "rate_basis":   None,
-            })
-    return rows
+// ── Activities ────────────────────────────────────────────────────────────────
+function resetFilters() {
+  document.querySelectorAll('#act-filter-body select').forEach(s =>
+    [...s.options].forEach(o => o.selected = true)
+  );
+  document.getElementById('f-search').value = '';
+  loadActivities();
+}
 
+async function loadActivities() {
+  const dates  = getSelectedValues('f-dates').join(',');
+  const holes  = getSelectedValues('f-holes').join(',');
+  const sites  = getSelectedValues('f-sites').join(',');
+  const codes  = getSelectedValues('f-codes').join(',');
+  const search = document.getElementById('f-search').value.trim();
+  const params = new URLSearchParams({ dates, holes, sites, codes });
+  if (search) params.set('search', search);
+  try {
+    const res = await fetch(`${API}/activities?${params}`);
+    activitiesData = await res.json();
+    renderActivities(activitiesData);
+  } catch(e) {
+    document.getElementById('act-body').innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:20px">API offline — is the backend running?</td></tr>`;
+  }
+}
 
-def parse_consumables(text, header, filename):
-    rows = []
-    m = re.search(r"CONSUMABLES\s*\n(.*?)(?:ALLIANZ REPRESENTATIVE|$)", text, re.DOTALL | re.IGNORECASE)
-    if not m:
-        return rows
-    con_re = re.compile(
-        r"^(.+?)\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube)\s+(\d+)\s+(\S+)\s*$",
-        re.IGNORECASE | re.MULTILINE,
-    )
-    for cm in con_re.finditer(m.group(1)):
-        rows.append({
-            "source_file": filename, "date": header.get("date", ""),
-            "hole_num": header.get("hole_num", ""), "site_name": header.get("site_name", ""),
-            "consumable": cm.group(1).strip(), "type": cm.group(2).strip(),
-            "quantity": cm.group(3).strip(), "unit": cm.group(4).strip(),
-        })
-    return rows
+function renderActivities(rows) {
+  document.getElementById('act-count').textContent = rows.length.toLocaleString();
+  const tbody = document.getElementById('act-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="big">📭</div>No records match your filters</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr data-id="${r.id}">
+      <td>${escHtml(r.date)}</td>
+      <td>${escHtml(r.hole_num)}</td>
+      <td>${escHtml(r.site_name)}</td>
+      <td>${escHtml(r.time_from)}</td>
+      <td>${escHtml(r.time_to)}</td>
+      <td>${escHtml(r.total_time)}</td>
+      <td>${escHtml(r.bit_type)}</td>
+      <td>${escHtml(r.diameter)}</td>
+      <td>${fmt(r.metres_from)}</td>
+      <td>${fmt(r.metres_to)}</td>
+      <td>${fmt(r.total_metres)}</td>
+      <td>${codeBadge(r.code)}</td>
+      <td contenteditable="true" data-col="notes" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
+    </tr>
+  `).join('');
 
+  // Editable cells
+  tbody.querySelectorAll('[contenteditable]').forEach(cell => {
+    cell.addEventListener('blur', async () => {
+      const row  = cell.closest('tr');
+      const id   = row.dataset.id;
+      const col  = cell.dataset.col;
+      const val  = cell.textContent.trim();
+      try {
+        await fetch(`${API}/activities/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [col]: val }),
+        });
+        toast('✓ Saved');
+      } catch(e) { toast('Save failed', 'err'); }
+    });
+  });
+}
 
-def parse_crew(text, header, filename):
-    rows = []
-    for role in ["Rig Manager", "Driller", "Trainee Driller", "Offsider", "Operator"]:
-        pat = re.compile(rf"{role}\s+([\w\s\.]+?)\s+(\d+)\s", re.IGNORECASE)
-        m = pat.search(text)
-        if m:
-            rows.append({
-                "source_file": filename, "date": header.get("date", ""),
-                "hole_num": header.get("hole_num", ""), "site_name": header.get("site_name", ""),
-                "role": role, "name": m.group(1).strip(), "hours": m.group(2),
-            })
-    return rows
+// ── Consumables ───────────────────────────────────────────────────────────────
+async function loadConsumables() {
+  const dates = getSelectedValues('f-con-dates').join(',');
+  try {
+    const res = await fetch(`${API}/consumables?dates=${dates}`);
+    consumablesData = await res.json();
+    renderTable('con-body', 'con-count', consumablesData,
+      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.consumable)}</td><td>${escHtml(r.type)}</td><td>${escHtml(r.quantity)}</td><td>${escHtml(r.unit)}</td></tr>`, 7);
+  } catch(e) {}
+}
 
-# ── API Routes ────────────────────────────────────────────────────────────────
+// ── Crew ──────────────────────────────────────────────────────────────────────
+async function loadCrew() {
+  const dates = getSelectedValues('f-crew-dates').join(',');
+  try {
+    const res = await fetch(`${API}/crew?dates=${dates}`);
+    crewData = await res.json();
+    renderTable('crew-body', 'crew-count', crewData,
+      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.role)}</td><td>${escHtml(r.name)}</td><td>${escHtml(r.hours)}</td></tr>`, 6);
+  } catch(e) {}
+}
 
-@app.get("/")
-def root():
-    return {"status": "ok", "app": "DrillOps API v2"}
+function renderTable(bodyId, countId, rows, rowFn, cols) {
+  document.getElementById(countId).textContent = rows.length.toLocaleString();
+  const tbody = document.getElementById(bodyId);
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty-state"><div class="big">📭</div>No records yet</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(rowFn).join('');
+}
 
-
-@app.post("/import")
-async def import_pdf(file: UploadFile = File(...)):
-    filename = file.filename
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s", (filename,))
-            if cur.fetchone():
-                return {"status": "skipped", "filename": filename, "rows": 0}
-
-    content = await file.read()
-    try:
-        with pdfplumber.open(BytesIO(content)) as pdf:
-            text = "\n".join(p.extract_text() or "" for p in pdf.pages)
-    except Exception as e:
-        raise HTTPException(400, f"Could not read PDF: {e}")
-
-    header = parse_header(text)
-    acts   = parse_activities(text, header, filename)
-    cons   = parse_consumables(text, header, filename)
-    crew   = parse_crew(text, header, filename)
-
-    # Price each activity row
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            acts = [price_activity(cur, row) for row in acts]
-
-            if acts:
-                psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO activities
-                    (source_file,date,hole_num,site_name,location,drill_rig,client,contract,shift,
-                     time_from,time_to,total_time,bit_type,diameter,metres_from,metres_to,total_metres,
-                     code,notes,rate_year,unit_rate,quantity,line_cost,rate_basis)
-                    VALUES
-                    (%(source_file)s,%(date)s,%(hole_num)s,%(site_name)s,%(location)s,%(drill_rig)s,
-                     %(client)s,%(contract)s,%(shift)s,%(time_from)s,%(time_to)s,%(total_time)s,
-                     %(bit_type)s,%(diameter)s,%(metres_from)s,%(metres_to)s,%(total_metres)s,
-                     %(code)s,%(notes)s,%(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s)
-                """, acts)
-            if cons:
-                psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO consumables (source_file,date,hole_num,site_name,consumable,type,quantity,unit)
-                    VALUES (%(source_file)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s)
-                """, cons)
-            if crew:
-                psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO crew (source_file,date,hole_num,site_name,role,name,hours)
-                    VALUES (%(source_file)s,%(date)s,%(hole_num)s,%(site_name)s,%(role)s,%(name)s,%(hours)s)
-                """, crew)
-            cur.execute("INSERT INTO imported_files VALUES (%s) ON CONFLICT DO NOTHING", (filename,))
-        conn.commit()
-
-    total_cost = sum(r["line_cost"] for r in acts if r["line_cost"])
-    return {"status": "imported", "filename": filename, "rows": len(acts), "total_cost": round(total_cost, 2)}
-
-
-@app.get("/activities")
-def get_activities(
-    dates:  Optional[str] = Query(None),
-    holes:  Optional[str] = Query(None),
-    sites:  Optional[str] = Query(None),
-    codes:  Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-):
-    conditions = ["1=1"]
-    params: dict = {}
-    if dates:
-        conditions.append("date = ANY(%(dates)s)");  params["dates"] = dates.split(",")
-    if holes:
-        conditions.append("hole_num = ANY(%(holes)s)"); params["holes"] = holes.split(",")
-    if sites:
-        conditions.append("site_name = ANY(%(sites)s)"); params["sites"] = sites.split(",")
-    if codes:
-        conditions.append("code = ANY(%(codes)s)"); params["codes"] = codes.split(",")
-    if search:
-        conditions.append("(notes ILIKE %(search)s OR code ILIKE %(search)s)")
-        params["search"] = f"%{search}%"
-    query = f"SELECT * FROM activities WHERE {' AND '.join(conditions)} ORDER BY date, time_from"
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            return [dict(r) for r in cur.fetchall()]
-
-
-@app.patch("/activities/{row_id}")
-def update_activity(row_id: int, payload: dict):
-    safe_cols = {
-        "date","hole_num","site_name","location","drill_rig","client","contract","shift",
-        "time_from","time_to","total_time","bit_type","diameter",
-        "metres_from","metres_to","total_metres","code","notes",
-        "rate_year","unit_rate","quantity","line_cost","rate_basis",
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function buildHoleSelector(holes) {
+  const sel = document.getElementById('hole-selector');
+  const existing = [...sel.querySelectorAll('[data-hole]')].map(b => b.dataset.hole);
+  holes.forEach(h => {
+    if (!existing.includes(h)) {
+      const btn = document.createElement('button');
+      btn.className = 'hole-btn';
+      btn.dataset.hole = h;
+      btn.textContent = h;
+      btn.addEventListener('click', () => {
+        sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAnalytics(h);
+      });
+      sel.appendChild(btn);
     }
-    updates = {k: v for k, v in payload.items() if k in safe_cols}
-    if not updates:
-        raise HTTPException(400, "No valid fields to update")
-    set_clause = ", ".join(f"{k}=%({k})s" for k in updates)
-    updates["row_id"] = row_id
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%(row_id)s", updates)
-        conn.commit()
-    return {"status": "updated"}
+  });
+  sel.querySelector('[data-hole=all]').addEventListener('click', () => {
+    sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+    sel.querySelector('[data-hole=all]').classList.add('active');
+    loadAnalytics('all');
+  });
+}
 
+const CAT_COLORS = {
+  'Productive Drilling':  '#27ae60',
+  'Tripping Rods':        '#3498db',
+  'Circulation':          '#9b59b6',
+  'Repairs':              '#e74c3c',
+  'Standby / Delays':     '#f39c12',
+  'Travel':               '#7f8c8d',
+  'Safety & Admin':       '#1abc9c',
+  'Other':                '#555e6b',
+};
 
-@app.get("/consumables")
-def get_consumables(dates: Optional[str] = Query(None)):
-    q = "SELECT * FROM consumables WHERE 1=1"
-    p = {}
-    if dates:
-        q += " AND date = ANY(%(dates)s)"; p["dates"] = dates.split(",")
-    q += " ORDER BY date"
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(q, p); return [dict(r) for r in cur.fetchall()]
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
 
+async function loadAnalytics(hole) {
+  try {
+    const res = await fetch(`${API}/analytics?hole=${hole}`);
+    const d = await res.json();
 
-@app.get("/crew")
-def get_crew(dates: Optional[str] = Query(None)):
-    q = "SELECT * FROM crew WHERE 1=1"
-    p = {}
-    if dates:
-        q += " AND date = ANY(%(dates)s)"; p["dates"] = dates.split(",")
-    q += " ORDER BY date"
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(q, p); return [dict(r) for r in cur.fetchall()]
+    // KPIs
+    const k = d.kpis;
+    document.getElementById('kpi-total').textContent  = k.total_hours  + ' h';
+    document.getElementById('kpi-drill').textContent  = k.drill_hours  + ' h';
+    document.getElementById('kpi-eff').textContent    = k.efficiency   + '% efficiency';
+    document.getElementById('kpi-repair').textContent = k.repair_hours + ' h';
+    document.getElementById('kpi-delay').textContent  = k.delay_hours  + ' h';
+    document.getElementById('kpi-metres').textContent = k.total_metres + ' m';
 
+    // Colour the KPI cards
+    document.querySelectorAll('.kpi')[2].className = 'kpi ' + (k.repair_hours >= 4 ? 'crit' : 'good');
+    document.querySelectorAll('.kpi')[3].className = 'kpi ' + (k.delay_hours  >= 6 ? 'warn' : 'good');
 
-@app.get("/filters")
-def get_filters():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT date     FROM activities ORDER BY date")
-            dates = [r["date"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT hole_num  FROM activities ORDER BY hole_num")
-            holes = [r["hole_num"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT site_name FROM activities ORDER BY site_name")
-            sites = [r["site_name"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT code FROM activities WHERE code!='' ORDER BY code")
-            codes = [r["code"] for r in cur.fetchall()]
-            cur.execute("SELECT COUNT(*) AS n FROM activities")
-            total = cur.fetchone()["n"]
-    return {"dates": dates, "holes": holes, "sites": sites, "codes": codes, "total_rows": total}
+    // Chart 1 — daily breakdown stacked bar
+    buildDailyChart(d.daily_categories);
 
+    // Chart 2 — cumulative metres line
+    buildCumulativeChart(d.drill_runs);
 
-# ── Rates endpoints ───────────────────────────────────────────────────────────
+    // Chart 3 — efficiency bar
+    buildEfficiencyChart(d.daily_categories);
 
-@app.get("/rates/years")
-def get_rate_years():
-    """Return all years that have rates configured."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT year FROM drilling_rates ORDER BY year")
-            drilling_years = [r["year"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT year FROM hourly_rates ORDER BY year")
-            hourly_years = [r["year"] for r in cur.fetchall()]
-    years = sorted(set(drilling_years + hourly_years))
-    return {"years": years}
+    // Chart 4 — metres per run
+    buildRunChart(d.drill_runs);
 
+    // Anomalies
+    anomaliesData = d.anomalies;
+    renderAnomalies(d.anomalies);
 
-@app.get("/rates/drilling")
-def get_drilling_rates(year: Optional[str] = Query(None)):
-    q = "SELECT * FROM drilling_rates WHERE 1=1"
-    p = {}
-    if year:
-        q += " AND year=%(year)s"; p["year"] = year
-    q += " ORDER BY year, bit_type, depth_from"
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(q, p); return [dict(r) for r in cur.fetchall()]
+    // Heatmap
+    renderHeatmap(d.heatmap, d.daily_categories);
 
+  } catch(e) {
+    console.error(e);
+  }
+}
 
-@app.get("/rates/hourly")
-def get_hourly_rates(year: Optional[str] = Query(None)):
-    q = "SELECT * FROM hourly_rates WHERE 1=1"
-    p = {}
-    if year:
-        q += " AND year=%(year)s"; p["year"] = year
-    q += " ORDER BY year, code"
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(q, p); return [dict(r) for r in cur.fetchall()]
+function buildDailyChart(data) {
+  destroyChart('daily');
+  if (!data.length) return;
 
+  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const cats     = Object.keys(CAT_COLORS);
+  const datasets = cats.map(cat => ({
+    label: cat,
+    data: dates.map(d => {
+      const row = data.find(r => r.date === d && r.category === cat);
+      return row ? +row.hours.toFixed(2) : 0;
+    }),
+    backgroundColor: CAT_COLORS[cat],
+    borderWidth: 0,
+  })).filter(ds => ds.data.some(v => v > 0));
 
-@app.patch("/rates/drilling/{rate_id}")
-def update_drilling_rate(rate_id: int, payload: dict):
-    safe = {"year","bit_type","depth_from","depth_to","rate"}
-    updates = {k: v for k, v in payload.items() if k in safe}
-    if not updates:
-        raise HTTPException(400, "No valid fields")
-    set_clause = ", ".join(f"{k}=%({k})s" for k in updates)
-    updates["rate_id"] = rate_id
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE drilling_rates SET {set_clause} WHERE id=%(rate_id)s", updates)
-        conn.commit()
-    return {"status": "updated"}
+  const ctx = document.getElementById('chart-daily').getContext('2d');
+  charts['daily'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: dates, datasets },
+    options: {
+      plugins: { legend: { labels: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 10 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+        y: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
 
+function buildCumulativeChart(runs) {
+  destroyChart('cumulative');
+  if (!runs.length) return;
+  const ctx = document.getElementById('chart-cumulative').getContext('2d');
+  charts['cumulative'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: runs.map((r,i) => i+1),
+      datasets: [{
+        label: 'Cumulative Metres',
+        data: runs.map(r => r.cumulative),
+        borderColor: '#e8a020',
+        backgroundColor: 'rgba(232,160,32,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#e8a020',
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
+        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
 
-@app.patch("/rates/hourly/{rate_id}")
-def update_hourly_rate(rate_id: int, payload: dict):
-    safe = {"year","code","description","rate","unit"}
-    updates = {k: v for k, v in payload.items() if k in safe}
-    if not updates:
-        raise HTTPException(400, "No valid fields")
-    set_clause = ", ".join(f"{k}=%({k})s" for k in updates)
-    updates["rate_id"] = rate_id
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE hourly_rates SET {set_clause} WHERE id=%(rate_id)s", updates)
-        conn.commit()
-    return {"status": "updated"}
+function buildEfficiencyChart(data) {
+  destroyChart('efficiency');
+  if (!data.length) return;
+  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const totalByDate = {};
+  const drillByDate = {};
+  data.forEach(r => {
+    totalByDate[r.date] = (totalByDate[r.date] || 0) + r.hours;
+    if (r.category === 'Productive Drilling')
+      drillByDate[r.date] = (drillByDate[r.date] || 0) + r.hours;
+  });
+  const efficiencies = dates.map(d => totalByDate[d] ? +((drillByDate[d]||0)/totalByDate[d]*100).toFixed(1) : 0);
+  const colors = efficiencies.map(e => e < 20 ? '#e74c3c' : e < 40 ? '#f39c12' : '#27ae60');
+  const ctx = document.getElementById('chart-efficiency').getContext('2d');
+  charts['efficiency'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Efficiency %',
+        data: efficiencies,
+        backgroundColor: colors,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        annotation: {},
+      },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+        y: { max: 100, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => v+'%' }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
 
-
-@app.post("/rates/drilling")
-def add_drilling_rate(payload: dict):
-    required = {"year","bit_type","depth_from","depth_to","rate"}
-    if not required.issubset(payload.keys()):
-        raise HTTPException(400, f"Required fields: {required}")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO drilling_rates (year,bit_type,depth_from,depth_to,rate)
-                VALUES (%(year)s,%(bit_type)s,%(depth_from)s,%(depth_to)s,%(rate)s)
-                RETURNING id
-            """, payload)
-            new_id = cur.fetchone()["id"]
-        conn.commit()
-    return {"status": "created", "id": new_id}
-
-
-@app.post("/rates/hourly")
-def add_hourly_rate(payload: dict):
-    required = {"year","code","rate","unit"}
-    if not required.issubset(payload.keys()):
-        raise HTTPException(400, f"Required fields: {required}")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO hourly_rates (year,code,description,rate,unit)
-                VALUES (%(year)s,%(code)s,%(description)s,%(rate)s,%(unit)s)
-                RETURNING id
-            """, {**{"description": ""}, **payload})
-            new_id = cur.fetchone()["id"]
-        conn.commit()
-    return {"status": "created", "id": new_id}
-
-
-@app.delete("/rates/drilling/{rate_id}")
-def delete_drilling_rate(rate_id: int):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM drilling_rates WHERE id=%s", (rate_id,))
-        conn.commit()
-    return {"status": "deleted"}
-
-
-@app.delete("/rates/hourly/{rate_id}")
-def delete_hourly_rate(rate_id: int):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM hourly_rates WHERE id=%s", (rate_id,))
-        conn.commit()
-    return {"status": "deleted"}
-
-
-# ── Costing summary ───────────────────────────────────────────────────────────
-
-@app.get("/costing")
-def get_costing(
-    holes:  Optional[str] = Query(None),
-    dates:  Optional[str] = Query(None),
-):
-    """Return cost summary grouped by hole and date."""
-    conditions = ["line_cost IS NOT NULL"]
-    params: dict = {}
-    if holes:
-        conditions.append("hole_num = ANY(%(holes)s)"); params["holes"] = holes.split(",")
-    if dates:
-        conditions.append("date = ANY(%(dates)s)"); params["dates"] = dates.split(",")
-
-    where = " AND ".join(conditions)
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # By hole
-            cur.execute(f"""
-                SELECT hole_num,
-                       SUM(line_cost) AS total_cost,
-                       SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS drilling_cost,
-                       SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS non_drilling_cost,
-                       SUM(total_metres) AS total_metres,
-                       COUNT(*) AS activity_count
-                FROM activities WHERE {where}
-                GROUP BY hole_num ORDER BY hole_num
-            """, params)
-            by_hole = [dict(r) for r in cur.fetchall()]
-
-            # By date
-            cur.execute(f"""
-                SELECT date, hole_num,
-                       SUM(line_cost) AS total_cost,
-                       SUM(total_metres) AS total_metres
-                FROM activities WHERE {where}
-                GROUP BY date, hole_num ORDER BY date
-            """, params)
-            by_date = [dict(r) for r in cur.fetchall()]
-
-            # Grand total
-            cur.execute(f"SELECT SUM(line_cost) AS grand_total FROM activities WHERE {where}", params)
-            grand = cur.fetchone()
-
-    return {
-        "by_hole": by_hole,
-        "by_date": by_date,
-        "grand_total": float(grand["grand_total"] or 0),
-    }
-
-
-# ── Analytics ─────────────────────────────────────────────────────────────────
-
-@app.get("/analytics")
-def get_analytics(hole: Optional[str] = Query(None)):
-    query = "SELECT * FROM activities"
-    params = {}
-    if hole and hole != "all":
-        query += " WHERE hole_num = %(hole)s"; params["hole"] = hole
-
-    with get_conn() as conn:
-        df = pd.read_sql(query, conn, params=params)
-
-    if df.empty:
-        return {"kpis": {}, "daily_categories": [], "drill_runs": [], "anomalies": [], "heatmap": []}
-
-    def time_to_hours(t):
-        try:
-            parts = str(t).split(":")
-            return int(parts[0]) + int(parts[1]) / 60
-        except:
-            return 0.0
-
-    df["hours"] = df["total_time"].apply(time_to_hours)
-
-    def categorise(code):
-        if not code: return "Other"
-        c = str(code)
-        if any(p in c for p in ["Drill_Core", "Drill_Chip"]): return "Productive Drilling"
-        if "Repair" in c: return "Repairs"
-        if any(p in c for p in ["Standby","Grout","Cement_Set","AAC","Logger","Sumps"]): return "Standby / Delays"
-        if "Circulation" in c: return "Circulation"
-        if "Travel" in c: return "Travel"
-        if any(p in c for p in ["Safety","Training","Prestart"]): return "Safety & Admin"
-        if "Tripping" in c: return "Tripping Rods"
-        return "Other"
-
-    df["category"] = df["code"].apply(categorise)
-    total_h  = df["hours"].sum()
-    drill_h  = df[df["category"] == "Productive Drilling"]["hours"].sum()
-    repair_h = df[df["category"] == "Repairs"]["hours"].sum()
-    delay_h  = df[df["category"] == "Standby / Delays"]["hours"].sum()
-    total_m  = df["total_metres"].dropna().sum()
-    total_cost = float(df["line_cost"].dropna().sum())
-    efficiency = round(drill_h / total_h * 100, 1) if total_h > 0 else 0
-
-    daily     = df.groupby(["date", "category"])["hours"].sum().reset_index()
-    daily_out = daily.to_dict(orient="records")
-
-    runs = df[df["total_metres"].notna() & (df["total_metres"] > 0)].copy()
-    runs = runs.sort_values(["date", "time_from"])
-    runs["cumulative"] = runs.groupby("hole_num")["total_metres"].cumsum()
-    drill_runs = runs[["date","hole_num","time_from","total_metres","cumulative","notes"]].to_dict(orient="records")
-
-    anomalies = []
-    for date, day in df.groupby("date"):
-        dh = day[day["category"] == "Productive Drilling"]["hours"].sum()
-        rh = day[day["category"] == "Repairs"]["hours"].sum()
-        sh = day[day["category"] == "Standby / Delays"]["hours"].sum()
-        hole = day["hole_num"].iloc[0] if len(day) else ""
-        if dh == 0:
-            anomalies.append({"date": date, "hole": hole, "type": "No Drilling", "severity": "critical", "detail": "Zero productive drilling hours"})
-        if rh >= 2:
-            anomalies.append({"date": date, "hole": hole, "type": "High Repairs", "severity": "warning", "detail": f"{rh:.1f}h in repairs/maintenance"})
-        if sh >= 3:
-            anomalies.append({"date": date, "hole": hole, "type": "High Standby", "severity": "caution", "detail": f"{sh:.1f}h on standby/delays"})
-
-    short = df[df["total_metres"].notna() & (df["total_metres"] < 1.0) & (df["total_metres"] > 0)]
-    for _, r in short.iterrows():
-        anomalies.append({"date": r["date"], "hole": r["hole_num"], "type": "Short Run", "severity": "info", "detail": f"{r['total_metres']}m — {r['notes']}"})
-
-    circ = df[df["code"].str.contains("Circulation_Lost", na=False)]
-    for _, r in circ.iterrows():
-        anomalies.append({"date": r["date"], "hole": r["hole_num"], "type": "Lost Circulation", "severity": "critical", "detail": r["notes"] or "Lost returns"})
-
-    npt_cats = ["Repairs", "Standby / Delays", "Circulation"]
-    npt = df[df["category"].isin(npt_cats)].groupby(["date", "category"])["hours"].sum().reset_index()
-
-    return {
-        "kpis": {
-            "total_hours":  round(total_h, 1),
-            "drill_hours":  round(drill_h, 1),
-            "repair_hours": round(repair_h, 1),
-            "delay_hours":  round(delay_h, 1),
-            "total_metres": round(total_m, 1),
-            "efficiency":   efficiency,
-            "total_cost":   round(total_cost, 2),
+function buildRunChart(runs) {
+  destroyChart('runs');
+  if (!runs.length) return;
+  const ctx = document.getElementById('chart-runs').getContext('2d');
+  const avg = runs.reduce((s,r) => s+r.total_metres, 0) / runs.length;
+  charts['runs'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: runs.map((r,i) => i+1),
+      datasets: [{
+        label: 'Metres',
+        data: runs.map(r => r.total_metres),
+        backgroundColor: runs.map(r => r.total_metres < 1 ? '#e74c3c' : '#3498db'),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const r = runs[items[0].dataIndex];
+              return `${r.date} — Run #${items[0].dataIndex+1}`;
+            },
+            afterBody: (items) => {
+              const r = runs[items[0].dataIndex];
+              return r.notes ? [r.notes.substring(0,60)] : [];
+            },
+          },
         },
-        "daily_categories": daily_out,
-        "drill_runs":       drill_runs,
-        "anomalies":        anomalies,
-        "heatmap":          npt.to_dict(orient="records"),
+      },
+      scales: {
+        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
+        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
+      },
+      responsive: true, maintainAspectRatio: true,
+    },
+  });
+}
+
+function renderAnomalies(anomalies) {
+  document.getElementById('anom-count').textContent = anomalies.length;
+  const tbody = document.getElementById('anom-body');
+  if (!anomalies.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:20px;color:var(--green);font-family:var(--font-mono);font-size:12px">✓ No anomalies detected</td></tr>`;
+    return;
+  }
+  const icons = { critical:'🔴', warning:'🟠', caution:'🟡', info:'🔵' };
+  tbody.innerHTML = anomalies.map(a => `
+    <tr class="anomaly-row">
+      <td>${escHtml(a.date)}</td>
+      <td>${escHtml(a.hole)}</td>
+      <td><span class="badge severity-${a.severity}">${icons[a.severity]||''} ${escHtml(a.type)}</span></td>
+      <td>${escHtml(a.detail)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderHeatmap(heatmap, daily) {
+  if (!heatmap.length) {
+    document.getElementById('heatmap-container').innerHTML = '<p style="color:var(--muted);font-family:var(--font-mono);font-size:11px">No data</p>';
+    return;
+  }
+  const dates = [...new Set(daily.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
+  const cats  = ['Repairs', 'Standby / Delays', 'Circulation'];
+  const maxVal = Math.max(...heatmap.map(r => r.hours), 1);
+
+  function heatColor(h) {
+    if (!h) return '#111318';
+    const t = h / maxVal;
+    if (t < 0.3) return `rgba(243,156,18,${0.2+t*0.6})`;
+    return `rgba(192,57,43,${0.3+t*0.7})`;
+  }
+
+  let html = '<table class="heatmap-table"><thead><tr><th></th>';
+  dates.forEach(d => html += `<th>${d.split('/').slice(0,2).join('/')}</th>`);
+  html += '</tr></thead><tbody>';
+
+  cats.forEach(cat => {
+    html += `<tr><th style="text-align:left;white-space:nowrap;padding-right:12px">${cat}</th>`;
+    dates.forEach(d => {
+      const row  = heatmap.find(r => r.date === d && r.category === cat);
+      const val  = row ? row.hours : 0;
+      const bg   = heatColor(val);
+      const label = val > 0.1 ? val.toFixed(1) : '';
+      html += `<td class="heatmap-cell" style="background:${bg}" title="${cat} — ${d}: ${val.toFixed(1)}h">${label}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmap-container').innerHTML = html;
+}
+
+function dateSortKey(d) {
+  try {
+    const [day, mon, yr] = d.split('/');
+    return parseInt(yr)*10000 + parseInt(mon)*100 + parseInt(day);
+  } catch { return 0; }
+}
+
+// ── CSV Download ──────────────────────────────────────────────────────────────
+let costingHolesData = [], costingDatesData = [], costingLinesData = [];
+let drillingRatesData = [], hourlyRatesData = [];
+
+function downloadCSV(type) {
+  const map = {
+    activities:     [activitiesData,    'activities.csv'],
+    consumables:    [consumablesData,   'consumables.csv'],
+    crew:           [crewData,          'crew.csv'],
+    anomalies:      [anomaliesData,     'anomalies.csv'],
+    costing_holes:  [costingHolesData,  'costing_by_hole.csv'],
+    costing_dates:  [costingDatesData,  'costing_by_date.csv'],
+    costing_lines:  [costingLinesData,  'costing_lines.csv'],
+  };
+  const [rows, filename] = map[type] || [null, null];
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const csv  = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = filename;
+  a.click();
+}
+
+// ── Costing ───────────────────────────────────────────────────────────────────
+function resetCostFilters() {
+  ['f-cost-holes','f-cost-dates'].forEach(id =>
+    [...document.getElementById(id).options].forEach(o => o.selected = true));
+  loadCosting();
+}
+
+async function loadCosting() {
+  const holes = getSelectedValues('f-cost-holes').join(',');
+  const dates = getSelectedValues('f-cost-dates').join(',');
+  const params = new URLSearchParams();
+  if (holes) params.set('holes', holes);
+  if (dates) params.set('dates', dates);
+
+  try {
+    const res = await fetch(`${API}/costing?${params}`);
+    const d   = await res.json();
+
+    costingHolesData = d.by_hole;
+    costingDatesData = d.by_date;
+
+    // KPIs
+    const grand = d.grand_total;
+    const totalDrill    = d.by_hole.reduce((s, r) => s + (r.drilling_cost || 0), 0);
+    const totalNonDrill = d.by_hole.reduce((s, r) => s + (r.non_drilling_cost || 0), 0);
+    const totalM        = d.by_hole.reduce((s, r) => s + (r.total_metres || 0), 0);
+    document.getElementById('cost-grand').textContent      = '$' + grand.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-drilling').textContent   = '$' + totalDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-nondrilling').textContent= '$' + totalNonDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('cost-metres').textContent     = totalM.toFixed(1) + ' m';
+    document.getElementById('cost-per-m').textContent      = totalM > 0 ? '$' + (grand / totalM).toFixed(2) : '—';
+
+    // By hole table
+    document.getElementById('cost-hole-count').textContent = d.by_hole.length;
+    document.getElementById('cost-hole-body').innerHTML = d.by_hole.map(r => `
+      <tr>
+        <td>${escHtml(r.hole_num)}</td>
+        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>$${(r.drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>$${(r.non_drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>${(r.total_metres||0).toFixed(1)}</td>
+        <td>${r.total_metres > 0 ? '$'+(r.total_cost/r.total_metres).toFixed(2) : '—'}</td>
+        <td>${r.activity_count}</td>
+      </tr>`).join('') || '<tr><td colspan="7" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced data yet — import PDFs first</td></tr>';
+
+    // By date table
+    document.getElementById('cost-date-count').textContent = d.by_date.length;
+    document.getElementById('cost-date-body').innerHTML = d.by_date.map(r => `
+      <tr>
+        <td>${escHtml(r.date)}</td>
+        <td>${escHtml(r.hole_num)}</td>
+        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td>${(r.total_metres||0).toFixed(1)}</td>
+      </tr>`).join('');
+
+    // Line items — load from activities with cost fields
+    await loadCostingLines(holes, dates);
+
+  } catch(e) { console.error(e); }
+}
+
+async function loadCostingLines(holes, dates) {
+  const params = new URLSearchParams();
+  if (holes) params.set('holes', holes);
+  if (dates) params.set('dates', dates);
+  const res = await fetch(`${API}/activities?${params}`);
+  const all = await res.json();
+  const priced = all.filter(r => r.line_cost != null);
+  costingLinesData = priced;
+  document.getElementById('cost-line-count').textContent = priced.length;
+  document.getElementById('cost-line-body').innerHTML = priced.map(r => `
+    <tr>
+      <td>${escHtml(r.date)}</td>
+      <td>${escHtml(r.hole_num)}</td>
+      <td>${codeBadge(r.code)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
+      <td>${r.total_metres != null ? r.total_metres.toFixed(2) : ''}</td>
+      <td style="color:var(--muted);font-size:10px">${escHtml(r.rate_basis||'')}</td>
+      <td>$${(r.unit_rate||0).toFixed(2)}</td>
+      <td>${(r.quantity||0).toFixed(2)}</td>
+      <td style="color:var(--accent);font-weight:600">$${(r.line_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    </tr>`).join('') || '<tr><td colspan="9" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced activity rows</td></tr>';
+}
+
+// ── Schedule of Rates ─────────────────────────────────────────────────────────
+let activeRateYear = null;
+
+function buildRateYearSelector(years) {
+  const sel = document.getElementById('rate-year-selector');
+  sel.innerHTML = '';
+  years.forEach((y, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'hole-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = y;
+    btn.dataset.year = y;
+    btn.addEventListener('click', () => {
+      sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeRateYear = y;
+      loadRates(y);
+    });
+    sel.appendChild(btn);
+  });
+  if (years.length) {
+    activeRateYear = years[0];
+    loadRates(years[0]);
+  }
+}
+
+async function loadRates(year) {
+  try {
+    const [drRes, hrRes] = await Promise.all([
+      fetch(`${API}/rates/drilling?year=${year}`),
+      fetch(`${API}/rates/hourly?year=${year}`),
+    ]);
+    drillingRatesData = await drRes.json();
+    hourlyRatesData   = await hrRes.json();
+    renderDrillingRates(drillingRatesData);
+    renderHourlyRates(hourlyRatesData);
+  } catch(e) { console.error(e); }
+}
+
+function renderDrillingRates(rows) {
+  document.getElementById('dr-count').textContent = rows.length;
+  document.getElementById('dr-body').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" data-table="drilling">
+      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
+      <td contenteditable="true" data-col="bit_type">${escHtml(r.bit_type)}</td>
+      <td contenteditable="true" data-col="depth_from">${r.depth_from}</td>
+      <td contenteditable="true" data-col="depth_to">${r.depth_to}</td>
+      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
+      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEditListeners('drilling');
+}
+
+function renderHourlyRates(rows) {
+  document.getElementById('hr-count').textContent = rows.length;
+  document.getElementById('hr-body').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" data-table="hourly">
+      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
+      <td contenteditable="true" data-col="code">${escHtml(r.code)}</td>
+      <td contenteditable="true" data-col="description">${escHtml(r.description||'')}</td>
+      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
+      <td contenteditable="true" data-col="unit">${escHtml(r.unit)}</td>
+      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEditListeners('hourly');
+}
+
+function attachRateEditListeners(table) {
+  const bodyId = table === 'drilling' ? 'dr-body' : 'hr-body';
+  document.getElementById(bodyId).querySelectorAll('[contenteditable]').forEach(cell => {
+    cell.addEventListener('blur', async () => {
+      const row = cell.closest('tr');
+      const id  = row.dataset.id;
+      const col = cell.dataset.col;
+      let val   = cell.textContent.trim().replace(/^\$/, '');
+      if (['rate','depth_from','depth_to'].includes(col)) val = parseFloat(val);
+      try {
+        await fetch(`${API}/rates/${table}/${id}`, {
+          method: 'PATCH',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({[col]: val}),
+        });
+        toast('✓ Rate saved');
+      } catch(e) { toast('Save failed','err'); }
+    });
+  });
+}
+
+async function deleteRate(table, id) {
+  if (!confirm('Delete this rate?')) return;
+  await fetch(`${API}/rates/${table}/${id}`, {method: 'DELETE'});
+  toast('Rate deleted', 'warn');
+  loadRates(activeRateYear);
+}
+
+async function addDrillingRate() {
+  const year = activeRateYear || '2025';
+  await fetch(`${API}/rates/drilling`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({year, bit_type:'HQ_HQ3', depth_from:0, depth_to:100, rate:0}),
+  });
+  loadRates(year);
+  toast('New drilling rate row added');
+}
+
+async function addHourlyRate() {
+  const year = activeRateYear || '2025';
+  await fetch(`${API}/rates/hourly`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({year, code:'NEW_CODE', description:'', rate:0, unit:'hour'}),
+  });
+  loadRates(year);
+  toast('New hourly rate row added');
+}
+
+async function copyRatesYear() {
+  const newYear = document.getElementById('new-year-input').value.trim();
+  if (!newYear || !/^\d{4}$/.test(newYear)) { toast('Enter a valid 4-digit year','err'); return; }
+  if (!activeRateYear) { toast('Select a source year first','err'); return; }
+
+  // Copy all drilling rates
+  for (const r of drillingRatesData) {
+    await fetch(`${API}/rates/drilling`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({year: newYear, bit_type: r.bit_type, depth_from: r.depth_from, depth_to: r.depth_to, rate: r.rate}),
+    });
+  }
+  // Copy all hourly rates
+  for (const r of hourlyRatesData) {
+    await fetch(`${API}/rates/hourly`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({year: newYear, code: r.code, description: r.description, rate: r.rate, unit: r.unit}),
+    });
+  }
+
+  toast(`✓ Rates copied to ${newYear} — now edit to update values`);
+  document.getElementById('new-year-input').value = '';
+
+  // Refresh year selector
+  const res  = await fetch(`${API}/rates/years`);
+  const data = await res.json();
+  buildRateYearSelector(data.years);
+  // Activate the new year
+  document.querySelectorAll('#rate-year-selector .hole-btn').forEach(b => {
+    if (b.dataset.year === newYear) b.click();
+  });
+}
+
+async function initRatesTab() {
+  try {
+    const res  = await fetch(`${API}/rates/years`);
+    const data = await res.json();
+    buildRateYearSelector(data.years);
+  } catch(e) {}
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Extend nav handler to cover new pages
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const page = btn.dataset.page;
+    if (page === 'costing') {
+      // populate filter selects from cached filterOpts
+      populateSelect('f-cost-holes', filterOpts.holes || []);
+      populateSelect('f-cost-dates', filterOpts.dates || []);
+      loadCosting();
     }
+    if (page === 'rates') initRatesTab();
+  });
+});
 
+// Collapsible filter for costing
+const costToggle = document.getElementById('cost-filter-toggle');
+if (costToggle) {
+  costToggle.addEventListener('click', () => {
+    costToggle.classList.toggle('open');
+    document.getElementById('cost-filter-body').classList.toggle('open');
+  });
+}
 
-@app.delete("/reset")
-def reset_db():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            for tbl in ("activities", "consumables", "crew", "imported_files"):
-                cur.execute(f"DELETE FROM {tbl}")
-        conn.commit()
-    return {"status": "cleared"}
+(async () => {
+  await updateDbCount();
+  await loadActivities();
+})();
+</script>
+</body>
+</html>
