@@ -258,6 +258,8 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
       <button class="drawer-nav-item" data-page="analytics" onclick="drawerNav(this)"><span>📊</span> Analytics</button>
       <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span>💰</span> Costing</button>
       <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span>🧾</span> Purchase Orders</button>
+      <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span>🧮</span> Invoices</button>
+      <button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><span>⚖️</span> Reconciliation</button>
       <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span>📄</span> Schedule of Rates</button>
     </div>
 
@@ -334,6 +336,8 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
       <button class="nav-item" data-page="analytics"><span>📊</span> Analytics</button>
       <button class="nav-item" data-page="costing"><span>💰</span> Costing</button>
       <button class="nav-item" data-page="purchase-orders"><span>🧾</span> Purchase Orders</button>
+      <button class="nav-item" data-page="invoices"><span>🧮</span> Invoices</button>
+      <button class="nav-item" data-page="reconciliation"><span>⚖️</span> Reconciliation</button>
       <button class="nav-item" data-page="rates"><span>📄</span> Schedule of Rates</button>
     </nav>
     <div style="padding:16px;margin-top:auto;">
@@ -562,6 +566,137 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
       </div>
       <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:10px;">✏️ Click any cell to edit. Changes save automatically.</p>
     </section>
+    <!-- Invoices -->
+    <section class="page" id="page-invoices">
+      <h2 class="section-title">🧮 Invoices</h2>
+
+      <!-- Invoice import -->
+      <div class="filter-bar" style="margin-bottom:20px;">
+        <button class="filter-toggle" id="inv-import-toggle">📥 &nbsp;Import Invoice PDFs <span class="arrow">▼</span></button>
+        <div class="filter-body" id="inv-import-body" style="grid-template-columns:1fr;">
+          <div style="border:1px dashed var(--border);border-radius:4px;padding:16px;text-align:center;position:relative;cursor:pointer;" id="inv-drop-zone">
+            <input type="file" id="inv-file-input" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;"/>
+            <div style="font-size:24px;margin-bottom:6px;">📄</div>
+            <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Drop invoice PDFs or click to browse</p>
+          </div>
+          <div style="margin-top:8px;">
+            <button id="inv-import-btn" class="btn-primary" style="width:100%;" disabled>Import Invoices</button>
+            <div id="inv-import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.8;color:var(--muted);max-height:80px;overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoice summary KPIs -->
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi"><div class="kpi-label">Total Invoiced</div><div class="kpi-value" id="inv-kpi-total">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Amount Paid</div><div class="kpi-value" id="inv-kpi-paid">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Amount Due</div><div class="kpi-value" id="inv-kpi-due">—</div></div>
+        <div class="kpi"><div class="kpi-label">Invoices</div><div class="kpi-value" id="inv-kpi-count">—</div></div>
+      </div>
+
+      <!-- Invoice table -->
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="inv-count">—</span> invoices</div>
+          <button class="btn-csv" onclick="downloadCSV('invoices')">⬇ CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="inv-table">
+            <thead><tr>
+              <th>Invoice #</th><th>Date</th><th>Due Date</th><th>PO Reference</th>
+              <th>Subtotal</th><th>GST</th><th>Total AUD</th><th>Paid</th><th>Due</th>
+              <th>Status</th><th>Lines</th><th>Matches</th><th>Discrepancies</th><th></th>
+            </tr></thead>
+            <tbody id="inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Invoice line detail (shown when clicking an invoice) -->
+      <div id="inv-lines-panel" style="display:none;">
+        <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">
+          Line Items — <span id="inv-lines-title"></span>
+          <button onclick="closeInvLines()" style="float:right;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px;">✕ Close</button>
+        </h3>
+        <div class="table-wrap">
+          <div class="tbl-scroll">
+            <table id="inv-lines-table">
+              <thead><tr>
+                <th>Description</th><th>Category</th><th>Qty</th><th>Unit Price</th>
+                <th>Amount</th><th>Matched EOS $</th><th>Variance</th><th>Status</th>
+              </tr></thead>
+              <tbody id="inv-lines-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reconciliation -->
+    <section class="page" id="page-reconciliation">
+      <h2 class="section-title">⚖️ Invoice vs EOS Reconciliation</h2>
+
+      <!-- Grand total comparison -->
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Total Invoiced</div><div class="kpi-value" id="rec-inv-total">—</div></div>
+        <div class="kpi"><div class="kpi-label">EOS Calculated Cost</div><div class="kpi-value" id="rec-eos-total">—</div></div>
+        <div class="kpi"><div class="kpi-label">Grand Variance</div><div class="kpi-value" id="rec-variance">—</div><div class="kpi-sub" id="rec-variance-note">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Invoice Paid</div><div class="kpi-value" id="rec-paid">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Invoice Outstanding</div><div class="kpi-value" id="rec-due">—</div></div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+        <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Category Comparison</h3>
+        <button class="btn-ghost" style="font-size:10px;margin-left:auto;" onclick="rematchAll()">🔄 Re-run Matching</button>
+      </div>
+
+      <!-- Category comparison table -->
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="table-toolbar"><div class="table-count">Invoice vs EOS by category</div></div>
+        <div class="tbl-scroll">
+          <table id="rec-cat-table">
+            <thead><tr>
+              <th>Category</th><th>Invoice Total</th><th>EOS Total</th>
+              <th>Variance $</th><th>Variance %</th><th>Status</th>
+            </tr></thead>
+            <tbody id="rec-cat-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Invoice list with status -->
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Invoice Register</h3>
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="tbl-scroll">
+          <table id="rec-inv-table">
+            <thead><tr>
+              <th>Invoice #</th><th>Date</th><th>PO Reference</th>
+              <th>Total AUD</th><th>Paid</th><th>Due</th><th>Payment Status</th>
+            </tr></thead>
+            <tbody id="rec-inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Discrepancies -->
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">🚨 Line Item Discrepancies</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="rec-disc-count">—</span> discrepancies</div>
+          <button class="btn-csv" onclick="downloadCSV('discrepancies')">⬇ CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="rec-disc-table">
+            <thead><tr>
+              <th>Invoice #</th><th>Description</th><th>Category</th>
+              <th>Invoice $</th><th>EOS $</th><th>Variance $</th><th>Status</th>
+            </tr></thead>
+            <tbody id="rec-disc-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 <div id="toast"></div>
@@ -802,6 +937,8 @@ function triggerPageLoad(page){
   if(page==='analytics')   setTimeout(()=>loadAnalytics('all'),80);
   if(page==='costing')     loadCosting();
   if(page==='purchase-orders') loadPOs();
+  if(page==='invoices')    loadInvoices();
+  if(page==='reconciliation')  loadReconciliation();
   if(page==='rates')       initRatesTab();
 }
 
@@ -1377,12 +1514,225 @@ function downloadCSV(type){
   const map={activities:[activitiesData,'activities.csv'],consumables:[consumablesData,'consumables.csv'],
     crew:[crewData,'crew.csv'],anomalies:[anomaliesData,'anomalies.csv'],
     costing_holes:[costingHolesData,'costing_holes.csv'],costing_dates:[costingDatesData,'costing_dates.csv'],
-    costing_lines:[costingLinesData,'costing_lines.csv'],pos:[posData,'purchase_orders.csv']};
+    costing_lines:[costingLinesData,'costing_lines.csv'],pos:[posData,'purchase_orders.csv'],
+    invoices:[invoicesData,'invoices.csv'],discrepancies:[discrepanciesData,'reconciliation_discrepancies.csv']};
   const [rows,filename]=map[type]||[null,null];
   if(!rows||!rows.length)return;
   const keys=Object.keys(rows[0]);
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────────
+let invoicesData = [], discrepanciesData = [];
+let invPendingFiles = [];
+
+// Invoice import collapsible
+document.getElementById('inv-import-toggle').addEventListener('click',()=>{
+  document.getElementById('inv-import-toggle').classList.toggle('open');
+  document.getElementById('inv-import-body').classList.toggle('open');
+});
+
+// Invoice file input
+const invFileInput = document.getElementById('inv-file-input');
+const invImportBtn = document.getElementById('inv-import-btn');
+const invDropZone  = document.getElementById('inv-drop-zone');
+
+invFileInput.addEventListener('change',e=>{
+  invPendingFiles=[...e.target.files];
+  invImportBtn.disabled=invPendingFiles.length===0;
+  invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
+});
+invDropZone.addEventListener('dragover',e=>{e.preventDefault();invDropZone.style.borderColor='var(--accent)';});
+invDropZone.addEventListener('dragleave',()=>invDropZone.style.borderColor='');
+invDropZone.addEventListener('drop',e=>{
+  e.preventDefault();invDropZone.style.borderColor='';
+  invPendingFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
+  invImportBtn.disabled=invPendingFiles.length===0;
+  invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
+});
+
+invImportBtn.addEventListener('click',async()=>{
+  if(!invPendingFiles.length)return;
+  invImportBtn.disabled=true;invImportBtn.innerHTML='<span class="spinner"></span>Importing…';
+  const log=document.getElementById('inv-import-log');log.innerHTML='';
+  for(const file of invPendingFiles){
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+    try{
+      const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
+      if(d.status==='imported')
+        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — ${cur(d.total_aud)} (${d.line_count} lines)</div>`;
+      else
+        log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} (already imported)</div>`;
+    }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
+  }
+  invImportBtn.textContent='Import Invoices';invImportBtn.disabled=false;
+  invPendingFiles=[];invFileInput.value='';
+  loadInvoices();
+});
+
+async function loadInvoices(){
+  try{
+    invoicesData=await fetch(`${API}/invoices?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    renderInvoices(invoicesData);
+  }catch(e){console.error(e);}
+}
+
+function renderInvoices(rows){
+  document.getElementById('inv-count').textContent=rows.length;
+  // KPIs
+  const totalInv=rows.reduce((s,r)=>s+(parseFloat(r.total_aud)||0),0);
+  const totalPaid=rows.reduce((s,r)=>s+(parseFloat(r.amount_paid)||0),0);
+  const totalDue=rows.reduce((s,r)=>s+(parseFloat(r.amount_due)||0),0);
+  document.getElementById('inv-kpi-total').textContent=cur(totalInv);
+  document.getElementById('inv-kpi-paid').textContent=cur(totalPaid);
+  document.getElementById('inv-kpi-due').textContent=cur(totalDue);
+  document.getElementById('inv-kpi-count').textContent=rows.length;
+
+  const STATUS_COLOR={Paid:'var(--green)',Unpaid:'var(--red)',Partial:'var(--yellow)'};
+  document.getElementById('inv-body').innerHTML=rows.map(r=>`
+    <tr style="cursor:pointer" onclick="loadInvLines(${r.id},'${esc(r.invoice_number)}')">
+      <td style="color:var(--accent);font-weight:600">${esc(r.invoice_number)}</td>
+      <td>${esc(r.invoice_date||'')}</td>
+      <td>${esc(r.due_date||'')}</td>
+      <td style="font-size:10px">${esc(r.po_reference||'')}</td>
+      <td>${cur(r.subtotal)}</td>
+      <td>${cur(r.gst)}</td>
+      <td style="color:var(--accent);font-weight:600">${cur(r.total_aud)}</td>
+      <td style="color:var(--green)">${cur(r.amount_paid)}</td>
+      <td style="color:${(r.amount_due||0)>0?'var(--red)':'var(--muted)'}">${cur(r.amount_due)}</td>
+      <td><span class="badge" style="background:${STATUS_COLOR[r.status]||'var(--muted)'}22;color:${STATUS_COLOR[r.status]||'var(--muted)'}">${esc(r.status||'')}</span></td>
+      <td>${r.line_count||0}</td>
+      <td style="color:var(--green)">${r.exact_matches||0}</td>
+      <td style="color:${(r.over_count||0)+(r.under_count||0)>0?'var(--red)':'var(--muted)'}">${(r.over_count||0)+(r.under_count||0)}</td>
+      <td><button onclick="event.stopPropagation();deleteInvoice(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
+    </tr>`).join('')||'<tr><td colspan="14"><div class="empty-state"><div class="big">🧮</div>No invoices yet — import PDF invoices above</div></td></tr>';
+  makeTableSortable('inv-table');
+}
+
+async function loadInvLines(invoiceId, invoiceNum){
+  try{
+    const lines=await fetch(`${API}/invoices/${invoiceId}/lines`).then(r=>r.json());
+    document.getElementById('inv-lines-panel').style.display='block';
+    document.getElementById('inv-lines-title').textContent=invoiceNum;
+    const MATCH_COLORS={
+      exact_match:'var(--green)',close_match:'var(--yellow)',
+      invoice_over_eos:'var(--red)',invoice_under_eos:'var(--blue)',
+      no_eos_data:'var(--muted)',unmatched:'var(--muted)'
+    };
+    const MATCH_ICONS={
+      exact_match:'✓',close_match:'~',invoice_over_eos:'▲',
+      invoice_under_eos:'▼',no_eos_data:'?',unmatched:'?'
+    };
+    document.getElementById('inv-lines-body').innerHTML=lines.map(l=>`
+      <tr>
+        <td style="max-width:300px;white-space:normal;font-size:10px">${esc(l.description)}</td>
+        <td><span class="badge badge-other">${esc(l.category||'')}</span></td>
+        <td>${(l.quantity||0).toFixed(2)}</td>
+        <td>${cur(l.unit_price)}</td>
+        <td style="color:var(--accent);font-weight:600">${cur(l.amount)}</td>
+        <td style="color:var(--muted)">${l.matched_eos_cost!=null?cur(l.matched_eos_cost):'—'}</td>
+        <td style="color:${l.variance!=null?(l.variance>5?'var(--red)':l.variance<-5?'var(--blue)':'var(--green)'):'var(--muted)'}">
+          ${l.variance!=null?(l.variance>0?'+':'')+cur(l.variance):'—'}
+        </td>
+        <td><span style="color:${MATCH_COLORS[l.match_status]||'var(--muted)'}">
+          ${MATCH_ICONS[l.match_status]||'?'} ${(l.match_status||'').replace(/_/g,' ')}
+        </span></td>
+      </tr>`).join('');
+    makeTableSortable('inv-lines-table');
+    document.getElementById('inv-lines-panel').scrollIntoView({behavior:'smooth'});
+  }catch(e){}
+}
+
+function closeInvLines(){
+  document.getElementById('inv-lines-panel').style.display='none';
+}
+
+async function deleteInvoice(id){
+  if(!confirm('Delete this invoice?'))return;
+  await fetch(`${API}/invoices/${id}`,{method:'DELETE'});
+  toast('Invoice deleted','warn');
+  loadInvoices();
+}
+
+// ── Reconciliation ────────────────────────────────────────────────────────────
+async function loadReconciliation(){
+  try{
+    const d=await fetch(`${API}/reconciliation?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    const t=d.totals;
+
+    // KPIs
+    document.getElementById('rec-inv-total').textContent=cur(t.invoice_total);
+    document.getElementById('rec-eos-total').textContent=cur(t.eos_total);
+    document.getElementById('rec-variance').textContent=(t.grand_variance>=0?'+':'')+cur(t.grand_variance);
+    document.getElementById('rec-variance').style.color=t.grand_variance>100?'var(--red)':t.grand_variance<-100?'var(--blue)':'var(--green)';
+    document.getElementById('rec-variance-note').textContent=t.invoice_total>0?
+      `${((t.grand_variance/t.invoice_total)*100).toFixed(1)}% of invoiced`:'-';
+    document.getElementById('rec-paid').textContent=cur(t.invoice_paid);
+    document.getElementById('rec-due').textContent=cur(t.invoice_due);
+
+    // Category comparison
+    const STATUS_STYLE={
+      match:'color:var(--green)',
+      over:'color:var(--red)',
+      under:'color:var(--blue)'
+    };
+    const STATUS_LABEL={match:'✓ Match',over:'▲ Invoice Over EOS',under:'▼ Invoice Under EOS'};
+    document.getElementById('rec-cat-body').innerHTML=d.comparison.map(r=>`
+      <tr>
+        <td style="text-transform:capitalize">${esc(r.category.replace(/_/g,' '))}</td>
+        <td style="color:var(--accent)">${cur(r.invoice_total)}</td>
+        <td>${cur(r.eos_total)}</td>
+        <td style="${r.variance>100?'color:var(--red)':r.variance<-100?'color:var(--blue)':'color:var(--green)'}">
+          ${r.variance>=0?'+':''}${cur(r.variance)}
+        </td>
+        <td style="${r.variance_pct!=null&&Math.abs(r.variance_pct)>5?'color:var(--red)':'color:var(--muted)'}">
+          ${r.variance_pct!=null?(r.variance_pct>=0?'+':'')+r.variance_pct+'%':'N/A'}
+        </td>
+        <td><span style="${STATUS_STYLE[r.status]||''}">${STATUS_LABEL[r.status]||r.status}</span></td>
+      </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No data — import invoices and EOS reports first</td></tr>';
+    makeTableSortable('rec-cat-table');
+
+    // Invoice register
+    document.getElementById('rec-inv-body').innerHTML=d.invoices.map(r=>`
+      <tr>
+        <td style="color:var(--accent);font-weight:600">${esc(r.invoice_number)}</td>
+        <td>${esc(r.invoice_date||'')}</td>
+        <td style="font-size:10px">${esc(r.po_reference||'')}</td>
+        <td>${cur(r.total_aud)}</td>
+        <td style="color:var(--green)">${cur(r.amount_paid)}</td>
+        <td style="color:${(r.amount_due||0)>0?'var(--red)':'var(--muted)'}">${cur(r.amount_due)}</td>
+        <td><span style="color:${r.status==='Paid'?'var(--green)':r.status==='Unpaid'?'var(--red)':'var(--yellow)'}">${esc(r.status||'')}</span></td>
+      </tr>`).join('');
+    makeTableSortable('rec-inv-table');
+
+    // Discrepancies
+    discrepanciesData=d.discrepancies;
+    document.getElementById('rec-disc-count').textContent=d.discrepancies.length;
+    document.getElementById('rec-disc-body').innerHTML=d.discrepancies.map(r=>`
+      <tr>
+        <td style="color:var(--accent)">${esc(r.invoice_number)}</td>
+        <td style="max-width:280px;white-space:normal;font-size:10px">${esc(r.description)}</td>
+        <td><span class="badge badge-other">${esc(r.category||'')}</span></td>
+        <td>${cur(r.amount)}</td>
+        <td>${r.matched_eos_cost!=null?cur(r.matched_eos_cost):'—'}</td>
+        <td style="color:${(r.variance||0)>5?'var(--red)':(r.variance||0)<-5?'var(--blue)':'var(--green)'}">
+          ${r.variance!=null?(r.variance>=0?'+':'')+cur(r.variance):'—'}
+        </td>
+        <td style="color:${r.match_status==='invoice_over_eos'?'var(--red)':'var(--blue)'}">
+          ${(r.match_status||'').replace(/_/g,' ')}
+        </td>
+      </tr>`).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--green);font-family:var(--font-mono)">✓ No significant discrepancies</td></tr>';
+    makeTableSortable('rec-disc-table');
+
+  }catch(e){console.error('Reconciliation error:',e);}
+}
+
+async function rematchAll(){
+  toast('Re-running matching…');
+  await fetch(`${API}/reconciliation/rematch?contractor=${encodeURIComponent(activeContractor)}`,{method:'POST'});
+  toast('✓ Matching complete');
+  loadReconciliation();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
