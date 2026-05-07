@@ -539,6 +539,8 @@ thead th {
   user-select: none;
 }
 thead th:hover { color: var(--accent); cursor: pointer; }
+thead th.sorted-asc::after  { content: ' ▲'; color: var(--accent); }
+thead th.sorted-desc::after { content: ' ▼'; color: var(--accent); }
 
 tbody tr {
   border-bottom: 1px solid var(--border);
@@ -755,6 +757,17 @@ tbody td[contenteditable=true]:focus {
     <!-- Import -->
     <div class="sidebar-section">
       <div class="sidebar-label">Import Reports</div>
+      <div style="padding:0 20px 12px;">
+        <label class="sidebar-label" style="margin-bottom:6px;">Contractor</label>
+        <select id="import-contractor" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;outline:none;">
+          <option>Allianz Drilling</option>
+          <option>Mitchells Drilling</option>
+          <option>MCC Earthworks</option>
+          <option>Weatherfords</option>
+          <option>Epiroc</option>
+          <option>Fortem</option>
+        </select>
+      </div>
       <div class="upload-zone" id="drop-zone">
         <input type="file" id="file-input" multiple accept=".pdf" />
         <div class="up-icon">📄</div>
@@ -784,6 +797,9 @@ tbody td[contenteditable=true]:focus {
       </button>
       <button class="nav-item" data-page="rates">
         <span class="icon">📄</span> Schedule of Rates
+      </button>
+      <button class="nav-item" data-page="purchase-orders">
+        <span class="icon">🧾</span> Purchase Orders
       </button>
     </nav>
 
@@ -990,6 +1006,9 @@ tbody td[contenteditable=true]:focus {
     <section class="page" id="page-costing">
       <h2 class="section-title">💰 Costing Summary</h2>
 
+      <!-- PO Summary Banner -->
+      <div id="po-summary-banner" style="margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+
       <div class="kpi-row" id="cost-kpi-row">
         <div class="kpi stagger-1"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
         <div class="kpi stagger-2"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
@@ -1109,6 +1128,96 @@ tbody td[contenteditable=true]:focus {
       <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:12px;">
         ✏️ Click any cell to edit — changes save automatically. Add a new year by typing it above and clicking Copy.
       </p>
+    </section>
+
+    <!-- ── Purchase Orders ────────────────────────────────────── -->
+    <section class="page" id="page-purchase-orders">
+      <h2 class="section-title">🧾 Purchase Orders</h2>
+
+      <!-- Add PO form -->
+      <div class="filter-bar" style="margin-bottom:20px;">
+        <button class="filter-toggle" id="po-add-toggle">
+          ➕ &nbsp; Add New Purchase Order <span class="arrow">▼</span>
+        </button>
+        <div class="filter-body" id="po-add-body">
+          <div class="filter-group">
+            <label>PO Number *</label>
+            <input type="text" id="po-number" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="e.g. PO-2025-001" />
+          </div>
+          <div class="filter-group">
+            <label>Contractor</label>
+            <select id="po-contractor" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;">
+              <option>Allianz Drilling</option>
+              <option>Mitchells Drilling</option>
+              <option>MCC Earthworks</option>
+              <option>Weatherfords</option>
+              <option>Epiroc</option>
+              <option>Fortem</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Description</label>
+            <input type="text" id="po-description" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="e.g. Exploration drilling CD-26" />
+          </div>
+          <div class="filter-group">
+            <label>PO Value ($)</label>
+            <input type="number" id="po-value" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="0.00" step="0.01" />
+          </div>
+          <div class="filter-group">
+            <label>Issue Date</label>
+            <input type="text" id="po-issue-date" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="d/m/yyyy" />
+          </div>
+          <div class="filter-group">
+            <label>Expiry Date</label>
+            <input type="text" id="po-expiry-date" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="d/m/yyyy" />
+          </div>
+          <div class="filter-group">
+            <label>Status</label>
+            <select id="po-status" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;">
+              <option>Active</option>
+              <option>Completed</option>
+              <option>On Hold</option>
+              <option>Cancelled</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Notes</label>
+            <input type="text" id="po-notes" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="Optional notes" />
+          </div>
+          <div class="filter-actions" style="grid-column:1/-1">
+            <button class="btn-primary" onclick="addPO()">Create Purchase Order</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PO Table -->
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="po-count">—</span> purchase orders</div>
+          <button class="btn-csv" onclick="downloadCSV('pos')">⬇ Export CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="po-table">
+            <thead>
+              <tr>
+                <th>PO Number</th>
+                <th>Contractor</th>
+                <th>Description</th>
+                <th>Issue Date</th>
+                <th>Expiry Date</th>
+                <th>PO Value</th>
+                <th>Spent to Date</th>
+                <th>Remaining</th>
+                <th>% Used</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="po-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -1433,6 +1542,7 @@ function renderActivities(rows) {
       // Tab already moves to next cell natively
     });
   });
+  makeTableSortable('act-table');
 }
 
 // ── Consumables ───────────────────────────────────────────────────────────────
@@ -1470,25 +1580,32 @@ function renderTable(bodyId, countId, rows, rowFn, cols) {
 // ── Analytics ─────────────────────────────────────────────────────────────────
 function buildHoleSelector(holes) {
   const sel = document.getElementById('hole-selector');
-  const existing = [...sel.querySelectorAll('[data-hole]')].map(b => b.dataset.hole);
-  holes.forEach(h => {
-    if (!existing.includes(h)) {
-      const btn = document.createElement('button');
-      btn.className = 'hole-btn';
-      btn.dataset.hole = h;
-      btn.textContent = h;
-      btn.addEventListener('click', () => {
-        sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        loadAnalytics(h);
-      });
-      sel.appendChild(btn);
-    }
-  });
-  sel.querySelector('[data-hole=all]').addEventListener('click', () => {
+  // Clear and rebuild every time to avoid duplicate listeners
+  sel.innerHTML = '';
+
+  // All Holes button
+  const allBtn = document.createElement('button');
+  allBtn.className = 'hole-btn active';
+  allBtn.dataset.hole = 'all';
+  allBtn.textContent = 'All Holes';
+  allBtn.addEventListener('click', () => {
     sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
-    sel.querySelector('[data-hole=all]').classList.add('active');
+    allBtn.classList.add('active');
     loadAnalytics('all');
+  });
+  sel.appendChild(allBtn);
+
+  holes.forEach(h => {
+    const btn = document.createElement('button');
+    btn.className = 'hole-btn';
+    btn.dataset.hole = h;
+    btn.textContent = h;
+    btn.addEventListener('click', () => {
+      sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadAnalytics(h);
+    });
+    sel.appendChild(btn);
   });
 }
 
@@ -2024,10 +2141,225 @@ if (costToggle) {
   });
 }
 
+// ── Column Sorting ────────────────────────────────────────────────────────────
+// sortState: { tableId: { col: Number, dir: 1|-1 } }
+const sortState = {};
+
+function makeTableSortable(tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const thead = table.querySelector('thead tr');
+  if (!thead) return;
+  [...thead.children].forEach((th, colIdx) => {
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.addEventListener('click', () => {
+      const state = sortState[tableId] || { col: -1, dir: 1 };
+      const dir = state.col === colIdx ? -state.dir : 1;
+      sortState[tableId] = { col: colIdx, dir };
+
+      // Update sort indicators
+      [...thead.children].forEach(h => {
+        h.textContent = h.textContent.replace(' ▲','').replace(' ▼','');
+      });
+      th.textContent += dir === 1 ? ' ▲' : ' ▼';
+
+      // Sort tbody rows
+      const tbody = table.querySelector('tbody');
+      const rows  = [...tbody.querySelectorAll('tr')];
+      rows.sort((a, b) => {
+        const aCell = a.children[colIdx];
+        const bCell = b.children[colIdx];
+        if (!aCell || !bCell) return 0;
+        const aVal = aCell.textContent.trim().replace(/[$,]/g,'');
+        const bVal = bCell.textContent.trim().replace(/[$,]/g,'');
+        const aNum = parseFloat(aVal);
+        const bNum = parseFloat(bVal);
+        // Date sort d/m/yyyy
+        const aDate = dateSortKey(aVal);
+        const bDate = dateSortKey(bVal);
+        if (aDate && bDate && aDate !== 0 && bDate !== 0) return (aDate - bDate) * dir;
+        if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
+        return aVal.localeCompare(bVal) * dir;
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+}
+
+// Apply sorting to all static tables
+['act-table','con-table','crew-table','cost-hole-table','cost-date-table','cost-line-table','dr-table','hr-table','anom-table','po-table'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) makeTableSortable(id);
+});
+
+// Patch loadCosting to re-apply sort and load PO banner
+const _origLoadCosting = loadCosting;
+async function loadCosting() {
+  await _origLoadCosting();
+  ['cost-hole-table','cost-date-table','cost-line-table'].forEach(id => makeTableSortable(id));
+  // Also refresh PO banner
+  try {
+    const res = await fetch(`${API}/purchase_orders`);
+    posData = await res.json();
+    renderPOSummaryBanner(posData);
+  } catch(e) {}
+}
+
+// ── Purchase Orders ───────────────────────────────────────────────────────────
+let posData = [];
+
+document.getElementById('po-add-toggle').addEventListener('click', () => {
+  document.getElementById('po-add-toggle').classList.toggle('open');
+  document.getElementById('po-add-body').classList.toggle('open');
+});
+
+async function loadPOs() {
+  try {
+    const res = await fetch(`${API}/purchase_orders`);
+    posData = await res.json();
+    renderPOs(posData);
+    renderPOSummaryBanner(posData);
+  } catch(e) { console.error(e); }
+}
+
+function renderPOs(rows) {
+  document.getElementById('po-count').textContent = rows.length;
+  const tbody = document.getElementById('po-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet — add one above</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const spent    = parseFloat(r.spent_to_date) || 0;
+    const value    = parseFloat(r.po_value) || 0;
+    const remaining= parseFloat(r.remaining) ?? (value - spent);
+    const pct      = value > 0 ? Math.min((spent / value * 100), 100).toFixed(1) : '0.0';
+    const pctNum   = parseFloat(pct);
+    const barColor = pctNum > 90 ? 'var(--red)' : pctNum > 70 ? 'var(--yellow)' : 'var(--green)';
+    const statusColor = r.status === 'Active' ? 'var(--green)' : r.status === 'Completed' ? 'var(--blue)' : 'var(--muted)';
+    return `<tr data-id="${r.id}">
+      <td contenteditable="true" data-col="po_number" style="color:var(--accent);font-weight:600">${escHtml(r.po_number)}</td>
+      <td contenteditable="true" data-col="contractor_name">${escHtml(r.contractor_name||'')}</td>
+      <td contenteditable="true" data-col="description">${escHtml(r.description||'')}</td>
+      <td contenteditable="true" data-col="issue_date">${escHtml(r.issue_date||'')}</td>
+      <td contenteditable="true" data-col="expiry_date">${escHtml(r.expiry_date||'')}</td>
+      <td contenteditable="true" data-col="po_value" data-numeric="true">$${value.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="color:var(--accent)">$${spent.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="color:${remaining < 0 ? 'var(--red)' : 'var(--green)'}">$${remaining.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${barColor};"></div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:10px;color:${barColor}">${pct}%</span>
+        </div>
+      </td>
+      <td contenteditable="true" data-col="status" style="color:${statusColor}">${escHtml(r.status||'Active')}</td>
+      <td contenteditable="true" data-col="notes">${escHtml(r.notes||'')}</td>
+      <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('[contenteditable]').forEach(cell => {
+    cell.addEventListener('blur', async () => {
+      const row = cell.closest('tr');
+      const id  = row.dataset.id;
+      const col = cell.dataset.col;
+      let val   = cell.textContent.trim().replace(/[$,]/g,'');
+      if (cell.dataset.numeric) val = parseFloat(val) || 0;
+      await fetch(`${API}/purchase_orders/${id}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({[col]: val}),
+      });
+      toast('✓ PO saved');
+      loadPOs();
+    });
+  });
+  makeTableSortable('po-table');
+}
+
+function renderPOSummaryBanner(pos) {
+  const banner = document.getElementById('po-summary-banner');
+  if (!banner) return;
+  const active = pos.filter(p => p.status === 'Active');
+  if (!active.length) { banner.innerHTML = ''; return; }
+  banner.innerHTML = active.map(r => {
+    const spent    = parseFloat(r.spent_to_date) || 0;
+    const value    = parseFloat(r.po_value) || 0;
+    const remain   = value - spent;
+    const pct      = value > 0 ? Math.min((spent / value * 100), 100).toFixed(1) : '0.0';
+    const pctNum   = parseFloat(pct);
+    const barColor = pctNum > 90 ? 'var(--red)' : pctNum > 70 ? 'var(--yellow)' : 'var(--green)';
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-top:2px solid ${barColor};padding:14px 18px;border-radius:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-family:var(--font-head);font-size:16px;letter-spacing:1px;color:var(--accent)">${escHtml(r.po_number)}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">${escHtml(r.contractor_name||'')}${r.description ? ' — '+escHtml(r.description) : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase">Remaining</div>
+          <div style="font-family:var(--font-head);font-size:20px;color:${remain < 0 ? 'var(--red)' : 'var(--green)'}">$${remain.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+        </div>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px;">
+        <div style="width:${pct}%;height:100%;background:${barColor};transition:width 0.4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--muted);">
+        <span>Spent: $${spent.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+        <span>${pct}% of $${value.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addPO() {
+  const po_number = document.getElementById('po-number').value.trim();
+  if (!po_number) { toast('PO Number is required', 'err'); return; }
+  await fetch(`${API}/purchase_orders`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      po_number,
+      contractor_name: document.getElementById('po-contractor').value,
+      description:     document.getElementById('po-description').value,
+      po_value:        parseFloat(document.getElementById('po-value').value) || 0,
+      issue_date:      document.getElementById('po-issue-date').value,
+      expiry_date:     document.getElementById('po-expiry-date').value,
+      status:          document.getElementById('po-status').value,
+      notes:           document.getElementById('po-notes').value,
+    }),
+  });
+  ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  toast('✓ Purchase order created');
+  loadPOs();
+}
+
+async function deletePO(id) {
+  if (!confirm('Delete this purchase order?')) return;
+  await fetch(`${API}/purchase_orders/${id}`, {method:'DELETE'});
+  toast('PO deleted', 'warn');
+  loadPOs();
+}
+
+// Wire up nav for POs
+document.querySelectorAll('.nav-item[data-page="purchase-orders"]').forEach(btn => {
+  btn.addEventListener('click', () => loadPOs());
+});
+
+// Wire up nav for costing to load POs too
+document.querySelectorAll('.nav-item[data-page="costing"]').forEach(btn => {
+  btn.addEventListener('click', () => loadPOs());
+});
+
 (async () => {
   await updateDbCount();
   await loadActivities();
+  makeTableSortable('act-table');
+  setTimeout(() => loadAnalytics('all'), 300);
 })();
+
 </script>
 </body>
 </html>
