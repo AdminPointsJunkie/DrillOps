@@ -1,740 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Allianz Drilling — Field Operations</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DrillOps — Field Operations</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
-
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
 <style>
-/* ── Login screen ────────────────────────────────────────────────── */
-#login-screen {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9998;
-  flex-direction: column;
-  gap: 0;
-}
-.login-box {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--accent);
-  padding: 48px 40px 40px;
-  width: 360px;
-  border-radius: 4px;
-}
-.login-logo {
-  font-family: var(--font-head);
-  font-size: 32px;
-  letter-spacing: 4px;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-.login-logo span { color: var(--text); }
-.login-sub {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 32px;
-}
-.login-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  display: block;
-  margin-bottom: 6px;
-}
-.login-input {
-  width: 100%;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 14px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  border-radius: 3px;
-  outline: none;
-  margin-bottom: 16px;
-  box-sizing: border-box;
-}
-.login-input:focus { border-color: var(--accent); }
-.login-btn {
-  width: 100%;
-  padding: 12px;
-  background: var(--accent);
-  color: #000;
-  border: none;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 3px;
-  margin-top: 4px;
-  transition: background 0.2s;
-}
-.login-btn:hover { background: #f0b030; }
-.login-error {
-  color: var(--red);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  margin-top: 10px;
-  text-align: center;
-  min-height: 16px;
-}
 :root {
-  --bg:        #0a0c0f;
-  --bg2:       #111318;
-  --bg3:       #181c22;
-  --border:    #252a33;
-  --accent:    #e8a020;
-  --accent2:   #d44f1a;
-  --green:     #27ae60;
-  --red:       #c0392b;
-  --yellow:    #f39c12;
-  --blue:      #2980b9;
-  --text:      #e8e4dc;
-  --muted:     #6b7280;
-  --font-head: 'Bebas Neue', sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-body: 'IBM Plex Sans', sans-serif;
+  --bg:#0a0c0f; --bg2:#111318; --bg3:#181c22; --border:#252a33;
+  --accent:#e8a020; --accent2:#d44f1a; --green:#27ae60; --red:#c0392b;
+  --yellow:#f39c12; --blue:#2980b9; --text:#e8e4dc; --muted:#6b7280;
+  --font-head:'Bebas Neue',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+  --font-body:'IBM Plex Sans',sans-serif;
 }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Login */
+#login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9998;}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--accent);padding:48px 40px 40px;width:360px;border-radius:4px;}
+.login-logo{font-family:var(--font-head);font-size:32px;letter-spacing:4px;color:var(--accent);margin-bottom:4px;}
+.login-logo span{color:var(--text);}
+.login-sub{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:32px;}
+.login-label{display:block;font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.login-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;border-radius:3px;outline:none;margin-bottom:16px;}
+.login-input:focus{border-color:var(--accent);}
+.login-btn{width:100%;padding:12px;background:var(--accent);color:#000;border:none;font-family:var(--font-mono);font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:background 0.2s;}
+.login-btn:hover{background:#f0b030;}
+.login-error{color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:10px;text-align:center;min-height:16px;}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 14px;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:64px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;}
+.logo{font-family:var(--font-head);font-size:28px;letter-spacing:3px;color:var(--accent);}
+.logo span{color:var(--text);}
+.header-center{display:flex;align-items:center;gap:8px;}
+.active-contractor-pill{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--accent);background:rgba(232,160,32,0.1);border:1px solid rgba(232,160,32,0.3);padding:4px 12px;border-radius:20px;text-transform:uppercase;}
+.header-right{display:flex;align-items:center;gap:12px;}
+.header-meta{font-family:var(--font-mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.6;}
+#db-count{color:var(--accent);}
 
-/* Grain texture overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.4;
-}
+/* Hamburger button */
+.hamburger{background:transparent;border:1px solid var(--border);color:var(--text);width:40px;height:40px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:border-color 0.2s;}
+.hamburger:hover{border-color:var(--accent);}
+.hamburger span{display:block;width:18px;height:2px;background:var(--text);border-radius:1px;transition:all 0.3s;}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.hamburger.open span:nth-child(2){opacity:0;}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
 
-/* ── Header ──────────────────────────────────────────────────────── */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32px;
-  height: 64px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
+/* Slide-out drawer */
+#drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+#drawer-overlay.open{opacity:1;pointer-events:all;}
+#drawer{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);z-index:301;transition:right 0.3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden;}
+#drawer.open{right:0;}
+.drawer-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.drawer-title{font-family:var(--font-head);font-size:22px;letter-spacing:2px;color:var(--accent);}
+.drawer-close{background:transparent;border:1px solid var(--border);color:var(--muted);width:32px;height:32px;border-radius:4px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.drawer-close:hover{border-color:var(--red);color:var(--red);}
+.drawer-body{flex:1;overflow-y:auto;padding:0;}
 
-.logo {
-  font-family: var(--font-head);
-  font-size: 28px;
-  letter-spacing: 3px;
-  color: var(--accent);
-  text-transform: uppercase;
-}
-.logo span { color: var(--text); }
+/* Drawer sections */
+.drawer-section{border-bottom:1px solid var(--border);padding:20px 24px;}
+.drawer-section-title{font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
 
-.header-meta {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-  text-align: right;
-  line-height: 1.6;
-}
-#db-count { color: var(--accent); }
+/* Contractor list in drawer */
+.contractor-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:4px;margin-bottom:6px;background:var(--bg3);border:1px solid transparent;cursor:pointer;transition:all 0.15s;}
+.contractor-item:hover{border-color:var(--border);}
+.contractor-item.active{border-color:var(--accent);background:rgba(232,160,32,0.08);}
+.contractor-item-left{display:flex;align-items:center;gap:10px;}
+.contractor-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);}
+.contractor-item.active .contractor-dot{background:var(--accent);}
+.contractor-name{font-family:var(--font-mono);font-size:12px;color:var(--text);}
+.contractor-item.active .contractor-name{color:var(--accent);}
+.contractor-code{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;}
+.contractor-item-actions{display:flex;gap:6px;}
+.icon-btn{background:transparent;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;border-radius:3px;transition:color 0.15s;}
+.icon-btn:hover{color:var(--red);}
 
-/* ── Layout ──────────────────────────────────────────────────────── */
-.shell {
-  display: flex;
-  min-height: calc(100vh - 64px);
-}
+/* Add contractor form */
+.add-contractor-form{display:none;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:14px;margin-top:10px;}
+.add-contractor-form.open{display:block;}
+.form-row{display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:8px;}
+.drawer-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;outline:none;}
+.drawer-input:focus{border-color:var(--accent);}
 
-/* Sidebar */
-.sidebar {
-  width: 260px;
-  min-width: 260px;
-  background: var(--bg2);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 24px 0;
-}
+/* Drawer nav links */
+.drawer-nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;transition:all 0.15s;border:none;background:transparent;width:100%;text-align:left;margin-bottom:2px;}
+.drawer-nav-item:hover{background:var(--bg3);color:var(--text);}
+.drawer-nav-item.active{background:var(--bg3);color:var(--accent);}
 
-.sidebar-section {
-  padding: 0 20px 24px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
-}
+/* Danger zone in drawer */
+.drawer-danger-btn{width:100%;padding:9px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:var(--font-mono);font-size:11px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:background 0.2s;border-radius:3px;margin-bottom:8px;}
+.drawer-danger-btn:hover{background:rgba(192,57,43,0.15);}
 
-.sidebar-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
+/* Contractor switcher in header — compact pill buttons */
+#contractor-switcher{display:flex;gap:5px;flex-wrap:wrap;}
+.con-btn{padding:3px 10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:20px;transition:all 0.15s;white-space:nowrap;}
+.con-btn:hover,.con-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(232,160,32,0.08);}
 
-.upload-zone {
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  padding: 20px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-  position: relative;
-}
-.upload-zone:hover, .upload-zone.drag-over {
-  border-color: var(--accent);
-  background: rgba(232,160,32,0.05);
-}
-.upload-zone input[type=file] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-}
-.upload-zone .up-icon { font-size: 24px; margin-bottom: 6px; }
-.upload-zone p { font-size: 12px; color: var(--muted); line-height: 1.4; }
+/* Layout */
+.shell{display:flex;min-height:calc(100vh - 64px);}
+.sidebar{width:240px;min-width:240px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;}
+.sidebar-section{padding:0 16px 20px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.sidebar-label{font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;padding:0 16px;}
+.upload-zone{border:1px dashed var(--border);border-radius:4px;padding:16px 10px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(232,160,32,0.05);}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+.upload-zone .up-icon{font-size:22px;margin-bottom:4px;}
+.upload-zone p{font-size:11px;color:var(--muted);}
+#import-btn{width:100%;margin-top:10px;padding:10px;background:var(--accent);color:#000;border:none;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:background 0.2s;}
+#import-btn:hover{background:#f0b030;}
+#import-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+#import-log{margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.7;color:var(--muted);max-height:90px;overflow-y:auto;}
+#import-log .ok{color:var(--green);}#import-log .err{color:var(--red);}#import-log .skip{color:var(--yellow);}
+.danger-btn{width:calc(100% - 32px);margin:0 16px;padding:8px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:var(--font-mono);font-size:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:background 0.2s;margin-top:auto;}
+.danger-btn:hover{background:rgba(192,57,43,0.15);}
+nav{padding:0 16px;display:flex;flex-direction:column;gap:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;transition:all 0.15s;border:none;background:transparent;width:100%;text-align:left;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:var(--bg3);color:var(--accent);border-left:2px solid var(--accent);}
+main{flex:1;overflow-y:auto;padding:24px 28px;}
+.page{display:none;}.page.active{display:block;}
 
-#import-btn {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  background: var(--accent);
-  color: #000;
-  border: none;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  cursor: pointer;
-  text-transform: uppercase;
-  transition: background 0.2s;
-}
-#import-btn:hover { background: #f0b030; }
-#import-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+/* Common */
+.section-title{font-family:var(--font-head);font-size:24px;letter-spacing:2px;color:var(--text);margin-bottom:20px;display:flex;align-items:center;gap:12px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);padding:14px 16px;border-radius:4px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);}
+.kpi.warn::before{background:var(--yellow);}.kpi.crit::before{background:var(--red);}.kpi.good::before{background:var(--green);}
+.kpi-label{font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.kpi-value{font-family:var(--font-head);font-size:28px;letter-spacing:1px;color:var(--text);line-height:1;}
+.kpi-sub{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px;}
 
-#import-log {
-  margin-top: 10px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.7;
-  color: var(--muted);
-  max-height: 100px;
-  overflow-y: auto;
-}
-#import-log .ok  { color: var(--green); }
-#import-log .err { color: var(--red); }
-#import-log .skip { color: var(--yellow); }
+.filter-bar{background:var(--bg2);border:1px solid var(--border);border-radius:4px;margin-bottom:14px;overflow:hidden;}
+.filter-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:transparent;border:none;color:var(--text);cursor:pointer;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;text-align:left;}
+.filter-toggle:hover{background:var(--bg3);}
+.filter-toggle .arrow{transition:transform 0.2s;color:var(--muted);}
+.filter-toggle.open .arrow{transform:rotate(180deg);}
+.filter-body{display:none;padding:10px 14px 14px;border-top:1px solid var(--border);grid-template-columns:repeat(4,1fr);gap:10px;}
+.filter-body.open{display:grid;}
+.filter-group label{display:block;font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:5px;}
+.filter-group select,.filter-group input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;outline:none;}
+.filter-group select:focus,.filter-group input:focus{border-color:var(--accent);}
+.filter-group select[multiple]{height:80px;}
+.filter-actions{display:flex;gap:8px;align-items:flex-end;}
+.btn-primary{padding:6px 14px;background:var(--accent);color:#000;border:none;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:background 0.2s;}
+.btn-primary:hover{background:#f0b030;}
+.btn-ghost{padding:6px 14px;background:transparent;color:var(--muted);border:1px solid var(--border);font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:all 0.2s;}
+.btn-ghost:hover{color:var(--text);border-color:var(--text);}
 
-.danger-btn {
-  width: calc(100% - 40px);
-  margin: 0 20px;
-  padding: 8px;
-  background: transparent;
-  border: 1px solid var(--red);
-  color: var(--red);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: background 0.2s;
-  margin-top: auto;
-}
-.danger-btn:hover { background: rgba(192,57,43,0.15); }
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:20px;}
+.table-toolbar{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);}
+.table-count{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.table-count span{color:var(--accent);}
+.btn-csv{padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:all 0.2s;}
+.btn-csv:hover{border-color:var(--accent);color:var(--accent);}
+.tbl-scroll{overflow-x:auto;max-height:500px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:11px;}
+thead{position:sticky;top:0;z-index:2;}
+thead th{background:var(--bg3);color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-size:9px;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
+thead th:hover{color:var(--accent);}
+tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s;}
+tbody tr:hover{background:var(--bg3);}
+tbody td{padding:6px 10px;color:var(--text);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;}
+tbody td[contenteditable=true]{cursor:text;outline:none;}
+tbody td[contenteditable=true]:hover{background:rgba(232,160,32,0.04);}
+tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow:inset 0 0 0 1px var(--accent);white-space:nowrap;}
+.badge{display:inline-block;padding:2px 6px;border-radius:2px;font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.badge-drill{background:rgba(39,174,96,0.2);color:var(--green);}
+.badge-repair{background:rgba(192,57,43,0.2);color:var(--red);}
+.badge-standby{background:rgba(243,156,18,0.2);color:var(--yellow);}
+.badge-travel{background:rgba(100,100,100,0.2);color:var(--muted);}
+.badge-other{background:rgba(41,128,185,0.2);color:var(--blue);}
+.severity-critical{background:rgba(192,57,43,0.25);color:#e74c3c;}
+.severity-warning{background:rgba(230,126,34,0.25);color:#e67e22;}
+.severity-caution{background:rgba(243,156,18,0.25);color:#f39c12;}
+.severity-info{background:rgba(41,128,185,0.25);color:#3498db;}
 
-/* Nav tabs */
-nav {
-  padding: 0 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--muted);
-  text-transform: uppercase;
-  transition: background 0.15s, color 0.15s;
-  border: none;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-}
-.nav-item:hover { background: var(--bg3); color: var(--text); }
-.nav-item.active {
-  background: var(--bg3);
-  color: var(--accent);
-  border-left: 2px solid var(--accent);
-}
-.nav-item .icon { font-size: 16px; }
-
-/* Main content */
-main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px 32px;
-}
-
-.page { display: none; }
-.page.active { display: block; }
-
-/* ── Common components ───────────────────────────────────────────── */
-.section-title {
-  font-family: var(--font-head);
-  font-size: 24px;
-  letter-spacing: 2px;
-  color: var(--text);
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.section-title::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-/* KPI cards */
-.kpi-row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
-@media (max-width: 1200px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
-
-.kpi {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 16px 18px;
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-  animation: fadeUp 0.4s ease both;
-}
-.kpi::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent);
-}
-.kpi.warn::before { background: var(--yellow); }
-.kpi.crit::before { background: var(--red); }
-.kpi.good::before { background: var(--green); }
-
-.kpi-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-.kpi-value {
-  font-family: var(--font-head);
-  font-size: 32px;
-  letter-spacing: 1px;
-  color: var(--text);
-  line-height: 1;
-}
-.kpi-sub {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-/* Filters */
-.filter-bar {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.filter-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  text-align: left;
-}
-.filter-toggle:hover { background: var(--bg3); }
-.filter-toggle .arrow { transition: transform 0.2s; color: var(--muted); }
-.filter-toggle.open .arrow { transform: rotate(180deg); }
-
-.filter-body {
-  display: none;
-  padding: 12px 16px 16px;
-  border-top: 1px solid var(--border);
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-.filter-body.open {
-  display: grid;
-}
-@media (max-width: 1100px) { .filter-body { grid-template-columns: repeat(2, 1fr); } }
-
-.filter-group label {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.filter-group select,
-.filter-group input {
-  width: 100%;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 6px 10px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  border-radius: 3px;
-  outline: none;
-}
-.filter-group select:focus,
-.filter-group input:focus { border-color: var(--accent); }
-
-.filter-group select[multiple] { height: 90px; }
-
-.filter-actions {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-.btn-primary {
-  padding: 6px 16px;
-  background: var(--accent);
-  color: #000;
-  border: none;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: background 0.2s;
-}
-.btn-primary:hover { background: #f0b030; }
-.btn-ghost {
-  padding: 6px 16px;
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: all 0.2s;
-}
-.btn-ghost:hover { color: var(--text); border-color: var(--text); }
-
-/* Table */
-.table-wrap {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.table-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.table-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-.table-count span { color: var(--accent); }
-.btn-csv {
-  padding: 5px 12px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: all 0.2s;
-}
-.btn-csv:hover { border-color: var(--accent); color: var(--accent); }
-
-.tbl-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-thead { position: sticky; top: 0; z-index: 2; }
-thead th {
-  background: var(--bg3);
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 9px;
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-  user-select: none;
-}
-thead th:hover { color: var(--accent); cursor: pointer; }
-thead th.sorted-asc::after  { content: ' ▲'; color: var(--accent); }
-thead th.sorted-desc::after { content: ' ▼'; color: var(--accent); }
-
-tbody tr {
-  border-bottom: 1px solid var(--border);
-  transition: background 0.1s;
-}
-tbody tr:hover { background: var(--bg3); }
-tbody td {
-  padding: 7px 12px;
-  color: var(--text);
-  white-space: nowrap;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-tbody td[contenteditable=true] {
-  cursor: text;
-  outline: none;
-}
-tbody td[contenteditable=true]:hover {
-  background: rgba(232,160,32,0.04);
-}
-tbody td[contenteditable=true]:focus {
-  background: rgba(232,160,32,0.08);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  white-space: nowrap;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 2px;
-  font-size: 9px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-.badge-drill  { background: rgba(39,174,96,0.2);  color: var(--green); }
-.badge-repair { background: rgba(192,57,43,0.2);  color: var(--red); }
-.badge-standby{ background: rgba(243,156,18,0.2); color: var(--yellow); }
-.badge-travel { background: rgba(100,100,100,0.2);color: var(--muted); }
-.badge-other  { background: rgba(41,128,185,0.2); color: var(--blue); }
-
-/* ── Charts grid ─────────────────────────────────────────────────── */
-.charts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
-
-.chart-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 16px;
-}
-.chart-title {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 14px;
-}
-.chart-card canvas { max-height: 280px; }
-
-/* Anomaly table */
-.anomaly-row td:nth-child(3) .badge { font-size: 10px; padding: 3px 8px; }
-.severity-critical { background: rgba(192,57,43,0.25); color: #e74c3c; }
-.severity-warning  { background: rgba(230,126,34,0.25); color: #e67e22; }
-.severity-caution  { background: rgba(243,156,18,0.25); color: #f39c12; }
-.severity-info     { background: rgba(41,128,185,0.25); color: #3498db; }
-
-/* Heatmap */
-#heatmap-container {
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-.heatmap-table { border-collapse: separate; border-spacing: 3px; }
-.heatmap-table th {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--muted);
-  padding: 3px 6px;
-  white-space: nowrap;
-  text-align: center;
-}
-.heatmap-cell {
-  width: 36px;
-  height: 28px;
-  border-radius: 2px;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: rgba(255,255,255,0.8);
-  vertical-align: middle;
-}
+/* Charts */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:14px;}
+.chart-title{font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+.chart-card canvas{max-height:260px;}
 
 /* Hole selector */
-.hole-selector {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.hole-btn {
-  padding: 6px 16px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: all 0.15s;
-}
-.hole-btn:hover, .hole-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(232,160,32,0.08);
-}
+.hole-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.hole-btn{padding:5px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:all 0.15s;}
+.hole-btn:hover,.hole-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(232,160,32,0.08);}
 
-/* Loading spinner */
-.spinner {
-  display: inline-block;
-  width: 14px; height: 14px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  vertical-align: middle;
-  margin-right: 6px;
-}
+/* Heatmap */
+#heatmap-container{overflow-x:auto;padding-bottom:6px;}
+.heatmap-table{border-collapse:separate;border-spacing:3px;}
+.heatmap-table th{font-family:var(--font-mono);font-size:9px;color:var(--muted);padding:2px 5px;white-space:nowrap;text-align:center;}
+.heatmap-cell{width:34px;height:26px;border-radius:2px;text-align:center;font-family:var(--font-mono);font-size:9px;color:rgba(255,255,255,0.8);vertical-align:middle;}
 
-/* Toast */
-#toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  padding: 12px 18px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text);
-  border-radius: 4px;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.3s;
-  z-index: 1000;
-  pointer-events: none;
-}
-#toast.show { opacity: 1; transform: translateY(0); }
+/* Spinner / Toast */
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:5px;}
+#toast{position:fixed;bottom:22px;right:22px;background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--accent);padding:11px 16px;font-family:var(--font-mono);font-size:11px;color:var(--text);border-radius:4px;opacity:0;transform:translateY(8px);transition:all 0.3s;z-index:9999;pointer-events:none;}
+#toast.show{opacity:1;transform:translateY(0);}
+.empty-state{text-align:center;padding:50px 20px;color:var(--muted);font-family:var(--font-mono);font-size:11px;line-height:2;}
+.empty-state .big{font-size:36px;margin-bottom:10px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-/* Animations */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.10s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.20s; }
-.stagger-5 { animation-delay: 0.25s; }
-
-/* Empty state */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 2;
-}
-.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+/* PO banner */
+.po-banner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:20px;}
+.po-card{background:var(--bg2);border:1px solid var(--border);padding:14px 16px;border-radius:4px;}
 </style>
 </head>
-
 <body>
 
-<!-- Login Screen -->
+<!-- Login -->
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">Drill<span>Ops</span></div>
     <div class="login-sub">Field Operations Intelligence</div>
     <label class="login-label">Password</label>
-    <input class="login-input" type="password" id="login-password"
-      placeholder="Enter password" autocomplete="current-password" />
+    <input class="login-input" type="password" id="login-password" placeholder="Enter password" autocomplete="current-password"/>
+    <button class="login-btn" onclick="doLogin()">Access DrillOps</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Drawer overlay -->
+<div id="drawer-overlay" onclick="closeDrawer()"></div>
+
+<!-- Slide-out Drawer -->
+<div id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">DrillOps</div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <!-- Contractor Management -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">Contractors</div>
+      <div id="drawer-contractor-list"></div>
+      <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:10px;" onclick="toggleAddContractorForm()">+ Add Contractor</button>
+      <div class="add-contractor-form" id="add-contractor-form">
+        <div class="form-row">
+          <div><label style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:4px;">NAME</label>
+            <input class="drawer-input" id="new-con-name" placeholder="e.g. Boart Longyear" style="width:100%"/></div>
+          <div><label style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:4px;">CODE</label>
+            <input class="drawer-input" id="new-con-code" placeholder="BLY" style="width:100%"/></div>
+        </div>
+        <button class="btn-primary" style="width:100%;" onclick="addContractor()">Add Contractor</button>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">Navigation</div>
+      <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span>📋</span> Activities</button>
+      <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span>🧪</span> Consumables</button>
+      <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span>👷</span> Crew</button>
+      <button class="drawer-nav-item" data-page="analytics" onclick="drawerNav(this)"><span>📊</span> Analytics</button>
+      <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span>💰</span> Costing</button>
+      <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span>🧾</span> Purchase Orders</button>
+      <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span>📄</span> Schedule of Rates</button>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">Danger Zone</div>
+      <button class="drawer-danger-btn" id="clear-btn">⚠ Clear <span id="clear-con-name">Contractor</span> Data</button>
+      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);line-height:1.6;">Only removes data for the currently active contractor. Other contractors are unaffected.</p>
+    </div>
+
+    <!-- Settings -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">Settings</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:8px;">Password</div>
+      <div style="display:flex;gap:8px;">
+        <input class="drawer-input" id="new-password" type="password" placeholder="New password" style="flex:1"/>
+        <button class="btn-primary" onclick="changePassword()">Set</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">Drill<span>Ops</span></div>
+  <div id="contractor-switcher"></div>
+  <div class="header-right">
+    <div class="header-meta"><span id="db-count">—</span> records</div>
+    <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+  <div class="login-box">
+    <div class="login-logo">Drill<span>Ops</span></div>
+    <div class="login-sub">Field Operations Intelligence</div>
+    <label class="login-label">Password</label>
+    <input class="login-input" type="password" id="login-password" placeholder="Enter password" autocomplete="current-password"/>
     <button class="login-btn" onclick="doLogin()">Access DrillOps</button>
     <div class="login-error" id="login-error"></div>
   </div>
@@ -743,1623 +305,1095 @@ tbody td[contenteditable=true]:focus {
 <!-- Header -->
 <header>
   <div class="logo">Drill<span>Ops</span></div>
-  <div class="header-meta">
-    Field Operations Intelligence<br>
-    <span id="db-count">—</span> activity records in database
+  <div class="header-right">
+    <div id="contractor-switcher"></div>
+    <div class="header-meta">
+      <span id="db-count">—</span> records
+    </div>
   </div>
 </header>
 
 <div class="shell">
-
   <!-- Sidebar -->
   <aside class="sidebar">
-
-    <!-- Import -->
     <div class="sidebar-section">
-      <div class="sidebar-label">Import Reports</div>
-      <div style="padding:0 20px 12px;">
-        <label class="sidebar-label" style="margin-bottom:6px;">Contractor</label>
-        <select id="import-contractor" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;outline:none;">
-          <option>Allianz Drilling</option>
-          <option>Mitchells Drilling</option>
-          <option>MCC Earthworks</option>
-          <option>Weatherfords</option>
-          <option>Epiroc</option>
-          <option>Fortem</option>
-        </select>
-      </div>
+      <div class="sidebar-label" style="padding:0;margin-bottom:8px;">Import PDFs</div>
       <div class="upload-zone" id="drop-zone">
-        <input type="file" id="file-input" multiple accept=".pdf" />
+        <input type="file" id="file-input" multiple accept=".pdf"/>
         <div class="up-icon">📄</div>
-        <p>Drop PDFs here<br>or click to browse</p>
+        <p>Drop PDFs or click to browse</p>
       </div>
       <button id="import-btn" disabled>Import to Database</button>
       <div id="import-log"></div>
     </div>
-
-    <!-- Nav -->
-    <div class="sidebar-label" style="padding:0 20px;margin-bottom:8px;">Views</div>
+    <div class="sidebar-label">Views</div>
     <nav>
-      <button class="nav-item active" data-page="activities">
-        <span class="icon">📋</span> Activities
-      </button>
-      <button class="nav-item" data-page="consumables">
-        <span class="icon">🧪</span> Consumables
-      </button>
-      <button class="nav-item" data-page="crew">
-        <span class="icon">👷</span> Crew
-      </button>
-      <button class="nav-item" data-page="analytics">
-        <span class="icon">📊</span> Analytics
-      </button>
-      <button class="nav-item" data-page="costing">
-        <span class="icon">💰</span> Costing
-      </button>
-      <button class="nav-item" data-page="rates">
-        <span class="icon">📄</span> Schedule of Rates
-      </button>
-      <button class="nav-item" data-page="purchase-orders">
-        <span class="icon">🧾</span> Purchase Orders
-      </button>
+      <button class="nav-item active" data-page="activities"><span>📋</span> Activities</button>
+      <button class="nav-item" data-page="consumables"><span>🧪</span> Consumables</button>
+      <button class="nav-item" data-page="crew"><span>👷</span> Crew</button>
+      <button class="nav-item" data-page="analytics"><span>📊</span> Analytics</button>
+      <button class="nav-item" data-page="costing"><span>💰</span> Costing</button>
+      <button class="nav-item" data-page="purchase-orders"><span>🧾</span> Purchase Orders</button>
+      <button class="nav-item" data-page="rates"><span>📄</span> Schedule of Rates</button>
     </nav>
-
-    <!-- Danger -->
-    <button class="danger-btn" id="clear-btn">⚠ Clear Database</button>
+    <div style="padding:16px;margin-top:auto;">
+      <button class="danger-btn" style="width:100%;margin:0;" id="clear-btn-sidebar">⚠ Clear Data</button>
+    </div>
   </aside>
 
-  <!-- Main -->
   <main>
-
-    <!-- ── Activities ──────────────────────────────────────────── -->
+    <!-- Activities -->
     <section class="page active" id="page-activities">
       <h2 class="section-title">Activity Log</h2>
-
       <div class="filter-bar">
-        <button class="filter-toggle" id="act-filter-toggle">
-          🔍 &nbsp; Filters &amp; Search
-          <span class="arrow">▼</span>
-        </button>
+        <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
         <div class="filter-body" id="act-filter-body">
-          <div class="filter-group">
-            <label>Date</label>
-            <select id="f-dates" multiple></select>
-          </div>
-          <div class="filter-group">
-            <label>Hole #</label>
-            <select id="f-holes" multiple></select>
-          </div>
-          <div class="filter-group">
-            <label>Site</label>
-            <select id="f-sites" multiple></select>
-          </div>
-          <div class="filter-group">
-            <label>Activity Code</label>
-            <select id="f-codes" multiple></select>
-          </div>
-          <div class="filter-group" style="grid-column:1/-1">
-            <label>Keyword Search (notes / code)</label>
-            <input type="text" id="f-search" placeholder="e.g. lost circulation, repairs…" />
-          </div>
+          <div class="filter-group"><label>Date</label><select id="f-dates" multiple></select></div>
+          <div class="filter-group"><label>Hole #</label><select id="f-holes" multiple></select></div>
+          <div class="filter-group"><label>Site</label><select id="f-sites" multiple></select></div>
+          <div class="filter-group"><label>Code</label><select id="f-codes" multiple></select></div>
+          <div class="filter-group" style="grid-column:1/-1"><label>Keyword (notes/code)</label><input type="text" id="f-search" placeholder="search…"/></div>
           <div class="filter-actions" style="grid-column:1/-1">
             <button class="btn-primary" onclick="loadActivities()">Apply</button>
             <button class="btn-ghost" onclick="resetFilters()">Reset</button>
           </div>
         </div>
       </div>
-
       <div class="table-wrap">
         <div class="table-toolbar">
           <div class="table-count">Showing <span id="act-count">—</span> rows</div>
-          <button class="btn-csv" onclick="downloadCSV('activities')">⬇ Export CSV</button>
+          <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
         </div>
         <div class="tbl-scroll">
           <table id="act-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>Hole #</th><th>Site</th>
-                <th>Time From</th><th>Time To</th><th>Duration</th>
-                <th>Bit Type</th><th>Ø</th>
-                <th>From m</th><th>To m</th><th>Metres</th>
-                <th>Code</th><th>Notes</th>
-                <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Date</th><th>Hole #</th><th>Site</th>
+              <th>Time From</th><th>Time To</th><th>Duration</th>
+              <th>Bit Type</th><th>Ø</th>
+              <th>From m</th><th>To m</th><th>Metres</th>
+              <th>Code</th><th>Notes</th>
+              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th>
+            </tr></thead>
             <tbody id="act-body"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ── Consumables ─────────────────────────────────────────── -->
+    <!-- Consumables -->
     <section class="page" id="page-consumables">
       <h2 class="section-title">Consumables</h2>
       <div class="filter-bar">
-        <button class="filter-toggle" id="con-filter-toggle">
-          🔍 &nbsp; Filters <span class="arrow">▼</span>
-        </button>
+        <button class="filter-toggle" id="con-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
         <div class="filter-body" id="con-filter-body">
-          <div class="filter-group">
-            <label>Date</label>
-            <select id="f-con-dates" multiple></select>
-          </div>
+          <div class="filter-group"><label>Date</label><select id="f-con-dates" multiple></select></div>
           <div class="filter-actions">
             <button class="btn-primary" onclick="loadConsumables()">Apply</button>
-            <button class="btn-ghost" onclick="document.getElementById('f-con-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadConsumables()">Reset</button>
+            <button class="btn-ghost" onclick="selectAll('f-con-dates');loadConsumables()">Reset</button>
           </div>
         </div>
       </div>
       <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count">Showing <span id="con-count">—</span> rows</div>
-          <button class="btn-csv" onclick="downloadCSV('consumables')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="con-table">
-            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th></tr></thead>
-            <tbody id="con-body"></tbody>
-          </table>
-        </div>
+        <div class="table-toolbar"><div class="table-count"><span id="con-count">—</span> rows</div><button class="btn-csv" onclick="downloadCSV('consumables')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="con-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th></tr></thead>
+          <tbody id="con-body"></tbody>
+        </table></div>
       </div>
     </section>
 
-    <!-- ── Crew ────────────────────────────────────────────────── -->
+    <!-- Crew -->
     <section class="page" id="page-crew">
       <h2 class="section-title">Crew — People on Board</h2>
       <div class="filter-bar">
-        <button class="filter-toggle" id="crew-filter-toggle">
-          🔍 &nbsp; Filters <span class="arrow">▼</span>
-        </button>
+        <button class="filter-toggle" id="crew-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
         <div class="filter-body" id="crew-filter-body">
-          <div class="filter-group">
-            <label>Date</label>
-            <select id="f-crew-dates" multiple></select>
-          </div>
+          <div class="filter-group"><label>Date</label><select id="f-crew-dates" multiple></select></div>
           <div class="filter-actions">
             <button class="btn-primary" onclick="loadCrew()">Apply</button>
-            <button class="btn-ghost" onclick="document.getElementById('f-crew-dates').querySelectorAll('option').forEach(o=>o.selected=true);loadCrew()">Reset</button>
+            <button class="btn-ghost" onclick="selectAll('f-crew-dates');loadCrew()">Reset</button>
           </div>
         </div>
       </div>
       <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count">Showing <span id="crew-count">—</span> rows</div>
-          <button class="btn-csv" onclick="downloadCSV('crew')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="crew-table">
-            <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
-            <tbody id="crew-body"></tbody>
-          </table>
-        </div>
+        <div class="table-toolbar"><div class="table-count"><span id="crew-count">—</span> rows</div><button class="btn-csv" onclick="downloadCSV('crew')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="crew-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
+          <tbody id="crew-body"></tbody>
+        </table></div>
       </div>
     </section>
 
-    <!-- ── Analytics ──────────────────────────────────────────── -->
+    <!-- Analytics -->
     <section class="page" id="page-analytics">
-      <h2 class="section-title">Analytics &amp; Anomalies</h2>
-
-      <div class="hole-selector" id="hole-selector">
-        <button class="hole-btn active" data-hole="all">All Holes</button>
+      <h2 class="section-title">📊 Analytics &amp; Anomalies</h2>
+      <div class="hole-selector" id="hole-selector"><button class="hole-btn active" data-hole="all">All Holes</button></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
+        <div class="kpi"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
+        <div class="kpi"><div class="kpi-label">Repairs / Maint.</div><div class="kpi-value" id="kpi-repair">—</div></div>
+        <div class="kpi"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="kpi-metres">—</div></div>
       </div>
-
-      <!-- KPIs -->
-      <div class="kpi-row" id="kpi-row">
-        <div class="kpi stagger-1"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
-        <div class="kpi stagger-2"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
-        <div class="kpi stagger-3"><div class="kpi-label">Repairs / Maint.</div><div class="kpi-value" id="kpi-repair">—</div></div>
-        <div class="kpi stagger-4"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
-        <div class="kpi stagger-5"><div class="kpi-label">Total Metres Drilled</div><div class="kpi-value" id="kpi-metres">—</div></div>
-      </div>
-
-      <!-- Charts row 1 -->
       <div class="charts-grid">
-        <div class="chart-card">
-          <div class="chart-title">Time Breakdown by Day</div>
-          <canvas id="chart-daily"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Cumulative Metres Drilled</div>
-          <canvas id="chart-cumulative"></canvas>
-        </div>
+        <div class="chart-card"><div class="chart-title">Time Breakdown by Day</div><canvas id="chart-daily"></canvas></div>
+        <div class="chart-card"><div class="chart-title">Cumulative Metres Drilled</div><canvas id="chart-cumulative"></canvas></div>
       </div>
-
-      <!-- Charts row 2 -->
       <div class="charts-grid">
-        <div class="chart-card">
-          <div class="chart-title">Drilling Efficiency % by Day</div>
-          <canvas id="chart-efficiency"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Metres per Drill Run</div>
-          <canvas id="chart-runs"></canvas>
-        </div>
+        <div class="chart-card"><div class="chart-title">Drilling Efficiency % by Day</div><canvas id="chart-efficiency"></canvas></div>
+        <div class="chart-card"><div class="chart-title">Metres per Drill Run</div><canvas id="chart-runs"></canvas></div>
       </div>
-
-      <!-- Anomalies -->
-      <div style="margin-bottom:16px;">
-        <h2 class="section-title">🚨 Anomaly Report</h2>
-        <div class="table-wrap">
-          <div class="table-toolbar">
-            <div class="table-count"><span id="anom-count">—</span> anomalies detected</div>
-            <button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ Export CSV</button>
-          </div>
-          <div class="tbl-scroll">
-            <table id="anom-table">
-              <thead><tr><th>Date</th><th>Hole</th><th>Type</th><th>Detail</th></tr></thead>
-              <tbody id="anom-body"></tbody>
-            </table>
-          </div>
-        </div>
+      <h2 class="section-title" style="margin-top:8px;">🚨 Anomaly Report</h2>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="anom-count">—</span> anomalies</div><button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="anom-table">
+          <thead><tr><th>Date</th><th>Hole</th><th>Type</th><th>Detail</th></tr></thead>
+          <tbody id="anom-body"></tbody>
+        </table></div>
       </div>
-
-      <!-- Heatmap -->
       <div class="chart-card" style="margin-bottom:20px;">
         <div class="chart-title">Non-Productive Time Heatmap</div>
         <div id="heatmap-container"></div>
-        <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:8px;">
-          Black = none &nbsp;·&nbsp; 🟡 Yellow = moderate &nbsp;·&nbsp; 🔴 Red = high non-productive time
-        </p>
+        <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:6px;">Black=none · 🟡 Yellow=moderate · 🔴 Red=high</p>
       </div>
     </section>
 
-    <!-- ── Costing ────────────────────────────────────────────── -->
+    <!-- Costing -->
     <section class="page" id="page-costing">
       <h2 class="section-title">💰 Costing Summary</h2>
-
-      <!-- PO Summary Banner -->
-      <div id="po-summary-banner" style="margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
-
-      <div class="kpi-row" id="cost-kpi-row">
-        <div class="kpi stagger-1"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
-        <div class="kpi stagger-2"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
-        <div class="kpi stagger-3"><div class="kpi-label">Non-Drilling Cost</div><div class="kpi-value" id="cost-nondrilling">—</div></div>
-        <div class="kpi stagger-4"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="cost-metres">—</div></div>
-        <div class="kpi stagger-5"><div class="kpi-label">Cost per Metre</div><div class="kpi-value" id="cost-per-m">—</div></div>
+      <div class="po-banner-grid" id="po-summary-banner"></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
+        <div class="kpi"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
+        <div class="kpi"><div class="kpi-label">Non-Drilling Cost</div><div class="kpi-value" id="cost-nondrilling">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="cost-metres">—</div></div>
+        <div class="kpi"><div class="kpi-label">Cost per Metre</div><div class="kpi-value" id="cost-per-m">—</div></div>
       </div>
-
-      <!-- By hole summary -->
-      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Hole</h3>
-      <div class="table-wrap" style="margin-bottom:24px;">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="cost-hole-count">—</span> holes</div>
-          <button class="btn-csv" onclick="downloadCSV('costing_holes')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="cost-hole-table">
-            <thead><tr><th>Hole #</th><th>Total Cost</th><th>Drilling $</th><th>Non-Drilling $</th><th>Metres</th><th>$/m</th><th>Activities</th></tr></thead>
-            <tbody id="cost-hole-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- By date -->
-      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">By Day</h3>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">By Hole</h3>
       <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="cost-date-count">—</span> days</div>
-          <button class="btn-csv" onclick="downloadCSV('costing_dates')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="cost-date-table">
-            <thead><tr><th>Date</th><th>Hole #</th><th>Daily Cost</th><th>Metres</th></tr></thead>
+        <div class="table-toolbar"><div class="table-count"><span id="cost-hole-count">—</span> holes</div><button class="btn-csv" onclick="downloadCSV('costing_holes')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="cost-hole-table">
+          <thead><tr><th>Hole #</th><th>Total Cost</th><th>Drilling $</th><th>Non-Drilling $</th><th>Metres</th><th>$/m</th><th>Activities</th></tr></thead>
+          <tbody id="cost-hole-body"></tbody>
+        </table></div>
+      </div>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">By Day</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="cost-date-count">—</span> days</div><button class="btn-csv" onclick="downloadCSV('costing_dates')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="cost-date-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Daily Cost</th><th>Metres</th></tr></thead>
           <tbody id="cost-date-body"></tbody>
-          </table>
-        </div>
+        </table></div>
       </div>
-
-      <!-- Line-item detail -->
-      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:24px 0 12px;">Line Item Detail</h3>
       <div class="filter-bar">
-        <button class="filter-toggle" id="cost-filter-toggle">
-          🔍 &nbsp; Filter by Hole / Date <span class="arrow">▼</span>
-        </button>
+        <button class="filter-toggle" id="cost-filter-toggle">🔍 &nbsp;Filter Line Items <span class="arrow">▼</span></button>
         <div class="filter-body" id="cost-filter-body">
-          <div class="filter-group">
-            <label>Hole #</label>
-            <select id="f-cost-holes" multiple></select>
-          </div>
-          <div class="filter-group">
-            <label>Date</label>
-            <select id="f-cost-dates" multiple></select>
-          </div>
+          <div class="filter-group"><label>Hole #</label><select id="f-cost-holes" multiple></select></div>
+          <div class="filter-group"><label>Date</label><select id="f-cost-dates" multiple></select></div>
           <div class="filter-actions">
-            <button class="btn-primary" onclick="loadCosting()">Apply</button>
-            <button class="btn-ghost" onclick="resetCostFilters()">Reset</button>
+            <button class="btn-primary" onclick="loadCostingLines()">Apply</button>
+            <button class="btn-ghost" onclick="selectAll('f-cost-holes');selectAll('f-cost-dates');loadCostingLines()">Reset</button>
           </div>
         </div>
       </div>
       <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count">Showing <span id="cost-line-count">—</span> priced rows</div>
-          <button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="cost-line-table">
-            <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
-            <tbody id="cost-line-body"></tbody>
-          </table>
-        </div>
+        <div class="table-toolbar"><div class="table-count">Showing <span id="cost-line-count">—</span> priced rows</div><button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="cost-line-table">
+          <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
+          <tbody id="cost-line-body"></tbody>
+        </table></div>
       </div>
     </section>
 
-    <!-- ── Schedule of Rates ──────────────────────────────────── -->
-    <section class="page" id="page-rates">
-      <h2 class="section-title">📄 Schedule of Rates</h2>
-
-      <!-- Year selector + add year -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-        <div class="hole-selector" id="rate-year-selector" style="margin-bottom:0"></div>
-        <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
-          <input id="new-year-input" type="text" placeholder="e.g. 2026"
-            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;" />
-          <button class="btn-primary" onclick="copyRatesYear()">Copy from selected year →</button>
-        </div>
-      </div>
-
-      <!-- Drilling rates table -->
-      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Drilling Rates — $/metre by bit type &amp; depth</h3>
-      <div class="table-wrap" style="margin-bottom:24px;">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="dr-count">—</span> rate bands</div>
-          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addDrillingRate()">+ Add Row</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="dr-table">
-            <thead><tr><th>Year</th><th>Bit Type</th><th>Depth From</th><th>Depth To</th><th>Rate ($/m)</th><th></th></tr></thead>
-            <tbody id="dr-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Hourly/daily rates table -->
-      <h3 style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Hourly / Daily Rates</h3>
-      <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="hr-count">—</span> rates</div>
-          <button class="btn-primary" style="font-size:10px;padding:5px 12px;" onclick="addHourlyRate()">+ Add Row</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="hr-table">
-            <thead><tr><th>Year</th><th>Code</th><th>Description</th><th>Rate ($)</th><th>Unit</th><th></th></tr></thead>
-            <tbody id="hr-body"></tbody>
-          </table>
-        </div>
-      </div>
-      <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:12px;">
-        ✏️ Click any cell to edit — changes save automatically. Add a new year by typing it above and clicking Copy.
-      </p>
-    </section>
-
-    <!-- ── Purchase Orders ────────────────────────────────────── -->
+    <!-- Purchase Orders -->
     <section class="page" id="page-purchase-orders">
       <h2 class="section-title">🧾 Purchase Orders</h2>
-
-      <!-- Add PO form -->
-      <div class="filter-bar" style="margin-bottom:20px;">
-        <button class="filter-toggle" id="po-add-toggle">
-          ➕ &nbsp; Add New Purchase Order <span class="arrow">▼</span>
-        </button>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="po-add-toggle">➕ &nbsp;Add New PO <span class="arrow">▼</span></button>
         <div class="filter-body" id="po-add-body">
-          <div class="filter-group">
-            <label>PO Number *</label>
-            <input type="text" id="po-number" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="e.g. PO-2025-001" />
+          <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
+          <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
+          <div class="filter-group"><label>PO Value ($)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
+          <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
+          <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>
+          <div class="filter-group"><label>Status</label>
+            <select id="po-status"><option>Active</option><option>Completed</option><option>On Hold</option><option>Cancelled</option></select>
           </div>
-          <div class="filter-group">
-            <label>Contractor</label>
-            <select id="po-contractor" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;">
-              <option>Allianz Drilling</option>
-              <option>Mitchells Drilling</option>
-              <option>MCC Earthworks</option>
-              <option>Weatherfords</option>
-              <option>Epiroc</option>
-              <option>Fortem</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Description</label>
-            <input type="text" id="po-description" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="e.g. Exploration drilling CD-26" />
-          </div>
-          <div class="filter-group">
-            <label>PO Value ($)</label>
-            <input type="number" id="po-value" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="0.00" step="0.01" />
-          </div>
-          <div class="filter-group">
-            <label>Issue Date</label>
-            <input type="text" id="po-issue-date" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="d/m/yyyy" />
-          </div>
-          <div class="filter-group">
-            <label>Expiry Date</label>
-            <input type="text" id="po-expiry-date" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="d/m/yyyy" />
-          </div>
-          <div class="filter-group">
-            <label>Status</label>
-            <select id="po-status" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;">
-              <option>Active</option>
-              <option>Completed</option>
-              <option>On Hold</option>
-              <option>Cancelled</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Notes</label>
-            <input type="text" id="po-notes" class="login-input" style="margin-bottom:0;padding:7px 10px;font-size:11px;" placeholder="Optional notes" />
-          </div>
+          <div class="filter-group"><label>Notes</label><input type="text" id="po-notes" placeholder="Optional"/></div>
           <div class="filter-actions" style="grid-column:1/-1">
             <button class="btn-primary" onclick="addPO()">Create Purchase Order</button>
           </div>
         </div>
       </div>
-
-      <!-- PO Table -->
       <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="po-count">—</span> purchase orders</div>
-          <button class="btn-csv" onclick="downloadCSV('pos')">⬇ Export CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="po-table">
-            <thead>
-              <tr>
-                <th>PO Number</th>
-                <th>Contractor</th>
-                <th>Description</th>
-                <th>Issue Date</th>
-                <th>Expiry Date</th>
-                <th>PO Value</th>
-                <th>Spent to Date</th>
-                <th>Remaining</th>
-                <th>% Used</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="po-body"></tbody>
-          </table>
-        </div>
+        <div class="table-toolbar"><div class="table-count"><span id="po-count">—</span> purchase orders</div><button class="btn-csv" onclick="downloadCSV('pos')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="po-table">
+          <thead><tr><th>PO Number</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value</th><th>Spent</th><th>Remaining</th><th>% Used</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="po-body"></tbody>
+        </table></div>
       </div>
     </section>
 
+    <!-- Schedule of Rates -->
+    <section class="page" id="page-rates">
+      <h2 class="section-title">📄 Schedule of Rates</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+        <div class="hole-selector" id="rate-year-selector" style="margin-bottom:0;"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+          <input id="new-year-input" type="text" placeholder="e.g. 2026" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;outline:none;"/>
+          <button class="btn-primary" onclick="copyRatesYear()">Copy year →</button>
+        </div>
+      </div>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Drilling Rates — $/m by bit type &amp; depth</h3>
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="table-toolbar"><div class="table-count"><span id="dr-count">—</span> rate bands</div><button class="btn-primary" style="font-size:10px;padding:4px 10px;" onclick="addDrillingRate()">+ Add Row</button></div>
+        <div class="tbl-scroll"><table id="dr-table">
+          <thead><tr><th>Year</th><th>Bit Type</th><th>Depth From</th><th>Depth To</th><th>Rate ($/m)</th><th></th></tr></thead>
+          <tbody id="dr-body"></tbody>
+        </table></div>
+      </div>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Hourly / Daily Rates</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="hr-count">—</span> rates</div><button class="btn-primary" style="font-size:10px;padding:4px 10px;" onclick="addHourlyRate()">+ Add Row</button></div>
+        <div class="tbl-scroll"><table id="hr-table">
+          <thead><tr><th>Year</th><th>Code</th><th>Description</th><th>Rate ($)</th><th>Unit</th><th></th></tr></thead>
+          <tbody id="hr-body"></tbody>
+        </table></div>
+      </div>
+      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:10px;">✏️ Click any cell to edit. Changes save automatically.</p>
+    </section>
   </main>
 </div>
-
-<!-- Toast -->
 <div id="toast"></div>
 
 <script>
-// ── Login ─────────────────────────────────────────────────────────────────────
-// Change this password to whatever you want
-const APP_PASSWORD = 'DrillOps2025';
-
+// ── Password ──────────────────────────────────────────────────────────────────
+let APP_PASSWORD = sessionStorage.getItem('drillops_pw') || 'DrillOps2025';
 function doLogin() {
-  const val = document.getElementById('login-password').value;
-  if (val === APP_PASSWORD) {
-    sessionStorage.setItem('drillops_auth', '1');
-    document.getElementById('login-screen').style.display = 'none';
+  if (document.getElementById('login-password').value === APP_PASSWORD) {
+    sessionStorage.setItem('drillops_auth','1');
+    document.getElementById('login-screen').style.display='none';
   } else {
-    const err = document.getElementById('login-error');
-    err.textContent = 'Incorrect password — try again';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-password').focus();
-    setTimeout(() => err.textContent = '', 3000);
+    const e=document.getElementById('login-error');
+    e.textContent='Incorrect password';
+    document.getElementById('login-password').value='';
+    setTimeout(()=>e.textContent='',3000);
   }
 }
-
-// Allow Enter key to submit
-document.getElementById('login-password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
-
-// Check if already authenticated this session
-if (sessionStorage.getItem('drillops_auth') === '1') {
-  document.getElementById('login-screen').style.display = 'none';
+function changePassword(){
+  const np=document.getElementById('new-password').value.trim();
+  if(!np){toast('Enter a new password','err');return;}
+  APP_PASSWORD=np;
+  sessionStorage.setItem('drillops_pw',np);
+  document.getElementById('new-password').value='';
+  toast('✓ Password updated for this session');
 }
+document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+if(sessionStorage.getItem('drillops_auth')==='1') document.getElementById('login-screen').style.display='none';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-// Change this to your Render/Railway backend URL after deploying
-const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://localhost:8000'
-  : 'https://api.drillops.com.au';
+const API = window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'
+  ? 'http://localhost:8000' : 'https://api.drillops.com.au';
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// Contractors — loaded from backend, stored locally
+let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || 'null') ||
+  [{name:'Allianz Drilling',short_code:'ALZ'},{name:'Mitchells Drilling',short_code:'MIT'},
+   {name:'MCC Earthworks',short_code:'MCC'},{name:'Weatherfords',short_code:'WFD'},
+   {name:'Epiroc',short_code:'EPI'},{name:'Fortem',short_code:'FOR'}];
+
+async function fetchContractors(){
+  try{
+    const data=await fetch(`${API}/contractors`).then(r=>r.json());
+    if(data&&data.length){
+      CONTRACTORS=data;
+      sessionStorage.setItem('drillops_contractors',JSON.stringify(data));
+    }
+  }catch(e){}
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+function toggleDrawer(){
+  const d=document.getElementById('drawer');
+  const o=document.getElementById('drawer-overlay');
+  const h=document.getElementById('hamburger-btn');
+  const isOpen=d.classList.contains('open');
+  if(isOpen){closeDrawer();}
+  else{d.classList.add('open');o.classList.add('open');h.classList.add('open');renderDrawerContractors();}
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('hamburger-btn').classList.remove('open');
+}
+function drawerNav(btn){
+  const page=btn.dataset.page;
+  // Sync sidebar nav
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  document.getElementById(`page-${page}`)?.classList.add('active');
+  triggerPageLoad(page);
+  // Update drawer nav highlight
+  document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  closeDrawer();
+}
+
+function renderDrawerContractors(){
+  const list=document.getElementById('drawer-contractor-list');
+  list.innerHTML=CONTRACTORS.map((c,i)=>`
+    <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
+      <div class="contractor-item-left">
+        <div class="contractor-dot"></div>
+        <div>
+          <div class="contractor-name">${esc(c.name)}</div>
+          <div class="contractor-code">${esc(c.short_code||'')}</div>
+        </div>
+      </div>
+      <div class="contractor-item-actions">
+        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractor(${i})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function toggleAddContractorForm(){
+  const f=document.getElementById('add-contractor-form');
+  f.classList.toggle('open');
+}
+
+function addContractor(){
+  const name=document.getElementById('new-con-name').value.trim();
+  const code=document.getElementById('new-con-code').value.trim().toUpperCase();
+  if(!name){toast('Contractor name required','err');return;}
+  if(CONTRACTORS.find(c=>c.name.toLowerCase()===name.toLowerCase())){toast('Already exists','err');return;}
+  CONTRACTORS.push({name,short_code:code||name.slice(0,3).toUpperCase()});
+  sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+  document.getElementById('new-con-name').value='';
+  document.getElementById('new-con-code').value='';
+  document.getElementById('add-contractor-form').classList.remove('open');
+  buildContractorSwitcher();
+  renderDrawerContractors();
+  toast(`✓ ${name} added`);
+}
+
+function removeContractor(idx){
+  const c=CONTRACTORS[idx];
+  if(c.name===activeContractor){toast('Cannot remove active contractor — switch first','err');return;}
+  if(!confirm(`Remove "${c.name}" from the list?\n\nThis does NOT delete their data from the database.`))return;
+  CONTRACTORS.splice(idx,1);
+  sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+  buildContractorSwitcher();
+  renderDrawerContractors();
+  toast(`${c.name} removed from list`,'warn');
+}
+
+// Wire up clear buttons (drawer + sidebar)
+function doClearContractor(){
+  if(!confirm(`Clear ALL data for ${activeContractor}?\n\nThis cannot be undone.`))return;
+  fetch(`${API}/reset?contractor=${encodeURIComponent(activeContractor)}`,{method:'DELETE'})
+    .then(()=>{toast(`${activeContractor} data cleared`,'warn');updateDbCount();loadActivities();});
+}
+document.getElementById('clear-btn').addEventListener('click',doClearContractor);
+document.getElementById('clear-btn-sidebar')?.addEventListener('click',doClearContractor);
+
+// ── Global State ──────────────────────────────────────────────────────────────
+let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let pendingFiles = [];
-let filterOpts   = { dates: [], holes: [], sites: [], codes: [] };
-let activitiesData = [];
-let consumablesData = [];
-let crewData = [];
-let anomaliesData = [];
-let charts = {};
+let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
+let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
+let costingHolesData=[], costingDatesData=[], costingLinesData=[];
+let drillingRatesData=[], hourlyRatesData=[];
+let posData=[];
+let charts={};
+let activeRateYear=null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function toast(msg, type='ok') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.borderLeftColor = type === 'err' ? 'var(--red)' : type === 'warn' ? 'var(--yellow)' : 'var(--accent)';
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.style.borderLeftColor=type==='err'?'var(--red)':type==='warn'?'var(--yellow)':'var(--accent)';
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 3000);
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmt(v,d=2){if(v==null||v==='')return'';const n=parseFloat(v);return isNaN(n)?'':n.toFixed(d);}
+function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
+function selectAll(id){const s=document.getElementById(id);if(s)[...s.options].forEach(o=>o.selected=true);}
+function fillSelect(id,vals,allSel=true){
+  const s=document.getElementById(id); if(!s)return;
+  s.innerHTML='';
+  vals.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;o.selected=allSel;s.appendChild(o);});
+}
+function codeBadge(code){
+  if(!code)return'';const c=code.toLowerCase();
+  let cls='badge-other';
+  if(c.includes('drill_core')||c.includes('drill_chip'))cls='badge-drill';
+  else if(c.includes('repair'))cls='badge-repair';
+  else if(c.includes('standby')||c.includes('grout')||c.includes('logger'))cls='badge-standby';
+  else if(c.includes('travel'))cls='badge-travel';
+  return `<span class="badge ${cls}">${esc(code)}</span>`;
+}
+function dateSortKey(d){
+  try{const[dy,mn,yr]=String(d).split('/');return parseInt(yr)*10000+parseInt(mn)*100+parseInt(dy);}catch{return 0;}
 }
 
-function escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function getSelectedValues(selectId) {
-  const sel = document.getElementById(selectId);
-  return [...sel.selectedOptions].map(o => o.value);
-}
-
-function populateSelect(id, values, allSelected = true) {
-  const sel = document.getElementById(id);
-  const prev = getSelectedValues(id);
-  sel.innerHTML = '';
-  values.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = opt.textContent = v;
-    opt.selected = allSelected || prev.includes(v);
-    sel.appendChild(opt);
+// ── Contractor switcher ───────────────────────────────────────────────────────
+function buildContractorSwitcher(){
+  const el=document.getElementById('contractor-switcher');
+  el.innerHTML='';
+  CONTRACTORS.forEach(c=>{
+    const name=typeof c==='string'?c:c.name;
+    const btn=document.createElement('button');
+    btn.className='con-btn'+(name===activeContractor?' active':'');
+    btn.textContent=name;
+    btn.onclick=()=>switchContractor(name);
+    el.appendChild(btn);
   });
+  // Update clear button label
+  const cn=document.getElementById('clear-con-name');
+  if(cn)cn.textContent=activeContractor;
 }
 
-function codeBadge(code) {
-  if (!code) return '';
-  const c = code.toLowerCase();
-  let cls = 'badge-other';
-  if (c.includes('drill_core') || c.includes('drill_chip')) cls = 'badge-drill';
-  else if (c.includes('repair')) cls = 'badge-repair';
-  else if (c.includes('standby') || c.includes('grout') || c.includes('logger')) cls = 'badge-standby';
-  else if (c.includes('travel')) cls = 'badge-travel';
-  return `<span class="badge ${cls}">${escHtml(code)}</span>`;
+async function switchContractor(name){
+  activeContractor=name;
+  sessionStorage.setItem('drillops_contractor',name);
+  buildContractorSwitcher();
+  // Reset all state
+  filterOpts={dates:[],holes:[],sites:[],codes:[]};
+  activitiesData=[];consumablesData=[];crewData=[];anomaliesData=[];
+  costingHolesData=[];costingDatesData=[];costingLinesData=[];
+  posData=[];drillingRatesData=[];hourlyRatesData=[];
+  // Reload current page
+  await updateDbCount();
+  const activePage=document.querySelector('.page.active')?.id?.replace('page-','');
+  if(activePage) triggerPageLoad(activePage);
 }
 
-function fmt(v, decimals=2) {
-  if (v === null || v === undefined || v === '') return '';
-  const n = parseFloat(v);
-  return isNaN(n) ? '' : n.toFixed(decimals);
-}
-
-async function updateDbCount() {
-  try {
-    const f = await fetch(`${API}/filters`);
-    const d = await f.json();
-    document.getElementById('db-count').textContent = d.total_rows.toLocaleString();
-    filterOpts = d;
-    populateSelect('f-dates', d.dates);
-    populateSelect('f-holes', d.holes);
-    populateSelect('f-sites', d.sites);
-    populateSelect('f-codes', d.codes);
-    populateSelect('f-con-dates', d.dates);
-    populateSelect('f-crew-dates', d.dates);
+// ── DB count / filters ────────────────────────────────────────────────────────
+async function updateDbCount(){
+  try{
+    const d=await fetch(`${API}/filters?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    document.getElementById('db-count').textContent=d.total_rows.toLocaleString();
+    filterOpts=d;
+    fillSelect('f-dates',d.dates);fillSelect('f-holes',d.holes);
+    fillSelect('f-sites',d.sites);fillSelect('f-codes',d.codes);
+    fillSelect('f-con-dates',d.dates);fillSelect('f-crew-dates',d.dates);
     buildHoleSelector(d.holes);
-  } catch(e) {
-    document.getElementById('db-count').textContent = 'API offline';
-  }
+  }catch(e){document.getElementById('db-count').textContent='offline';}
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
-    const page = btn.dataset.page;
+    const page=btn.dataset.page;
     document.getElementById(`page-${page}`).classList.add('active');
-    if (page === 'activities')  loadActivities();
-    if (page === 'consumables') loadConsumables();
-    if (page === 'crew')        loadCrew();
-    if (page === 'analytics')   { setTimeout(() => loadAnalytics('all'), 50); }
-    if (page === 'costing') {
-      populateSelect('f-cost-holes', filterOpts.holes || []);
-      populateSelect('f-cost-dates', filterOpts.dates || []);
-      loadCosting();
-    }
-    if (page === 'rates') initRatesTab();
+    triggerPageLoad(page);
   });
 });
 
-// ── Collapsible filters ────────────────────────────────────────────────────────
-['act', 'con', 'crew'].forEach(prefix => {
-  const toggle = document.getElementById(`${prefix}-filter-toggle`);
-  if (!toggle) return;
-  toggle.addEventListener('click', () => {
-    toggle.classList.toggle('open');
-    document.getElementById(`${prefix}-filter-body`).classList.toggle('open');
-  });
+function triggerPageLoad(page){
+  if(page==='activities')  loadActivities();
+  if(page==='consumables') loadConsumables();
+  if(page==='crew')        loadCrew();
+  if(page==='analytics')   setTimeout(()=>loadAnalytics('all'),80);
+  if(page==='costing')     loadCosting();
+  if(page==='purchase-orders') loadPOs();
+  if(page==='rates')       initRatesTab();
+}
+
+// Collapsible filters
+['act','con','crew'].forEach(p=>{
+  const t=document.getElementById(`${p}-filter-toggle`);
+  if(t)t.addEventListener('click',()=>{t.classList.toggle('open');document.getElementById(`${p}-filter-body`).classList.toggle('open');});
+});
+['cost','po-add'].forEach(p=>{
+  const t=document.getElementById(`${p}-filter-toggle`)||document.getElementById(`${p}-toggle`);
+  if(t)t.addEventListener('click',()=>{t.classList.toggle('open');document.getElementById(`${p}-filter-body`)||document.getElementById(`${p}-body`)&&(document.getElementById(`${p}-filter-body`)||document.getElementById(`${p}-body`)).classList.toggle('open');});
+});
+document.getElementById('cost-filter-toggle').addEventListener('click',()=>{
+  document.getElementById('cost-filter-toggle').classList.toggle('open');
+  document.getElementById('cost-filter-body').classList.toggle('open');
+});
+document.getElementById('po-add-toggle').addEventListener('click',()=>{
+  document.getElementById('po-add-toggle').classList.toggle('open');
+  document.getElementById('po-add-body').classList.toggle('open');
 });
 
-// ── File upload & import ───────────────────────────────────────────────────────
-const dropZone  = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
-const importBtn = document.getElementById('import-btn');
+// ── File Upload ───────────────────────────────────────────────────────────────
+const dropZone=document.getElementById('drop-zone');
+const fileInput=document.getElementById('file-input');
+const importBtn=document.getElementById('import-btn');
 
-fileInput.addEventListener('change', e => {
-  pendingFiles = [...e.target.files];
-  importBtn.disabled = pendingFiles.length === 0;
-  importBtn.textContent = pendingFiles.length > 0
-    ? `Import ${pendingFiles.length} file(s)`
-    : 'Import to Database';
+fileInput.addEventListener('change',e=>{
+  pendingFiles=[...e.target.files];
+  importBtn.disabled=pendingFiles.length===0;
+  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
+});
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault();dropZone.classList.remove('drag-over');
+  pendingFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
+  importBtn.disabled=pendingFiles.length===0;
+  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
 });
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  pendingFiles = [...e.dataTransfer.files].filter(f => f.name.endsWith('.pdf'));
-  importBtn.disabled = pendingFiles.length === 0;
-  importBtn.textContent = pendingFiles.length > 0 ? `Import ${pendingFiles.length} file(s)` : 'Import to Database';
-});
-
-importBtn.addEventListener('click', async () => {
-  if (!pendingFiles.length) return;
-  importBtn.disabled = true;
-  importBtn.innerHTML = '<span class="spinner"></span> Importing…';
-  const log = document.getElementById('import-log');
-  log.innerHTML = '';
-  let total = 0;
-  for (const file of pendingFiles) {
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const res = await fetch(`${API}/import`, { method: 'POST', body: fd });
-      const d = await res.json();
-      if (d.status === 'imported') {
-        log.innerHTML += `<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`;
-        total += d.rows;
-      } else {
-        log.innerHTML += `<div class="skip">⚠ ${file.name} (already imported)</div>`;
-      }
-    } catch(e) {
-      log.innerHTML += `<div class="err">✗ ${file.name} — ${e.message}</div>`;
-    }
+importBtn.addEventListener('click',async()=>{
+  if(!pendingFiles.length)return;
+  importBtn.disabled=true;
+  importBtn.innerHTML='<span class="spinner"></span>Importing…';
+  const log=document.getElementById('import-log');log.innerHTML='';
+  let total=0;
+  for(const file of pendingFiles){
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+    try{
+      const d=await fetch(`${API}/import`,{method:'POST',body:fd}).then(r=>r.json());
+      if(d.status==='imported'){log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`;total+=d.rows;}
+      else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
+    }catch(e){log.innerHTML+=`<div class="err">✗ ${file.name}</div>`;}
   }
-  importBtn.textContent = 'Import to Database';
-  importBtn.disabled = false;
-  pendingFiles = [];
-  fileInput.value = '';
+  importBtn.textContent='Import to Database';importBtn.disabled=false;
+  pendingFiles=[];fileInput.value='';
   await updateDbCount();
-  if (total > 0) {
-    toast(`✓ Imported ${total} new rows`);
-    loadActivities();
-  }
+  if(total>0){toast(`✓ Imported ${total} rows for ${activeContractor}`);loadActivities();}
 });
 
-// ── Clear DB ──────────────────────────────────────────────────────────────────
-document.getElementById('clear-btn').addEventListener('click', async () => {
-  if (!confirm('Clear ALL data from the database? This cannot be undone.')) return;
-  await fetch(`${API}/reset`, { method: 'DELETE' });
-  toast('Database cleared', 'warn');
-  await updateDbCount();
-  loadActivities();
+document.getElementById('clear-btn').addEventListener('click',async()=>{
+  if(!confirm(`Clear ALL data for ${activeContractor}?`))return;
+  await fetch(`${API}/reset?contractor=${encodeURIComponent(activeContractor)}`,{method:'DELETE'});
+  toast(`${activeContractor} data cleared`,'warn');
+  await updateDbCount();loadActivities();
 });
 
 // ── Activities ────────────────────────────────────────────────────────────────
-function resetFilters() {
-  document.querySelectorAll('#act-filter-body select').forEach(s =>
-    [...s.options].forEach(o => o.selected = true)
-  );
-  document.getElementById('f-search').value = '';
+function resetFilters(){
+  ['f-dates','f-holes','f-sites','f-codes'].forEach(id=>selectAll(id));
+  document.getElementById('f-search').value='';
   loadActivities();
 }
 
-async function loadActivities() {
-  const dates  = getSelectedValues('f-dates').join(',');
-  const holes  = getSelectedValues('f-holes').join(',');
-  const sites  = getSelectedValues('f-sites').join(',');
-  const codes  = getSelectedValues('f-codes').join(',');
-  const search = document.getElementById('f-search').value.trim();
-  const params = new URLSearchParams({ dates, holes, sites, codes });
-  if (search) params.set('search', search);
-  try {
-    const res = await fetch(`${API}/activities?${params}`);
-    activitiesData = await res.json();
+async function loadActivities(){
+  const dates=getSelVals('f-dates').join(',');
+  const holes=getSelVals('f-holes').join(',');
+  const sites=getSelVals('f-sites').join(',');
+  const codes=getSelVals('f-codes').join(',');
+  const search=document.getElementById('f-search').value.trim();
+  const p=new URLSearchParams({contractor:activeContractor,dates,holes,sites,codes});
+  if(search)p.set('search',search);
+  try{
+    activitiesData=await fetch(`${API}/activities?${p}`).then(r=>r.json());
     renderActivities(activitiesData);
-  } catch(e) {
-    document.getElementById('act-body').innerHTML = `<tr><td colspan="17" style="color:var(--red);padding:20px">API offline — is the backend running?</td></tr>`;
+  }catch(e){
+    document.getElementById('act-body').innerHTML=`<tr><td colspan="17" style="color:var(--red);padding:20px">API offline</td></tr>`;
   }
 }
 
-function renderActivities(rows) {
-  document.getElementById('act-count').textContent = rows.length.toLocaleString();
-  const tbody = document.getElementById('act-body');
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="17"><div class="empty-state"><div class="big">📭</div>No records match your filters</div></td></tr>`;
-    return;
-  }
-
-  // Columns: [data-col, display value, numeric?]
-  tbody.innerHTML = rows.map(r => `
+function renderActivities(rows){
+  document.getElementById('act-count').textContent=rows.length.toLocaleString();
+  const tbody=document.getElementById('act-body');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="17"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
+  tbody.innerHTML=rows.map(r=>`
     <tr data-id="${r.id}">
-      <td contenteditable="true" data-col="date">${escHtml(r.date)}</td>
-      <td contenteditable="true" data-col="hole_num">${escHtml(r.hole_num)}</td>
-      <td contenteditable="true" data-col="site_name">${escHtml(r.site_name)}</td>
-      <td contenteditable="true" data-col="time_from">${escHtml(r.time_from)}</td>
-      <td contenteditable="true" data-col="time_to">${escHtml(r.time_to)}</td>
-      <td contenteditable="true" data-col="total_time">${escHtml(r.total_time)}</td>
-      <td contenteditable="true" data-col="bit_type">${escHtml(r.bit_type)}</td>
-      <td contenteditable="true" data-col="diameter">${escHtml(r.diameter)}</td>
+      <td contenteditable="true" data-col="date">${esc(r.date)}</td>
+      <td contenteditable="true" data-col="hole_num">${esc(r.hole_num)}</td>
+      <td contenteditable="true" data-col="site_name">${esc(r.site_name)}</td>
+      <td contenteditable="true" data-col="time_from">${esc(r.time_from)}</td>
+      <td contenteditable="true" data-col="time_to">${esc(r.time_to)}</td>
+      <td contenteditable="true" data-col="total_time">${esc(r.total_time)}</td>
+      <td contenteditable="true" data-col="bit_type">${esc(r.bit_type)}</td>
+      <td contenteditable="true" data-col="diameter">${esc(r.diameter)}</td>
       <td contenteditable="true" data-col="metres_from" data-numeric="true">${fmt(r.metres_from)}</td>
-      <td contenteditable="true" data-col="metres_to"   data-numeric="true">${fmt(r.metres_to)}</td>
+      <td contenteditable="true" data-col="metres_to" data-numeric="true">${fmt(r.metres_to)}</td>
       <td contenteditable="true" data-col="total_metres" data-numeric="true" data-cost-trigger="true">${fmt(r.total_metres)}</td>
-      <td contenteditable="true" data-col="code" data-cost-trigger="true">${escHtml(r.code)}</td>
-      <td contenteditable="true" data-col="notes">${escHtml(r.notes)}</td>
-      <td contenteditable="true" data-col="unit_rate"   data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.unit_rate != null ? r.unit_rate.toFixed(2) : ''}</td>
-      <td contenteditable="true" data-col="quantity"    data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity != null ? r.quantity.toFixed(2) : ''}</td>
-      <td contenteditable="true" data-col="line_cost"   data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost != null ? r.line_cost.toFixed(2) : ''}</td>
-      <td contenteditable="true" data-col="rate_basis"  style="color:var(--muted);font-size:10px">${escHtml(r.rate_basis||'')}</td>
-    </tr>
-  `).join('');
+      <td contenteditable="true" data-col="code" data-cost-trigger="true">${esc(r.code)}</td>
+      <td contenteditable="true" data-col="notes">${esc(r.notes)}</td>
+      <td contenteditable="true" data-col="unit_rate" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.unit_rate!=null?r.unit_rate.toFixed(2):''}</td>
+      <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
+      <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
+      <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
+    </tr>`).join('');
 
-  // Attach save-on-blur to every editable cell
-  tbody.querySelectorAll('[contenteditable]').forEach(cell => {
-    cell.addEventListener('blur', async () => {
-      const row = cell.closest('tr');
-      const id  = row.dataset.id;
-      const col = cell.dataset.col;
-      let val   = cell.textContent.trim();
-
-      // Parse numeric fields
-      if (cell.dataset.numeric) {
-        val = val === '' ? null : parseFloat(val);
+  tbody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',async()=>{
+      const row=cell.closest('tr');const id=row.dataset.id;const col=cell.dataset.col;
+      let val=cell.textContent.trim();
+      if(cell.dataset.numeric)val=val===''?null:parseFloat(val);
+      if(cell.dataset.costTrigger){
+        const ur=parseFloat(row.querySelector('[data-col="unit_rate"]').textContent)||0;
+        const qty=parseFloat(row.querySelector('[data-col="quantity"]').textContent)||0;
+        const lc=row.querySelector('[data-col="line_cost"]');
+        if(ur>0&&qty>0){const nc=(ur*qty).toFixed(2);lc.textContent=nc;
+          await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({line_cost:parseFloat(nc)})}).catch(()=>{});}
       }
-
-      // If a cost-trigger field changed, recalculate line_cost = unit_rate × quantity
-      if (cell.dataset.costTrigger) {
-        const unitRateCell = row.querySelector('[data-col="unit_rate"]');
-        const quantityCell = row.querySelector('[data-col="quantity"]');
-        const lineCostCell = row.querySelector('[data-col="line_cost"]');
-        const ur = parseFloat(unitRateCell.textContent) || 0;
-        const qty = parseFloat(quantityCell.textContent) || 0;
-        if (ur > 0 && qty > 0) {
-          const newCost = (ur * qty).toFixed(2);
-          lineCostCell.textContent = newCost;
-          // Save line_cost too
-          await fetch(`${API}/activities/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ line_cost: parseFloat(newCost) }),
-          }).catch(() => {});
-        }
-      }
-
-      try {
-        await fetch(`${API}/activities/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [col]: val }),
-        });
+      try{
+        await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
         toast('✓ Saved');
-      } catch(e) { toast('Save failed', 'err'); }
+      }catch(e){toast('Save failed','err');}
     });
-
-    // Prevent Enter key from adding newlines — move to next cell instead
-    cell.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const cells = [...cell.closest('tr').querySelectorAll('[contenteditable]')];
-        const next  = cells[cells.indexOf(cell) + 1];
-        if (next) next.focus();
-      }
-      // Tab already moves to next cell natively
+    cell.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();const cells=[...cell.closest('tr').querySelectorAll('[contenteditable]')];const nx=cells[cells.indexOf(cell)+1];if(nx)nx.focus();}
     });
   });
   makeTableSortable('act-table');
 }
 
 // ── Consumables ───────────────────────────────────────────────────────────────
-async function loadConsumables() {
-  const dates = getSelectedValues('f-con-dates').join(',');
-  try {
-    const res = await fetch(`${API}/consumables?dates=${dates}`);
-    consumablesData = await res.json();
-    renderTable('con-body', 'con-count', consumablesData,
-      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.consumable)}</td><td>${escHtml(r.type)}</td><td>${escHtml(r.quantity)}</td><td>${escHtml(r.unit)}</td></tr>`, 7);
-  } catch(e) {}
+async function loadConsumables(){
+  const dates=getSelVals('f-con-dates').join(',');
+  try{
+    consumablesData=await fetch(`${API}/consumables?contractor=${encodeURIComponent(activeContractor)}&dates=${dates}`).then(r=>r.json());
+    document.getElementById('con-count').textContent=consumablesData.length;
+    document.getElementById('con-body').innerHTML=consumablesData.map(r=>
+      `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.consumable)}</td><td>${esc(r.type)}</td><td>${esc(r.quantity)}</td><td>${esc(r.unit)}</td></tr>`
+    ).join('')||'<tr><td colspan="7"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
+    makeTableSortable('con-table');
+  }catch(e){}
 }
 
 // ── Crew ──────────────────────────────────────────────────────────────────────
-async function loadCrew() {
-  const dates = getSelectedValues('f-crew-dates').join(',');
-  try {
-    const res = await fetch(`${API}/crew?dates=${dates}`);
-    crewData = await res.json();
-    renderTable('crew-body', 'crew-count', crewData,
-      r => `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.hole_num)}</td><td>${escHtml(r.site_name)}</td><td>${escHtml(r.role)}</td><td>${escHtml(r.name)}</td><td>${escHtml(r.hours)}</td></tr>`, 6);
-  } catch(e) {}
-}
-
-function renderTable(bodyId, countId, rows, rowFn, cols) {
-  document.getElementById(countId).textContent = rows.length.toLocaleString();
-  const tbody = document.getElementById(bodyId);
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty-state"><div class="big">📭</div>No records yet</div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map(rowFn).join('');
+async function loadCrew(){
+  const dates=getSelVals('f-crew-dates').join(',');
+  try{
+    crewData=await fetch(`${API}/crew?contractor=${encodeURIComponent(activeContractor)}&dates=${dates}`).then(r=>r.json());
+    document.getElementById('crew-count').textContent=crewData.length;
+    document.getElementById('crew-body').innerHTML=crewData.map(r=>
+      `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.hours)}</td></tr>`
+    ).join('')||'<tr><td colspan="6"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
+    makeTableSortable('crew-table');
+  }catch(e){}
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
-function buildHoleSelector(holes) {
-  const sel = document.getElementById('hole-selector');
-  // Clear and rebuild every time to avoid duplicate listeners
-  sel.innerHTML = '';
+const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6',
+  'Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
 
-  // All Holes button
-  const allBtn = document.createElement('button');
-  allBtn.className = 'hole-btn active';
-  allBtn.dataset.hole = 'all';
-  allBtn.textContent = 'All Holes';
-  allBtn.addEventListener('click', () => {
-    sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
-    allBtn.classList.add('active');
-    loadAnalytics('all');
-  });
+function buildHoleSelector(holes){
+  const sel=document.getElementById('hole-selector');sel.innerHTML='';
+  const allBtn=document.createElement('button');
+  allBtn.className='hole-btn active';allBtn.dataset.hole='all';allBtn.textContent='All Holes';
+  allBtn.addEventListener('click',()=>{sel.querySelectorAll('.hole-btn').forEach(b=>b.classList.remove('active'));allBtn.classList.add('active');loadAnalytics('all');});
   sel.appendChild(allBtn);
-
-  holes.forEach(h => {
-    const btn = document.createElement('button');
-    btn.className = 'hole-btn';
-    btn.dataset.hole = h;
-    btn.textContent = h;
-    btn.addEventListener('click', () => {
-      sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      loadAnalytics(h);
-    });
+  holes.forEach(h=>{
+    const btn=document.createElement('button');btn.className='hole-btn';btn.dataset.hole=h;btn.textContent=h;
+    btn.addEventListener('click',()=>{sel.querySelectorAll('.hole-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');loadAnalytics(h);});
     sel.appendChild(btn);
   });
 }
 
-const CAT_COLORS = {
-  'Productive Drilling':  '#27ae60',
-  'Tripping Rods':        '#3498db',
-  'Circulation':          '#9b59b6',
-  'Repairs':              '#e74c3c',
-  'Standby / Delays':     '#f39c12',
-  'Travel':               '#7f8c8d',
-  'Safety & Admin':       '#1abc9c',
-  'Other':                '#555e6b',
-};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 
-function destroyChart(id) {
-  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
-}
-
-async function loadAnalytics(hole) {
-  try {
-    const res = await fetch(`${API}/analytics?hole=${hole}`);
-    const d = await res.json();
-
-    // KPIs
-    const k = d.kpis;
-    document.getElementById('kpi-total').textContent  = k.total_hours  + ' h';
-    document.getElementById('kpi-drill').textContent  = k.drill_hours  + ' h';
-    document.getElementById('kpi-eff').textContent    = k.efficiency   + '% efficiency';
-    document.getElementById('kpi-repair').textContent = k.repair_hours + ' h';
-    document.getElementById('kpi-delay').textContent  = k.delay_hours  + ' h';
-    document.getElementById('kpi-metres').textContent = k.total_metres + ' m';
-
-    // Colour the KPI cards
-    document.querySelectorAll('.kpi')[2].className = 'kpi ' + (k.repair_hours >= 4 ? 'crit' : 'good');
-    document.querySelectorAll('.kpi')[3].className = 'kpi ' + (k.delay_hours  >= 6 ? 'warn' : 'good');
-
-    // Chart 1 — daily breakdown stacked bar
+async function loadAnalytics(hole){
+  try{
+    const url=`${API}/analytics?contractor=${encodeURIComponent(activeContractor)}&hole=${encodeURIComponent(hole)}`;
+    const d=await fetch(url).then(r=>r.json());
+    if(!d.kpis||Object.keys(d.kpis).length===0){
+      ['kpi-total','kpi-drill','kpi-repair','kpi-delay','kpi-metres'].forEach(id=>document.getElementById(id).textContent='—');
+      document.getElementById('kpi-eff').textContent='no data';
+      return;
+    }
+    const k=d.kpis;
+    document.getElementById('kpi-total').textContent=k.total_hours+' h';
+    document.getElementById('kpi-drill').textContent=k.drill_hours+' h';
+    document.getElementById('kpi-eff').textContent=k.efficiency+'% efficiency';
+    document.getElementById('kpi-repair').textContent=k.repair_hours+' h';
+    document.getElementById('kpi-delay').textContent=k.delay_hours+' h';
+    document.getElementById('kpi-metres').textContent=k.total_metres+' m';
+    document.querySelectorAll('.kpi')[2].className='kpi '+(k.repair_hours>=4?'crit':'good');
+    document.querySelectorAll('.kpi')[3].className='kpi '+(k.delay_hours>=6?'warn':'good');
     buildDailyChart(d.daily_categories);
-
-    // Chart 2 — cumulative metres line
     buildCumulativeChart(d.drill_runs);
-
-    // Chart 3 — efficiency bar
     buildEfficiencyChart(d.daily_categories);
-
-    // Chart 4 — metres per run
     buildRunChart(d.drill_runs);
-
-    // Anomalies
-    anomaliesData = d.anomalies;
     renderAnomalies(d.anomalies);
-
-    // Heatmap
-    renderHeatmap(d.heatmap, d.daily_categories);
-
-  } catch(e) {
-    console.error(e);
-  }
+    renderHeatmap(d.heatmap,d.daily_categories);
+    anomaliesData=d.anomalies;
+  }catch(e){console.error('Analytics error:',e);}
 }
 
-function buildDailyChart(data) {
-  destroyChart('daily');
-  if (!data.length) return;
+function buildDailyChart(data){
+  destroyChart('daily');if(!data||!data.length)return;
+  const dates=[...new Set(data.map(r=>r.date))].sort((a,b)=>dateSortKey(a)-dateSortKey(b));
+  const datasets=Object.keys(CAT_COLORS).map(cat=>({
+    label:cat,backgroundColor:CAT_COLORS[cat],borderWidth:0,
+    data:dates.map(d=>{const r=data.find(r=>r.date===d&&r.category===cat);return r?+r.hours.toFixed(2):0;})
+  })).filter(ds=>ds.data.some(v=>v>0));
+  charts['daily']=new Chart(document.getElementById('chart-daily').getContext('2d'),{
+    type:'bar',data:{labels:dates,datasets},
+    options:{plugins:{legend:{labels:{color:'#6b7280',font:{family:'IBM Plex Mono',size:9}}}},
+      scales:{x:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}},
+              y:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},
+      responsive:true,maintainAspectRatio:true}});
+}
 
-  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
-  const cats     = Object.keys(CAT_COLORS);
-  const datasets = cats.map(cat => ({
-    label: cat,
-    data: dates.map(d => {
-      const row = data.find(r => r.date === d && r.category === cat);
-      return row ? +row.hours.toFixed(2) : 0;
-    }),
-    backgroundColor: CAT_COLORS[cat],
-    borderWidth: 0,
-  })).filter(ds => ds.data.some(v => v > 0));
+function buildCumulativeChart(runs){
+  destroyChart('cumulative');if(!runs||!runs.length)return;
+  charts['cumulative']=new Chart(document.getElementById('chart-cumulative').getContext('2d'),{
+    type:'line',
+    data:{labels:runs.map((_,i)=>i+1),datasets:[{label:'Cumulative Metres',data:runs.map(r=>r.cumulative),
+      borderColor:'#e8a020',backgroundColor:'rgba(232,160,32,0.1)',fill:true,tension:0.3,pointRadius:2,pointBackgroundColor:'#e8a020'}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{display:false},grid:{color:'#1e2430'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
+}
 
-  const ctx = document.getElementById('chart-daily').getContext('2d');
-  charts['daily'] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: dates, datasets },
-    options: {
-      plugins: { legend: { labels: { color: '#6b7280', font: { family: 'IBM Plex Mono', size: 10 } } } },
-      scales: {
-        x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
-        y: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
-      },
-      responsive: true, maintainAspectRatio: true,
-    },
+function buildEfficiencyChart(data){
+  destroyChart('efficiency');if(!data||!data.length)return;
+  const dates=[...new Set(data.map(r=>r.date))].sort((a,b)=>dateSortKey(a)-dateSortKey(b));
+  const tot={},drl={};
+  data.forEach(r=>{tot[r.date]=(tot[r.date]||0)+r.hours;if(r.category==='Productive Drilling')drl[r.date]=(drl[r.date]||0)+r.hours;});
+  const effs=dates.map(d=>tot[d]?+((drl[d]||0)/tot[d]*100).toFixed(1):0);
+  charts['efficiency']=new Chart(document.getElementById('chart-efficiency').getContext('2d'),{
+    type:'bar',
+    data:{labels:dates,datasets:[{label:'Efficiency %',data:effs,backgroundColor:effs.map(e=>e<20?'#e74c3c':e<40?'#f39c12':'#27ae60'),borderWidth:0}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}},y:{max:100,ticks:{color:'#6b7280',font:{size:9},callback:v=>v+'%'},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function buildRunChart(runs){
+  destroyChart('runs');if(!runs||!runs.length)return;
+  charts['runs']=new Chart(document.getElementById('chart-runs').getContext('2d'),{
+    type:'bar',
+    data:{labels:runs.map((_,i)=>i+1),datasets:[{label:'Metres',data:runs.map(r=>r.total_metres),backgroundColor:runs.map(r=>r.total_metres<1?'#e74c3c':'#3498db'),borderWidth:0}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>{const r=runs[items[0].dataIndex];return`${r.date} Run#${items[0].dataIndex+1}`;},afterBody:items=>{const r=runs[items[0].dataIndex];return r.notes?[r.notes.substring(0,60)]:[];}}}},
+      scales:{x:{ticks:{display:false},grid:{color:'#1e2430'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function renderAnomalies(anomalies){
+  document.getElementById('anom-count').textContent=anomalies.length;
+  const icons={critical:'🔴',warning:'🟠',caution:'🟡',info:'🔵'};
+  document.getElementById('anom-body').innerHTML=anomalies.length
+    ?anomalies.map(a=>`<tr><td>${esc(a.date)}</td><td>${esc(a.hole)}</td><td><span class="badge severity-${a.severity}">${icons[a.severity]||''} ${esc(a.type)}</span></td><td>${esc(a.detail)}</td></tr>`).join('')
+    :`<tr><td colspan="4" style="padding:16px;color:var(--green);font-family:var(--font-mono);font-size:11px">✓ No anomalies detected</td></tr>`;
+  makeTableSortable('anom-table');
+}
+
+function renderHeatmap(heatmap,daily){
+  const el=document.getElementById('heatmap-container');
+  if(!heatmap||!heatmap.length){el.innerHTML='<p style="color:var(--muted);font-family:var(--font-mono);font-size:11px">No data</p>';return;}
+  const dates=[...new Set((daily||[]).map(r=>r.date))].sort((a,b)=>dateSortKey(a)-dateSortKey(b));
+  const cats=['Repairs','Standby / Delays','Circulation'];
+  const maxVal=Math.max(...heatmap.map(r=>r.hours),1);
+  function hc(h){if(!h)return'#111318';const t=h/maxVal;return t<0.3?`rgba(243,156,18,${0.2+t*0.6})`:`rgba(192,57,43,${0.3+t*0.7})`;}
+  let html='<table class="heatmap-table"><thead><tr><th></th>';
+  dates.forEach(d=>html+=`<th>${d.split('/').slice(0,2).join('/')}</th>`);
+  html+='</tr></thead><tbody>';
+  cats.forEach(cat=>{
+    html+=`<tr><th style="text-align:left;white-space:nowrap;padding-right:10px">${cat}</th>`;
+    dates.forEach(d=>{const r=heatmap.find(r=>r.date===d&&r.category===cat);const v=r?r.hours:0;
+      html+=`<td class="heatmap-cell" style="background:${hc(v)}" title="${cat} ${d}: ${v.toFixed(1)}h">${v>0.1?v.toFixed(1):''}</td>`;});
+    html+='</tr>';
   });
-}
-
-function buildCumulativeChart(runs) {
-  destroyChart('cumulative');
-  if (!runs.length) return;
-  const ctx = document.getElementById('chart-cumulative').getContext('2d');
-  charts['cumulative'] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: runs.map((r,i) => i+1),
-      datasets: [{
-        label: 'Cumulative Metres',
-        data: runs.map(r => r.cumulative),
-        borderColor: '#e8a020',
-        backgroundColor: 'rgba(232,160,32,0.1)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointBackgroundColor: '#e8a020',
-      }],
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
-        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
-      },
-      responsive: true, maintainAspectRatio: true,
-    },
-  });
-}
-
-function buildEfficiencyChart(data) {
-  destroyChart('efficiency');
-  if (!data.length) return;
-  const dates    = [...new Set(data.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
-  const totalByDate = {};
-  const drillByDate = {};
-  data.forEach(r => {
-    totalByDate[r.date] = (totalByDate[r.date] || 0) + r.hours;
-    if (r.category === 'Productive Drilling')
-      drillByDate[r.date] = (drillByDate[r.date] || 0) + r.hours;
-  });
-  const efficiencies = dates.map(d => totalByDate[d] ? +((drillByDate[d]||0)/totalByDate[d]*100).toFixed(1) : 0);
-  const colors = efficiencies.map(e => e < 20 ? '#e74c3c' : e < 40 ? '#f39c12' : '#27ae60');
-  const ctx = document.getElementById('chart-efficiency').getContext('2d');
-  charts['efficiency'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: dates,
-      datasets: [{
-        label: 'Efficiency %',
-        data: efficiencies,
-        backgroundColor: colors,
-        borderWidth: 0,
-      }],
-    },
-    options: {
-      plugins: {
-        legend: { display: false },
-        annotation: {},
-      },
-      scales: {
-        x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
-        y: { max: 100, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => v+'%' }, grid: { color: '#1e2430' } },
-      },
-      responsive: true, maintainAspectRatio: true,
-    },
-  });
-}
-
-function buildRunChart(runs) {
-  destroyChart('runs');
-  if (!runs.length) return;
-  const ctx = document.getElementById('chart-runs').getContext('2d');
-  const avg = runs.reduce((s,r) => s+r.total_metres, 0) / runs.length;
-  charts['runs'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: runs.map((r,i) => i+1),
-      datasets: [{
-        label: 'Metres',
-        data: runs.map(r => r.total_metres),
-        backgroundColor: runs.map(r => r.total_metres < 1 ? '#e74c3c' : '#3498db'),
-        borderWidth: 0,
-      }],
-    },
-    options: {
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              const r = runs[items[0].dataIndex];
-              return `${r.date} — Run #${items[0].dataIndex+1}`;
-            },
-            afterBody: (items) => {
-              const r = runs[items[0].dataIndex];
-              return r.notes ? [r.notes.substring(0,60)] : [];
-            },
-          },
-        },
-      },
-      scales: {
-        x: { ticks: { display: false }, grid: { color: '#1e2430' } },
-        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1e2430' } },
-      },
-      responsive: true, maintainAspectRatio: true,
-    },
-  });
-}
-
-function renderAnomalies(anomalies) {
-  document.getElementById('anom-count').textContent = anomalies.length;
-  const tbody = document.getElementById('anom-body');
-  if (!anomalies.length) {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:20px;color:var(--green);font-family:var(--font-mono);font-size:12px">✓ No anomalies detected</td></tr>`;
-    return;
-  }
-  const icons = { critical:'🔴', warning:'🟠', caution:'🟡', info:'🔵' };
-  tbody.innerHTML = anomalies.map(a => `
-    <tr class="anomaly-row">
-      <td>${escHtml(a.date)}</td>
-      <td>${escHtml(a.hole)}</td>
-      <td><span class="badge severity-${a.severity}">${icons[a.severity]||''} ${escHtml(a.type)}</span></td>
-      <td>${escHtml(a.detail)}</td>
-    </tr>
-  `).join('');
-}
-
-function renderHeatmap(heatmap, daily) {
-  if (!heatmap.length) {
-    document.getElementById('heatmap-container').innerHTML = '<p style="color:var(--muted);font-family:var(--font-mono);font-size:11px">No data</p>';
-    return;
-  }
-  const dates = [...new Set(daily.map(r => r.date))].sort((a,b) => dateSortKey(a)-dateSortKey(b));
-  const cats  = ['Repairs', 'Standby / Delays', 'Circulation'];
-  const maxVal = Math.max(...heatmap.map(r => r.hours), 1);
-
-  function heatColor(h) {
-    if (!h) return '#111318';
-    const t = h / maxVal;
-    if (t < 0.3) return `rgba(243,156,18,${0.2+t*0.6})`;
-    return `rgba(192,57,43,${0.3+t*0.7})`;
-  }
-
-  let html = '<table class="heatmap-table"><thead><tr><th></th>';
-  dates.forEach(d => html += `<th>${d.split('/').slice(0,2).join('/')}</th>`);
-  html += '</tr></thead><tbody>';
-
-  cats.forEach(cat => {
-    html += `<tr><th style="text-align:left;white-space:nowrap;padding-right:12px">${cat}</th>`;
-    dates.forEach(d => {
-      const row  = heatmap.find(r => r.date === d && r.category === cat);
-      const val  = row ? row.hours : 0;
-      const bg   = heatColor(val);
-      const label = val > 0.1 ? val.toFixed(1) : '';
-      html += `<td class="heatmap-cell" style="background:${bg}" title="${cat} — ${d}: ${val.toFixed(1)}h">${label}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  document.getElementById('heatmap-container').innerHTML = html;
-}
-
-function dateSortKey(d) {
-  try {
-    const [day, mon, yr] = d.split('/');
-    return parseInt(yr)*10000 + parseInt(mon)*100 + parseInt(day);
-  } catch { return 0; }
-}
-
-// ── CSV Download ──────────────────────────────────────────────────────────────
-let costingHolesData = [], costingDatesData = [], costingLinesData = [];
-let drillingRatesData = [], hourlyRatesData = [];
-
-function downloadCSV(type) {
-  const map = {
-    activities:     [activitiesData,    'activities.csv'],
-    consumables:    [consumablesData,   'consumables.csv'],
-    crew:           [crewData,          'crew.csv'],
-    anomalies:      [anomaliesData,     'anomalies.csv'],
-    costing_holes:  [costingHolesData,  'costing_by_hole.csv'],
-    costing_dates:  [costingDatesData,  'costing_by_date.csv'],
-    costing_lines:  [costingLinesData,  'costing_lines.csv'],
-  };
-  const [rows, filename] = map[type] || [null, null];
-  if (!rows || !rows.length) return;
-  const keys = Object.keys(rows[0]);
-  const csv  = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = filename;
-  a.click();
+  el.innerHTML=html+'</tbody></table>';
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
-function resetCostFilters() {
-  ['f-cost-holes','f-cost-dates'].forEach(id =>
-    [...document.getElementById(id).options].forEach(o => o.selected = true));
-  loadCosting();
+async function loadCosting(){
+  try{
+    const url=`${API}/costing?contractor=${encodeURIComponent(activeContractor)}`;
+    const d=await fetch(url).then(r=>r.json());
+    costingHolesData=d.by_hole;costingDatesData=d.by_date;
+    const grand=d.grand_total;
+    const totalDrill=d.by_hole.reduce((s,r)=>s+(r.drilling_cost||0),0);
+    const totalNon=d.by_hole.reduce((s,r)=>s+(r.non_drilling_cost||0),0);
+    const totalM=d.by_hole.reduce((s,r)=>s+(r.total_metres||0),0);
+    document.getElementById('cost-grand').textContent=cur(grand);
+    document.getElementById('cost-drilling').textContent=cur(totalDrill);
+    document.getElementById('cost-nondrilling').textContent=cur(totalNon);
+    document.getElementById('cost-metres').textContent=totalM.toFixed(1)+' m';
+    document.getElementById('cost-per-m').textContent=totalM>0?'$'+(grand/totalM).toFixed(2):'—';
+    document.getElementById('cost-hole-count').textContent=d.by_hole.length;
+    document.getElementById('cost-hole-body').innerHTML=d.by_hole.map(r=>`<tr>
+      <td>${esc(r.hole_num)}</td>
+      <td style="color:var(--accent)">${cur(r.total_cost)}</td>
+      <td>${cur(r.drilling_cost)}</td>
+      <td>${cur(r.non_drilling_cost)}</td>
+      <td>${(r.total_metres||0).toFixed(1)}</td>
+      <td>${r.total_metres>0?'$'+(r.total_cost/r.total_metres).toFixed(2):'—'}</td>
+      <td>${r.activity_count}</td></tr>`).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No priced data yet</td></tr>';
+    document.getElementById('cost-date-count').textContent=d.by_date.length;
+    document.getElementById('cost-date-body').innerHTML=d.by_date.map(r=>`<tr>
+      <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>
+      <td style="color:var(--accent)">${cur(r.total_cost)}</td>
+      <td>${(r.total_metres||0).toFixed(1)}</td></tr>`).join('');
+    // Populate cost line item filters
+    fillSelect('f-cost-holes',filterOpts.holes||[]);
+    fillSelect('f-cost-dates',filterOpts.dates||[]);
+    await loadCostingLines();
+    ['cost-hole-table','cost-date-table'].forEach(id=>makeTableSortable(id));
+    // Load PO banner
+    await loadPOBanner();
+  }catch(e){console.error('Costing error:',e);}
 }
 
-async function loadCosting() {
-  const holes = getSelectedValues('f-cost-holes').join(',');
-  const dates = getSelectedValues('f-cost-dates').join(',');
-  const params = new URLSearchParams();
-  if (holes) params.set('holes', holes);
-  if (dates) params.set('dates', dates);
-
-  try {
-    const res = await fetch(`${API}/costing?${params}`);
-    const d   = await res.json();
-
-    costingHolesData = d.by_hole;
-    costingDatesData = d.by_date;
-
-    // KPIs
-    const grand = d.grand_total;
-    const totalDrill    = d.by_hole.reduce((s, r) => s + (r.drilling_cost || 0), 0);
-    const totalNonDrill = d.by_hole.reduce((s, r) => s + (r.non_drilling_cost || 0), 0);
-    const totalM        = d.by_hole.reduce((s, r) => s + (r.total_metres || 0), 0);
-    document.getElementById('cost-grand').textContent      = '$' + grand.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('cost-drilling').textContent   = '$' + totalDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('cost-nondrilling').textContent= '$' + totalNonDrill.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('cost-metres').textContent     = totalM.toFixed(1) + ' m';
-    document.getElementById('cost-per-m').textContent      = totalM > 0 ? '$' + (grand / totalM).toFixed(2) : '—';
-
-    // By hole table
-    document.getElementById('cost-hole-count').textContent = d.by_hole.length;
-    document.getElementById('cost-hole-body').innerHTML = d.by_hole.map(r => `
-      <tr>
-        <td>${escHtml(r.hole_num)}</td>
-        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        <td>$${(r.drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        <td>$${(r.non_drilling_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        <td>${(r.total_metres||0).toFixed(1)}</td>
-        <td>${r.total_metres > 0 ? '$'+(r.total_cost/r.total_metres).toFixed(2) : '—'}</td>
-        <td>${r.activity_count}</td>
-      </tr>`).join('') || '<tr><td colspan="7" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced data yet — import PDFs first</td></tr>';
-
-    // By date table
-    document.getElementById('cost-date-count').textContent = d.by_date.length;
-    document.getElementById('cost-date-body').innerHTML = d.by_date.map(r => `
-      <tr>
-        <td>${escHtml(r.date)}</td>
-        <td>${escHtml(r.hole_num)}</td>
-        <td style="color:var(--accent)">$${(r.total_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        <td>${(r.total_metres||0).toFixed(1)}</td>
-      </tr>`).join('');
-
-    // Line items — load from activities with cost fields
-    await loadCostingLines(holes, dates);
-
-  } catch(e) { console.error(e); }
-}
-
-async function loadCostingLines(holes, dates) {
-  const params = new URLSearchParams();
-  if (holes) params.set('holes', holes);
-  if (dates) params.set('dates', dates);
-  const res = await fetch(`${API}/activities?${params}`);
-  const all = await res.json();
-  const priced = all.filter(r => r.line_cost != null);
-  costingLinesData = priced;
-  document.getElementById('cost-line-count').textContent = priced.length;
-  document.getElementById('cost-line-body').innerHTML = priced.map(r => `
-    <tr>
-      <td>${escHtml(r.date)}</td>
-      <td>${escHtml(r.hole_num)}</td>
+async function loadCostingLines(){
+  const holes=getSelVals('f-cost-holes').join(',');
+  const dates=getSelVals('f-cost-dates').join(',');
+  const p=new URLSearchParams({contractor:activeContractor,dates,holes});
+  try{
+    const all=await fetch(`${API}/activities?${p}`).then(r=>r.json());
+    costingLinesData=all.filter(r=>r.line_cost!=null);
+    document.getElementById('cost-line-count').textContent=costingLinesData.length;
+    document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr>
+      <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>
       <td>${codeBadge(r.code)}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.notes)}">${escHtml(r.notes)}</td>
-      <td>${r.total_metres != null ? r.total_metres.toFixed(2) : ''}</td>
-      <td style="color:var(--muted);font-size:10px">${escHtml(r.rate_basis||'')}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.notes)}">${esc(r.notes)}</td>
+      <td>${r.total_metres!=null?r.total_metres.toFixed(2):''}</td>
+      <td style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
       <td>$${(r.unit_rate||0).toFixed(2)}</td>
       <td>${(r.quantity||0).toFixed(2)}</td>
-      <td style="color:var(--accent);font-weight:600">$${(r.line_cost||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-    </tr>`).join('') || '<tr><td colspan="9" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No priced activity rows</td></tr>';
-}
-
-// ── Schedule of Rates ─────────────────────────────────────────────────────────
-let activeRateYear = null;
-
-function buildRateYearSelector(years) {
-  const sel = document.getElementById('rate-year-selector');
-  sel.innerHTML = '';
-  years.forEach((y, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'hole-btn' + (i === 0 ? ' active' : '');
-    btn.textContent = y;
-    btn.dataset.year = y;
-    btn.addEventListener('click', () => {
-      sel.querySelectorAll('.hole-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeRateYear = y;
-      loadRates(y);
-    });
-    sel.appendChild(btn);
-  });
-  if (years.length) {
-    activeRateYear = years[0];
-    loadRates(years[0]);
-  }
-}
-
-async function loadRates(year) {
-  try {
-    const [drRes, hrRes] = await Promise.all([
-      fetch(`${API}/rates/drilling?year=${year}`),
-      fetch(`${API}/rates/hourly?year=${year}`),
-    ]);
-    drillingRatesData = await drRes.json();
-    hourlyRatesData   = await hrRes.json();
-    renderDrillingRates(drillingRatesData);
-    renderHourlyRates(hourlyRatesData);
-  } catch(e) { console.error(e); }
-}
-
-function renderDrillingRates(rows) {
-  document.getElementById('dr-count').textContent = rows.length;
-  document.getElementById('dr-body').innerHTML = rows.map(r => `
-    <tr data-id="${r.id}" data-table="drilling">
-      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
-      <td contenteditable="true" data-col="bit_type">${escHtml(r.bit_type)}</td>
-      <td contenteditable="true" data-col="depth_from">${r.depth_from}</td>
-      <td contenteditable="true" data-col="depth_to">${r.depth_to}</td>
-      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
-      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
-  attachRateEditListeners('drilling');
-}
-
-function renderHourlyRates(rows) {
-  document.getElementById('hr-count').textContent = rows.length;
-  document.getElementById('hr-body').innerHTML = rows.map(r => `
-    <tr data-id="${r.id}" data-table="hourly">
-      <td contenteditable="true" data-col="year">${escHtml(r.year)}</td>
-      <td contenteditable="true" data-col="code">${escHtml(r.code)}</td>
-      <td contenteditable="true" data-col="description">${escHtml(r.description||'')}</td>
-      <td contenteditable="true" data-col="rate">$${r.rate.toFixed(2)}</td>
-      <td contenteditable="true" data-col="unit">${escHtml(r.unit)}</td>
-      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
-  attachRateEditListeners('hourly');
-}
-
-function attachRateEditListeners(table) {
-  const bodyId = table === 'drilling' ? 'dr-body' : 'hr-body';
-  document.getElementById(bodyId).querySelectorAll('[contenteditable]').forEach(cell => {
-    cell.addEventListener('blur', async () => {
-      const row = cell.closest('tr');
-      const id  = row.dataset.id;
-      const col = cell.dataset.col;
-      let val   = cell.textContent.trim().replace(/^\$/, '');
-      if (['rate','depth_from','depth_to'].includes(col)) val = parseFloat(val);
-      try {
-        await fetch(`${API}/rates/${table}/${id}`, {
-          method: 'PATCH',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({[col]: val}),
-        });
-        toast('✓ Rate saved');
-      } catch(e) { toast('Save failed','err'); }
-    });
-  });
-}
-
-async function deleteRate(table, id) {
-  if (!confirm('Delete this rate?')) return;
-  await fetch(`${API}/rates/${table}/${id}`, {method: 'DELETE'});
-  toast('Rate deleted', 'warn');
-  loadRates(activeRateYear);
-}
-
-async function addDrillingRate() {
-  const year = activeRateYear || '2025';
-  await fetch(`${API}/rates/drilling`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({year, bit_type:'HQ_HQ3', depth_from:0, depth_to:100, rate:0}),
-  });
-  loadRates(year);
-  toast('New drilling rate row added');
-}
-
-async function addHourlyRate() {
-  const year = activeRateYear || '2025';
-  await fetch(`${API}/rates/hourly`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({year, code:'NEW_CODE', description:'', rate:0, unit:'hour'}),
-  });
-  loadRates(year);
-  toast('New hourly rate row added');
-}
-
-async function copyRatesYear() {
-  const newYear = document.getElementById('new-year-input').value.trim();
-  if (!newYear || !/^\d{4}$/.test(newYear)) { toast('Enter a valid 4-digit year','err'); return; }
-  if (!activeRateYear) { toast('Select a source year first','err'); return; }
-
-  // Copy all drilling rates
-  for (const r of drillingRatesData) {
-    await fetch(`${API}/rates/drilling`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({year: newYear, bit_type: r.bit_type, depth_from: r.depth_from, depth_to: r.depth_to, rate: r.rate}),
-    });
-  }
-  // Copy all hourly rates
-  for (const r of hourlyRatesData) {
-    await fetch(`${API}/rates/hourly`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({year: newYear, code: r.code, description: r.description, rate: r.rate, unit: r.unit}),
-    });
-  }
-
-  toast(`✓ Rates copied to ${newYear} — now edit to update values`);
-  document.getElementById('new-year-input').value = '';
-
-  // Refresh year selector
-  const res  = await fetch(`${API}/rates/years`);
-  const data = await res.json();
-  buildRateYearSelector(data.years);
-  // Activate the new year
-  document.querySelectorAll('#rate-year-selector .hole-btn').forEach(b => {
-    if (b.dataset.year === newYear) b.click();
-  });
-}
-
-async function initRatesTab() {
-  try {
-    const res  = await fetch(`${API}/rates/years`);
-    const data = await res.json();
-    buildRateYearSelector(data.years);
-  } catch(e) {}
-}
-
-// Collapsible filter for costing
-const costToggle = document.getElementById('cost-filter-toggle');
-if (costToggle) {
-  costToggle.addEventListener('click', () => {
-    costToggle.classList.toggle('open');
-    document.getElementById('cost-filter-body').classList.toggle('open');
-  });
-}
-
-// ── Column Sorting ────────────────────────────────────────────────────────────
-// sortState: { tableId: { col: Number, dir: 1|-1 } }
-const sortState = {};
-
-function makeTableSortable(tableId) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-  const thead = table.querySelector('thead tr');
-  if (!thead) return;
-  [...thead.children].forEach((th, colIdx) => {
-    th.style.cursor = 'pointer';
-    th.style.userSelect = 'none';
-    th.addEventListener('click', () => {
-      const state = sortState[tableId] || { col: -1, dir: 1 };
-      const dir = state.col === colIdx ? -state.dir : 1;
-      sortState[tableId] = { col: colIdx, dir };
-
-      // Update sort indicators
-      [...thead.children].forEach(h => {
-        h.textContent = h.textContent.replace(' ▲','').replace(' ▼','');
-      });
-      th.textContent += dir === 1 ? ' ▲' : ' ▼';
-
-      // Sort tbody rows
-      const tbody = table.querySelector('tbody');
-      const rows  = [...tbody.querySelectorAll('tr')];
-      rows.sort((a, b) => {
-        const aCell = a.children[colIdx];
-        const bCell = b.children[colIdx];
-        if (!aCell || !bCell) return 0;
-        const aVal = aCell.textContent.trim().replace(/[$,]/g,'');
-        const bVal = bCell.textContent.trim().replace(/[$,]/g,'');
-        const aNum = parseFloat(aVal);
-        const bNum = parseFloat(bVal);
-        // Date sort d/m/yyyy
-        const aDate = dateSortKey(aVal);
-        const bDate = dateSortKey(bVal);
-        if (aDate && bDate && aDate !== 0 && bDate !== 0) return (aDate - bDate) * dir;
-        if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
-        return aVal.localeCompare(bVal) * dir;
-      });
-      rows.forEach(r => tbody.appendChild(r));
-    });
-  });
-}
-
-// Apply sorting to all static tables
-['act-table','con-table','crew-table','cost-hole-table','cost-date-table','cost-line-table','dr-table','hr-table','anom-table','po-table'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) makeTableSortable(id);
-});
-
-// Patch loadCosting to re-apply sort and load PO banner
-const _origLoadCosting = loadCosting;
-async function loadCosting() {
-  await _origLoadCosting();
-  ['cost-hole-table','cost-date-table','cost-line-table'].forEach(id => makeTableSortable(id));
-  // Also refresh PO banner
-  try {
-    const res = await fetch(`${API}/purchase_orders`);
-    posData = await res.json();
-    renderPOSummaryBanner(posData);
-  } catch(e) {}
+      <td style="color:var(--accent);font-weight:600">${cur(r.line_cost)}</td></tr>`).join('')
+      ||'<tr><td colspan="9" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No priced rows</td></tr>';
+    makeTableSortable('cost-line-table');
+  }catch(e){}
 }
 
 // ── Purchase Orders ───────────────────────────────────────────────────────────
-let posData = [];
-
-document.getElementById('po-add-toggle').addEventListener('click', () => {
-  document.getElementById('po-add-toggle').classList.toggle('open');
-  document.getElementById('po-add-body').classList.toggle('open');
-});
-
-async function loadPOs() {
-  try {
-    const res = await fetch(`${API}/purchase_orders`);
-    posData = await res.json();
+async function loadPOs(){
+  try{
+    posData=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
     renderPOs(posData);
-    renderPOSummaryBanner(posData);
-  } catch(e) { console.error(e); }
+  }catch(e){console.error(e);}
 }
 
-function renderPOs(rows) {
-  document.getElementById('po-count').textContent = rows.length;
-  const tbody = document.getElementById('po-body');
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet — add one above</div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map(r => {
-    const spent    = parseFloat(r.spent_to_date) || 0;
-    const value    = parseFloat(r.po_value) || 0;
-    const remaining= parseFloat(r.remaining) ?? (value - spent);
-    const pct      = value > 0 ? Math.min((spent / value * 100), 100).toFixed(1) : '0.0';
-    const pctNum   = parseFloat(pct);
-    const barColor = pctNum > 90 ? 'var(--red)' : pctNum > 70 ? 'var(--yellow)' : 'var(--green)';
-    const statusColor = r.status === 'Active' ? 'var(--green)' : r.status === 'Completed' ? 'var(--blue)' : 'var(--muted)';
-    return `<tr data-id="${r.id}">
-      <td contenteditable="true" data-col="po_number" style="color:var(--accent);font-weight:600">${escHtml(r.po_number)}</td>
-      <td contenteditable="true" data-col="contractor_name">${escHtml(r.contractor_name||'')}</td>
-      <td contenteditable="true" data-col="description">${escHtml(r.description||'')}</td>
-      <td contenteditable="true" data-col="issue_date">${escHtml(r.issue_date||'')}</td>
-      <td contenteditable="true" data-col="expiry_date">${escHtml(r.expiry_date||'')}</td>
-      <td contenteditable="true" data-col="po_value" data-numeric="true">$${value.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td style="color:var(--accent)">$${spent.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td style="color:${remaining < 0 ? 'var(--red)' : 'var(--green)'}">$${remaining.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${barColor};"></div>
-          </div>
-          <span style="font-family:var(--font-mono);font-size:10px;color:${barColor}">${pct}%</span>
-        </div>
-      </td>
-      <td contenteditable="true" data-col="status" style="color:${statusColor}">${escHtml(r.status||'Active')}</td>
-      <td contenteditable="true" data-col="notes">${escHtml(r.notes||'')}</td>
-      <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px">✕</button></td>
+async function loadPOBanner(){
+  try{
+    posData=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    renderPOBanner(posData);
+  }catch(e){}
+}
+
+function renderPOs(rows){
+  document.getElementById('po-count').textContent=rows.length;
+  const tbody=document.getElementById('po-body');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="11"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet</div></td></tr>`;return;}
+  tbody.innerHTML=rows.map(r=>{
+    const spent=parseFloat(r.spent_to_date)||0;
+    const value=parseFloat(r.po_value)||0;
+    const rem=value-spent;
+    const pct=value>0?Math.min(spent/value*100,100).toFixed(1):'0.0';
+    const bc=parseFloat(pct)>90?'var(--red)':parseFloat(pct)>70?'var(--yellow)':'var(--green)';
+    const sc=r.status==='Active'?'var(--green)':r.status==='Completed'?'var(--blue)':'var(--muted)';
+    return`<tr data-id="${r.id}">
+      <td contenteditable="true" data-col="po_number" style="color:var(--accent);font-weight:600">${esc(r.po_number)}</td>
+      <td contenteditable="true" data-col="description">${esc(r.description||'')}</td>
+      <td contenteditable="true" data-col="issue_date">${esc(r.issue_date||'')}</td>
+      <td contenteditable="true" data-col="expiry_date">${esc(r.expiry_date||'')}</td>
+      <td contenteditable="true" data-col="po_value" data-numeric="true">${cur(value)}</td>
+      <td style="color:var(--accent)">${cur(spent)}</td>
+      <td style="color:${rem<0?'var(--red)':'var(--green)'}">${cur(rem)}</td>
+      <td><div style="display:flex;align-items:center;gap:5px;"><div style="flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};"></div></div><span style="font-family:var(--font-mono);font-size:9px;color:${bc}">${pct}%</span></div></td>
+      <td contenteditable="true" data-col="status" style="color:${sc}">${esc(r.status||'Active')}</td>
+      <td contenteditable="true" data-col="notes">${esc(r.notes||'')}</td>
+      <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
   }).join('');
-
-  tbody.querySelectorAll('[contenteditable]').forEach(cell => {
-    cell.addEventListener('blur', async () => {
-      const row = cell.closest('tr');
-      const id  = row.dataset.id;
-      const col = cell.dataset.col;
-      let val   = cell.textContent.trim().replace(/[$,]/g,'');
-      if (cell.dataset.numeric) val = parseFloat(val) || 0;
-      await fetch(`${API}/purchase_orders/${id}`, {
-        method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({[col]: val}),
-      });
-      toast('✓ PO saved');
-      loadPOs();
+  tbody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',async()=>{
+      const row=cell.closest('tr');const id=row.dataset.id;const col=cell.dataset.col;
+      let val=cell.textContent.trim().replace(/[$,]/g,'');
+      if(cell.dataset.numeric)val=parseFloat(val)||0;
+      await fetch(`${API}/purchase_orders/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
+      toast('✓ PO saved');loadPOs();
     });
   });
   makeTableSortable('po-table');
 }
 
-function renderPOSummaryBanner(pos) {
-  const banner = document.getElementById('po-summary-banner');
-  if (!banner) return;
-  const active = pos.filter(p => p.status === 'Active');
-  if (!active.length) { banner.innerHTML = ''; return; }
-  banner.innerHTML = active.map(r => {
-    const spent    = parseFloat(r.spent_to_date) || 0;
-    const value    = parseFloat(r.po_value) || 0;
-    const remain   = value - spent;
-    const pct      = value > 0 ? Math.min((spent / value * 100), 100).toFixed(1) : '0.0';
-    const pctNum   = parseFloat(pct);
-    const barColor = pctNum > 90 ? 'var(--red)' : pctNum > 70 ? 'var(--yellow)' : 'var(--green)';
-    return `<div style="background:var(--bg2);border:1px solid var(--border);border-top:2px solid ${barColor};padding:14px 18px;border-radius:4px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
-          <div style="font-family:var(--font-head);font-size:16px;letter-spacing:1px;color:var(--accent)">${escHtml(r.po_number)}</div>
-          <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">${escHtml(r.contractor_name||'')}${r.description ? ' — '+escHtml(r.description) : ''}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase">Remaining</div>
-          <div style="font-family:var(--font-head);font-size:20px;color:${remain < 0 ? 'var(--red)' : 'var(--green)'}">$${remain.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
-        </div>
+function renderPOBanner(pos){
+  const banner=document.getElementById('po-summary-banner');if(!banner)return;
+  const active=pos.filter(p=>p.status==='Active');
+  if(!active.length){banner.innerHTML='';return;}
+  banner.innerHTML=active.map(r=>{
+    const spent=parseFloat(r.spent_to_date)||0;const value=parseFloat(r.po_value)||0;
+    const rem=value-spent;const pct=value>0?Math.min(spent/value*100,100).toFixed(1):'0.0';
+    const bc=parseFloat(pct)>90?'var(--red)':parseFloat(pct)>70?'var(--yellow)':'var(--green)';
+    return`<div class="po-card" style="border-top:2px solid ${bc};">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <div><div style="font-family:var(--font-head);font-size:15px;color:var(--accent)">${esc(r.po_number)}</div>
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${esc(r.description||'')}</div></div>
+        <div style="text-align:right"><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Remaining</div>
+        <div style="font-family:var(--font-head);font-size:18px;color:${rem<0?'var(--red)':'var(--green)'}">$${rem.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</div></div>
       </div>
-      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px;">
-        <div style="width:${pct}%;height:100%;background:${barColor};transition:width 0.4s;"></div>
-      </div>
+      <div style="height:5px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:5px;"><div style="width:${pct}%;height:100%;background:${bc};"></div></div>
       <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--muted);">
         <span>Spent: $${spent.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
         <span>${pct}% of $${value.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
-      </div>
-    </div>`;
+      </div></div>`;
   }).join('');
 }
 
-async function addPO() {
-  const po_number = document.getElementById('po-number').value.trim();
-  if (!po_number) { toast('PO Number is required', 'err'); return; }
-  await fetch(`${API}/purchase_orders`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      po_number,
-      contractor_name: document.getElementById('po-contractor').value,
-      description:     document.getElementById('po-description').value,
-      po_value:        parseFloat(document.getElementById('po-value').value) || 0,
-      issue_date:      document.getElementById('po-issue-date').value,
-      expiry_date:     document.getElementById('po-expiry-date').value,
-      status:          document.getElementById('po-status').value,
-      notes:           document.getElementById('po-notes').value,
-    }),
-  });
-  ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-  toast('✓ Purchase order created');
-  loadPOs();
+async function addPO(){
+  const pn=document.getElementById('po-number').value.trim();
+  if(!pn){toast('PO Number required','err');return;}
+  await fetch(`${API}/purchase_orders`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    po_number:pn,contractor:activeContractor,
+    description:document.getElementById('po-description').value,
+    po_value:parseFloat(document.getElementById('po-value').value)||0,
+    issue_date:document.getElementById('po-issue-date').value,
+    expiry_date:document.getElementById('po-expiry-date').value,
+    status:document.getElementById('po-status').value,
+    notes:document.getElementById('po-notes').value,
+  })});
+  ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
+  toast('✓ Purchase order created');loadPOs();
 }
 
-async function deletePO(id) {
-  if (!confirm('Delete this purchase order?')) return;
-  await fetch(`${API}/purchase_orders/${id}`, {method:'DELETE'});
-  toast('PO deleted', 'warn');
-  loadPOs();
+async function deletePO(id){
+  if(!confirm('Delete this PO?'))return;
+  await fetch(`${API}/purchase_orders/${id}`,{method:'DELETE'});
+  toast('PO deleted','warn');loadPOs();
 }
 
-// Wire up nav for POs
-document.querySelectorAll('.nav-item[data-page="purchase-orders"]').forEach(btn => {
-  btn.addEventListener('click', () => loadPOs());
-});
+// ── Rates ─────────────────────────────────────────────────────────────────────
+function buildRateYearSelector(years){
+  const sel=document.getElementById('rate-year-selector');sel.innerHTML='';
+  years.forEach((y,i)=>{
+    const btn=document.createElement('button');btn.className='hole-btn'+(i===0?' active':'');btn.textContent=y;btn.dataset.year=y;
+    btn.addEventListener('click',()=>{sel.querySelectorAll('.hole-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');activeRateYear=y;loadRates(y);});
+    sel.appendChild(btn);
+  });
+  if(years.length){activeRateYear=years[0];loadRates(years[0]);}
+}
 
-// Wire up nav for costing to load POs too
-document.querySelectorAll('.nav-item[data-page="costing"]').forEach(btn => {
-  btn.addEventListener('click', () => loadPOs());
-});
+async function initRatesTab(){
+  try{
+    const d=await fetch(`${API}/rates/years?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    buildRateYearSelector(d.years);
+  }catch(e){}
+}
 
-(async () => {
+async function loadRates(year){
+  try{
+    const [dr,hr]=await Promise.all([
+      fetch(`${API}/rates/drilling?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
+      fetch(`${API}/rates/hourly?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
+    ]);
+    drillingRatesData=dr;hourlyRatesData=hr;
+    renderDrillingRates(dr);renderHourlyRates(hr);
+  }catch(e){}
+}
+
+function renderDrillingRates(rows){
+  document.getElementById('dr-count').textContent=rows.length;
+  document.getElementById('dr-body').innerHTML=rows.map(r=>`
+    <tr data-id="${r.id}">
+      <td contenteditable="true" data-col="year">${esc(r.year)}</td>
+      <td contenteditable="true" data-col="bit_type">${esc(r.bit_type)}</td>
+      <td contenteditable="true" data-col="depth_from" data-numeric="true">${r.depth_from}</td>
+      <td contenteditable="true" data-col="depth_to" data-numeric="true">${r.depth_to}</td>
+      <td contenteditable="true" data-col="rate" data-numeric="true">$${r.rate.toFixed(2)}</td>
+      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEdits('drilling');makeTableSortable('dr-table');
+}
+
+function renderHourlyRates(rows){
+  document.getElementById('hr-count').textContent=rows.length;
+  document.getElementById('hr-body').innerHTML=rows.map(r=>`
+    <tr data-id="${r.id}">
+      <td contenteditable="true" data-col="year">${esc(r.year)}</td>
+      <td contenteditable="true" data-col="code">${esc(r.code)}</td>
+      <td contenteditable="true" data-col="description">${esc(r.description||'')}</td>
+      <td contenteditable="true" data-col="rate" data-numeric="true">$${r.rate.toFixed(2)}</td>
+      <td contenteditable="true" data-col="unit">${esc(r.unit)}</td>
+      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+  attachRateEdits('hourly');makeTableSortable('hr-table');
+}
+
+function attachRateEdits(table){
+  const id=table==='drilling'?'dr-body':'hr-body';
+  document.getElementById(id).querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',async()=>{
+      const row=cell.closest('tr');const rid=row.dataset.id;const col=cell.dataset.col;
+      let val=cell.textContent.trim().replace(/^\$/,'');
+      if(cell.dataset.numeric)val=parseFloat(val)||0;
+      await fetch(`${API}/rates/${table}/${rid}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
+      toast('✓ Rate saved');
+    });
+  });
+}
+
+async function deleteRate(table,id){
+  if(!confirm('Delete this rate?'))return;
+  await fetch(`${API}/rates/${table}/${id}`,{method:'DELETE'});
+  toast('Rate deleted','warn');loadRates(activeRateYear);
+}
+
+async function addDrillingRate(){
+  const year=activeRateYear||'2025';
+  await fetch(`${API}/rates/drilling`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year,bit_type:'HQ_HQ3',depth_from:0,depth_to:100,rate:0})});
+  loadRates(year);toast('New row added');
+}
+
+async function addHourlyRate(){
+  const year=activeRateYear||'2025';
+  await fetch(`${API}/rates/hourly`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year,code:'NEW_CODE',description:'',rate:0,unit:'hour'})});
+  loadRates(year);toast('New row added');
+}
+
+async function copyRatesYear(){
+  const ny=document.getElementById('new-year-input').value.trim();
+  if(!ny||!/^\d{4}$/.test(ny)){toast('Enter valid 4-digit year','err');return;}
+  for(const r of drillingRatesData)
+    await fetch(`${API}/rates/drilling`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:ny,bit_type:r.bit_type,depth_from:r.depth_from,depth_to:r.depth_to,rate:r.rate})});
+  for(const r of hourlyRatesData)
+    await fetch(`${API}/rates/hourly`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:ny,code:r.code,description:r.description,rate:r.rate,unit:r.unit})});
+  toast(`✓ Rates copied to ${ny}`);
+  document.getElementById('new-year-input').value='';
+  initRatesTab();
+}
+
+// ── Column Sorting ────────────────────────────────────────────────────────────
+const sortState={};
+function makeTableSortable(tableId){
+  const table=document.getElementById(tableId);if(!table)return;
+  const thead=table.querySelector('thead tr');if(!thead)return;
+  [...thead.children].forEach((th,i)=>{
+    if(th.dataset.sortBound)return;th.dataset.sortBound='1';
+    th.addEventListener('click',()=>{
+      const st=sortState[tableId]||{col:-1,dir:1};
+      const dir=st.col===i?-st.dir:1;
+      sortState[tableId]={col:i,dir};
+      [...thead.children].forEach(h=>h.textContent=h.textContent.replace(' ▲','').replace(' ▼',''));
+      th.textContent+=dir===1?' ▲':' ▼';
+      const tbody=table.querySelector('tbody');
+      [...tbody.querySelectorAll('tr')].sort((a,b)=>{
+        const av=(a.children[i]?.textContent||'').trim().replace(/[$,]/g,'');
+        const bv=(b.children[i]?.textContent||'').trim().replace(/[$,]/g,'');
+        const ad=dateSortKey(av),bd=dateSortKey(bv);
+        if(ad&&bd&&ad!==0&&bd!==0)return(ad-bd)*dir;
+        const an=parseFloat(av),bn=parseFloat(bv);
+        if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;
+        return av.localeCompare(bv)*dir;
+      }).forEach(r=>tbody.appendChild(r));
+    });
+  });
+}
+
+// ── CSV Download ──────────────────────────────────────────────────────────────
+function downloadCSV(type){
+  const map={activities:[activitiesData,'activities.csv'],consumables:[consumablesData,'consumables.csv'],
+    crew:[crewData,'crew.csv'],anomalies:[anomaliesData,'anomalies.csv'],
+    costing_holes:[costingHolesData,'costing_holes.csv'],costing_dates:[costingDatesData,'costing_dates.csv'],
+    costing_lines:[costingLinesData,'costing_lines.csv'],pos:[posData,'purchase_orders.csv']};
+  const [rows,filename]=map[type]||[null,null];
+  if(!rows||!rows.length)return;
+  const keys=Object.keys(rows[0]);
+  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildContractorSwitcher();
+(async()=>{
+  await fetchContractors();
+  buildContractorSwitcher();
   await updateDbCount();
   await loadActivities();
-  makeTableSortable('act-table');
-  setTimeout(() => loadAnalytics('all'), 300);
+  setTimeout(()=>loadAnalytics('all'),200);
 })();
-
 </script>
 </body>
 </html>
