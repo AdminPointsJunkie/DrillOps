@@ -743,7 +743,7 @@ async function fetchContractors(){
       CONTRACTORS=data;
       sessionStorage.setItem('drillops_contractors',JSON.stringify(data));
     }
-  }catch(e){}
+  }catch(e){console.warn('Could not fetch contractors from API, using cached list');}
 }
 
 // ── Drawer ────────────────────────────────────────────────────────────────────
@@ -796,30 +796,44 @@ function toggleAddContractorForm(){
   f.classList.toggle('open');
 }
 
-function addContractor(){
+async function addContractor(){
   const name=document.getElementById('new-con-name').value.trim();
   const code=document.getElementById('new-con-code').value.trim().toUpperCase();
   if(!name){toast('Contractor name required','err');return;}
-  if(CONTRACTORS.find(c=>c.name.toLowerCase()===name.toLowerCase())){toast('Already exists','err');return;}
-  CONTRACTORS.push({name,short_code:code||name.slice(0,3).toUpperCase()});
-  sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
-  document.getElementById('new-con-name').value='';
-  document.getElementById('new-con-code').value='';
-  document.getElementById('add-contractor-form').classList.remove('open');
-  buildContractorSwitcher();
-  renderDrawerContractors();
-  toast(`✓ ${name} added`);
+  try{
+    const res=await fetch(`${API}/contractors`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase()})
+    });
+    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to add','err');return;}
+    const d=await res.json();
+    // Update local list
+    if(!CONTRACTORS.find(c=>c.name===name)){
+      CONTRACTORS.push({name,short_code:d.short_code});
+      sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    }
+    document.getElementById('new-con-name').value='';
+    document.getElementById('new-con-code').value='';
+    document.getElementById('add-contractor-form').classList.remove('open');
+    buildContractorSwitcher();
+    renderDrawerContractors();
+    toast(`✓ ${name} saved to database`);
+  }catch(e){toast('Network error — could not save contractor','err');}
 }
 
-function removeContractor(idx){
+async function removeContractor(idx){
   const c=CONTRACTORS[idx];
   if(c.name===activeContractor){toast('Cannot remove active contractor — switch first','err');return;}
   if(!confirm(`Remove "${c.name}" from the list?\n\nThis does NOT delete their data from the database.`))return;
-  CONTRACTORS.splice(idx,1);
-  sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
-  buildContractorSwitcher();
-  renderDrawerContractors();
-  toast(`${c.name} removed from list`,'warn');
+  try{
+    await fetch(`${API}/contractors/${encodeURIComponent(c.name)}`,{method:'DELETE'});
+    CONTRACTORS.splice(idx,1);
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    buildContractorSwitcher();
+    renderDrawerContractors();
+    toast(`${c.name} removed`,'warn');
+  }catch(e){toast('Failed to remove contractor','err');}
 }
 
 // Wire up clear buttons (drawer + sidebar)
@@ -1363,17 +1377,26 @@ function renderPOBanner(pos){
 async function addPO(){
   const pn=document.getElementById('po-number').value.trim();
   if(!pn){toast('PO Number required','err');return;}
-  await fetch(`${API}/purchase_orders`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    po_number:pn,contractor:activeContractor,
-    description:document.getElementById('po-description').value,
-    po_value:parseFloat(document.getElementById('po-value').value)||0,
-    issue_date:document.getElementById('po-issue-date').value,
-    expiry_date:document.getElementById('po-expiry-date').value,
-    status:document.getElementById('po-status').value,
-    notes:document.getElementById('po-notes').value,
-  })});
-  ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
-  toast('✓ Purchase order created');loadPOs();
+  try{
+    const res=await fetch(`${API}/purchase_orders`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        po_number:pn,
+        contractor:activeContractor,
+        description:document.getElementById('po-description').value,
+        po_value:parseFloat(document.getElementById('po-value').value)||0,
+        issue_date:document.getElementById('po-issue-date').value,
+        expiry_date:document.getElementById('po-expiry-date').value,
+        status:document.getElementById('po-status').value,
+        notes:document.getElementById('po-notes').value,
+      })
+    });
+    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to save PO','err');return;}
+    ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
+    toast('✓ Purchase order saved to database');
+    loadPOs();
+  }catch(e){toast('Network error — PO not saved','err');console.error(e);}
 }
 
 async function deletePO(id){
