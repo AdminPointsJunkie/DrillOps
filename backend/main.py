@@ -177,6 +177,15 @@ def init_db():
                 )
             """)
 
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS contractors (
+                    id         SERIAL PRIMARY KEY,
+                    name       TEXT NOT NULL UNIQUE,
+                    short_code TEXT,
+                    active     BOOLEAN DEFAULT TRUE
+                )
+            """)
+
             # ── Invoices ──────────────────────────────────────────────────────
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
@@ -474,7 +483,54 @@ def root():
 
 @app.get("/contractors")
 def get_contractors():
-    return [{"name": c[0], "short_code": c[1]} for c in CONTRACTORS]
+    """Return contractors from DB, falling back to defaults if empty."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM contractors ORDER BY name")
+            rows = [dict(r) for r in cur.fetchall()]
+    if not rows:
+        # Seed defaults on first call
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                for name, code in CONTRACTORS:
+                    cur.execute("""
+                        INSERT INTO contractors (name, short_code)
+                        VALUES (%s, %s) ON CONFLICT (name) DO NOTHING
+                    """, (name, code))
+            conn.commit()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM contractors ORDER BY name")
+                rows = [dict(r) for r in cur.fetchall()]
+    return rows
+
+
+@app.post("/contractors")
+def add_contractor(payload: dict):
+    name = payload.get("name", "").strip()
+    code = payload.get("short_code", "").strip().upper() or name[:3].upper()
+    if not name:
+        raise HTTPException(400, "name is required")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO contractors (name, short_code, active)
+                VALUES (%s, %s, TRUE)
+                ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code
+                RETURNING id
+            """, (name, code))
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": new_id, "name": name, "short_code": code}
+
+
+@app.delete("/contractors/{name}")
+def remove_contractor(name: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM contractors WHERE name=%s", (name,))
+        conn.commit()
+    return {"status": "deleted"}
 
 
 @app.post("/import")
