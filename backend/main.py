@@ -176,6 +176,55 @@ def init_db():
                     notes           TEXT
                 )
             """)
+
+            # ── Invoices ──────────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    id              SERIAL PRIMARY KEY,
+                    source_file     TEXT,
+                    contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    invoice_number  TEXT,
+                    invoice_date    TEXT,
+                    due_date        TEXT,
+                    po_reference    TEXT,
+                    client          TEXT,
+                    abn             TEXT,
+                    subtotal        FLOAT DEFAULT 0,
+                    gst             FLOAT DEFAULT 0,
+                    total_aud       FLOAT DEFAULT 0,
+                    amount_paid     FLOAT DEFAULT 0,
+                    amount_due      FLOAT DEFAULT 0,
+                    status          TEXT DEFAULT 'Unpaid',
+                    notes           TEXT
+                )
+            """)
+
+            # ── Invoice line items ────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoice_lines (
+                    id              SERIAL PRIMARY KEY,
+                    invoice_id      INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+                    contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    invoice_number  TEXT,
+                    description     TEXT,
+                    quantity        FLOAT DEFAULT 0,
+                    unit_price      FLOAT DEFAULT 0,
+                    gst_rate        TEXT DEFAULT '10%',
+                    amount          FLOAT DEFAULT 0,
+                    category        TEXT,
+                    matched_eos_cost FLOAT,
+                    variance        FLOAT,
+                    match_status    TEXT DEFAULT 'unmatched'
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoice_imports (
+                    filename  TEXT,
+                    contractor TEXT DEFAULT 'Allianz Drilling',
+                    PRIMARY KEY (filename, contractor)
+                )
+            """)
         conn.commit()
 
 
@@ -816,6 +865,436 @@ def delete_po(po_id: int):
         with conn.cursor() as cur: cur.execute("DELETE FROM purchase_orders WHERE id=%s",(po_id,))
         conn.commit()
     return {"status":"deleted"}
+
+
+
+# ── Invoice PDF Parser ────────────────────────────────────────────────────────
+
+# Map invoice line descriptions to EOS activity categories for matching
+INV_CATEGORY_MAP = [
+    # Drilling metres
+    ("HQ/HQ3",          "drilling_metres"),
+    ("PCD",             "drilling_metres"),
+    ("Hammer",          "drilling_metres"),
+    # Active rate items
+    ("tripping",        "active"),
+    ("casing",          "active"),
+    ("changing drilling method", "active"),
+    ("flushing",        "active"),
+    ("circulation",     "active"),
+    ("reaming",         "active"),
+    ("cementing",       "active"),
+    ("mixing drilling fluids", "active"),
+    ("measuring and sampling", "active"),
+    ("T-Piece",         "active"),
+    ("repairs",         "active"),
+    # Standby / inactive
+    ("standby",         "standby"),
+    ("waiting",         "standby"),
+    # Travel / admin
+    ("travel",          "travel"),
+    ("setting up",      "setup"),
+    ("packing up",      "setup"),
+    ("safety",          "safety"),
+    ("pre-start",       "safety"),
+    ("induction",       "safety"),
+    ("training",        "safety"),
+    ("toolbox",         "safety"),
+    # Equipment day rates
+    ("water cart",      "equipment"),
+    ("backhoe",         "equipment"),
+    # Consumables
+    ("AMC",             "consumable"),
+    ("cement",          "consumable"),
+    ("PVC",             "consumable"),
+    ("MUDLOGIC",        "consumable"),
+    ("foam",            "consumable"),
+    # Mobilisation
+    ("mobilisation",    "mobilisation"),
+    ("demobilisation",  "mobilisation"),
+    ("compliance",      "compliance"),
+]
+
+def categorise_invoice_line(description: str) -> str:
+    dl = description.lower()
+    for keyword, cat in INV_CATEGORY_MAP:
+        if keyword.lower() in dl:
+            return cat
+    return "other"
+
+
+def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
+    """Parse an Allianz-style tax invoice PDF into header + line items."""
+
+    # ── Header fields ─────────────────────────────────────────────────────────
+    def find(pattern, default=""):
+        m = re.search(pattern, text, re.IGNORECASE)
+        return m.group(1).strip() if m else default
+
+    invoice_number = find(r"Invoice Number\s*\n?\s*(INV-\d+)")
+    invoice_date   = find(r"Invoice Date\s*\n?\s*(\d+\s+\w+\s+\d{4})")
+    due_date       = find(r"Due Date[:\s]+(\d+\s+\w+\s+\d{4})")
+    po_reference   = find(r"Reference\s*\n?\s*((?:Purchase Order|PO)\s+\S+)")
+    client         = find(r"^(Fitzroy[\w\s]+(?:Pty Ltd|Resources))", "")
+    if not client:
+        client = find(r"(Fitzroy[^\n]+)", "")
+    abn            = find(r"ABN\s*\n?\s*([\d\s]{10,})")
+
+    subtotal    = 0.0
+    gst         = 0.0
+    total_aud   = 0.0
+    amount_paid = 0.0
+    amount_due  = 0.0
+
+    # Extract financial totals
+    m = re.search(r"Subtotal\s+([\d,]+\.?\d*)", text)
+    if m: subtotal = float(m.group(1).replace(",",""))
+    m = re.search(r"TOTAL\s+GST\s+10%\s+([\d,]+\.?\d*)", text)
+    if m: gst = float(m.group(1).replace(",",""))
+    m = re.search(r"TOTAL AUD\s+([\d,]+\.?\d*)", text)
+    if m: total_aud = float(m.group(1).replace(",",""))
+    m = re.search(r"Less Amount Paid\s+([\d,]+\.?\d*)", text)
+    if m: amount_paid = float(m.group(1).replace(",",""))
+    m = re.search(r"AMOUNT DUE AUD\s+([\d,]+\.?\d*)", text)
+    if m: amount_due = float(m.group(1).replace(",",""))
+
+    status = "Paid" if amount_paid > 0 and amount_due == 0 else "Unpaid" if amount_due > 0 else "Partial"
+
+    # ── Line items ─────────────────────────────────────────────────────────────
+    # Pattern: description (multiline) quantity unit_price gst% amount
+    line_re = re.compile(
+        r"^(.+?)\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)\s+10%\s+([\d,]+\.?\d*)\s*$",
+        re.MULTILINE
+    )
+
+    lines = []
+    for m in line_re.finditer(text):
+        desc = m.group(1).strip()
+        # Skip header row
+        if desc.lower() in ("description", "subtotal"):
+            continue
+        qty   = float(m.group(2).replace(",",""))
+        price = float(m.group(3).replace(",",""))
+        amt   = float(m.group(4).replace(",",""))
+        # Skip if amount looks like a total row
+        if abs(qty * price - amt) > 1 and qty != 1:
+            continue
+        lines.append({
+            "description": desc,
+            "quantity":    qty,
+            "unit_price":  price,
+            "gst_rate":    "10%",
+            "amount":      amt,
+            "category":    categorise_invoice_line(desc),
+        })
+
+    return {
+        "invoice_number": invoice_number,
+        "invoice_date":   invoice_date,
+        "due_date":       due_date,
+        "po_reference":   po_reference,
+        "client":         client,
+        "abn":            abn.strip(),
+        "subtotal":       subtotal,
+        "gst":            gst,
+        "total_aud":      total_aud,
+        "amount_paid":    amount_paid,
+        "amount_due":     amount_due,
+        "status":         status,
+        "lines":          lines,
+    }
+
+
+def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: str):
+    """
+    Compare invoice line totals by category against EOS activity costs.
+    Updates match_status and variance on each invoice line.
+    """
+    # Get EOS cost totals by category for this contractor
+    cur.execute("""
+        SELECT
+            CASE
+                WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN 'drilling_metres'
+                WHEN code LIKE '%Standby%' OR code LIKE '%standby%' THEN 'standby'
+                WHEN code LIKE '%Travel%' OR code LIKE '%travel%' THEN 'travel'
+                WHEN code LIKE '%Safety%' OR code LIKE '%Repair%' OR code LIKE '%Training%'
+                  OR code LIKE '%Prestart%' THEN 'safety'
+                WHEN code LIKE 'D_Backhoe%' OR code LIKE 'D_Water%' THEN 'equipment'
+                WHEN code LIKE '%Setup%' OR code LIKE '%Surface%' THEN 'setup'
+                ELSE 'active'
+            END AS category,
+            SUM(line_cost) AS eos_total
+        FROM activities
+        WHERE contractor=%s AND line_cost IS NOT NULL
+        GROUP BY 1
+    """, (contractor,))
+    eos_by_cat = {r["category"]: float(r["eos_total"] or 0) for r in cur.fetchall()}
+
+    # Get invoice lines
+    cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s", (invoice_id,))
+    inv_lines = cur.fetchall()
+
+    # Group invoice lines by category
+    inv_by_cat = {}
+    for line in inv_lines:
+        cat = line["category"]
+        inv_by_cat.setdefault(cat, 0)
+        inv_by_cat[cat] += float(line["amount"] or 0)
+
+    # Update each line with match info
+    for line in inv_lines:
+        cat = line["category"]
+        eos_total = eos_by_cat.get(cat, 0)
+        inv_total = inv_by_cat.get(cat, 0)
+        # Pro-rate EOS cost to this line's share
+        line_share = (float(line["amount"] or 0) / inv_total) if inv_total else 0
+        matched_eos = round(eos_total * line_share, 2) if eos_total else None
+        variance = round(float(line["amount"] or 0) - matched_eos, 2) if matched_eos is not None else None
+
+        if matched_eos is None:
+            match_status = "no_eos_data"
+        elif abs(variance) < 0.01:
+            match_status = "exact_match"
+        elif abs(variance) / float(line["amount"]) < 0.05 if float(line["amount"]) else False:
+            match_status = "close_match"
+        elif variance > 0:
+            match_status = "invoice_over_eos"
+        else:
+            match_status = "invoice_under_eos"
+
+        cur.execute("""
+            UPDATE invoice_lines
+            SET matched_eos_cost=%s, variance=%s, match_status=%s
+            WHERE id=%s
+        """, (matched_eos, variance, match_status, line["id"]))
+
+
+# ── Invoice API endpoints ─────────────────────────────────────────────────────
+
+@app.post("/invoices/import")
+async def import_invoice(
+    file: UploadFile = File(...),
+    contractor: str = Form(default="Allianz Drilling"),
+):
+    filename = file.filename
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
+                        (filename, contractor))
+            if cur.fetchone():
+                return {"status": "skipped", "filename": filename}
+
+    content = await file.read()
+    try:
+        with pdfplumber.open(BytesIO(content)) as pdf:
+            text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+    except Exception as e:
+        raise HTTPException(400, f"Could not read PDF: {e}")
+
+    inv = parse_invoice_pdf(text, filename, contractor)
+    lines = inv.pop("lines", [])
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO invoices
+                (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
+                 client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id
+            """, (filename, contractor, inv["invoice_number"], inv["invoice_date"],
+                  inv["due_date"], inv["po_reference"], inv["client"], inv["abn"],
+                  inv["subtotal"], inv["gst"], inv["total_aud"],
+                  inv["amount_paid"], inv["amount_due"], inv["status"]))
+            invoice_id = cur.fetchone()["id"]
+
+            if lines:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO invoice_lines
+                    (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, [(invoice_id, contractor, inv["invoice_number"],
+                       l["description"], l["quantity"], l["unit_price"],
+                       l["gst_rate"], l["amount"], l["category"]) for l in lines])
+
+            # Run matching
+            match_invoice_to_eos(cur, invoice_id, contractor, inv["po_reference"])
+
+            cur.execute("INSERT INTO invoice_imports (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                        (filename, contractor))
+        conn.commit()
+
+    return {
+        "status": "imported",
+        "filename": filename,
+        "invoice_number": inv["invoice_number"],
+        "total_aud": inv["total_aud"],
+        "line_count": len(lines),
+    }
+
+
+@app.get("/invoices")
+def get_invoices(contractor: str = Query(...)):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT i.*,
+                    COUNT(l.id) AS line_count,
+                    SUM(CASE WHEN l.match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
+                    SUM(CASE WHEN l.match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
+                    SUM(CASE WHEN l.match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
+                    SUM(CASE WHEN l.match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
+                FROM invoices i
+                LEFT JOIN invoice_lines l ON l.invoice_id=i.id
+                WHERE i.contractor=%s
+                GROUP BY i.id
+                ORDER BY i.invoice_date DESC
+            """, (contractor,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/invoices/{invoice_id}/lines")
+def get_invoice_lines(invoice_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY id", (invoice_id,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.patch("/invoices/{invoice_id}")
+def update_invoice(invoice_id: int, payload: dict):
+    safe = {"invoice_number","invoice_date","due_date","po_reference","status","notes",
+            "subtotal","gst","total_aud","amount_paid","amount_due"}
+    u = {k:v for k,v in payload.items() if k in safe}
+    if not u: raise HTTPException(400,"No valid fields")
+    u["iid"]=invoice_id
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE invoices SET {','.join(f'{k}=%('+k+')s' for k in u if k!='iid')} WHERE id=%(iid)s", u)
+        conn.commit()
+    return {"status":"updated"}
+
+
+@app.delete("/invoices/{invoice_id}")
+def delete_invoice(invoice_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM invoices WHERE id=%s", (invoice_id,))
+        conn.commit()
+    return {"status":"deleted"}
+
+
+@app.get("/reconciliation")
+def get_reconciliation(contractor: str = Query(...)):
+    """
+    Full reconciliation: invoice totals vs EOS activity costs by category.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            # Invoice totals by category
+            cur.execute("""
+                SELECT l.category,
+                    SUM(l.amount) AS invoice_total,
+                    COUNT(l.id)   AS line_count,
+                    COUNT(DISTINCT l.invoice_number) AS invoice_count
+                FROM invoice_lines l
+                WHERE l.contractor=%s
+                GROUP BY l.category
+                ORDER BY invoice_total DESC
+            """, (contractor,))
+            inv_cats = {r["category"]: dict(r) for r in cur.fetchall()}
+
+            # EOS costs by category
+            cur.execute("""
+                SELECT
+                    CASE
+                        WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN 'drilling_metres'
+                        WHEN code LIKE '%%Standby%%' THEN 'standby'
+                        WHEN code LIKE '%%Travel%%' THEN 'travel'
+                        WHEN code LIKE '%%Safety%%' OR code LIKE '%%Training%%'
+                          OR code LIKE '%%Prestart%%' THEN 'safety'
+                        WHEN code LIKE 'D_Backhoe%%' OR code LIKE 'D_Water%%' THEN 'equipment'
+                        WHEN code LIKE '%%Setup%%' OR code LIKE '%%Surface%%' THEN 'setup'
+                        ELSE 'active'
+                    END AS category,
+                    SUM(line_cost) AS eos_total,
+                    COUNT(*) AS activity_count
+                FROM activities
+                WHERE contractor=%s AND line_cost IS NOT NULL
+                GROUP BY 1
+            """, (contractor,))
+            eos_cats = {r["category"]: dict(r) for r in cur.fetchall()}
+
+            # Invoice header summary
+            cur.execute("""
+                SELECT invoice_number, invoice_date, due_date, po_reference,
+                       total_aud, amount_paid, amount_due, status
+                FROM invoices WHERE contractor=%s ORDER BY invoice_date
+            """, (contractor,))
+            invoices = [dict(r) for r in cur.fetchall()]
+
+            # Grand totals
+            cur.execute("SELECT SUM(total_aud) AS t, SUM(amount_paid) AS p, SUM(amount_due) AS d FROM invoices WHERE contractor=%s", (contractor,))
+            inv_totals = dict(cur.fetchone())
+
+            cur.execute("SELECT SUM(line_cost) AS t FROM activities WHERE contractor=%s AND line_cost IS NOT NULL", (contractor,))
+            eos_grand = float(cur.fetchone()["t"] or 0)
+
+            # Line-level discrepancies
+            cur.execute("""
+                SELECT l.invoice_number, l.description, l.category,
+                       l.quantity, l.unit_price, l.amount,
+                       l.matched_eos_cost, l.variance, l.match_status
+                FROM invoice_lines l
+                WHERE l.contractor=%s
+                  AND l.match_status NOT IN ('exact_match','no_eos_data')
+                ORDER BY ABS(COALESCE(l.variance,0)) DESC
+                LIMIT 50
+            """, (contractor,))
+            discrepancies = [dict(r) for r in cur.fetchall()]
+
+    # Build comparison rows
+    all_cats = sorted(set(list(inv_cats.keys()) + list(eos_cats.keys())))
+    comparison = []
+    for cat in all_cats:
+        inv = float(inv_cats.get(cat, {}).get("invoice_total", 0) or 0)
+        eos = float(eos_cats.get(cat, {}).get("eos_total", 0) or 0)
+        var = inv - eos
+        comparison.append({
+            "category":      cat,
+            "invoice_total": round(inv, 2),
+            "eos_total":     round(eos, 2),
+            "variance":      round(var, 2),
+            "variance_pct":  round(var/eos*100, 1) if eos else None,
+            "status":        "match" if abs(var) < 1 else "over" if var > 0 else "under",
+        })
+
+    return {
+        "invoices":      invoices,
+        "comparison":    comparison,
+        "discrepancies": discrepancies,
+        "totals": {
+            "invoice_total":  round(float(inv_totals.get("t") or 0), 2),
+            "invoice_paid":   round(float(inv_totals.get("p") or 0), 2),
+            "invoice_due":    round(float(inv_totals.get("d") or 0), 2),
+            "eos_total":      round(eos_grand, 2),
+            "grand_variance": round(float(inv_totals.get("t") or 0) - eos_grand, 2),
+        },
+    }
+
+
+@app.post("/reconciliation/rematch")
+def rematch_all(contractor: str = Query(...)):
+    """Re-run EOS matching for all invoices of a contractor."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, po_reference FROM invoices WHERE contractor=%s", (contractor,))
+            invoices = cur.fetchall()
+            for inv in invoices:
+                match_invoice_to_eos(cur, inv["id"], contractor, inv["po_reference"])
+        conn.commit()
+    return {"status": "rematched", "count": len(invoices)}
 
 
 @app.delete("/reset")
