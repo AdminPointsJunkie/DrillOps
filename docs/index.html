@@ -111,6 +111,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:0 2
 #import-btn{width:100%;margin-top:10px;padding:10px;background:var(--accent);color:#000;border:none;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:background 0.2s;}
 #import-btn:hover{background:#f0b030;}
 #import-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+#inv-import-btn-sidebar{width:100%;margin-top:10px;padding:10px;background:var(--bg3);color:var(--accent);border:1px solid var(--accent);font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;}
+#inv-import-btn-sidebar:hover{background:rgba(232,160,32,0.15);}
+#inv-import-btn-sidebar:disabled{background:var(--border);color:var(--muted);border-color:var(--border);cursor:not-allowed;}
 #import-log{margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.7;color:var(--muted);max-height:90px;overflow-y:auto;}
 #import-log .ok{color:var(--green);}#import-log .err{color:var(--red);}#import-log .skip{color:var(--yellow);}
 .danger-btn{width:calc(100% - 32px);margin:0 16px;padding:8px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:var(--font-mono);font-size:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:background 0.2s;margin-top:auto;}
@@ -294,41 +297,32 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
     </button>
   </div>
 </header>
-  <div class="login-box">
-    <div class="login-logo">Drill<span>Ops</span></div>
-    <div class="login-sub">Field Operations Intelligence</div>
-    <label class="login-label">Password</label>
-    <input class="login-input" type="password" id="login-password" placeholder="Enter password" autocomplete="current-password"/>
-    <button class="login-btn" onclick="doLogin()">Access DrillOps</button>
-    <div class="login-error" id="login-error"></div>
-  </div>
-</div>
-
-<!-- Header -->
-<header>
-  <div class="logo">Drill<span>Ops</span></div>
-  <div class="header-right">
-    <div id="contractor-switcher"></div>
-    <div class="header-meta">
-      <span id="db-count">—</span> records
-    </div>
-  </div>
-</header>
 
 <div class="shell">
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-section">
-      <div class="sidebar-label" style="padding:0;margin-bottom:8px;">Import PDFs</div>
+      <div class="sidebar-label" style="padding:0;margin-bottom:4px;">📋 EOS Daily Reports</div>
+      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:8px;">Daily Drilling Report PDFs only</p>
       <div class="upload-zone" id="drop-zone">
         <input type="file" id="file-input" multiple accept=".pdf"/>
         <div class="up-icon">📄</div>
-        <p>Drop PDFs or click to browse</p>
+        <p>Drop EOS PDFs or click</p>
       </div>
-      <button id="import-btn" disabled>Import to Database</button>
+      <button id="import-btn" disabled>Import EOS Reports</button>
       <div id="import-log"></div>
     </div>
-    <div class="sidebar-label">Views</div>
+    <div class="sidebar-section" style="padding-top:16px;">
+      <div class="sidebar-label" style="padding:0;margin-bottom:4px;">🧮 Tax Invoices</div>
+      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:8px;">Allianz Invoice PDFs (INV-xxxx)</p>
+      <div class="upload-zone" id="inv-drop-zone-sidebar">
+        <input type="file" id="inv-file-input-sidebar" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;"/>
+        <div class="up-icon">🧾</div>
+        <p>Drop Invoice PDFs or click</p>
+      </div>
+      <button id="inv-import-btn-sidebar" disabled>Import Invoices</button>
+      <div id="inv-import-log-sidebar" style="margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.8;color:var(--muted);max-height:80px;overflow-y:auto;"></div>
+    </div>
     <nav>
       <button class="nav-item active" data-page="activities"><span>📋</span> Activities</button>
       <button class="nav-item" data-page="consumables"><span>🧪</span> Consumables</button>
@@ -974,15 +968,25 @@ document.getElementById('po-add-toggle').addEventListener('click',()=>{
   document.getElementById('po-add-body').classList.toggle('open');
 });
 
-// ── File Upload ───────────────────────────────────────────────────────────────
+// ── EOS File Upload (daily reports only) ─────────────────────────────────────
 const dropZone=document.getElementById('drop-zone');
 const fileInput=document.getElementById('file-input');
 const importBtn=document.getElementById('import-btn');
 
+function looksLikeInvoice(filename){
+  return /INV[-_]\d+/i.test(filename) || /invoice/i.test(filename) || /tax.invoice/i.test(filename);
+}
+
 fileInput.addEventListener('change',e=>{
-  pendingFiles=[...e.target.files];
+  const files=[...e.target.files];
+  const invoices=files.filter(f=>looksLikeInvoice(f.name));
+  if(invoices.length){
+    toast(`⚠ "${invoices[0].name}" looks like an invoice — use the 🧾 Invoice import below`,'warn');
+    fileInput.value='';pendingFiles=[];importBtn.disabled=true;importBtn.textContent='Import EOS Reports';return;
+  }
+  pendingFiles=files;
   importBtn.disabled=pendingFiles.length===0;
-  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
+  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} EOS report(s)`:'Import EOS Reports';
 });
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
@@ -1545,6 +1549,45 @@ function downloadCSV(type){
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
 }
+
+// ── Invoice import (sidebar) ──────────────────────────────────────────────────
+const invSidebarInput = document.getElementById('inv-file-input-sidebar');
+const invSidebarBtn   = document.getElementById('inv-import-btn-sidebar');
+let invSidebarFiles   = [];
+
+invSidebarInput.addEventListener('change', e=>{
+  invSidebarFiles=[...e.target.files];
+  invSidebarBtn.disabled=invSidebarFiles.length===0;
+  invSidebarBtn.textContent=invSidebarFiles.length>0?`Import ${invSidebarFiles.length} invoice(s)`:'Import Invoices';
+});
+
+document.getElementById('inv-drop-zone-sidebar').addEventListener('dragover',e=>{e.preventDefault();});
+document.getElementById('inv-drop-zone-sidebar').addEventListener('drop',e=>{
+  e.preventDefault();
+  invSidebarFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
+  invSidebarBtn.disabled=invSidebarFiles.length===0;
+  invSidebarBtn.textContent=invSidebarFiles.length>0?`Import ${invSidebarFiles.length} invoice(s)`:'Import Invoices';
+});
+
+invSidebarBtn.addEventListener('click', async()=>{
+  if(!invSidebarFiles.length)return;
+  invSidebarBtn.disabled=true;invSidebarBtn.innerHTML='<span class="spinner"></span>Importing…';
+  const log=document.getElementById('inv-import-log-sidebar');log.innerHTML='';
+  for(const file of invSidebarFiles){
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+    try{
+      const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
+      if(d.status==='imported')
+        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — $${(d.total_aud||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`;
+      else
+        log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} already imported</div>`;
+    }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
+  }
+  invSidebarBtn.textContent='Import Invoices';invSidebarBtn.disabled=false;
+  invSidebarFiles=[];invSidebarInput.value='';
+  // Refresh invoices tab if open
+  if(document.getElementById('page-invoices').classList.contains('active')) loadInvoices();
+});
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 let invoicesData = [], discrepanciesData = [];
