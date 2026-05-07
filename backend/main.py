@@ -994,7 +994,8 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     client         = find(r"^(Fitzroy[\w\s]+(?:Pty Ltd|Resources))", "")
     if not client:
         client = find(r"(Fitzroy[^\n]+)", "")
-    abn            = find(r"ABN\s*\n?\s*([\d\s]{10,})")
+    abn_raw        = find(r"ABN\s*\n?\s*([\d\s]{10,})")
+    abn            = abn_raw.strip() if abn_raw else ""
 
     subtotal    = 0.0
     gst         = 0.0
@@ -1050,7 +1051,7 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
         "due_date":       due_date,
         "po_reference":   po_reference,
         "client":         client,
-        "abn":            abn.strip(),
+        "abn":            abn,
         "subtotal":       subtotal,
         "gst":            gst,
         "total_aud":      total_aud,
@@ -1127,18 +1128,52 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
 
 # ── Invoice API endpoints ─────────────────────────────────────────────────────
 
+@app.post("/invoices/test")
+async def test_invoice_parse(
+    file: UploadFile = File(...),
+    contractor: str = Form(default="Allianz Drilling"),
+):
+    """Test endpoint — parses invoice and returns result without saving."""
+    content = await file.read()
+    try:
+        with pdfplumber.open(BytesIO(content)) as pdf:
+            text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+    except Exception as e:
+        return {"error": f"PDF read failed: {e}"}
+    try:
+        inv = parse_invoice_pdf(text, file.filename, contractor)
+        return {"parsed": inv, "line_count": len(inv.get("lines",[]))}
+    except Exception as e:
+        return {"error": f"Parse failed: {e}", "text_preview": text[:500]}
+
+
 @app.post("/invoices/import")
 async def import_invoice(
     file: UploadFile = File(...),
     contractor: str = Form(default="Allianz Drilling"),
 ):
     filename = file.filename
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
-                        (filename, contractor))
-            if cur.fetchone():
-                return {"status": "skipped", "filename": filename}
+
+    # Check if already imported — handle both old single-col and new dual-col table
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status": "skipped", "filename": filename}
+    except Exception:
+        # Table may have old schema — try migration
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute("ALTER TABLE invoice_imports ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+                    cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s", (filename,))
+                    if cur.fetchone():
+                        return {"status": "skipped", "filename": filename}
+                except Exception:
+                    pass
+            conn.commit()
 
     content = await file.read()
     try:
@@ -1147,44 +1182,60 @@ async def import_invoice(
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
-    inv = parse_invoice_pdf(text, filename, contractor)
+    try:
+        inv = parse_invoice_pdf(text, filename, contractor)
+    except Exception as e:
+        raise HTTPException(422, f"Could not parse invoice: {e}")
+
     lines = inv.pop("lines", [])
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO invoices
-                (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
-                 client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id
-            """, (filename, contractor, inv["invoice_number"], inv["invoice_date"],
-                  inv["due_date"], inv["po_reference"], inv["client"], inv["abn"],
-                  inv["subtotal"], inv["gst"], inv["total_aud"],
-                  inv["amount_paid"], inv["amount_due"], inv["status"]))
-            invoice_id = cur.fetchone()["id"]
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO invoices
+                    (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
+                     client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                """, (filename, contractor,
+                      inv.get("invoice_number",""), inv.get("invoice_date",""),
+                      inv.get("due_date",""), inv.get("po_reference",""),
+                      inv.get("client",""), inv.get("abn",""),
+                      inv.get("subtotal",0), inv.get("gst",0), inv.get("total_aud",0),
+                      inv.get("amount_paid",0), inv.get("amount_due",0), inv.get("status","Unpaid")))
+                invoice_id = cur.fetchone()["id"]
 
-            if lines:
-                psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO invoice_lines
-                    (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, [(invoice_id, contractor, inv["invoice_number"],
-                       l["description"], l["quantity"], l["unit_price"],
-                       l["gst_rate"], l["amount"], l["category"]) for l in lines])
+                if lines:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO invoice_lines
+                        (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, [(invoice_id, contractor, inv.get("invoice_number",""),
+                           l["description"], l["quantity"], l["unit_price"],
+                           l["gst_rate"], l["amount"], l["category"]) for l in lines])
 
-            # Run matching
-            match_invoice_to_eos(cur, invoice_id, contractor, inv["po_reference"])
+                # Run matching — don't let this crash the import
+                try:
+                    match_invoice_to_eos(cur, invoice_id, contractor, inv.get("po_reference",""))
+                except Exception:
+                    pass
 
-            cur.execute("INSERT INTO invoice_imports (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                        (filename, contractor))
-        conn.commit()
+                # Record import — use INSERT OR IGNORE equivalent
+                try:
+                    cur.execute("INSERT INTO invoice_imports (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                                (filename, contractor))
+                except Exception:
+                    cur.execute("INSERT INTO invoice_imports (filename) VALUES (%s) ON CONFLICT DO NOTHING", (filename,))
+            conn.commit()
+    except Exception as e:
+        raise HTTPException(500, f"Database error: {str(e)}")
 
     return {
         "status": "imported",
         "filename": filename,
-        "invoice_number": inv["invoice_number"],
-        "total_aud": inv["total_aud"],
+        "invoice_number": inv.get("invoice_number", filename),
+        "total_aud": inv.get("total_aud", 0),
         "line_count": len(lines),
     }
 
