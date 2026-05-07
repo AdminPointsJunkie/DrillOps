@@ -46,11 +46,12 @@ def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
 
-            # Activities — now includes cost columns
+            # Activities — now includes cost columns + contractor
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS activities (
                     id              SERIAL PRIMARY KEY,
                     source_file     TEXT,
+                    contractor      TEXT DEFAULT 'Allianz Drilling',
                     date            TEXT,
                     hole_num        TEXT,
                     site_name       TEXT,
@@ -73,8 +74,16 @@ def init_db():
                     unit_rate       FLOAT,
                     quantity        FLOAT,
                     line_cost       FLOAT,
-                    rate_basis      TEXT
+                    rate_basis      TEXT,
+                    po_id           INTEGER
                 )
+            """)
+            # Add contractor column if upgrading existing DB
+            cur.execute("""
+                ALTER TABLE activities ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'
+            """)
+            cur.execute("""
+                ALTER TABLE activities ADD COLUMN IF NOT EXISTS po_id INTEGER
             """)
 
             cur.execute("""
@@ -132,6 +141,33 @@ def init_db():
                     description TEXT,
                     rate        FLOAT NOT NULL,
                     unit        TEXT NOT NULL
+                )
+            """)
+
+            # ── Contractors ───────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS contractors (
+                    id          SERIAL PRIMARY KEY,
+                    name        TEXT NOT NULL UNIQUE,
+                    short_code  TEXT,
+                    active      BOOLEAN DEFAULT TRUE,
+                    notes       TEXT
+                )
+            """)
+
+            # ── Purchase Orders ───────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS purchase_orders (
+                    id              SERIAL PRIMARY KEY,
+                    po_number       TEXT NOT NULL,
+                    contractor_id   INTEGER REFERENCES contractors(id),
+                    contractor_name TEXT,
+                    description     TEXT,
+                    issue_date      TEXT,
+                    expiry_date     TEXT,
+                    po_value        FLOAT,
+                    status          TEXT DEFAULT 'Active',
+                    notes           TEXT
                 )
             """)
 
@@ -216,6 +252,31 @@ def seed_2025_rates():
 
 
 seed_2025_rates()
+
+
+def seed_contractors():
+    """Seed the default contractor list if empty."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS n FROM contractors")
+            if cur.fetchone()["n"] > 0:
+                return
+            defaults = [
+                ("Allianz Drilling",   "ALZ"),
+                ("Mitchells Drilling", "MIT"),
+                ("MCC Earthworks",     "MCC"),
+                ("Weatherfords",       "WFD"),
+                ("Epiroc",             "EPI"),
+                ("Fortem",             "FOR"),
+            ]
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO contractors (name, short_code) VALUES (%s, %s)
+                ON CONFLICT (name) DO NOTHING
+            """, defaults)
+        conn.commit()
+
+
+seed_contractors()
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
 
@@ -405,6 +466,7 @@ def parse_activities(text, header, filename):
             notes, tf, tt, total, bit_type, diam, mf, mt, mto, code = m.groups()
             rows.append({
                 "source_file":  filename,
+                "contractor":   "Allianz Drilling",
                 "date":         header.get("date", ""),
                 "hole_num":     header.get("hole_num", ""),
                 "site_name":    header.get("site_name", ""),
@@ -429,6 +491,7 @@ def parse_activities(text, header, filename):
                 "quantity":     None,
                 "line_cost":    None,
                 "rate_basis":   None,
+                "po_id":        None,
             })
     return rows
 
@@ -501,14 +564,14 @@ async def import_pdf(file: UploadFile = File(...)):
             if acts:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
-                    (source_file,date,hole_num,site_name,location,drill_rig,client,contract,shift,
+                    (source_file,contractor,date,hole_num,site_name,location,drill_rig,client,contract,shift,
                      time_from,time_to,total_time,bit_type,diameter,metres_from,metres_to,total_metres,
-                     code,notes,rate_year,unit_rate,quantity,line_cost,rate_basis)
+                     code,notes,rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
                     VALUES
-                    (%(source_file)s,%(date)s,%(hole_num)s,%(site_name)s,%(location)s,%(drill_rig)s,
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(location)s,%(drill_rig)s,
                      %(client)s,%(contract)s,%(shift)s,%(time_from)s,%(time_to)s,%(total_time)s,
                      %(bit_type)s,%(diameter)s,%(metres_from)s,%(metres_to)s,%(total_metres)s,
-                     %(code)s,%(notes)s,%(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s)
+                     %(code)s,%(notes)s,%(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
                 """, acts)
             if cons:
                 psycopg2.extras.execute_batch(cur, """
@@ -562,6 +625,7 @@ def update_activity(row_id: int, payload: dict):
         "time_from","time_to","total_time","bit_type","diameter",
         "metres_from","metres_to","total_metres","code","notes",
         "rate_year","unit_rate","quantity","line_cost","rate_basis",
+        "contractor","po_id",
     }
     updates = {k: v for k, v in payload.items() if k in safe_cols}
     if not updates:
@@ -881,6 +945,132 @@ def get_analytics(hole: Optional[str] = Query(None)):
         "anomalies":        anomalies,
         "heatmap":          npt.to_dict(orient="records"),
     }
+
+
+
+# ── Contractors ───────────────────────────────────────────────────────────────
+
+@app.get("/contractors")
+def get_contractors():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM contractors ORDER BY name")
+            return [dict(r) for r in cur.fetchall()]
+
+@app.post("/contractors")
+def add_contractor(payload: dict):
+    required = {"name"}
+    if not required.issubset(payload.keys()):
+        raise HTTPException(400, "name is required")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO contractors (name, short_code, active, notes)
+                VALUES (%(name)s, %(short_code)s, %(active)s, %(notes)s)
+                RETURNING id
+            """, {
+                "name": payload["name"],
+                "short_code": payload.get("short_code", ""),
+                "active": payload.get("active", True),
+                "notes": payload.get("notes", ""),
+            })
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": new_id}
+
+@app.patch("/contractors/{cid}")
+def update_contractor(cid: int, payload: dict):
+    safe = {"name", "short_code", "active", "notes"}
+    updates = {k: v for k, v in payload.items() if k in safe}
+    if not updates:
+        raise HTTPException(400, "No valid fields")
+    set_clause = ", ".join(f"{k}=%({k})s" for k in updates)
+    updates["cid"] = cid
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE contractors SET {set_clause} WHERE id=%(cid)s", updates)
+        conn.commit()
+    return {"status": "updated"}
+
+@app.delete("/contractors/{cid}")
+def delete_contractor(cid: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM contractors WHERE id=%s", (cid,))
+        conn.commit()
+    return {"status": "deleted"}
+
+
+# ── Purchase Orders ───────────────────────────────────────────────────────────
+
+@app.get("/purchase_orders")
+def get_purchase_orders(contractor: Optional[str] = Query(None)):
+    q = """
+        SELECT p.*,
+               COALESCE(SUM(a.line_cost), 0) AS spent_to_date,
+               p.po_value - COALESCE(SUM(a.line_cost), 0) AS remaining
+        FROM purchase_orders p
+        LEFT JOIN activities a ON a.po_id = p.id
+        WHERE 1=1
+    """
+    params = {}
+    if contractor:
+        q += " AND p.contractor_name = %(contractor)s"
+        params["contractor"] = contractor
+    q += " GROUP BY p.id ORDER BY p.issue_date DESC"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(q, params)
+            return [dict(r) for r in cur.fetchall()]
+
+@app.post("/purchase_orders")
+def add_purchase_order(payload: dict):
+    required = {"po_number"}
+    if not required.issubset(payload.keys()):
+        raise HTTPException(400, "po_number is required")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO purchase_orders
+                (po_number, contractor_name, description, issue_date, expiry_date, po_value, status, notes)
+                VALUES (%(po_number)s,%(contractor_name)s,%(description)s,%(issue_date)s,
+                        %(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
+                RETURNING id
+            """, {
+                "po_number":       payload.get("po_number"),
+                "contractor_name": payload.get("contractor_name", ""),
+                "description":     payload.get("description", ""),
+                "issue_date":      payload.get("issue_date", ""),
+                "expiry_date":     payload.get("expiry_date", ""),
+                "po_value":        payload.get("po_value", 0),
+                "status":          payload.get("status", "Active"),
+                "notes":           payload.get("notes", ""),
+            })
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": new_id}
+
+@app.patch("/purchase_orders/{po_id}")
+def update_purchase_order(po_id: int, payload: dict):
+    safe = {"po_number","contractor_name","description","issue_date","expiry_date","po_value","status","notes"}
+    updates = {k: v for k, v in payload.items() if k in safe}
+    if not updates:
+        raise HTTPException(400, "No valid fields")
+    set_clause = ", ".join(f"{k}=%({k})s" for k in updates)
+    updates["po_id"] = po_id
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE purchase_orders SET {set_clause} WHERE id=%(po_id)s", updates)
+        conn.commit()
+    return {"status": "updated"}
+
+@app.delete("/purchase_orders/{po_id}")
+def delete_purchase_order(po_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM purchase_orders WHERE id=%s", (po_id,))
+        conn.commit()
+    return {"status": "deleted"}
 
 
 @app.delete("/reset")
