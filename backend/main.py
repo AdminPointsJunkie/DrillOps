@@ -930,33 +930,49 @@ def delete_po(po_id: int):
 INV_CATEGORY_MAP = [
     # Drilling metres
     ("HQ/HQ3",          "drilling_metres"),
+    ("HQ_HQ3",          "drilling_metres"),
     ("PCD",             "drilling_metres"),
     ("Hammer",          "drilling_metres"),
-    # Active rate items
+    # Active rate items — match both spaced and stripped
     ("tripping",        "active"),
     ("casing",          "active"),
-    ("changing drilling method", "active"),
+    ("changingdrilling","active"),
+    ("changing drilling","active"),
     ("flushing",        "active"),
     ("circulation",     "active"),
     ("reaming",         "active"),
     ("cementing",       "active"),
-    ("mixing drilling fluids", "active"),
-    ("measuring and sampling", "active"),
+    ("mixingdrilling",  "active"),
+    ("mixing drilling", "active"),
+    ("measuringand",    "active"),
+    ("measuring and",   "active"),
     ("T-Piece",         "active"),
+    ("blooey",          "active"),
     ("repairs",         "active"),
+    ("unplanned",       "active"),
     # Standby / inactive
     ("standby",         "standby"),
     ("waiting",         "standby"),
-    # Travel / admin
+    # Travel / setup
     ("travel",          "travel"),
+    ("movingbetween",   "travel"),
+    ("moving between",  "travel"),
+    ("settingup",       "setup"),
+    ("packingup",       "setup"),
     ("setting up",      "setup"),
     ("packing up",      "setup"),
+    # Safety / admin
     ("safety",          "safety"),
     ("pre-start",       "safety"),
+    ("prestart",        "safety"),
     ("induction",       "safety"),
     ("training",        "safety"),
     ("toolbox",         "safety"),
+    ("authorisation",   "safety"),
+    ("consumables from local", "active"),
+    ("consumablesfromlocal",   "active"),
     # Equipment day rates
+    ("watercart",       "equipment"),
     ("water cart",      "equipment"),
     ("backhoe",         "equipment"),
     # Consumables
@@ -965,8 +981,18 @@ INV_CATEGORY_MAP = [
     ("PVC",             "consumable"),
     ("MUDLOGIC",        "consumable"),
     ("foam",            "consumable"),
+    ("slurry",          "consumable"),
+    ("GRIP",            "consumable"),
+    ("SUPERLUBE",       "consumable"),
+    ("SUPERFOAM",       "consumable"),
+    ("HARD SET",        "consumable"),
+    ("HARDSET",         "consumable"),
+    ("TORQ",            "consumable"),
+    ("SWELL",           "consumable"),
+    ("CR650",           "consumable"),
     # Mobilisation
     ("mobilisation",    "mobilisation"),
+    ("mobilization",    "mobilisation"),
     ("demobilisation",  "mobilisation"),
     ("compliance",      "compliance"),
 ]
@@ -980,62 +1006,90 @@ def categorise_invoice_line(description: str) -> str:
 
 
 def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
-    """Parse an Allianz-style tax invoice PDF into header + line items."""
+    """Parse an Allianz-style tax invoice PDF.
+    Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
+    """
 
-    # ── Header fields ─────────────────────────────────────────────────────────
     def find(pattern, default=""):
         m = re.search(pattern, text, re.IGNORECASE)
         return m.group(1).strip() if m else default
 
-    invoice_number = find(r"Invoice Number\s*\n?\s*(INV-\d+)")
-    invoice_date   = find(r"Invoice Date\s*\n?\s*(\d+\s+\w+\s+\d{4})")
-    due_date       = find(r"Due Date[:\s]+(\d+\s+\w+\s+\d{4})")
-    po_reference   = find(r"Reference\s*\n?\s*((?:Purchase Order|PO)\s+\S+)")
-    client         = find(r"^(Fitzroy[\w\s]+(?:Pty Ltd|Resources))", "")
-    if not client:
-        client = find(r"(Fitzroy[^\n]+)", "")
+    # Header — handle pdfplumber stripping spaces between words
+    invoice_number = find(r"Invoice\s*Number\s*\n?\s*(INV-\d+)")
+    if not invoice_number:
+        invoice_number = find(r"(INV-\d+)")  # fallback anywhere in text
+    invoice_date   = find(r"Invoice\s*Date\s*\n?\s*(\d+\s*\w+\s*\d{4})")
+    due_date       = find(r"Due\s*Date[:\s]+(\d+\s+\w+\s+\d{4})")
+    po_reference   = (find(r"Reference\s*\n?\s*(Purchase\s*Order\s*\S+)") or
+                      find(r"Reference\s*\n?\s*(PO\s+\S+)") or
+                      find(r"(C\d{6,}|F\d{6,})"))
+    client         = find(r"(Fitzroy[\w\s]+?(?:Pty\s*Ltd|Resources\s*Pty\s*Ltd))")
     abn_raw        = find(r"ABN\s*\n?\s*([\d\s]{10,})")
     abn            = abn_raw.strip() if abn_raw else ""
 
-    subtotal    = 0.0
-    gst         = 0.0
-    total_aud   = 0.0
-    amount_paid = 0.0
-    amount_due  = 0.0
+    # Totals — handle both "Subtotal" and no-space versions
+    def find_amount(pattern):
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            try: return float(m.group(1).replace(",",""))
+            except: return 0.0
+        return 0.0
 
-    # Extract financial totals
-    m = re.search(r"Subtotal\s+([\d,]+\.?\d*)", text)
-    if m: subtotal = float(m.group(1).replace(",",""))
-    m = re.search(r"TOTAL\s+GST\s+10%\s+([\d,]+\.?\d*)", text)
-    if m: gst = float(m.group(1).replace(",",""))
-    m = re.search(r"TOTAL AUD\s+([\d,]+\.?\d*)", text)
-    if m: total_aud = float(m.group(1).replace(",",""))
-    m = re.search(r"Less Amount Paid\s+([\d,]+\.?\d*)", text)
-    if m: amount_paid = float(m.group(1).replace(",",""))
-    m = re.search(r"AMOUNT DUE AUD\s+([\d,]+\.?\d*)", text)
-    if m: amount_due = float(m.group(1).replace(",",""))
+    subtotal    = find_amount(r"Subtotal\s+([\d,]+\.?\d*)")
+    gst         = find_amount(r"TOTAL\s*GST\s*10%\s+([\d,]+\.?\d*)")
+    # TOTAL AUD appears twice (label + value on same line in stripped text)
+    # e.g. "TOTALAUD 42,636.00" or "TOTAL AUD 42,636.00"
+    total_aud   = find_amount(r"TOTAL\s*AUD\s+([\d,]+\.?\d*)")
+    amount_paid = find_amount(r"Less\s*Amount\s*Paid\s+([\d,]+\.?\d*)")
+    amount_due  = find_amount(r"AMOUNT\s*DUE\s*AUD\s+([\d,]+\.?\d*)")
 
-    status = "Paid" if amount_paid > 0 and amount_due == 0 else "Unpaid" if amount_due > 0 else "Partial"
+    # Determine status
+    if amount_paid > 0 and amount_due == 0:
+        status = "Paid"
+    elif amount_due > 0 and amount_paid > 0:
+        status = "Partial"
+    elif amount_due > 0:
+        status = "Unpaid"
+    else:
+        status = "Paid"
 
     # ── Line items ─────────────────────────────────────────────────────────────
-    # Pattern: description (multiline) quantity unit_price gst% amount
+    # Each line: description qty unit_price 10% amount
+    # In stripped text spaces between words are removed so we match on
+    # the numeric columns which are preserved: qty unit_price 10% amount
+    # Pattern: any text ending with qty price 10% amount on the same line
     line_re = re.compile(
-        r"^(.+?)\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)\s+10%\s+([\d,]+\.?\d*)\s*$",
+        r"^(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+10%\s+([\d,]+\.\d{2})\s*$",
         re.MULTILINE
     )
 
     lines = []
+    skip_words = {"description", "subtotal", "quantity", "unit", "price", "gst", "amount"}
+
     for m in line_re.finditer(text):
-        desc = m.group(1).strip()
-        # Skip header row
-        if desc.lower() in ("description", "subtotal"):
+        desc  = m.group(1).strip()
+        desc_lower = desc.lower().replace(" ","")
+
+        # Skip header/total rows
+        if any(s in desc_lower for s in skip_words):
             continue
-        qty   = float(m.group(2).replace(",",""))
-        price = float(m.group(3).replace(",",""))
-        amt   = float(m.group(4).replace(",",""))
-        # Skip if amount looks like a total row
-        if abs(qty * price - amt) > 1 and qty != 1:
+
+        try:
+            qty   = float(m.group(2).replace(",",""))
+            price = float(m.group(3).replace(",",""))
+            amt   = float(m.group(4).replace(",",""))
+        except ValueError:
             continue
+
+        # Sanity check: qty × price should roughly equal amount (allow 1% tolerance)
+        expected = qty * price
+        if expected > 0 and abs(expected - amt) / expected > 0.02:
+            continue
+
+        # Skip total rows that sneak through
+        if desc_lower in ("subtotal", "totalgst", "totalaud"):
+            continue
+
         lines.append({
             "description": desc,
             "quantity":    qty,
@@ -1044,6 +1098,14 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
             "amount":      amt,
             "category":    categorise_invoice_line(desc),
         })
+
+    # If subtotal wasn't found, calculate from lines
+    if subtotal == 0 and lines:
+        subtotal = round(sum(l["amount"] for l in lines), 2)
+    if gst == 0 and subtotal:
+        gst = round(subtotal * 0.1, 2)
+    if total_aud == 0 and subtotal:
+        total_aud = round(subtotal * 1.1, 2)
 
     return {
         "invoice_number": invoice_number,
