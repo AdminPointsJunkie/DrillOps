@@ -720,6 +720,22 @@ function changePassword(){
 document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 if(sessionStorage.getItem('drillops_auth')==='1') document.getElementById('login-screen').style.display='none';
 
+// ── API fetch with retry (handles Render cold starts) ────────────────────────
+async function apiFetch(url, options={}, retries=2){
+  for(let i=0; i<=retries; i++){
+    try{
+      const res = await fetch(url, {...options, signal: AbortSignal.timeout(25000)});
+      if(res.ok || res.status < 500) return res;
+      if(i < retries){ await new Promise(r=>setTimeout(r, 3000)); }
+    }catch(e){
+      if(i < retries){
+        document.getElementById('db-count').textContent = '⏳ waking API…';
+        await new Promise(r=>setTimeout(r, 5000));
+      } else { throw e; }
+    }
+  }
+}
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const API = window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'
   ? 'http://localhost:8000' : 'https://api.drillops.com.au';
@@ -916,14 +932,21 @@ async function switchContractor(name){
 // ── DB count / filters ────────────────────────────────────────────────────────
 async function updateDbCount(){
   try{
-    const d=await fetch(`${API}/filters?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    const res = await fetch(`${API}/filters?contractor=${encodeURIComponent(activeContractor)}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d=await res.json();
     document.getElementById('db-count').textContent=d.total_rows.toLocaleString();
     filterOpts=d;
     fillSelect('f-dates',d.dates);fillSelect('f-holes',d.holes);
     fillSelect('f-sites',d.sites);fillSelect('f-codes',d.codes);
     fillSelect('f-con-dates',d.dates);fillSelect('f-crew-dates',d.dates);
     buildHoleSelector(d.holes);
-  }catch(e){document.getElementById('db-count').textContent='offline';}
+  }catch(e){
+    document.getElementById('db-count').textContent='offline';
+    console.error('API error:', e);
+    // Retry after 5 seconds
+    setTimeout(updateDbCount, 5000);
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
