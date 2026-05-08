@@ -899,16 +899,24 @@ def del_hourly_rate(rid: int):
 
 @app.get("/purchase_orders")
 def get_pos(contractor: str = Query(...)):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT p.*, COALESCE(SUM(a.line_cost),0) AS spent_to_date,
-                       p.po_value - COALESCE(SUM(a.line_cost),0) AS remaining
-                FROM purchase_orders p
-                LEFT JOIN activities a ON a.po_id=p.id AND a.contractor=p.contractor
-                WHERE p.contractor=%s GROUP BY p.id ORDER BY p.issue_date DESC
-            """, (contractor,))
-            return [dict(r) for r in cur.fetchall()]
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT p.id, p.po_number, p.contractor, p.description,
+                           p.issue_date, p.expiry_date, p.po_value, p.status, p.notes,
+                           COALESCE(SUM(a.line_cost),0) AS spent_to_date,
+                           p.po_value - COALESCE(SUM(a.line_cost),0) AS remaining
+                    FROM purchase_orders p
+                    LEFT JOIN activities a ON a.po_id=p.id AND a.contractor=p.contractor
+                    WHERE p.contractor=%s
+                    GROUP BY p.id, p.po_number, p.contractor, p.description,
+                             p.issue_date, p.expiry_date, p.po_value, p.status, p.notes
+                    ORDER BY p.issue_date DESC
+                """, (contractor,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        raise HTTPException(500, f"PO error: {str(e)}")
 
 
 @app.post("/purchase_orders")
@@ -1332,22 +1340,31 @@ async def import_invoice(
 
 @app.get("/invoices")
 def get_invoices(contractor: str = Query(...)):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT i.*,
-                    COUNT(l.id) AS line_count,
-                    SUM(CASE WHEN l.match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
-                    SUM(CASE WHEN l.match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
-                    SUM(CASE WHEN l.match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
-                    SUM(CASE WHEN l.match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
-                FROM invoices i
-                LEFT JOIN invoice_lines l ON l.invoice_id=i.id
-                WHERE i.contractor=%s
-                GROUP BY i.id
-                ORDER BY i.invoice_date DESC
-            """, (contractor,))
-            return [dict(r) for r in cur.fetchall()]
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT i.id, i.source_file, i.contractor, i.invoice_number,
+                           i.invoice_date, i.due_date, i.po_reference, i.client, i.abn,
+                           i.subtotal, i.gst, i.total_aud, i.amount_paid, i.amount_due,
+                           i.status, i.notes,
+                           COUNT(l.id) AS line_count,
+                           SUM(CASE WHEN l.match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
+                           SUM(CASE WHEN l.match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
+                           SUM(CASE WHEN l.match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
+                           SUM(CASE WHEN l.match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
+                    FROM invoices i
+                    LEFT JOIN invoice_lines l ON l.invoice_id=i.id
+                    WHERE i.contractor=%s
+                    GROUP BY i.id, i.source_file, i.contractor, i.invoice_number,
+                             i.invoice_date, i.due_date, i.po_reference, i.client, i.abn,
+                             i.subtotal, i.gst, i.total_aud, i.amount_paid, i.amount_due,
+                             i.status, i.notes
+                    ORDER BY i.invoice_date DESC
+                """, (contractor,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        raise HTTPException(500, f"Invoices error: {str(e)}")
 
 
 @app.get("/invoices/{invoice_id}/lines")
