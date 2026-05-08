@@ -673,14 +673,17 @@ def get_crew(contractor: str = Query(...), dates: Optional[str] = Query(None)):
 def get_filters(contractor: str = Query(...)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            def q(sql): cur.execute(sql,(contractor,)); return [r[0] for r in cur.fetchall()]
-            dates = q("SELECT DISTINCT date FROM activities WHERE contractor=%s ORDER BY date")
-            holes = q("SELECT DISTINCT hole_num FROM activities WHERE contractor=%s ORDER BY hole_num")
-            sites = q("SELECT DISTINCT site_name FROM activities WHERE contractor=%s ORDER BY site_name")
-            codes = q("SELECT DISTINCT code FROM activities WHERE contractor=%s AND code!='' ORDER BY code")
-            cur.execute("SELECT COUNT(*) AS n FROM activities WHERE contractor=%s",(contractor,))
+            cur.execute("SELECT DISTINCT date FROM activities WHERE contractor=%s AND date IS NOT NULL ORDER BY date", (contractor,))
+            dates = [r["date"] for r in cur.fetchall()]
+            cur.execute("SELECT DISTINCT hole_num FROM activities WHERE contractor=%s AND hole_num IS NOT NULL ORDER BY hole_num", (contractor,))
+            holes = [r["hole_num"] for r in cur.fetchall()]
+            cur.execute("SELECT DISTINCT site_name FROM activities WHERE contractor=%s AND site_name IS NOT NULL ORDER BY site_name", (contractor,))
+            sites = [r["site_name"] for r in cur.fetchall()]
+            cur.execute("SELECT DISTINCT code FROM activities WHERE contractor=%s AND code!='' ORDER BY code", (contractor,))
+            codes = [r["code"] for r in cur.fetchall()]
+            cur.execute("SELECT COUNT(*) AS n FROM activities WHERE contractor=%s", (contractor,))
             total = cur.fetchone()["n"]
-    return {"dates":dates,"holes":holes,"sites":sites,"codes":codes,"total_rows":total}
+    return {"dates": dates, "holes": holes, "sites": sites, "codes": codes, "total_rows": total}
 
 
 @app.get("/analytics")
