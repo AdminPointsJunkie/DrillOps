@@ -13,7 +13,7 @@ import pdfplumber
 import pandas as pd
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -517,22 +517,29 @@ def get_contractors():
 
 
 @app.post("/contractors")
-def add_contractor(payload: dict):
+async def add_contractor(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
     name = payload.get("name", "").strip()
     code = payload.get("short_code", "").strip().upper() or name[:3].upper()
     if not name:
         raise HTTPException(400, "name is required")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO contractors (name, short_code, active)
-                VALUES (%s, %s, TRUE)
-                ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code
-                RETURNING id
-            """, (name, code))
-            new_id = cur.fetchone()["id"]
-        conn.commit()
-    return {"status": "created", "id": new_id, "name": name, "short_code": code}
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO contractors (name, short_code, active)
+                    VALUES (%s, %s, TRUE)
+                    ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code
+                    RETURNING id
+                """, (name, code))
+                new_id = cur.fetchone()["id"]
+            conn.commit()
+        return {"status": "created", "id": new_id, "name": name, "short_code": code}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to add contractor: {str(e)}")
 
 
 @app.delete("/contractors/{name}")
@@ -631,7 +638,8 @@ def get_activities(
 
 
 @app.patch("/activities/{row_id}")
-def update_activity(row_id: int, payload: dict):
+async def update_activity(row_id: int, request: Request):
+    payload = await request.json()
     safe = {"date","hole_num","site_name","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
@@ -920,26 +928,34 @@ def get_pos(contractor: str = Query(...)):
 
 
 @app.post("/purchase_orders")
-def add_po(payload: dict):
+async def add_po(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
     if "po_number" not in payload: raise HTTPException(400,"po_number required")
     if "contractor" not in payload: raise HTTPException(400,"contractor required")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO purchase_orders (po_number,contractor,description,issue_date,expiry_date,po_value,status,notes)
-                VALUES (%(po_number)s,%(contractor)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
-                RETURNING id
-            """, {"po_number":payload["po_number"],"contractor":payload["contractor"],
-                  "description":payload.get("description",""),"issue_date":payload.get("issue_date",""),
-                  "expiry_date":payload.get("expiry_date",""),"po_value":payload.get("po_value",0),
-                  "status":payload.get("status","Active"),"notes":payload.get("notes","")})
-            nid = cur.fetchone()["id"]
-        conn.commit()
-    return {"status":"created","id":nid}
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO purchase_orders (po_number,contractor,description,issue_date,expiry_date,po_value,status,notes)
+                    VALUES (%(po_number)s,%(contractor)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
+                    RETURNING id
+                """, {"po_number":payload["po_number"],"contractor":payload["contractor"],
+                      "description":payload.get("description",""),"issue_date":payload.get("issue_date",""),
+                      "expiry_date":payload.get("expiry_date",""),"po_value":payload.get("po_value",0),
+                      "status":payload.get("status","Active"),"notes":payload.get("notes","")})
+                nid = cur.fetchone()["id"]
+            conn.commit()
+        return {"status":"created","id":nid}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to create PO: {str(e)}")
 
 
 @app.patch("/purchase_orders/{po_id}")
-def update_po(po_id: int, payload: dict):
+async def update_po(po_id: int, request: Request):
+    payload = await request.json()
     safe = {"po_number","description","issue_date","expiry_date","po_value","status","notes"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400,"No valid fields")
