@@ -943,9 +943,7 @@ async function updateDbCount(){
     buildHoleSelector(d.holes);
   }catch(e){
     document.getElementById('db-count').textContent='offline';
-    console.error('API error:', e);
-    // Retry after 5 seconds
-    setTimeout(updateDbCount, 5000);
+    console.error('API error:', e.message);
   }
 }
 
