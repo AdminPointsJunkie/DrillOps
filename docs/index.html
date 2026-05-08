@@ -2181,39 +2181,29 @@ let bhMap = null;
 let bhMarkers = [];
 let boreholesCsvData = [];
 
-// ── Coordinate conversion (MGA Zone 55 → WGS84, client-side approx) ──────────
-// We use stored lat/lng from the budget; for new manually-entered holes we compute
-// an approximate conversion using the proj4 library loaded below.
-// For the 61 seeded holes, lat/lng are pre-computed server-side with pyproj.
-
 function mgaToWgs84(easting, northing) {
-  // Simple approximation for MGA Zone 55 (centred ~148°E)
-  // For field use; accurate to ~5m which is fine for map display
-  const a = 6378137.0, f = 1/298.257222101;
-  const b = a*(1-f), e2 = 1-(b*b)/(a*a);
-  const k0 = 0.9996, E0 = 500000, N0 = 10000000;
-  const lon0 = 147 * Math.PI/180; // Zone 55 central meridian
-  const x = easting - E0, y = northing - N0;
-  const M = y/k0;
-  const mu = M/(a*(1-e2/4-3*e2*e2/64));
-  const e1 = (1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
-  const phi1 = mu + (3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)
-             + (21*e1*e1/16-55*e1*e1*e1*e1/32)*Math.sin(4*mu)
-             + (151*e1*e1*e1/96)*Math.sin(6*mu);
-  const N1 = a/Math.sqrt(1-e2*Math.sin(phi1)*Math.sin(phi1));
-  const T1 = Math.tan(phi1)*Math.tan(phi1);
-  const C1 = e2*Math.cos(phi1)*Math.cos(phi1)/(1-e2);
-  const R1 = a*(1-e2)/Math.pow(1-e2*Math.sin(phi1)*Math.sin(phi1),1.5);
-  const D = x/(N1*k0);
-  const lat = phi1 - (N1*Math.tan(phi1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2)*D*D*D*D/24);
-  const lng = lon0 + (D-(1+2*T1+C1)*D*D*D/6)/Math.cos(phi1);
-  return {lat: lat*180/Math.PI, lng: lng*180/Math.PI};
+  const a=6378137.0,f=1/298.257222101,b=a*(1-f),e2=1-(b*b)/(a*a);
+  const k0=0.9996,E0=500000,N0=10000000;
+  const lon0=147*Math.PI/180;
+  const x=easting-E0,y=northing-N0;
+  const M=y/k0;
+  const mu=M/(a*(1-e2/4-3*e2*e2/64));
+  const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const phi1=mu+(3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)+(21*e1*e1/16)*Math.sin(4*mu)+(151*e1*e1*e1/96)*Math.sin(6*mu);
+  const N1=a/Math.sqrt(1-e2*Math.sin(phi1)*Math.sin(phi1));
+  const T1=Math.tan(phi1)*Math.tan(phi1);
+  const C1=e2*Math.cos(phi1)*Math.cos(phi1)/(1-e2);
+  const R1=a*(1-e2)/Math.pow(1-e2*Math.sin(phi1)*Math.sin(phi1),1.5);
+  const D=x/(N1*k0);
+  const lat=phi1-(N1*Math.tan(phi1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2)*D*D*D*D/24);
+  const lng=lon0+(D-(1+2*T1+C1)*D*D*D/6)/Math.cos(phi1);
+  return {lat:lat*180/Math.PI, lng:lng*180/Math.PI};
 }
 
 function getBhColor(bh) {
   if(bh.status==='Complete') return '#16a34a';
   if(bh.status==='In Progress') return '#dc2626';
-  if(bh.type==='Chip') return '#d97706';
+  if(bh.type==='Chip'||bh.bh_type==='Chip') return '#d97706';
   if(bh.bit_type==='PQ') return '#2563eb';
   const p=(bh.purpose||'').toLowerCase();
   if(p.includes('spon')) return '#0891b2';
@@ -2221,227 +2211,227 @@ function getBhColor(bh) {
   return '#6b7280';
 }
 
-// ── Load ──────────────────────────────────────────────────────────────────────
-async function loadBoreholes(){
+async function loadBoreholes() {
   let dbData = [];
-  try{
-    const res=await fetch(`${API}/boreholes?contractor=${encodeURIComponent(activeContractor)}`);
-    if(res.ok) dbData=await res.json();
-  }catch(e){}
+  try {
+    const res = await fetch(API+'/boreholes?contractor='+encodeURIComponent(activeContractor));
+    if(res.ok) dbData = await res.json();
+  } catch(e) {}
 
-  if(dbData.length){
-    // Use DB as source of truth, supplement with budget coords if missing
-    bhData = dbData.map(d=>{
-      const seed = BUDGET_BOREHOLES.find(b=>b.hole_id===d.hole_id)||{};
-      return {...seed, ...d,
+  if(dbData.length) {
+    bhData = dbData.map(d => {
+      const seed = BUDGET_BOREHOLES.find(b => b.hole_id===d.hole_id) || {};
+      return Object.assign({}, seed, d, {
         lat: d.lat||seed.lat, lng: d.lng||seed.lng,
+        type: d.bh_type||d.type||seed.type,
         eos_cost: parseFloat(d.eos_cost)||0,
         eos_metres: parseFloat(d.eos_metres)||0
-      };
+      });
     });
-    // Add any seeded holes not yet in DB
-    BUDGET_BOREHOLES.forEach(b=>{
-      if(!bhData.find(d=>d.hole_id===b.hole_id)){
-        bhData.push({...b, status:'Planned', eos_cost:0, eos_metres:0});
+    BUDGET_BOREHOLES.forEach(b => {
+      if(!bhData.find(d => d.hole_id===b.hole_id)) {
+        bhData.push(Object.assign({}, b, {status:'Planned',eos_cost:0,eos_metres:0}));
       }
     });
   } else {
-    bhData = BUDGET_BOREHOLES.map(b=>({...b, status:'Planned', eos_cost:0, eos_metres:0}));
+    bhData = BUDGET_BOREHOLES.map(b => Object.assign({}, b, {status:'Planned',eos_cost:0,eos_metres:0}));
   }
-
-  bhData.sort((a,b)=>(a.drill_order||999)-(b.drill_order||999));
+  bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
   updateBhKPIs();
   renderBhTable(bhData);
   setTimeout(initBhMap, 100);
 }
 
-function updateBhKPIs(){
-  const total=bhData.length;
-  const complete=bhData.filter(b=>b.status==='Complete').length;
-  const inprog=bhData.filter(b=>b.status==='In Progress').length;
-  const planned=bhData.filter(b=>b.status==='Planned').length;
-  const totalBudget=bhData.reduce((s,b)=>s+(parseFloat(b.budget_total)||0),0);
-  const totalDays=bhData.reduce((s,b)=>s+(parseFloat(b.days_budgeted||b.days)||0),0);
-  const totalEos=bhData.reduce((s,b)=>s+(parseFloat(b.eos_cost)||0),0);
-  const variance=totalEos-totalBudget;
-  document.getElementById('bh-kpi-total').textContent=total;
-  document.getElementById('bh-kpi-complete').textContent=complete;
-  document.getElementById('bh-kpi-inprog').textContent=inprog;
-  document.getElementById('bh-kpi-planned').textContent=planned;
-  document.getElementById('bh-kpi-budget').textContent=totalBudget>0?'$'+Math.round(totalBudget).toLocaleString('en-AU'):'—';
-  document.getElementById('bh-kpi-days').textContent=totalDays>0?totalDays.toFixed(1)+' days':'—';
-  document.getElementById('bh-kpi-actual').textContent=totalEos>0?'$'+Math.round(totalEos).toLocaleString('en-AU'):'—';
-  const vEl=document.getElementById('bh-kpi-variance');
-  if(vEl && totalBudget>0 && totalEos>0){
-    vEl.textContent=(variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
-    vEl.style.color=variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
+function updateBhKPIs() {
+  const complete = bhData.filter(b => b.status==='Complete').length;
+  const inprog   = bhData.filter(b => b.status==='In Progress').length;
+  const planned  = bhData.filter(b => b.status==='Planned').length;
+  const totalBudget = bhData.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
+  const totalDays   = bhData.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
+  const totalEos    = bhData.reduce((s,b) => s+(parseFloat(b.eos_cost)||0), 0);
+  const variance    = totalEos - totalBudget;
+  document.getElementById('bh-kpi-total').textContent = bhData.length;
+  document.getElementById('bh-kpi-complete').textContent = complete;
+  document.getElementById('bh-kpi-inprog').textContent = inprog;
+  document.getElementById('bh-kpi-planned').textContent = planned;
+  document.getElementById('bh-kpi-budget').textContent = totalBudget>0 ? '$'+Math.round(totalBudget).toLocaleString('en-AU') : '—';
+  document.getElementById('bh-kpi-days').textContent = totalDays>0 ? totalDays.toFixed(1)+' days' : '—';
+  document.getElementById('bh-kpi-actual').textContent = totalEos>0 ? '$'+Math.round(totalEos).toLocaleString('en-AU') : '—';
+  const vEl = document.getElementById('bh-kpi-variance');
+  if(vEl && totalBudget>0 && totalEos>0) {
+    vEl.textContent = (variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
+    vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
   renderBhBudgetSummary();
 }
 
-function renderBhBudgetSummary(){
-  const el=document.getElementById('bh-budget-summary'); if(!el)return;
-  const groups={};
-  bhData.forEach(b=>{
-    const k=(b.purpose||'Other').split('/')[0].trim();
-    if(!groups[k])groups[k]={count:0,days:0,budget:0,eos:0};
+function renderBhBudgetSummary() {
+  const el = document.getElementById('bh-budget-summary');
+  if(!el) return;
+  const groups = {};
+  bhData.forEach(b => {
+    const k = (b.purpose||'Other').split('/')[0].trim();
+    if(!groups[k]) groups[k] = {count:0,days:0,budget:0};
     groups[k].count++;
-    groups[k].days+=(parseFloat(b.days_budgeted||b.days)||0);
-    groups[k].budget+=(parseFloat(b.budget_total)||0);
-    groups[k].eos+=(parseFloat(b.eos_cost)||0);
+    groups[k].days += parseFloat(b.days_budgeted||b.days)||0;
+    groups[k].budget += parseFloat(b.budget_total)||0;
   });
-  el.innerHTML=Object.entries(groups).sort((a,b)=>b[1].budget-a[1].budget).map(([k,v])=>`
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;">${esc(k)}</div>
-      <div style="font-size:11px;color:var(--muted);">${v.count} holes · ${v.days.toFixed(1)} days</div>
-      ${v.budget>0?`<div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:4px;">$${Math.round(v.budget).toLocaleString('en-AU')}</div>`:''}
-    </div>`).join('');
+  el.innerHTML = Object.entries(groups).sort((a,b) => b[1].count-a[1].count).map(function(entry) {
+    const k=entry[0], v=entry[1];
+    return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">'+esc(k)+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);">'+v.count+' holes &middot; '+v.days.toFixed(1)+' days</div>'
+      +(v.budget>0?'<div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:4px;">$'+Math.round(v.budget).toLocaleString('en-AU')+'</div>':'')
+      +'</div>';
+  }).join('');
 }
 
-// ── Map ───────────────────────────────────────────────────────────────────────
-function initBhMap(){
-  if(bhMap){bhMap.remove();bhMap=null;}
-  const el=document.getElementById('bh-map'); if(!el)return;
-  const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'});
-  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
-  bhMap=L.map('bh-map',{layers:[osm]});
+function initBhMap() {
+  if(bhMap) { bhMap.remove(); bhMap=null; }
+  const el = document.getElementById('bh-map');
+  if(!el) return;
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
+  bhMap = L.map('bh-map', {layers:[osm]});
   L.control.layers({'Street':osm,'Satellite':sat}).addTo(bhMap);
   renderBhMap();
 }
 
-function renderBhMap(){
-  if(!bhMap)return;
-  bhMarkers.forEach(m=>{try{m.remove();}catch(e){}});
-  bhMarkers=[];
-  const showCore=document.getElementById('bh-filter-core')?.checked!==false;
-  const showChip=document.getElementById('bh-filter-chip')?.checked!==false;
-  const showLabels=document.getElementById('bh-filter-labels')?.checked!==false;
-  const visible=bhData.filter(b=>b.lat&&b.lng&&(b.type==='Core'?showCore:showChip));
+function renderBhMap() {
+  if(!bhMap) return;
+  bhMarkers.forEach(function(m){try{m.remove();}catch(e){}});
+  bhMarkers = [];
+  const showCore   = document.getElementById('bh-filter-core') ? document.getElementById('bh-filter-core').checked : true;
+  const showChip   = document.getElementById('bh-filter-chip') ? document.getElementById('bh-filter-chip').checked : true;
+  const showLabels = document.getElementById('bh-filter-labels') ? document.getElementById('bh-filter-labels').checked : true;
+  const visible = bhData.filter(function(b) {
+    if(!b.lat||!b.lng) return false;
+    const t = b.type||b.bh_type||'';
+    return t==='Core' ? showCore : showChip;
+  });
 
-  visible.forEach(b=>{
-    const col=getBhColor(b);
+  visible.forEach(function(b) {
+    const col = getBhColor(b);
+    const t = b.type||b.bh_type||'Core';
     let marker;
-    if(b.type==='Core'){
-      marker=L.circleMarker([b.lat,b.lng],{radius:7,color:'#fff',weight:1.5,fillColor:col,fillOpacity:0.9});
+    if(t==='Core') {
+      marker = L.circleMarker([b.lat,b.lng], {radius:7,color:'#fff',weight:1.5,fillColor:col,fillOpacity:0.9});
     } else {
-      marker=L.marker([b.lat,b.lng],{icon:L.divIcon({
-        html:`<div style="width:13px;height:13px;background:${col};border:2px solid #fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
-        iconSize:[13,13],iconAnchor:[6,6],className:''
+      marker = L.marker([b.lat,b.lng], {icon:L.divIcon({
+        html:'<div style="width:13px;height:13px;background:'+col+';border:2px solid #fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
+        iconSize:[13,13], iconAnchor:[6,6], className:''
       })});
     }
-    const eos=parseFloat(b.eos_cost)||0;
-    const budget=parseFloat(b.budget_total)||0;
-    marker.bindPopup(`
-      <div style="font-family:Inter,sans-serif;min-width:200px;">
-        <div style="font-weight:700;font-size:15px;margin-bottom:2px;">${b.hole_id}</div>
-        <div style="color:#6b7280;font-size:12px;margin-bottom:8px;">${b.type} · ${b.bit_type} · ${b.purpose||''}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;">
-          <div><div style="color:#9ca3af;font-size:10px;">EASTING</div>${(b.easting||0).toFixed(0)}</div>
-          <div><div style="color:#9ca3af;font-size:10px;">NORTHING</div>${(b.northing||0).toFixed(0)}</div>
-          <div><div style="color:#9ca3af;font-size:10px;">RL</div>${(b.rl||0).toFixed(1)}m</div>
-          <div><div style="color:#9ca3af;font-size:10px;">CHIP DEPTH</div>${(b.chip_depth||0).toFixed(1)}m</div>
-          <div><div style="color:#9ca3af;font-size:10px;">SEAM TK</div>${b.seam_tk||'—'}m</div>
-          <div><div style="color:#9ca3af;font-size:10px;">DAYS</div>${b.days_budgeted||b.days||'—'}</div>
-        </div>
-        ${budget>0?`<div style="font-size:12px;margin-bottom:4px;">Budget: <b>$${budget.toLocaleString('en-AU',{maximumFractionDigits:0})}</b></div>`:''}
-        ${eos>0?`<div style="font-size:12px;margin-bottom:8px;">EOS Cost: <b style="color:${eos>budget&&budget>0?'#dc2626':'#16a34a'}">$${eos.toLocaleString('en-AU',{maximumFractionDigits:0})}</b></div>`:''}
-        <span style="background:${getBhColor(b)}22;color:${getBhColor(b)};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${b.status}</span>
-        <div style="margin-top:10px;display:flex;gap:6px;">
-          <button onclick="setBhStatus('${b.hole_id}','In Progress')" style="font-size:10px;padding:3px 8px;background:#fef3c7;border:1px solid #d97706;color:#d97706;border-radius:4px;cursor:pointer;font-family:Inter,sans-serif;">▶ Start</button>
-          <button onclick="setBhStatus('${b.hole_id}','Complete')" style="font-size:10px;padding:3px 8px;background:#dcfce7;border:1px solid #16a34a;color:#16a34a;border-radius:4px;cursor:pointer;font-family:Inter,sans-serif;">✓ Complete</button>
-        </div>
-      </div>`);
-    if(showLabels){
-      marker.bindTooltip(b.hole_id,{permanent:true,direction:'right',className:'bh-label',offset:[8,0]});
+    const eos = parseFloat(b.eos_cost)||0;
+    const budget = parseFloat(b.budget_total)||0;
+    const popupHtml = '<div style="font-family:Inter,sans-serif;min-width:190px;">'
+      +'<div style="font-weight:700;font-size:15px;margin-bottom:2px;">'+b.hole_id+'</div>'
+      +'<div style="color:#6b7280;font-size:12px;margin-bottom:8px;">'+t+' &middot; '+(b.bit_type||'')+' &middot; '+(b.purpose||'')+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;">'
+      +'<div><div style="color:#9ca3af;font-size:10px;">EASTING</div>'+(b.easting||0).toFixed(0)+'</div>'
+      +'<div><div style="color:#9ca3af;font-size:10px;">NORTHING</div>'+(b.northing||0).toFixed(0)+'</div>'
+      +'<div><div style="color:#9ca3af;font-size:10px;">RL</div>'+(b.rl||0).toFixed(1)+'m</div>'
+      +'<div><div style="color:#9ca3af;font-size:10px;">DEPTH</div>'+(b.chip_depth||0).toFixed(1)+'m</div>'
+      +'<div><div style="color:#9ca3af;font-size:10px;">SEAM</div>'+(b.seam_tk||'—')+'m</div>'
+      +'<div><div style="color:#9ca3af;font-size:10px;">DAYS</div>'+(b.days_budgeted||b.days||'—')+'</div>'
+      +'</div>'
+      +(budget>0?'<div style="font-size:12px;margin-bottom:4px;">Budget: <b>$'+budget.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +(eos>0?'<div style="font-size:12px;margin-bottom:8px;">EOS: <b style="color:'+(eos>budget&&budget>0?'#dc2626':'#16a34a')+'">$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +'<span style="background:'+col+'22;color:'+col+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">'+b.status+'</span>'
+      +'<div style="margin-top:10px;display:flex;gap:6px;">'
+      +'<button onclick="setBhStatus(''+b.hole_id+'','In Progress')" style="font-size:10px;padding:3px 8px;background:#fef3c7;border:1px solid #d97706;color:#d97706;border-radius:4px;cursor:pointer;">&#9654; Start</button>'
+      +'<button onclick="setBhStatus(''+b.hole_id+'','Complete')" style="font-size:10px;padding:3px 8px;background:#dcfce7;border:1px solid #16a34a;color:#16a34a;border-radius:4px;cursor:pointer;">&#10003; Complete</button>'
+      +'</div></div>';
+    marker.bindPopup(popupHtml);
+    if(showLabels) {
+      marker.bindTooltip(b.hole_id, {permanent:true, direction:'right', className:'bh-label', offset:[8,0]});
     }
     marker.addTo(bhMap);
     bhMarkers.push(marker);
   });
-  if(visible.length){
-    bhMap.fitBounds(L.latLngBounds(visible.map(b=>[b.lat,b.lng])),{padding:[20,20]});
+  if(visible.length) {
+    bhMap.fitBounds(L.latLngBounds(visible.map(function(b){return[b.lat,b.lng];})), {padding:[20,20]});
   }
 }
 
-async function setBhStatus(holeId, status){
-  const bh=bhData.find(b=>b.hole_id===holeId); if(!bh)return;
-  bh.status=status;
-  try{
-    await fetch(`${API}/boreholes/${encodeURIComponent(holeId)}`,{method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,status})});
-    toast(`✓ ${holeId} → ${status}`);
-  }catch(e){toast('Save failed','err');}
+async function setBhStatus(holeId, status) {
+  const bh = bhData.find(function(b){return b.hole_id===holeId;});
+  if(!bh) return;
+  bh.status = status;
+  try {
+    await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor, status:status})
+    });
+    toast('✓ '+holeId+' → '+status);
+  } catch(e) { toast('Save failed','err'); }
   renderBhTable(bhData);
   renderBhMap();
   updateBhKPIs();
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
-function filterBhTable(){
-  const sf=document.getElementById('bh-status-filter').value;
-  renderBhTable(sf?bhData.filter(b=>b.status===sf):bhData);
+function filterBhTable() {
+  const sf = document.getElementById('bh-status-filter').value;
+  renderBhTable(sf ? bhData.filter(function(b){return b.status===sf;}) : bhData);
 }
 
-function renderBhTable(rows){
-  document.getElementById('bh-count').textContent=rows.length;
-  boreholesCsvData=rows;
-  const STATUS_CLR={Planned:'#6b7280','In Progress':'#d97706',Complete:'#16a34a',Cancelled:'#dc2626'};
-  document.getElementById('bh-body').innerHTML=rows.map(b=>{
-    const eos=parseFloat(b.eos_cost)||0;
-    const bgt=parseFloat(b.budget_total)||0;
-    const variance=bgt>0&&eos>0?eos-bgt:null;
-    const sc=STATUS_CLR[b.status]||'#6b7280';
-    return`<tr data-hole="${esc(b.hole_id)}">
-      <td style="color:var(--muted);font-size:11px;">${b.drill_order||''}</td>
-      <td contenteditable="true" data-col="hole_id" style="font-weight:700;color:var(--accent);">${esc(b.hole_id)}</td>
-      <td contenteditable="true" data-col="bh_type"><span class="badge ${b.type==='Core'?'badge-drill':'badge-standby'}">${esc(b.type||'')}</span></td>
-      <td contenteditable="true" data-col="bit_type" style="font-family:var(--font-mono);font-size:11px;">${esc(b.bit_type||'')}</td>
-      <td contenteditable="true" data-col="purpose" style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${esc(b.purpose||'')}</td>
-      <td contenteditable="true" data-col="easting" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${(b.easting||0).toFixed(0)}</td>
-      <td contenteditable="true" data-col="northing" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${(b.northing||0).toFixed(0)}</td>
-      <td contenteditable="true" data-col="rl" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${(b.rl||0).toFixed(1)}</td>
-      <td contenteditable="true" data-col="chip_depth" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${(b.chip_depth||0).toFixed(1)}</td>
-      <td contenteditable="true" data-col="seam_tk" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${b.seam_tk||''}</td>
-      <td contenteditable="true" data-col="days_budgeted" data-num="true" style="font-family:var(--font-mono);font-size:11px;">${b.days_budgeted||b.days||''}</td>
-      <td>
-        <select onchange="setBhStatus('${b.hole_id}',this.value)" style="font-size:11px;background:${sc}18;color:${sc};border:1.5px solid ${sc};border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">
-          ${['Planned','In Progress','Complete','Cancelled'].map(s=>`<option value="${s}"${s===b.status?' selected':''}>${s}</option>`).join('')}
-        </select>
-      </td>
-      <td contenteditable="true" data-col="budget_total" data-num="true" style="color:var(--text2);font-weight:600;">${bgt>0?bgt.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0}):''}</td>
-      <td style="color:var(--accent);font-weight:600;">${eos>0?'$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0}):'—'}</td>
-      <td style="color:${variance===null?'var(--muted)':variance>0?'var(--red)':'var(--green)'};font-weight:600;">
-        ${variance===null?'—':(variance>0?'+':'')+('$'+Math.abs(Math.round(variance)).toLocaleString('en-AU'))}
-      </td>
-      <td contenteditable="true" data-col="notes" style="font-size:11px;color:var(--muted);max-width:120px;">${esc(b.notes||'')}</td>
-      <td><button onclick="deleteBorehole('${esc(b.hole_id)}')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 4px;">✕</button></td>
-    </tr>`;
+function renderBhTable(rows) {
+  document.getElementById('bh-count').textContent = rows.length;
+  boreholesCsvData = rows;
+  const STATUS_CLR = {Planned:'#6b7280','In Progress':'#d97706',Complete:'#16a34a',Cancelled:'#dc2626'};
+  document.getElementById('bh-body').innerHTML = rows.map(function(b) {
+    const eos = parseFloat(b.eos_cost)||0;
+    const bgt = parseFloat(b.budget_total)||0;
+    const variance = (bgt>0&&eos>0) ? eos-bgt : null;
+    const sc = STATUS_CLR[b.status]||'#6b7280';
+    const t = b.type||b.bh_type||'Core';
+    const statusOpts = ['Planned','In Progress','Complete','Cancelled'].map(function(s) {
+      return '<option value="'+s+'"'+(s===b.status?' selected':'')+'>'+s+'</option>';
+    }).join('');
+    return '<tr data-hole="'+esc(b.hole_id)+'">'
+      +'<td style="color:var(--muted);font-size:11px;">'+(b.drill_order||'')+'</td>'
+      +'<td contenteditable="true" data-col="hole_id" style="font-weight:700;color:var(--accent);">'+esc(b.hole_id)+'</td>'
+      +'<td contenteditable="true" data-col="bh_type"><span class="badge '+(t==='Core'?'badge-drill':'badge-standby')+'">'+esc(t)+'</span></td>'
+      +'<td contenteditable="true" data-col="bit_type" style="font-family:var(--font-mono);font-size:11px;">'+esc(b.bit_type||'')+'</td>'
+      +'<td contenteditable="true" data-col="purpose" style="font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;">'+esc(b.purpose||'')+'</td>'
+      +'<td contenteditable="true" data-col="easting" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.easting||0).toFixed(0)+'</td>'
+      +'<td contenteditable="true" data-col="northing" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.northing||0).toFixed(0)+'</td>'
+      +'<td contenteditable="true" data-col="rl" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.rl||0).toFixed(1)+'</td>'
+      +'<td contenteditable="true" data-col="chip_depth" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.chip_depth||0).toFixed(1)+'</td>'
+      +'<td contenteditable="true" data-col="seam_tk" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.seam_tk||'')+'</td>'
+      +'<td contenteditable="true" data-col="days_budgeted" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.days_budgeted||b.days||'')+'</td>'
+      +'<td><select onchange="setBhStatus(''+b.hole_id+'',this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
+      +'<td contenteditable="true" data-col="budget_total" data-num="true" style="font-weight:600;">'+(bgt>0?bgt.toLocaleString('en-AU',{maximumFractionDigits:0}):'')+'</td>'
+      +'<td style="color:var(--accent);font-weight:600;">'+(eos>0?'$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0}):'—')+'</td>'
+      +'<td style="color:'+(variance===null?'var(--muted)':variance>0?'var(--red)':'var(--green)')+';font-weight:600;">'
+        +(variance===null?'—':(variance>0?'+':'')+('$'+Math.abs(Math.round(variance)).toLocaleString('en-AU')))+'</td>'
+      +'<td contenteditable="true" data-col="notes" style="font-size:11px;color:var(--muted);max-width:120px;">'+esc(b.notes||'')+'</td>'
+      +'<td><button onclick="deleteBorehole(''+esc(b.hole_id)+'')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px;">✕</button></td>'
+      +'</tr>';
   }).join('');
 
-  // Wire up inline edits
-  document.getElementById('bh-body').querySelectorAll('[contenteditable]').forEach(cell=>{
-    cell.addEventListener('blur', async()=>{
-      const row=cell.closest('tr');
-      const holeId=row.dataset.hole;
-      const col=cell.dataset.col;
-      let val=cell.textContent.trim().replace(/[$,]/g,'');
-      if(cell.dataset.num) val=val===''?null:parseFloat(val);
-      // Update local data
-      const bh=bhData.find(b=>b.hole_id===holeId);
-      if(bh){
-        bh[col]=val;
-        // Recompute lat/lng if easting/northing changed
-        if((col==='easting'||col==='northing')&&bh.easting&&bh.northing){
-          const wgs=mgaToWgs84(bh.easting,bh.northing);
-          bh.lat=wgs.lat; bh.lng=wgs.lng;
+  document.getElementById('bh-body').querySelectorAll('[contenteditable]').forEach(function(cell) {
+    cell.addEventListener('blur', async function() {
+      const row = cell.closest('tr');
+      const holeId = row.dataset.hole;
+      const col = cell.dataset.col;
+      let val = cell.textContent.trim().replace(/[$,]/g,'');
+      if(cell.dataset.num) val = val===''?null:parseFloat(val);
+      const bh = bhData.find(function(b){return b.hole_id===holeId;});
+      if(bh) {
+        bh[col] = val;
+        if((col==='easting'||col==='northing')&&bh.easting&&bh.northing) {
+          const wgs = mgaToWgs84(bh.easting, bh.northing);
+          bh.lat = wgs.lat; bh.lng = wgs.lng;
         }
       }
-      try{
-        await fetch(`${API}/boreholes/${encodeURIComponent(holeId)}`,{method:'PATCH',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({contractor:activeContractor,[col]:val})});
+      try {
+        await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
+          method:'PATCH', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(Object.assign({contractor:activeContractor}, {[col]:val}))
+        });
         toast('✓ Saved');
-      }catch(e){toast('Save failed','err');}
+      } catch(e) { toast('Save failed','err'); }
       updateBhKPIs();
       if(col==='easting'||col==='northing') renderBhMap();
     });
@@ -2449,22 +2439,19 @@ function renderBhTable(rows){
   makeTableSortable('bh-table');
 }
 
-// ── Add borehole ──────────────────────────────────────────────────────────────
-function showAddBhForm(){
-  const f=document.getElementById('bh-add-form');
-  f.style.display=f.style.display==='none'?'block':'none';
+function showAddBhForm() {
+  const f = document.getElementById('bh-add-form');
+  f.style.display = f.style.display==='none'?'block':'none';
 }
 
-async function addBorehole(){
-  const holeId=document.getElementById('add-bh-id').value.trim();
-  if(!holeId){toast('Hole ID required','err');return;}
-  if(bhData.find(b=>b.hole_id===holeId)){toast('Hole ID already exists','err');return;}
-
-  const easting=parseFloat(document.getElementById('add-bh-east').value)||0;
-  const northing=parseFloat(document.getElementById('add-bh-north').value)||0;
-  const wgs=easting&&northing?mgaToWgs84(easting,northing):{lat:null,lng:null};
-
-  const newBh={
+async function addBorehole() {
+  const holeId = document.getElementById('add-bh-id').value.trim();
+  if(!holeId) { toast('Hole ID required','err'); return; }
+  if(bhData.find(function(b){return b.hole_id===holeId;})) { toast('Hole ID already exists','err'); return; }
+  const easting  = parseFloat(document.getElementById('add-bh-east').value)||0;
+  const northing = parseFloat(document.getElementById('add-bh-north').value)||0;
+  const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
+  const newBh = {
     hole_id:holeId,
     bh_type:document.getElementById('add-bh-type').value,
     type:document.getElementById('add-bh-type').value,
@@ -2472,7 +2459,7 @@ async function addBorehole(){
     purpose:document.getElementById('add-bh-purpose').value,
     days_budgeted:parseFloat(document.getElementById('add-bh-days').value)||null,
     days:parseFloat(document.getElementById('add-bh-days').value)||null,
-    easting,northing,
+    easting:easting, northing:northing,
     rl:parseFloat(document.getElementById('add-bh-rl').value)||null,
     chip_depth:parseFloat(document.getElementById('add-bh-depth').value)||null,
     seam_tk:parseFloat(document.getElementById('add-bh-seam').value)||null,
@@ -2481,144 +2468,143 @@ async function addBorehole(){
     notes:document.getElementById('add-bh-notes').value,
     lat:wgs.lat, lng:wgs.lng,
     drill_order:bhData.length+1,
-    eos_cost:0, eos_metres:0,
+    eos_cost:0, eos_metres:0
   };
-
-  try{
-    const res=await fetch(`${API}/boreholes/import_budget`,{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,boreholes:[newBh]})});
-    if(!res.ok){const e=await res.json();toast(e.detail||'Failed','err');return;}
+  try {
+    const res = await fetch(API+'/boreholes/import_budget', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
+    });
+    if(!res.ok) { toast('Failed to add','err'); return; }
     bhData.push(newBh);
-    // Clear form
-    ['add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    ['add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(function(id){
+      const el=document.getElementById(id); if(el) el.value='';
+    });
     document.getElementById('bh-add-form').style.display='none';
-    toast(`✓ ${holeId} added`);
+    toast('✓ '+holeId+' added');
     renderBhTable(bhData);
     renderBhMap();
     updateBhKPIs();
-  }catch(e){toast('Failed: '+e.message,'err');}
+  } catch(e) { toast('Failed: '+e.message,'err'); }
 }
 
-// ── Delete borehole ───────────────────────────────────────────────────────────
-async function deleteBorehole(holeId){
-  if(!confirm(`Delete borehole ${holeId}? This cannot be undone.`))return;
-  try{
-    await fetch(`${API}/boreholes/${encodeURIComponent(holeId)}?contractor=${encodeURIComponent(activeContractor)}`,{method:'DELETE'});
-    bhData=bhData.filter(b=>b.hole_id!==holeId);
-    toast(`${holeId} deleted`,'warn');
+async function deleteBorehole(holeId) {
+  if(!confirm('Delete borehole '+holeId+'? This cannot be undone.')) return;
+  try {
+    await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(activeContractor), {method:'DELETE'});
+    bhData = bhData.filter(function(b){return b.hole_id!==holeId;});
+    toast(holeId+' deleted','warn');
     renderBhTable(bhData);
     renderBhMap();
     updateBhKPIs();
-  }catch(e){toast('Delete failed','err');}
+  } catch(e) { toast('Delete failed','err'); }
 }
 
-// ── CSV Import ────────────────────────────────────────────────────────────────
-function downloadBhCsvTemplate(e){
+function downloadBhCsvTemplate(e) {
   e.preventDefault();
-  const cols=['hole_id','type','bit_type','purpose','days','easting','northing','rl','chip_depth','seam_tk','budget_total','notes'];
-  const example='26-062,Core,HQ,Geotech,3.5,620000,7594000,320.5,250.0,5.2,85000,Example hole';
-  const csv=cols.join(',')+String.fromCharCode(10)+example;
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='borehole_budget_template.csv';a.click();
+  const cols = 'hole_id,type,bit_type,purpose,days,easting,northing,rl,chip_depth,seam_tk,budget_total,notes';
+  const example = '26-062,Core,HQ,Geotech,3.5,620000,7594000,320.5,250.0,5.2,85000,Example hole';
+  const csv = cols + String.fromCharCode(10) + example;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'borehole_budget_template.csv';
+  a.click();
   toast('✓ Template downloaded');
 }
 
-function importBhCSV(input){
-  const file=input.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=async(e)=>{
-    const lines=e.target.result.split('\n').map(l=>l.trim()).filter(l=>l);
-    const headers=lines[0].toLowerCase().split(',').map(h=>h.trim().replace(/[^a-z_]/g,''));
-    const boreholes=[];
-    const errors=[];
-    for(let i=1;i<lines.length;i++){
-      const vals=lines[i].split(',');
-      if(vals.length<2)continue;
-      const row={};
-      headers.forEach((h,idx)=>{row[h]=vals[idx]?.trim()||'';});
-      if(!row.hole_id){errors.push(`Row ${i+1}: missing hole_id`);continue;}
-      const easting=parseFloat(row.easting)||0;
-      const northing=parseFloat(row.northing)||0;
-      const wgs=easting&&northing?mgaToWgs84(easting,northing):{lat:null,lng:null};
+function importBhCSV(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev) {
+    const text = ev.target.result;
+    const lines = text.split(/
+?
+/).map(function(l){return l.trim();}).filter(function(l){return l;});
+    const headers = lines[0].toLowerCase().split(',').map(function(h){return h.trim().replace(/[^a-z_]/g,'');});
+    const boreholes = [];
+    const errors = [];
+    for(let i=1;i<lines.length;i++) {
+      const vals = lines[i].split(',');
+      if(vals.length<2) continue;
+      const row = {};
+      headers.forEach(function(h,idx){row[h]=(vals[idx]||'').trim();});
+      if(!row.hole_id) { errors.push('Row '+(i+1)+': missing hole_id'); continue; }
+      const easting  = parseFloat(row.easting)||0;
+      const northing = parseFloat(row.northing)||0;
+      const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
       boreholes.push({
-        hole_id:row.hole_id,
-        bh_type:row.type||'Core', type:row.type||'Core',
-        bit_type:row.bit_type||row.bittype||'HQ',
-        purpose:row.purpose||'',
+        hole_id:row.hole_id, bh_type:row.type||'Core', type:row.type||'Core',
+        bit_type:row.bit_type||row.bittype||'HQ', purpose:row.purpose||'',
         days_budgeted:parseFloat(row.days)||null, days:parseFloat(row.days)||null,
-        easting, northing,
+        easting:easting, northing:northing,
         rl:parseFloat(row.rl)||null,
         chip_depth:parseFloat(row.chip_depth||row.chipdepth)||null,
         seam_tk:parseFloat(row.seam_tk||row.seamtk)||null,
         budget_total:parseFloat(row.budget_total||row.budget)||null,
         notes:row.notes||'',
         lat:wgs.lat, lng:wgs.lng,
-        drill_order:i,
-        status:'Planned',eos_cost:0,eos_metres:0,
+        drill_order:i, status:'Planned', eos_cost:0, eos_metres:0
       });
     }
     if(errors.length) toast('⚠ '+errors.join('; '),'warn');
-    if(!boreholes.length){toast('No valid rows found','err');return;}
-    try{
-      const res=await fetch(`${API}/boreholes/import_budget`,{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contractor:activeContractor,boreholes})});
-      if(!res.ok){toast('Import failed','err');return;}
-      const d=await res.json();
-      toast(`✓ Imported ${d.count} boreholes from CSV`);
+    if(!boreholes.length) { toast('No valid rows found','err'); return; }
+    try {
+      const res = await fetch(API+'/boreholes/import_budget', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contractor:activeContractor, boreholes:boreholes})
+      });
+      if(!res.ok) { toast('Import failed','err'); return; }
+      const d = await res.json();
+      toast('✓ Imported '+d.count+' boreholes from CSV');
       loadBoreholes();
-    }catch(err){toast('Import failed: '+err.message,'err');}
+    } catch(err) { toast('Import failed: '+err.message,'err'); }
   };
   reader.readAsText(file);
-  input.value='';
+  input.value = '';
 }
 
-// ── KML Export ────────────────────────────────────────────────────────────────
-function exportKML(){
-  const kml=`<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-<Document><name>2026 Ironbark Boreholes</name>
-<Style id="core-pq"><IconStyle><color>ffeb6325</color><scale>1.0</scale><Icon><href>http://maps.google.com/mapfiles/kml/paddle/blu-circle.png</href></Icon></IconStyle></Style>
-<Style id="core-hq"><IconStyle><color>ffed3477</color><scale>0.9</scale></IconStyle></Style>
-<Style id="chip"><IconStyle><color>ff0099ff</color><scale>0.8</scale><Icon><href>http://maps.google.com/mapfiles/kml/paddle/ylw-square.png</href></Icon></IconStyle></Style>
-<Style id="complete"><IconStyle><color>ff00a550</color><scale>1.0</scale></IconStyle></Style>
-${bhData.filter(b=>b.lat&&b.lng).map(b=>`<Placemark>
-  <name>${b.hole_id}</name>
-  <description><![CDATA[<b>${b.hole_id}</b><br>
-    Type: ${b.type} | Bit: ${b.bit_type}<br>
-    Purpose: ${b.purpose||'—'}<br>
-    Easting: ${(b.easting||0).toFixed(3)} (MGA Zone 55)<br>
-    Northing: ${(b.northing||0).toFixed(3)}<br>
-    RL: ${(b.rl||0).toFixed(2)}m<br>
-    Chip Depth: ${(b.chip_depth||0).toFixed(2)}m<br>
-    Seam Thickness: ${b.seam_tk||'—'}m<br>
-    Days: ${b.days_budgeted||b.days||'—'}<br>
-    Budget: ${b.budget_total?'$'+parseFloat(b.budget_total).toLocaleString('en-AU',{maximumFractionDigits:0}):'—'}<br>
-    Status: ${b.status}
-  ]]></description>
-  <styleUrl>#${b.status==='Complete'?'complete':b.type==='Chip'?'chip':b.bit_type==='PQ'?'core-pq':'core-hq'}</styleUrl>
-  <Point><coordinates>${b.lng},${b.lat},${(b.rl||0).toFixed(2)}</coordinates></Point>
-</Placemark>`).join(\n')}
-</Document></kml>`;
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));
-  a.download='Ironbark_2026_Boreholes.kml';a.click();
-  toast('✓ KML exported — open in Google Earth');
+function exportKML() {
+  const lines = ['<?xml version="1.0" encoding="UTF-8"?>'];
+  lines.push('<kml xmlns="http://www.opengis.net/kml/2.2">');
+  lines.push('<Document><name>2026 Ironbark Boreholes</name>');
+  lines.push('<Style id="core-pq"><IconStyle><color>ffeb6325</color><scale>1.0</scale></IconStyle></Style>');
+  lines.push('<Style id="core-hq"><IconStyle><color>ffed3477</color><scale>0.9</scale></IconStyle></Style>');
+  lines.push('<Style id="chip"><IconStyle><color>ff0099ff</color><scale>0.8</scale></IconStyle></Style>');
+  lines.push('<Style id="complete"><IconStyle><color>ff00a550</color><scale>1.0</scale></IconStyle></Style>');
+  bhData.filter(function(b){return b.lat&&b.lng;}).forEach(function(b) {
+    const t = b.type||b.bh_type||'Core';
+    const styleId = b.status==='Complete'?'complete':t==='Chip'?'chip':b.bit_type==='PQ'?'core-pq':'core-hq';
+    const bgt = b.budget_total ? '$'+parseFloat(b.budget_total).toLocaleString('en-AU',{maximumFractionDigits:0}) : 'N/A';
+    lines.push('<Placemark>');
+    lines.push('<name>'+b.hole_id+'</name>');
+    lines.push('<description><![CDATA[<b>'+b.hole_id+'</b><br>Type: '+t+' | Bit: '+(b.bit_type||'')+'<br>Purpose: '+(b.purpose||'')+'<br>Easting: '+(b.easting||0).toFixed(3)+' (MGA55)<br>Northing: '+(b.northing||0).toFixed(3)+'<br>RL: '+(b.rl||0).toFixed(2)+'m<br>Depth: '+(b.chip_depth||0).toFixed(2)+'m<br>Seam: '+(b.seam_tk||'N/A')+'m<br>Days: '+(b.days_budgeted||b.days||'N/A')+'<br>Budget: '+bgt+'<br>Status: '+b.status+']]></description>');
+    lines.push('<styleUrl>#'+styleId+'</styleUrl>');
+    lines.push('<Point><coordinates>'+b.lng+','+b.lat+','+(b.rl||0).toFixed(2)+'</coordinates></Point>');
+    lines.push('</Placemark>');
+  });
+  lines.push('</Document></kml>');
+  const kml = lines.join(String.fromCharCode(10));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([kml], {type:'application/vnd.google-earth.kml+xml'}));
+  a.download = 'Ironbark_2026_Boreholes.kml';
+  a.click();
+  toast('✓ KML exported');
 }
 
-async function importBudgetToDb(){
-  const toSave=bhData.map(b=>({...b, budget_total:b.budget_total||null}));
-  try{
-    const res=await fetch(`${API}/boreholes/import_budget`,{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,boreholes:toSave})});
-    if(!res.ok){toast('Failed to save','err');return;}
-    const d=await res.json();
-    toast(`✓ ${d.count} boreholes saved to database`);
-  }catch(e){toast('Save failed: '+e.message,'err');}
+async function importBudgetToDb() {
+  try {
+    const res = await fetch(API+'/boreholes/import_budget', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor, boreholes:bhData})
+    });
+    if(!res.ok) { toast('Failed to save','err'); return; }
+    const d = await res.json();
+    toast('✓ '+d.count+' boreholes saved to database');
+  } catch(e) { toast('Save failed: '+e.message,'err'); }
 }
+
+
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 buildContractorSwitcher();
