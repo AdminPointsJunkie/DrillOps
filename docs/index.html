@@ -2518,8 +2518,7 @@ function downloadBhCsvTemplate(e){
   e.preventDefault();
   const cols=['hole_id','type','bit_type','purpose','days','easting','northing','rl','chip_depth','seam_tk','budget_total','notes'];
   const example='26-062,Core,HQ,Geotech,3.5,620000,7594000,320.5,250.0,5.2,85000,Example hole';
-  const csv=cols.join(',')+'
-'+example;
+  const csv=cols.join(',')+String.fromCharCode(10)+example;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download='borehole_budget_template.csv';a.click();
