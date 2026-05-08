@@ -911,18 +911,26 @@ def get_pos(contractor: str = Query(...)):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT p.id, p.po_number, p.contractor, p.description,
-                           p.issue_date, p.expiry_date, p.po_value, p.status, p.notes,
-                           COALESCE(SUM(a.line_cost),0) AS spent_to_date,
-                           p.po_value - COALESCE(SUM(a.line_cost),0) AS remaining
-                    FROM purchase_orders p
-                    LEFT JOIN activities a ON a.po_id=p.id AND a.contractor=p.contractor
-                    WHERE p.contractor=%s
-                    GROUP BY p.id, p.po_number, p.contractor, p.description,
-                             p.issue_date, p.expiry_date, p.po_value, p.status, p.notes
-                    ORDER BY p.issue_date DESC
+                    SELECT id, po_number, contractor, description,
+                           issue_date, expiry_date, po_value, status, notes
+                    FROM purchase_orders
+                    WHERE contractor=%s
+                    ORDER BY issue_date DESC
                 """, (contractor,))
-                return [dict(r) for r in cur.fetchall()]
+                pos = [dict(r) for r in cur.fetchall()]
+
+                # Add spent/remaining for each PO
+                for po in pos:
+                    cur.execute("""
+                        SELECT COALESCE(SUM(line_cost),0) AS spent
+                        FROM activities
+                        WHERE po_id=%s AND contractor=%s AND line_cost IS NOT NULL
+                    """, (po["id"], contractor))
+                    spent = float(cur.fetchone()["spent"] or 0)
+                    po["spent_to_date"] = spent
+                    po["remaining"] = (po["po_value"] or 0) - spent
+
+                return pos
     except Exception as e:
         raise HTTPException(500, f"PO error: {str(e)}")
 
@@ -1066,14 +1074,17 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
         m = re.search(pattern, text, re.IGNORECASE)
         return m.group(1).strip() if m else default
 
-    # Header — handle pdfplumber stripping spaces between words
-    invoice_number = find(r"Invoice\s*Number\s*\n?\s*(INV-\d+)")
-    if not invoice_number:
-        invoice_number = find(r"(INV-\d+)")  # fallback anywhere in text
+    # Header — pdfplumber strips spaces, layout is non-standard
+    # "InvoiceNumber NOOSAVILLEQLD4566\nFitzroyAustraliaResourcesPtyLtd INV-0509"
+    invoice_number = find(r"(INV-\d+)")  # just find it anywhere
     invoice_date   = find(r"Invoice\s*Date\s*\n?\s*(\d+\s*\w+\s*\d{4})")
+    if not invoice_date:
+        # format: "InvoiceDate\n3Apr2026" or "24Feb2026"
+        invoice_date = find(r"InvoiceDate\s*\n?\s*(\d+\w+\d{4})")
     due_date       = find(r"Due\s*Date[:\s]+(\d+\s+\w+\s+\d{4})")
     po_reference   = (find(r"Reference\s*\n?\s*(Purchase\s*Order\s*\S+)") or
                       find(r"Reference\s*\n?\s*(PO\s+\S+)") or
+                      find(r"PurchaseOrder(\S+)") or
                       find(r"(C\d{6,}|F\d{6,})"))
     client         = find(r"(Fitzroy[\w\s]+?(?:Pty\s*Ltd|Resources\s*Pty\s*Ltd))")
     abn_raw        = find(r"ABN\s*\n?\s*([\d\s]{10,})")
@@ -1089,8 +1100,6 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
 
     subtotal    = find_amount(r"Subtotal\s+([\d,]+\.?\d*)")
     gst         = find_amount(r"TOTAL\s*GST\s*10%\s+([\d,]+\.?\d*)")
-    # TOTAL AUD appears twice (label + value on same line in stripped text)
-    # e.g. "TOTALAUD 42,636.00" or "TOTAL AUD 42,636.00"
     total_aud   = find_amount(r"TOTAL\s*AUD\s+([\d,]+\.?\d*)")
     amount_paid = find_amount(r"Less\s*Amount\s*Paid\s+([\d,]+\.?\d*)")
     amount_due  = find_amount(r"AMOUNT\s*DUE\s*AUD\s+([\d,]+\.?\d*)")
@@ -1116,13 +1125,12 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     )
 
     lines = []
-    skip_words = {"description", "subtotal", "quantity", "unit", "price", "gst", "amount"}
+    skip_words = {"description", "subtotal", "quantity", "unitprice", "gst", "amountaud"}
 
     for m in line_re.finditer(text):
         desc  = m.group(1).strip()
         desc_lower = desc.lower().replace(" ","")
 
-        # Skip header/total rows
         if any(s in desc_lower for s in skip_words):
             continue
 
@@ -1133,14 +1141,11 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
         except ValueError:
             continue
 
-        # Sanity check: qty × price should roughly equal amount (allow 1% tolerance)
-        expected = qty * price
-        if expected > 0 and abs(expected - amt) / expected > 0.02:
-            continue
-
-        # Skip total rows that sneak through
-        if desc_lower in ("subtotal", "totalgst", "totalaud"):
-            continue
+        # Sanity check with 2% tolerance
+        if qty > 0 and price > 0:
+            expected = qty * price
+            if expected > 0 and abs(expected - amt) / expected > 0.02:
+                continue
 
         lines.append({
             "description": desc,
