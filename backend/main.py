@@ -1376,16 +1376,22 @@ def get_invoices(contractor: str = Query(...)):
                 invoices = [dict(r) for r in cur.fetchall()]
 
                 for inv in invoices:
-                    cur.execute("""
-                        SELECT COUNT(*) AS line_count,
-                               SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
-                               SUM(CASE WHEN match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
-                               SUM(CASE WHEN match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
-                               SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
-                        FROM invoice_lines WHERE invoice_id=%s
-                    """, (inv["id"],))
-                    stats = dict(cur.fetchone())
-                    inv.update(stats)
+                    try:
+                        cur.execute("""
+                            SELECT COUNT(*) AS line_count,
+                                   SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
+                                   SUM(CASE WHEN match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
+                                   SUM(CASE WHEN match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
+                                   SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
+                            FROM invoice_lines WHERE invoice_id=%s
+                        """, (inv["id"],))
+                        row = cur.fetchone()
+                        if row:
+                            inv.update(dict(row))
+                        else:
+                            inv.update({"line_count":0,"exact_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                    except Exception:
+                        inv.update({"line_count":0,"exact_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
 
                 return invoices
     except Exception as e:
