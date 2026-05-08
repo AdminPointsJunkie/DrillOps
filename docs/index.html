@@ -2046,8 +2046,11 @@ function renderInvoices(rows){
       <td>${r.line_count||0}</td>
       <td style="color:var(--green)">${r.exact_matches||0}</td>
       <td style="color:${(r.over_count||0)+(r.under_count||0)>0?'var(--red)':'var(--muted)'}">${(r.over_count||0)+(r.under_count||0)}</td>
-      <td><button onclick="event.stopPropagation();deleteInvoice(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
-    </tr>`).join('')||'<tr><td colspan="14"><div class="empty-state"><div class="big">🧮</div>No invoices yet — import PDF invoices above</div></td></tr>';
+      <td style="display:flex;gap:4px;">
+        <button onclick="event.stopPropagation();viewInvoicePdf(${r.id})" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--font);">PDF</button>
+        <button onclick="event.stopPropagation();deleteInvoice(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">\u2715</button>
+      </td>
+    </tr>`).join('')||'<tr><td colspan="14"><div class="empty-state"><div class="big">\ud83e\uddee</div>No invoices yet \u2014 import PDF invoices above</div></td></tr>';
   makeTableSortable('inv-table');
 }
 
@@ -2094,6 +2097,10 @@ async function deleteInvoice(id){
   await fetch(`${API}/invoices/${id}`,{method:'DELETE'});
   toast('Invoice deleted','warn');
   loadInvoices();
+}
+
+function viewInvoicePdf(invoiceId) {
+  window.open(`${API}/invoices/${invoiceId}/pdf`, '_blank');
 }
 
 // ── Reconciliation ────────────────────────────────────────────────────────────
