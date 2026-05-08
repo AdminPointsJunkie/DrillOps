@@ -2529,8 +2529,7 @@ function importBhCSV(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=async(e)=>{
-    const lines=e.target.result.split('
-').map(l=>l.trim()).filter(l=>l);
+    const lines=e.target.result.split('\n').map(l=>l.trim()).filter(l=>l);
     const headers=lines[0].toLowerCase().split(',').map(h=>h.trim().replace(/[^a-z_]/g,''));
     const boreholes=[];
     const errors=[];
@@ -2601,8 +2600,7 @@ ${bhData.filter(b=>b.lat&&b.lng).map(b=>`<Placemark>
   ]]></description>
   <styleUrl>#${b.status==='Complete'?'complete':b.type==='Chip'?'chip':b.bit_type==='PQ'?'core-pq':'core-hq'}</styleUrl>
   <Point><coordinates>${b.lng},${b.lat},${(b.rl||0).toFixed(2)}</coordinates></Point>
-</Placemark>`).join('
-')}
+</Placemark>`).join(\n')}
 </Document></kml>`;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));
