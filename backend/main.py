@@ -240,9 +240,14 @@ def init_db():
                     amount_paid     FLOAT DEFAULT 0,
                     amount_due      FLOAT DEFAULT 0,
                     status          TEXT DEFAULT 'Unpaid',
-                    notes           TEXT
+                    notes           TEXT,
+                    pdf_data        BYTEA
                 )
             """)
+            try:
+                cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_data BYTEA")
+            except Exception:
+                conn.rollback()
 
             # ── Invoice line items ────────────────────────────────────────────
             cur.execute("""
@@ -1339,15 +1344,16 @@ async def import_invoice(
                 cur.execute("""
                     INSERT INTO invoices
                     (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
-                     client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id
                 """, (filename, contractor,
                       inv.get("invoice_number",""), inv.get("invoice_date",""),
                       inv.get("due_date",""), inv.get("po_reference",""),
                       inv.get("client",""), inv.get("abn",""),
                       inv.get("subtotal",0), inv.get("gst",0), inv.get("total_aud",0),
-                      inv.get("amount_paid",0), inv.get("amount_due",0), inv.get("status","Unpaid")))
+                      inv.get("amount_paid",0), inv.get("amount_due",0), inv.get("status","Unpaid"),
+                      psycopg2.Binary(content)))
                 invoice_id = cur.fetchone()["id"]
 
                 if lines:
@@ -1429,6 +1435,24 @@ def get_invoice_lines(invoice_id: int):
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY id", (invoice_id,))
             return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/invoices/{invoice_id}/pdf")
+def get_invoice_pdf(invoice_id: int):
+    """Return the stored PDF file for viewing/downloading."""
+    from fastapi.responses import Response
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT source_file, pdf_data FROM invoices WHERE id=%s", (invoice_id,))
+            row = cur.fetchone()
+            if not row or not row["pdf_data"]:
+                raise HTTPException(404, "PDF not found for this invoice")
+            filename = row["source_file"] or f"invoice_{invoice_id}.pdf"
+            return Response(
+                content=bytes(row["pdf_data"]),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="{filename}"'}
+            )
 
 
 @app.patch("/invoices/{invoice_id}")
