@@ -1344,15 +1344,20 @@ async function loadCostingLines(){
 // ── Purchase Orders ───────────────────────────────────────────────────────────
 async function loadPOs(){
   try{
-    posData=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    const res=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`);
+    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load POs','err');return;}
+    posData=await res.json();
+    if(!Array.isArray(posData)){toast('PO data error','err');return;}
     renderPOs(posData);
-  }catch(e){console.error(e);}
+  }catch(e){console.error('loadPOs:',e);}
 }
 
 async function loadPOBanner(){
   try{
-    posData=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
-    renderPOBanner(posData);
+    const res=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`);
+    if(!res.ok)return;
+    posData=await res.json();
+    if(Array.isArray(posData))renderPOBanner(posData);
   }catch(e){}
 }
 
@@ -1677,12 +1682,16 @@ invImportBtn.addEventListener('click',async()=>{
 
 async function loadInvoices(){
   try{
-    invoicesData=await fetch(`${API}/invoices?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
+    const res=await fetch(`${API}/invoices?contractor=${encodeURIComponent(activeContractor)}`);
+    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load invoices','err');return;}
+    invoicesData=await res.json();
+    if(!Array.isArray(invoicesData)){toast('Invoice data error','err');return;}
     renderInvoices(invoicesData);
-  }catch(e){console.error(e);}
+  }catch(e){console.error('loadInvoices:',e);}
 }
 
 function renderInvoices(rows){
+  if(!Array.isArray(rows)){rows=[];}
   document.getElementById('inv-count').textContent=rows.length;
   // KPIs
   const totalInv=rows.reduce((s,r)=>s+(parseFloat(r.total_aud)||0),0);
