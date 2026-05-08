@@ -513,7 +513,7 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
       <h2 class="section-title">🧾 Purchase Orders</h2>
       <div class="filter-bar">
         <button class="filter-toggle" id="po-add-toggle">➕ &nbsp;Add New PO <span class="arrow">▼</span></button>
-        <div class="filter-body" id="po-add-body">
+        <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
           <div class="filter-group"><label>PO Value ($)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
@@ -1425,25 +1425,29 @@ async function addPO(){
   const pn=document.getElementById('po-number').value.trim();
   if(!pn){toast('PO Number required','err');return;}
   try{
+    const payload={
+      po_number:pn,
+      contractor:activeContractor,
+      description:document.getElementById('po-description').value,
+      po_value:parseFloat(document.getElementById('po-value').value)||0,
+      issue_date:document.getElementById('po-issue-date').value,
+      expiry_date:document.getElementById('po-expiry-date').value,
+      status:document.getElementById('po-status').value,
+      notes:document.getElementById('po-notes').value,
+    };
+    console.log('Saving PO:', payload);
     const res=await fetch(`${API}/purchase_orders`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        po_number:pn,
-        contractor:activeContractor,
-        description:document.getElementById('po-description').value,
-        po_value:parseFloat(document.getElementById('po-value').value)||0,
-        issue_date:document.getElementById('po-issue-date').value,
-        expiry_date:document.getElementById('po-expiry-date').value,
-        status:document.getElementById('po-status').value,
-        notes:document.getElementById('po-notes').value,
-      })
+      body:JSON.stringify(payload)
     });
-    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to save PO','err');return;}
+    const d=await res.json();
+    console.log('PO response:', res.status, d);
+    if(!res.ok){toast(d.detail||'Failed to save PO — see console','err');return;}
     ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
-    toast('✓ Purchase order saved to database');
+    toast('✓ Purchase order saved');
     loadPOs();
-  }catch(e){toast('Network error — PO not saved','err');console.error(e);}
+  }catch(e){toast('Network error: '+e.message,'err');console.error('addPO error:',e);}
 }
 
 async function deletePO(id){
