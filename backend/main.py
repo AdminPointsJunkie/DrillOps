@@ -1511,6 +1511,32 @@ def rematch_all(contractor: str = Query(...)):
     return {"status": "rematched", "count": len(invoices)}
 
 
+@app.post("/reprice")
+def reprice_activities(contractor: str = Query(...)):
+    """Re-run the pricing engine on all existing activities for a contractor."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
+            rows = [dict(r) for r in cur.fetchall()]
+
+        updated = 0
+        with conn.cursor() as cur:
+            for row in rows:
+                priced = price_activity(cur, dict(row), contractor)
+                if priced.get("line_cost") is not None:
+                    cur.execute("""
+                        UPDATE activities
+                        SET rate_year=%s, unit_rate=%s, quantity=%s,
+                            line_cost=%s, rate_basis=%s
+                        WHERE id=%s
+                    """, (priced["rate_year"], priced["unit_rate"],
+                          priced["quantity"], priced["line_cost"],
+                          priced["rate_basis"], row["id"]))
+                    updated += 1
+        conn.commit()
+    return {"status": "repriced", "total": len(rows), "priced": updated}
+
+
 @app.delete("/reset")
 def reset_db(contractor: Optional[str]=Query(None)):
     with get_conn() as conn:
