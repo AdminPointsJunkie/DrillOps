@@ -459,6 +459,11 @@ tbody td[contenteditable=true]:focus{background:rgba(232,160,32,0.08);box-shadow
     <!-- Costing -->
     <section class="page" id="page-costing">
       <h2 class="section-title">💰 Costing Summary</h2>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">If costs show $0.00, click Reprice to calculate costs from the Schedule of Rates.</p>
+        <button class="btn-primary" style="margin-left:auto;white-space:nowrap;" onclick="repriceActivities()">🔄 Reprice All Activities</button>
+      </div>
       <div class="po-banner-grid" id="po-summary-banner"></div>
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
@@ -1261,6 +1266,18 @@ function renderHeatmap(heatmap,daily){
     html+='</tr>';
   });
   el.innerHTML=html+'</tbody></table>';
+}
+
+async function repriceActivities(){
+  try{
+    const btn=event.target;
+    btn.disabled=true;btn.textContent='⏳ Repricing…';
+    const res=await fetch(`${API}/reprice?contractor=${encodeURIComponent(activeContractor)}`,{method:'POST'});
+    const d=await res.json();
+    toast(`✓ Repriced ${d.priced} of ${d.total} activities`);
+    loadCosting();
+    btn.textContent='🔄 Reprice All Activities';btn.disabled=false;
+  }catch(e){toast('Reprice failed','err');}
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
