@@ -1365,25 +1365,29 @@ def get_invoices(contractor: str = Query(...)):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT i.id, i.source_file, i.contractor, i.invoice_number,
-                           i.invoice_date, i.due_date, i.po_reference, i.client, i.abn,
-                           i.subtotal, i.gst, i.total_aud, i.amount_paid, i.amount_due,
-                           i.status, i.notes,
-                           COUNT(l.id) AS line_count,
-                           SUM(CASE WHEN l.match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
-                           SUM(CASE WHEN l.match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
-                           SUM(CASE WHEN l.match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
-                           SUM(CASE WHEN l.match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
-                    FROM invoices i
-                    LEFT JOIN invoice_lines l ON l.invoice_id=i.id
-                    WHERE i.contractor=%s
-                    GROUP BY i.id, i.source_file, i.contractor, i.invoice_number,
-                             i.invoice_date, i.due_date, i.po_reference, i.client, i.abn,
-                             i.subtotal, i.gst, i.total_aud, i.amount_paid, i.amount_due,
-                             i.status, i.notes
-                    ORDER BY i.invoice_date DESC
+                    SELECT id, source_file, contractor, invoice_number,
+                           invoice_date, due_date, po_reference, client, abn,
+                           subtotal, gst, total_aud, amount_paid, amount_due,
+                           status, notes
+                    FROM invoices
+                    WHERE contractor=%s
+                    ORDER BY invoice_date DESC
                 """, (contractor,))
-                return [dict(r) for r in cur.fetchall()]
+                invoices = [dict(r) for r in cur.fetchall()]
+
+                for inv in invoices:
+                    cur.execute("""
+                        SELECT COUNT(*) AS line_count,
+                               SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
+                               SUM(CASE WHEN match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
+                               SUM(CASE WHEN match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
+                               SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
+                        FROM invoice_lines WHERE invoice_id=%s
+                    """, (inv["id"],))
+                    stats = dict(cur.fetchone())
+                    inv.update(stats)
+
+                return invoices
     except Exception as e:
         raise HTTPException(500, f"Invoices error: {str(e)}")
 
