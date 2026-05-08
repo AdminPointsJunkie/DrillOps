@@ -88,7 +88,10 @@ def init_db():
                 ("line_cost",  "FLOAT"),
                 ("rate_basis", "TEXT"),
             ]:
-                cur.execute(f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                try:
+                    cur.execute(f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumables (
@@ -104,7 +107,10 @@ def init_db():
                     unit        TEXT
                 )
             """)
-            cur.execute("ALTER TABLE consumables ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            try:
+                cur.execute("ALTER TABLE consumables ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS crew (
@@ -119,7 +125,10 @@ def init_db():
                     hours       TEXT
                 )
             """)
-            cur.execute("ALTER TABLE crew ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            try:
+                cur.execute("ALTER TABLE crew ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS imported_files (
@@ -128,8 +137,10 @@ def init_db():
                     PRIMARY KEY (filename, contractor)
                 )
             """)
-            # Safe migration: add contractor col if old single-col PK existed
-            cur.execute("ALTER TABLE imported_files ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            try:
+                cur.execute("ALTER TABLE imported_files ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS drilling_rates (
@@ -142,7 +153,10 @@ def init_db():
                     rate       FLOAT NOT NULL
                 )
             """)
-            cur.execute("ALTER TABLE drilling_rates ADD COLUMN IF NOT EXISTS contractor TEXT NOT NULL DEFAULT 'Allianz Drilling'")
+            try:
+                cur.execute("ALTER TABLE drilling_rates ADD COLUMN IF NOT EXISTS contractor TEXT NOT NULL DEFAULT 'Allianz Drilling'")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS hourly_rates (
@@ -155,7 +169,10 @@ def init_db():
                     unit        TEXT NOT NULL
                 )
             """)
-            cur.execute("ALTER TABLE hourly_rates ADD COLUMN IF NOT EXISTS contractor TEXT NOT NULL DEFAULT 'Allianz Drilling'")
+            try:
+                cur.execute("ALTER TABLE hourly_rates ADD COLUMN IF NOT EXISTS contractor TEXT NOT NULL DEFAULT 'Allianz Drilling'")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS purchase_orders (
