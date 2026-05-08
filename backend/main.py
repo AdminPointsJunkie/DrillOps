@@ -688,99 +688,113 @@ def get_filters(contractor: str = Query(...)):
 
 @app.get("/analytics")
 def get_analytics(contractor: str = Query(...), hole: Optional[str] = Query(None)):
-    q = "SELECT * FROM activities WHERE contractor=%(contractor)s"
-    p = {"contractor": contractor}
-    if hole and hole != "all":
-        q += " AND hole_num=%(hole)s"; p["hole"]=hole
-    with get_conn() as conn:
-        df = pd.read_sql(q, conn, params=p)
+    try:
+        q = "SELECT * FROM activities WHERE contractor=%(contractor)s"
+        p = {"contractor": contractor}
+        if hole and hole != "all":
+            q += " AND hole_num=%(hole)s"; p["hole"] = hole
 
-    if df.empty:
-        return {"kpis":{},"daily_categories":[],"drill_runs":[],"anomalies":[],"heatmap":[]}
+        with psycopg2.connect(DATABASE_URL) as conn:
+            df = pd.read_sql(q, conn, params=p)
 
-    def toh(t):
-        try: h,m=str(t).split(":"); return int(h)+int(m)/60
-        except: return 0.0
+        if df.empty:
+            return {"kpis":{},"daily_categories":[],"drill_runs":[],"anomalies":[],"heatmap":[]}
 
-    df["hours"] = df["total_time"].apply(toh)
+        def toh(t):
+            try: h,m=str(t).split(":"); return int(h)+int(m)/60
+            except: return 0.0
 
-    def cat(c):
-        if not c: return "Other"
-        if any(p in c for p in ["Drill_Core","Drill_Chip"]): return "Productive Drilling"
-        if "Repair" in c: return "Repairs"
-        if any(p in c for p in ["Standby","Grout","Cement_Set","AAC","Logger","Sumps"]): return "Standby / Delays"
-        if "Circulation" in c: return "Circulation"
-        if "Travel" in c: return "Travel"
-        if any(p in c for p in ["Safety","Training","Prestart"]): return "Safety & Admin"
-        if "Tripping" in c: return "Tripping Rods"
-        return "Other"
+        df["hours"] = df["total_time"].apply(toh)
 
-    df["category"] = df["code"].apply(cat)
-    th = df["hours"].sum()
-    dh = df[df["category"]=="Productive Drilling"]["hours"].sum()
-    rh = df[df["category"]=="Repairs"]["hours"].sum()
-    sh = df[df["category"]=="Standby / Delays"]["hours"].sum()
-    tm = df["total_metres"].dropna().sum()
-    tc = float(df["line_cost"].dropna().sum())
+        def cat(c):
+            if not c: return "Other"
+            if any(x in c for x in ["Drill_Core","Drill_Chip"]): return "Productive Drilling"
+            if "Repair" in c: return "Repairs"
+            if any(x in c for x in ["Standby","Grout","Cement_Set","AAC","Logger","Sumps"]): return "Standby / Delays"
+            if "Circulation" in c: return "Circulation"
+            if "Travel" in c: return "Travel"
+            if any(x in c for x in ["Safety","Training","Prestart"]): return "Safety & Admin"
+            if "Tripping" in c: return "Tripping Rods"
+            return "Other"
 
-    daily = df.groupby(["date","category"])["hours"].sum().reset_index()
-    runs  = df[df["total_metres"].notna()&(df["total_metres"]>0)].copy()
-    runs  = runs.sort_values(["date","time_from"])
-    runs["cumulative"] = runs.groupby("hole_num")["total_metres"].cumsum()
+        df["category"] = df["code"].apply(cat)
+        th = df["hours"].sum()
+        dh = df[df["category"]=="Productive Drilling"]["hours"].sum()
+        rh = df[df["category"]=="Repairs"]["hours"].sum()
+        sh = df[df["category"]=="Standby / Delays"]["hours"].sum()
+        tm = df["total_metres"].dropna().sum()
+        tc = float(df["line_cost"].dropna().sum())
 
-    anomalies = []
-    for date,day in df.groupby("date"):
-        d2=day[day["category"]=="Productive Drilling"]["hours"].sum()
-        r2=day[day["category"]=="Repairs"]["hours"].sum()
-        s2=day[day["category"]=="Standby / Delays"]["hours"].sum()
-        h2=day["hole_num"].iloc[0] if len(day) else ""
-        if d2==0: anomalies.append({"date":date,"hole":h2,"type":"No Drilling","severity":"critical","detail":"Zero productive drilling hours"})
-        if r2>=2: anomalies.append({"date":date,"hole":h2,"type":"High Repairs","severity":"warning","detail":f"{r2:.1f}h repairs"})
-        if s2>=3: anomalies.append({"date":date,"hole":h2,"type":"High Standby","severity":"caution","detail":f"{s2:.1f}h standby"})
-    for _,r in df[df["total_metres"].notna()&(df["total_metres"]<1)&(df["total_metres"]>0)].iterrows():
-        anomalies.append({"date":r["date"],"hole":r["hole_num"],"type":"Short Run","severity":"info","detail":f"{r['total_metres']}m"})
-    for _,r in df[df["code"].str.contains("Circulation_Lost",na=False)].iterrows():
-        anomalies.append({"date":r["date"],"hole":r["hole_num"],"type":"Lost Circulation","severity":"critical","detail":r["notes"] or "Lost returns"})
+        daily = df.groupby(["date","category"])["hours"].sum().reset_index()
 
-    npt = df[df["category"].isin(["Repairs","Standby / Delays","Circulation"])].groupby(["date","category"])["hours"].sum().reset_index()
+        runs = df[df["total_metres"].notna() & (df["total_metres"]>0)].copy()
+        runs = runs.sort_values(["date","time_from"])
+        runs["cumulative"] = runs.groupby("hole_num")["total_metres"].cumsum()
 
-    return {
-        "kpis": {"total_hours":round(th,1),"drill_hours":round(dh,1),"repair_hours":round(rh,1),
-                 "delay_hours":round(sh,1),"total_metres":round(tm,1),"efficiency":round(dh/th*100,1) if th else 0,
-                 "total_cost":round(tc,2)},
-        "daily_categories": daily.to_dict(orient="records"),
-        "drill_runs": runs[["date","hole_num","time_from","total_metres","cumulative","notes"]].to_dict(orient="records"),
-        "anomalies": anomalies,
-        "heatmap": npt.to_dict(orient="records"),
-    }
+        anomalies = []
+        for date, day in df.groupby("date"):
+            d2 = day[day["category"]=="Productive Drilling"]["hours"].sum()
+            r2 = day[day["category"]=="Repairs"]["hours"].sum()
+            s2 = day[day["category"]=="Standby / Delays"]["hours"].sum()
+            h2 = day["hole_num"].iloc[0] if len(day) else ""
+            if d2==0: anomalies.append({"date":date,"hole":h2,"type":"No Drilling","severity":"critical","detail":"Zero productive drilling hours"})
+            if r2>=2: anomalies.append({"date":date,"hole":h2,"type":"High Repairs","severity":"warning","detail":f"{r2:.1f}h repairs"})
+            if s2>=3: anomalies.append({"date":date,"hole":h2,"type":"High Standby","severity":"caution","detail":f"{s2:.1f}h standby"})
+        for _,r in df[df["total_metres"].notna()&(df["total_metres"]<1)&(df["total_metres"]>0)].iterrows():
+            anomalies.append({"date":r["date"],"hole":r["hole_num"],"type":"Short Run","severity":"info","detail":f"{r['total_metres']}m"})
+        for _,r in df[df["code"].str.contains("Circulation_Lost",na=False)].iterrows():
+            anomalies.append({"date":r["date"],"hole":r["hole_num"],"type":"Lost Circulation","severity":"critical","detail":r["notes"] or "Lost returns"})
+
+        npt = df[df["category"].isin(["Repairs","Standby / Delays","Circulation"])].groupby(["date","category"])["hours"].sum().reset_index()
+
+        run_cols = [c for c in ["date","hole_num","time_from","total_metres","cumulative","notes"] if c in runs.columns]
+
+        return {
+            "kpis": {
+                "total_hours": round(th,1), "drill_hours": round(dh,1),
+                "repair_hours": round(rh,1), "delay_hours": round(sh,1),
+                "total_metres": round(tm,1),
+                "efficiency": round(dh/th*100,1) if th else 0,
+                "total_cost": round(tc,2),
+            },
+            "daily_categories": daily.to_dict(orient="records"),
+            "drill_runs": runs[run_cols].to_dict(orient="records"),
+            "anomalies": anomalies,
+            "heatmap": npt.to_dict(orient="records"),
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Analytics error: {str(e)}")
 
 
 @app.get("/costing")
 def get_costing(contractor: str = Query(...), holes: Optional[str]=Query(None), dates: Optional[str]=Query(None)):
-    conds = ["contractor=%(contractor)s","line_cost IS NOT NULL"]
-    p = {"contractor": contractor}
-    if holes: conds.append("hole_num=ANY(%(holes)s)"); p["holes"]=holes.split(",")
-    if dates: conds.append("date=ANY(%(dates)s)");     p["dates"]=dates.split(",")
-    where = " AND ".join(conds)
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT hole_num,
-                    SUM(line_cost) AS total_cost,
-                    SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS drilling_cost,
-                    SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS non_drilling_cost,
-                    SUM(total_metres) AS total_metres, COUNT(*) AS activity_count
-                FROM activities WHERE {where} GROUP BY hole_num ORDER BY hole_num
-            """, p)
-            by_hole = [dict(r) for r in cur.fetchall()]
-            cur.execute(f"""
-                SELECT date,hole_num,SUM(line_cost) AS total_cost,SUM(total_metres) AS total_metres
-                FROM activities WHERE {where} GROUP BY date,hole_num ORDER BY date
-            """, p)
-            by_date = [dict(r) for r in cur.fetchall()]
-            cur.execute(f"SELECT SUM(line_cost) AS g FROM activities WHERE {where}", p)
-            grand = float(cur.fetchone()["g"] or 0)
-    return {"by_hole":by_hole,"by_date":by_date,"grand_total":grand}
+    try:
+        conds = ["contractor=%(contractor)s","line_cost IS NOT NULL"]
+        p = {"contractor": contractor}
+        if holes: conds.append("hole_num=ANY(%(holes)s)"); p["holes"]=holes.split(",")
+        if dates: conds.append("date=ANY(%(dates)s)");     p["dates"]=dates.split(",")
+        where = " AND ".join(conds)
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT hole_num,
+                        SUM(line_cost) AS total_cost,
+                        SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS drilling_cost,
+                        SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS non_drilling_cost,
+                        SUM(total_metres) AS total_metres, COUNT(*) AS activity_count
+                    FROM activities WHERE {where} GROUP BY hole_num ORDER BY hole_num
+                """, p)
+                by_hole = [dict(r) for r in cur.fetchall()]
+                cur.execute(f"""
+                    SELECT date, hole_num, SUM(line_cost) AS total_cost, SUM(total_metres) AS total_metres
+                    FROM activities WHERE {where} GROUP BY date, hole_num ORDER BY date
+                """, p)
+                by_date = [dict(r) for r in cur.fetchall()]
+                cur.execute(f"SELECT SUM(line_cost) AS g FROM activities WHERE {where}", p)
+                grand = float(cur.fetchone()["g"] or 0)
+        return {"by_hole": by_hole, "by_date": by_date, "grand_total": grand}
+    except Exception as e:
+        raise HTTPException(500, f"Costing error: {str(e)}")
 
 
 @app.get("/rates/years")
