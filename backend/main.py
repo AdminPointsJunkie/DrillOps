@@ -175,6 +175,31 @@ def init_db():
                 conn.rollback()
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS boreholes (
+                    id              SERIAL PRIMARY KEY,
+                    contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    hole_id         TEXT NOT NULL,
+                    drill_order     INTEGER,
+                    days_budgeted   FLOAT,
+                    bh_type         TEXT,
+                    bit_type        TEXT,
+                    purpose         TEXT,
+                    easting         FLOAT,
+                    northing        FLOAT,
+                    rl              FLOAT,
+                    chip_depth      FLOAT,
+                    seam_tk         FLOAT,
+                    lat             FLOAT,
+                    lng             FLOAT,
+                    status          TEXT DEFAULT 'Planned',
+                    notes           TEXT,
+                    budget_total    FLOAT,
+                    actual_total    FLOAT,
+                    UNIQUE(contractor, hole_id)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS purchase_orders (
                     id              SERIAL PRIMARY KEY,
                     po_number       TEXT NOT NULL,
@@ -1566,6 +1591,122 @@ def reprice_activities(contractor: str = Query(...)):
                     updated += 1
         conn.commit()
     return {"status": "repriced", "total": len(rows), "priced": updated}
+
+
+
+# ── Borehole Planning ─────────────────────────────────────────────────────────
+
+@app.get("/boreholes")
+def get_boreholes(contractor: str = Query(...)):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT b.*,
+                        COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                        SUM(a.total_metres) AS eos_metres
+                    FROM boreholes b
+                    LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
+                    WHERE b.contractor=%s
+                    GROUP BY b.id ORDER BY b.drill_order
+                """, (contractor,))
+                rows = [dict(r) for r in cur.fetchall()]
+                return rows
+    except Exception as e:
+        raise HTTPException(500, f"Boreholes error: {str(e)}")
+
+
+@app.post("/boreholes/import_budget")
+async def import_budget(request: Request):
+    """Import boreholes from the Excel budget file."""
+    try:
+        payload = await request.json()
+    except:
+        raise HTTPException(400, "Invalid JSON")
+    contractor = payload.get("contractor", "Allianz Drilling")
+    boreholes = payload.get("boreholes", [])
+    if not boreholes:
+        raise HTTPException(400, "No boreholes provided")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO boreholes
+                (contractor,hole_id,drill_order,days_budgeted,bh_type,bit_type,purpose,
+                 easting,northing,rl,chip_depth,seam_tk,lat,lng,status,budget_total)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Planned',%s)
+                ON CONFLICT (contractor,hole_id) DO UPDATE SET
+                    drill_order=EXCLUDED.drill_order, days_budgeted=EXCLUDED.days_budgeted,
+                    bh_type=EXCLUDED.bh_type, bit_type=EXCLUDED.bit_type,
+                    purpose=EXCLUDED.purpose, easting=EXCLUDED.easting,
+                    northing=EXCLUDED.northing, rl=EXCLUDED.rl,
+                    chip_depth=EXCLUDED.chip_depth, seam_tk=EXCLUDED.seam_tk,
+                    lat=EXCLUDED.lat, lng=EXCLUDED.lng,
+                    budget_total=EXCLUDED.budget_total
+            """, [(contractor, b["hole_id"], b.get("drill_order"), b.get("days"),
+                   b.get("type"), b.get("bit_type"), b.get("purpose"),
+                   b.get("easting"), b.get("northing"), b.get("rl"),
+                   b.get("chip_depth"), b.get("seam_tk"), b.get("lat"), b.get("lng"),
+                   b.get("budget_total")) for b in boreholes])
+        conn.commit()
+    return {"status": "imported", "count": len(boreholes)}
+
+
+@app.patch("/boreholes/{hole_id}")
+async def update_borehole(hole_id: str, request: Request):
+    payload = await request.json()
+    contractor = payload.pop("contractor", "Allianz Drilling")
+    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order"}
+    u = {k:v for k,v in payload.items() if k in safe}
+    if not u: raise HTTPException(400, "No valid fields")
+    u["hole_id"] = hole_id
+    u["contractor"] = contractor
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in u if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
+                u
+            )
+        conn.commit()
+    return {"status": "updated"}
+
+
+@app.delete("/boreholes/{hole_id}")
+def delete_borehole(hole_id: str, contractor: str = Query(...)):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM boreholes WHERE hole_id=%s AND contractor=%s", (hole_id, contractor))
+        conn.commit()
+    return {"status": "deleted"}
+
+
+@app.get("/boreholes/summary")
+def get_borehole_summary(contractor: str = Query(...)):
+    """Budget vs actual summary for reconciliation."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) AS total_holes,
+                        SUM(days_budgeted) AS total_days_budgeted,
+                        SUM(budget_total) AS total_budget,
+                        COUNT(CASE WHEN status='Complete' THEN 1 END) AS completed,
+                        COUNT(CASE WHEN status='In Progress' THEN 1 END) AS in_progress,
+                        COUNT(CASE WHEN status='Planned' THEN 1 END) AS planned
+                    FROM boreholes WHERE contractor=%s
+                """, (contractor,))
+                summary = dict(cur.fetchone())
+                # Get actual EOS cost total
+                cur.execute("""
+                    SELECT COALESCE(SUM(a.line_cost),0) AS actual_total
+                    FROM activities a
+                    JOIN boreholes b ON b.hole_id=a.hole_num AND b.contractor=a.contractor
+                    WHERE a.contractor=%s AND a.line_cost IS NOT NULL
+                """, (contractor,))
+                summary["actual_total"] = float(cur.fetchone()["actual_total"] or 0)
+                return summary
+    except Exception as e:
+        raise HTTPException(500, f"Summary error: {str(e)}")
 
 
 @app.delete("/reset")
