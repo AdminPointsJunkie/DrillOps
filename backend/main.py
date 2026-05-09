@@ -297,8 +297,10 @@ def init_db():
 init_db()
 
 
-# ── Seed 2025 rates (Allianz Drilling) ────────────────────────────────────────
+# ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def seed_2025_rates():
+    """Only seeds rates for Allianz Drilling. All other contractors start with
+    empty rate schedules which must be configured manually."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) AS n FROM drilling_rates WHERE year='2025' AND contractor='Allianz Drilling'")
