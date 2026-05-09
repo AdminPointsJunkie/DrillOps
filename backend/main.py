@@ -409,20 +409,26 @@ def price_activity(cur, row, contractor):
     unit_rate = quantity = line_cost = rate_basis = None
 
     def get_dr(bit_key, depth):
-        cur.execute("""
-            SELECT rate FROM drilling_rates
-            WHERE contractor=%s AND year=%s AND bit_type=%s
-              AND depth_from<=%s AND depth_to>%s
-            ORDER BY depth_from LIMIT 1
-        """, (contractor, year, bit_key, depth, depth))
-        r = cur.fetchone()
-        return float(r["rate"]) if r else None
+        # Try exact year first, then fall back to nearest available
+        for try_year in [year, str(int(year)-1), str(int(year)+1), "2025"]:
+            cur.execute("""
+                SELECT rate FROM drilling_rates
+                WHERE contractor=%s AND year=%s AND bit_type=%s
+                  AND depth_from<=%s AND depth_to>%s
+                ORDER BY depth_from LIMIT 1
+            """, (contractor, try_year, bit_key, depth, depth))
+            r = cur.fetchone()
+            if r: return float(r["rate"])
+        return None
 
     def get_hr(code_key):
-        cur.execute("SELECT rate FROM hourly_rates WHERE contractor=%s AND year=%s AND code=%s",
-                    (contractor, year, code_key))
-        r = cur.fetchone()
-        return float(r["rate"]) if r else None
+        # Try exact year first, then fall back to nearest available
+        for try_year in [year, str(int(year)-1), str(int(year)+1), "2025"]:
+            cur.execute("SELECT rate FROM hourly_rates WHERE contractor=%s AND year=%s AND code=%s",
+                        (contractor, try_year, code_key))
+            r = cur.fetchone()
+            if r: return float(r["rate"])
+        return None
 
     if code in ("Drill_Core","Drill_Chip_or_Open_hole") and total_metres and total_metres > 0:
         bk = BIT_TYPE_MAP.get(bit_type.upper().replace(" ","_"), "PCD_S" if "Chip" in code else "HQ_HQ3")
@@ -448,7 +454,14 @@ def price_activity(cur, row, contractor):
         r = get_hr("H_Active")
         if r:
             unit_rate  = r; quantity = round(hours,2)
-            line_cost  = round(r * hours, 2); rate_basis = f"active $/hr × {hours:.2f}h"
+            line_cost  = round(r * hours, 2); rate_basis = f"active $/hr x {hours:.2f}h"
+
+    # Fallback: any activity with hours but no code match → price at active rate
+    if line_cost is None and hours > 0 and code:
+        r = get_hr("H_Active")
+        if r:
+            unit_rate  = r; quantity = round(hours,2)
+            line_cost  = round(r * hours, 2); rate_basis = f"fallback active $/hr x {hours:.2f}h"
 
     row.update(rate_year=year, unit_rate=unit_rate, quantity=quantity,
                line_cost=line_cost, rate_basis=rate_basis)
@@ -1615,7 +1628,14 @@ def reprice_activities(contractor: str = Query(...)):
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
 
+            # Check what rates are available
+            cur.execute("SELECT DISTINCT year FROM drilling_rates WHERE contractor=%s", (contractor,))
+            dr_years = [r["year"] for r in cur.fetchall()]
+            cur.execute("SELECT DISTINCT year FROM hourly_rates WHERE contractor=%s", (contractor,))
+            hr_years = [r["year"] for r in cur.fetchall()]
+
         updated = 0
+        skipped_codes = {}
         with conn.cursor() as cur:
             for row in rows:
                 priced = price_activity(cur, dict(row), contractor)
@@ -1629,8 +1649,15 @@ def reprice_activities(contractor: str = Query(...)):
                           priced["quantity"], priced["line_cost"],
                           priced["rate_basis"], row["id"]))
                     updated += 1
+                else:
+                    code = row.get("code","") or "empty"
+                    skipped_codes[code] = skipped_codes.get(code, 0) + 1
         conn.commit()
-    return {"status": "repriced", "total": len(rows), "priced": updated}
+    return {
+        "status": "repriced", "total": len(rows), "priced": updated,
+        "drilling_rate_years": dr_years, "hourly_rate_years": hr_years,
+        "skipped_codes": skipped_codes
+    }
 
 
 
