@@ -56,8 +56,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:0 2
 /* Drawer */
 #drawer-overlay{position:fixed;inset:0;background:rgba(17,24,39,0.4);z-index:300;opacity:0;pointer-events:none;transition:opacity 0.25s;}
 #drawer-overlay.open{opacity:1;pointer-events:all;}
-#drawer{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:#fff;border-left:1px solid var(--border);z-index:301;transition:right 0.3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden;box-shadow:-8px 0 24px rgba(0,0,0,0.08);}
-#drawer.open{right:0;}
+#drawer{position:fixed;top:0;left:-420px;width:400px;height:100vh;background:#fff;border-right:1px solid var(--border);z-index:301;transition:left 0.3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden;box-shadow:8px 0 24px rgba(0,0,0,0.08);}
+#drawer.open{left:0;}
 .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .drawer-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.3px;}
 .drawer-close{background:transparent;border:1.5px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
@@ -771,9 +771,9 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
           <div class="chart-card" style="padding:14px;">
             <div class="chart-title">Map Filter</div>
             <div style="display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--text2);">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-core" checked onchange="renderBhMap()"> Core holes</label>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-chip" checked onchange="renderBhMap()"> Chip holes</label>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-labels" checked onchange="renderBhMap()"> Show labels</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-core" checked onchange="filterBoreholesByProject()"> Core holes</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-chip" checked onchange="filterBoreholesByProject()"> Chip holes</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-labels" checked onchange="filterBoreholesByProject()"> Show labels</label>
             </div>
           </div>
           <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">⬇ Export KML (Google Earth)</button>
@@ -1841,28 +1841,91 @@ async function copyRatesYear(){
 // ── Column Sorting ────────────────────────────────────────────────────────────
 const sortState={};
 function makeTableSortable(tableId){
-  const table=document.getElementById(tableId);if(!table)return;
-  const thead=table.querySelector('thead tr');if(!thead)return;
-  [...thead.children].forEach((th,i)=>{
+  var table=document.getElementById(tableId);if(!table)return;
+  var thead=table.querySelector('thead tr');if(!thead)return;
+
+  // Add sort click handlers
+  [...thead.children].forEach(function(th,i){
     if(th.dataset.sortBound)return;th.dataset.sortBound='1';
-    th.addEventListener('click',()=>{
-      const st=sortState[tableId]||{col:-1,dir:1};
-      const dir=st.col===i?-st.dir:1;
-      sortState[tableId]={col:i,dir};
-      [...thead.children].forEach(h=>h.textContent=h.textContent.replace(' ▲','').replace(' ▼',''));
-      th.textContent+=dir===1?' ▲':' ▼';
-      const tbody=table.querySelector('tbody');
-      [...tbody.querySelectorAll('tr')].sort((a,b)=>{
-        const av=(a.children[i]?.textContent||'').trim().replace(/[$,]/g,'');
-        const bv=(b.children[i]?.textContent||'').trim().replace(/[$,]/g,'');
-        const ad=dateSortKey(av),bd=dateSortKey(bv);
+    th.style.cursor='pointer';
+    th.addEventListener('click',function(){
+      var st=sortState[tableId]||{col:-1,dir:1};
+      var dir=st.col===i?-st.dir:1;
+      sortState[tableId]={col:i,dir:dir};
+      [...thead.children].forEach(function(h){h.textContent=h.textContent.replace(' \u25b2','').replace(' \u25bc','');});
+      th.textContent+=dir===1?' \u25b2':' \u25bc';
+      var tbody=table.querySelector('tbody');
+      [...tbody.querySelectorAll('tr')].sort(function(a,b){
+        var av=(a.children[i]?a.children[i].textContent:'').trim().replace(/[$,]/g,'');
+        var bv=(b.children[i]?b.children[i].textContent:'').trim().replace(/[$,]/g,'');
+        var ad=dateSortKey(av),bd=dateSortKey(bv);
         if(ad&&bd&&ad!==0&&bd!==0)return(ad-bd)*dir;
-        const an=parseFloat(av),bn=parseFloat(bv);
+        var an=parseFloat(av),bn=parseFloat(bv);
         if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;
         return av.localeCompare(bv)*dir;
-      }).forEach(r=>tbody.appendChild(r));
+      }).forEach(function(r){tbody.appendChild(r);});
     });
   });
+
+  // Add filter row if not already present
+  if(table.querySelector('.filter-row'))return;
+  var filterRow=document.createElement('tr');
+  filterRow.className='filter-row';
+  filterRow.style.cssText='background:var(--bg3);';
+  [...thead.children].forEach(function(th,i){
+    var td=document.createElement('td');
+    td.style.cssText='padding:4px 4px;';
+    // Skip columns that are buttons/actions (last column usually)
+    var headerText=(th.textContent||'').replace(' \u25b2','').replace(' \u25bc','').trim();
+    if(headerText && headerText!=='' && i<thead.children.length-1){
+      var input=document.createElement('input');
+      input.type='text';
+      input.placeholder='\u2315';
+      input.style.cssText='width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;outline:none;background:#fff;color:var(--text);font-family:var(--font);';
+      input.addEventListener('input',function(){
+        var val=this.value.toLowerCase();
+        var tbody=table.querySelector('tbody');
+        [...tbody.querySelectorAll('tr')].forEach(function(row){
+          var cell=row.children[i];
+          var text=(cell?cell.textContent:'').toLowerCase();
+          if(!val || text.indexOf(val)>=0){
+            row.style.display='';
+          } else {
+            // Only hide if ALL other filter inputs also pass
+            var allPass=true;
+            filterRow.querySelectorAll('input').forEach(function(inp,idx){
+              if(inp===input)return;
+              var fv=inp.value.toLowerCase();
+              if(fv){
+                var c=row.children[idx];
+                var ct=(c?c.textContent:'').toLowerCase();
+                if(ct.indexOf(fv)<0) allPass=false;
+              }
+            });
+            row.style.display=allPass&&(!val||text.indexOf(val)>=0)?'':'none';
+          }
+        });
+        // Re-evaluate all rows with all filters
+        var filters=[];
+        filterRow.querySelectorAll('input').forEach(function(inp,idx){
+          if(inp.value) filters.push({idx:idx,val:inp.value.toLowerCase()});
+        });
+        [...tbody.querySelectorAll('tr')].forEach(function(row){
+          var show=true;
+          filters.forEach(function(f){
+            var cell=row.children[f.idx];
+            var text=(cell?cell.textContent:'').toLowerCase();
+            if(text.indexOf(f.val)<0) show=false;
+          });
+          row.style.display=show?'':'none';
+        });
+      });
+      td.appendChild(input);
+    }
+    filterRow.appendChild(td);
+  });
+  var theadEl=table.querySelector('thead');
+  theadEl.appendChild(filterRow);
 }
 
 // ── CSV Download ──────────────────────────────────────────────────────────────
@@ -2624,10 +2687,74 @@ function filterBoreholesByProject() {
   let filtered = bhData;
   if(proj) filtered = filtered.filter(function(b){ return (b.project||"") === proj; });
   if(year) filtered = filtered.filter(function(b){ 
-    return (b.hole_id||"").startsWith(year.slice(2)+"-") || (b.project||"").includes(year);
+    return (b.hole_id||"").startsWith(year.slice(2)+"-") || (b.planned_year||"") === year || (b.project||"").includes(year);
   });
   renderBhTable(filtered);
-  renderBhMap();
+  renderBhMapFiltered(filtered);
+}
+
+function renderBhMapFiltered(filteredData) {
+  if(!bhMap) return;
+  bhMarkers.forEach(function(m){try{m.remove();}catch(e){}});
+  bhMarkers = [];
+  var showCore   = document.getElementById("bh-filter-core") ? document.getElementById("bh-filter-core").checked : true;
+  var showChip   = document.getElementById("bh-filter-chip") ? document.getElementById("bh-filter-chip").checked : true;
+  var showLabels = document.getElementById("bh-filter-labels") ? document.getElementById("bh-filter-labels").checked : true;
+  var visible = filteredData.filter(function(b) {
+    if(!b.lat||!b.lng) return false;
+    var t = b.type||b.bh_type||"";
+    return t==="Core" ? showCore : showChip;
+  });
+
+  visible.forEach(function(b) {
+    var col = getBhColor(b);
+    var t = b.type||b.bh_type||"Core";
+    var marker;
+    if(t==="Core") {
+      marker = L.circleMarker([b.lat,b.lng], {radius:7,color:"#fff",weight:1.5,fillColor:col,fillOpacity:0.9});
+    } else {
+      marker = L.marker([b.lat,b.lng], {icon:L.divIcon({
+        html:"<div style=\"width:13px;height:13px;background:"+col+";border:2px solid #fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,0.3)\"></div>",
+        iconSize:[13,13], iconAnchor:[6,6], className:""
+      })});
+    }
+    var eos = parseFloat(b.eos_cost)||0;
+    var budget = parseFloat(b.budget_total)||0;
+    var popupHtml = "<div style=\"font-family:Inter,sans-serif;min-width:190px;\">"
+      +"<div style=\"font-weight:700;font-size:15px;margin-bottom:2px;\">"+b.hole_id+"</div>"
+      +"<div style=\"color:#6b7280;font-size:12px;margin-bottom:8px;\">"+t+" &middot; "+(b.bit_type||"")+" &middot; "+(b.purpose||"")+"</div>"
+      +"<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;\">"
+      +"<div><div style=\"color:#9ca3af;font-size:10px;\">EASTING</div>"+(b.easting||0).toFixed(0)+"</div>"
+      +"<div><div style=\"color:#9ca3af;font-size:10px;\">NORTHING</div>"+(b.northing||0).toFixed(0)+"</div>"
+      +"<div><div style=\"color:#9ca3af;font-size:10px;\">RL</div>"+(b.rl||0).toFixed(1)+"m</div>"
+      +"<div><div style=\"color:#9ca3af;font-size:10px;\">DEPTH</div>"+(b.chip_depth||0).toFixed(1)+"m</div>"
+      +"</div>"
+      +"<span style=\"background:"+col+"22;color:"+col+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;\">"+b.status+"</span>"
+      +"<div style=\"margin-top:10px;display:flex;gap:6px;\">"
+      +"<button onclick=\"setBhStatus(&apos;"+b.hole_id+"&apos;,&apos;In Progress&apos;)\" style=\"font-size:10px;padding:3px 8px;background:#fef3c7;border:1px solid #d97706;color:#d97706;border-radius:4px;cursor:pointer;\">Start</button>"
+      +"<button onclick=\"setBhStatus(&apos;"+b.hole_id+"&apos;,&apos;Complete&apos;)\" style=\"font-size:10px;padding:3px 8px;background:#dcfce7;border:1px solid #16a34a;color:#16a34a;border-radius:4px;cursor:pointer;\">Complete</button>"
+      +"</div></div>";
+    marker.bindPopup(popupHtml);
+    if(showLabels) {
+      marker.bindTooltip(b.hole_id, {permanent:true, direction:"right", className:"bh-label", offset:[8,0]});
+    }
+    marker.on("click", function(){ highlightBhRow(b.hole_id); });
+    marker.addTo(bhMap);
+    bhMarkers.push(marker);
+  });
+  if(visible.length) {
+    bhMap.fitBounds(L.latLngBounds(visible.map(function(b){return[b.lat,b.lng];})), {padding:[20,20]});
+  }
+}
+
+function highlightBhRow(holeId) {
+  var rows = document.querySelectorAll("#bh-body tr");
+  rows.forEach(function(r){ r.style.background = ""; });
+  var target = document.querySelector("#bh-body tr[data-hole=\""+holeId+"\"]");
+  if(target) {
+    target.style.background = "#eff6ff";
+    target.scrollIntoView({behavior:"smooth", block:"center"});
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
