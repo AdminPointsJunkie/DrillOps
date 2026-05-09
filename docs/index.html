@@ -1477,13 +1477,18 @@ function renderHeatmap(heatmap,daily){
 async function repriceActivities(){
   try{
     const btn=event.target;
-    btn.disabled=true;btn.textContent='⏳ Repricing…';
+    btn.disabled=true;btn.textContent='Repricing...';
     const res=await fetch(`${API}/reprice?contractor=${encodeURIComponent(activeContractor)}`,{method:'POST'});
     const d=await res.json();
-    toast(`✓ Repriced ${d.priced} of ${d.total} activities`);
+    console.log('Reprice result:', d);
+    if(d.priced > 0) {
+      toast(`\u2713 Repriced ${d.priced} of ${d.total} activities`);
+    } else {
+      toast(`Repriced ${d.priced} of ${d.total}. Rate years: ${(d.drilling_rate_years||[]).join(",")}. Skipped: ${JSON.stringify(d.skipped_codes||{}).substring(0,100)}`,'warn');
+    }
     loadCosting();
-    btn.textContent='🔄 Reprice All Activities';btn.disabled=false;
-  }catch(e){toast('Reprice failed','err');}
+    btn.textContent='\uD83D\uDD04 Reprice All Activities';btn.disabled=false;
+  }catch(e){toast('Reprice failed: '+e.message,'err');}
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
