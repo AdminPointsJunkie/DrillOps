@@ -1149,6 +1149,7 @@ function buildContractorSwitcher(){
 }
 
 async function switchContractor(name){
+  projects = [];
   activeContractor=name;
   sessionStorage.setItem('drillops_contractor',name);
   buildContractorSwitcher();
@@ -2272,7 +2273,7 @@ async function loadBoreholes() {
   updateBhKPIs();
   renderBhTable(bhData);
   setTimeout(initBhMap, 100);
-  buildProjectSelector();
+  await fetchProjects();
 }
 
 function updateBhKPIs() {
@@ -2650,35 +2651,45 @@ async function importBudgetToDb() {
 
 
 
-// ── Project Management ────────────────────────────────────────────────────────
-let projects = JSON.parse(sessionStorage.getItem("drillops_projects") || "null") || [
-  {name:"Ironbark 2026", year:"2026"},
-  {name:"Ironbark 2025", year:"2025"}
-];
+// ── Project Management ────────────────────────────────────────────────────────────
+var projects = [];
+
+async function fetchProjects() {
+  try {
+    var res = await fetch(API+"/projects?contractor="+encodeURIComponent(activeContractor));
+    if(res.ok) projects = await res.json();
+  } catch(e) { console.warn("Could not fetch projects"); }
+  await fetchProjects();
+}
 
 function buildProjectSelector() {
-  const sel = document.getElementById("bh-project-select");
+  var sel = document.getElementById("bh-project-select");
   if(!sel) return;
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All Projects</option>';
+  var current = sel.value;
+  sel.innerHTML = "<option value=\"\">All Projects</option>";
   projects.forEach(function(p) {
-    const opt = document.createElement("option");
+    var opt = document.createElement("option");
     opt.value = p.name;
-    opt.textContent = p.name + " (" + p.year + ")";
+    opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
     if(p.name === current) opt.selected = true;
     sel.appendChild(opt);
   });
 }
 
-function showNewProjectDialog() {
-  const name = prompt("New project name:");
+async function showNewProjectDialog() {
+  var name = prompt("New project name:");
   if(!name) return;
-  const year = prompt("Year:", "2026");
+  var year = prompt("Year:", "2026");
   if(!year) return;
-  projects.push({name: name, year: year});
-  sessionStorage.setItem("drillops_projects", JSON.stringify(projects));
-  buildProjectSelector();
-  toast("\u2713 Project " + name + " created");
+  try {
+    var res = await fetch(API+"/projects", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contractor:activeContractor, name:name, year:year})
+    });
+    if(!res.ok) { toast("Failed to create project","err"); return; }
+    toast("\u2713 Project "+name+" saved to database");
+    await fetchProjects();
+  } catch(e) { toast("Failed: "+e.message,"err"); }
 }
 
 function filterBoreholesByProject() {
@@ -2764,6 +2775,7 @@ buildContractorSwitcher();
   buildContractorSwitcher();
   await updateDbCount();
   await loadActivities();
+  await fetchProjects();
   loadBoreholes();
   setTimeout(()=>loadAnalytics('all'),200);
 })();
