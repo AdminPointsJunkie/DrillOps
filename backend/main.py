@@ -178,6 +178,9 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS boreholes (
                     id              SERIAL PRIMARY KEY,
                     contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    project         TEXT,
+                    planned_year    TEXT,
+                    site_id         TEXT,
                     hole_id         TEXT NOT NULL,
                     drill_order     INTEGER,
                     days_budgeted   FLOAT,
@@ -188,6 +191,8 @@ def init_db():
                     northing        FLOAT,
                     rl              FLOAT,
                     chip_depth      FLOAT,
+                    eoh_depth       FLOAT,
+                    total_core      FLOAT,
                     seam_tk         FLOAT,
                     lat             FLOAT,
                     lng             FLOAT,
@@ -198,6 +203,17 @@ def init_db():
                     UNIQUE(contractor, hole_id)
                 )
             """)
+            for col, typedef in [
+                ("project", "TEXT"),
+                ("planned_year", "TEXT"),
+                ("site_id", "TEXT"),
+                ("eoh_depth", "FLOAT"),
+                ("total_core", "FLOAT"),
+            ]:
+                try:
+                    cur.execute(f"ALTER TABLE boreholes ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -1655,21 +1671,28 @@ async def import_budget(request: Request):
         with conn.cursor() as cur:
             psycopg2.extras.execute_batch(cur, """
                 INSERT INTO boreholes
-                (contractor,hole_id,drill_order,days_budgeted,bh_type,bit_type,purpose,
-                 easting,northing,rl,chip_depth,seam_tk,lat,lng,status,budget_total)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Planned',%s)
+                (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
+                 bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
+                 seam_tk,lat,lng,status,budget_total)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Planned',%s)
                 ON CONFLICT (contractor,hole_id) DO UPDATE SET
-                    drill_order=EXCLUDED.drill_order, days_budgeted=EXCLUDED.days_budgeted,
+                    project=EXCLUDED.project, planned_year=EXCLUDED.planned_year,
+                    site_id=EXCLUDED.site_id, drill_order=EXCLUDED.drill_order,
+                    days_budgeted=EXCLUDED.days_budgeted,
                     bh_type=EXCLUDED.bh_type, bit_type=EXCLUDED.bit_type,
                     purpose=EXCLUDED.purpose, easting=EXCLUDED.easting,
                     northing=EXCLUDED.northing, rl=EXCLUDED.rl,
-                    chip_depth=EXCLUDED.chip_depth, seam_tk=EXCLUDED.seam_tk,
+                    chip_depth=EXCLUDED.chip_depth, eoh_depth=EXCLUDED.eoh_depth,
+                    total_core=EXCLUDED.total_core, seam_tk=EXCLUDED.seam_tk,
                     lat=EXCLUDED.lat, lng=EXCLUDED.lng,
                     budget_total=EXCLUDED.budget_total
-            """, [(contractor, b["hole_id"], b.get("drill_order"), b.get("days"),
-                   b.get("type"), b.get("bit_type"), b.get("purpose"),
+            """, [(contractor, b.get("project",""), b.get("planned_year",""),
+                   b.get("site_id",""), b["hole_id"], b.get("drill_order"),
+                   b.get("days") or b.get("days_budgeted"),
+                   b.get("type") or b.get("bh_type"), b.get("bit_type"), b.get("purpose"),
                    b.get("easting"), b.get("northing"), b.get("rl"),
-                   b.get("chip_depth"), b.get("seam_tk"), b.get("lat"), b.get("lng"),
+                   b.get("chip_depth"), b.get("eoh_depth"), b.get("total_core"),
+                   b.get("seam_tk"), b.get("lat"), b.get("lng"),
                    b.get("budget_total")) for b in boreholes])
         conn.commit()
     return {"status": "imported", "count": len(boreholes)}
@@ -1679,7 +1702,7 @@ async def import_budget(request: Request):
 async def update_borehole(hole_id: str, request: Request):
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
-    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order"}
+    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
     u["hole_id"] = hole_id
