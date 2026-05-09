@@ -485,8 +485,28 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
     <!-- Analytics -->
     <section class="page" id="page-analytics">
-      <h2 class="section-title">📊 Analytics &amp; Anomalies</h2>
+      <h2 class="section-title">Analytics &amp; Anomalies</h2>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:16px;">
+        <button class="filter-toggle" id="analytics-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
+        <div class="filter-body" id="analytics-filter-body" style="grid-template-columns:repeat(5,1fr);">
+          <div class="filter-group"><label>Hole #</label><select id="f-an-holes" multiple></select></div>
+          <div class="filter-group"><label>Site</label><select id="f-an-sites" multiple></select></div>
+          <div class="filter-group"><label>Project</label><select id="f-an-project"><option value="">All Projects</option></select></div>
+          <div class="filter-group"><label>Date From</label><input type="date" id="f-an-date-from"/></div>
+          <div class="filter-group"><label>Date To</label><input type="date" id="f-an-date-to"/></div>
+          <div class="filter-actions" style="grid-column:1/-1;">
+            <button class="btn-primary" onclick="applyAnalyticsFilters()">Apply Filters</button>
+            <button class="btn-ghost" onclick="resetAnalyticsFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hole selector pills -->
       <div class="hole-selector" id="hole-selector"><button class="hole-btn active" data-hole="all">All Holes</button></div>
+
+      <!-- KPIs -->
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
         <div class="kpi"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
@@ -494,15 +514,19 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         <div class="kpi"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
         <div class="kpi"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="kpi-metres">—</div></div>
       </div>
+
+      <!-- Charts -->
       <div class="charts-grid">
         <div class="chart-card"><div class="chart-title">Time Breakdown by Day</div><canvas id="chart-daily"></canvas></div>
         <div class="chart-card"><div class="chart-title">Cumulative Metres Drilled</div><canvas id="chart-cumulative"></canvas></div>
       </div>
       <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Drilling Efficiency % by Day</div><canvas id="chart-efficiency"></canvas></div>
         <div class="chart-card"><div class="chart-title">Metres per Drill Run</div><canvas id="chart-runs"></canvas></div>
+        <div class="chart-card"><div class="chart-title">Cost Breakdown by Category</div><canvas id="chart-cost-cat"></canvas></div>
       </div>
-      <h2 class="section-title" style="margin-top:8px;">🚨 Anomaly Report</h2>
+
+      <!-- Anomalies -->
+      <h2 class="section-title" style="margin-top:8px;">Anomaly Report</h2>
       <div class="table-wrap">
         <div class="table-toolbar"><div class="table-count"><span id="anom-count">—</span> anomalies</div><button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="anom-table">
@@ -510,10 +534,11 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
           <tbody id="anom-body"></tbody>
         </table></div>
       </div>
+
+      <!-- NPT Heatmap -->
       <div class="chart-card" style="margin-bottom:20px;">
         <div class="chart-title">Non-Productive Time Heatmap</div>
         <div id="heatmap-container"></div>
-        <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:6px;">Black=none · 🟡 Yellow=moderate · 🔴 Red=high</p>
       </div>
     </section>
 
@@ -1174,7 +1199,7 @@ function triggerPageLoad(page){
   if(page==='activities')  loadActivities();
   if(page==='consumables') loadConsumables();
   if(page==='crew')        loadCrew();
-  if(page==='analytics')   setTimeout(()=>loadAnalytics('all'),80);
+  if(page==='analytics')   { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='costing')     loadCosting();
   if(page==='purchase-orders') loadPOs();
   if(page==='invoices')    loadInvoices();
@@ -1393,8 +1418,8 @@ async function loadAnalytics(hole){
     document.querySelectorAll('.kpi')[3].className='kpi '+(k.delay_hours>=6?'warn':'good');
     buildDailyChart(d.daily_categories);
     buildCumulativeChart(d.drill_runs);
-    buildEfficiencyChart(d.daily_categories);
     buildRunChart(d.drill_runs);
+    buildCostCategoryChart(d.daily_categories, d.kpis);
     renderAnomalies(d.anomalies);
     renderHeatmap(d.heatmap,d.daily_categories);
     anomaliesData=d.anomalies;
@@ -1410,9 +1435,9 @@ function buildDailyChart(data){
   })).filter(ds=>ds.data.some(v=>v>0));
   charts['daily']=new Chart(document.getElementById('chart-daily').getContext('2d'),{
     type:'bar',data:{labels:dates,datasets},
-    options:{plugins:{legend:{labels:{color:'#6b7280',font:{family:'IBM Plex Mono',size:9}}}},
-      scales:{x:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}},
-              y:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},
+    options:{plugins:{legend:{labels:{color:'#6b7280',font:{family:'Inter',size:10}}}},
+      scales:{x:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#e5e7eb'}},
+              y:{stacked:true,ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#e5e7eb'}}},
       responsive:true,maintainAspectRatio:true}});
 }
 
@@ -1421,29 +1446,75 @@ function buildCumulativeChart(runs){
   charts['cumulative']=new Chart(document.getElementById('chart-cumulative').getContext('2d'),{
     type:'line',
     data:{labels:runs.map((_,i)=>i+1),datasets:[{label:'Cumulative Metres',data:runs.map(r=>r.cumulative),
-      borderColor:'#e8a020',backgroundColor:'rgba(232,160,32,0.1)',fill:true,tension:0.3,pointRadius:2,pointBackgroundColor:'#e8a020'}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{display:false},grid:{color:'#1e2430'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
-}
-
-function buildEfficiencyChart(data){
-  destroyChart('efficiency');if(!data||!data.length)return;
-  const dates=[...new Set(data.map(r=>r.date))].sort((a,b)=>dateSortKey(a)-dateSortKey(b));
-  const tot={},drl={};
-  data.forEach(r=>{tot[r.date]=(tot[r.date]||0)+r.hours;if(r.category==='Productive Drilling')drl[r.date]=(drl[r.date]||0)+r.hours;});
-  const effs=dates.map(d=>tot[d]?+((drl[d]||0)/tot[d]*100).toFixed(1):0);
-  charts['efficiency']=new Chart(document.getElementById('chart-efficiency').getContext('2d'),{
-    type:'bar',
-    data:{labels:dates,datasets:[{label:'Efficiency %',data:effs,backgroundColor:effs.map(e=>e<20?'#e74c3c':e<40?'#f39c12':'#27ae60'),borderWidth:0}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}},y:{max:100,ticks:{color:'#6b7280',font:{size:9},callback:v=>v+'%'},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
+      borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,0.08)',fill:true,tension:0.3,pointRadius:2,pointBackgroundColor:'#2563eb'}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{display:false},grid:{color:'#e5e7eb'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}});
 }
 
 function buildRunChart(runs){
   destroyChart('runs');if(!runs||!runs.length)return;
   charts['runs']=new Chart(document.getElementById('chart-runs').getContext('2d'),{
     type:'bar',
-    data:{labels:runs.map((_,i)=>i+1),datasets:[{label:'Metres',data:runs.map(r=>r.total_metres),backgroundColor:runs.map(r=>r.total_metres<1?'#e74c3c':'#3498db'),borderWidth:0}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>{const r=runs[items[0].dataIndex];return`${r.date} Run#${items[0].dataIndex+1}`;},afterBody:items=>{const r=runs[items[0].dataIndex];return r.notes?[r.notes.substring(0,60)]:[];}}}},
-      scales:{x:{ticks:{display:false},grid:{color:'#1e2430'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#1e2430'}}},responsive:true,maintainAspectRatio:true}});
+    data:{labels:runs.map((_,i)=>i+1),datasets:[{label:'Metres',data:runs.map(r=>r.total_metres),backgroundColor:runs.map(r=>r.total_metres<1?'#dc2626':'#2563eb'),borderWidth:0}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:function(items){const r=runs[items[0].dataIndex];return r.date+' Run#'+(items[0].dataIndex+1);},afterBody:function(items){const r=runs[items[0].dataIndex];return r.notes?[r.notes.substring(0,60)]:[]; }}}},
+      scales:{x:{ticks:{display:false},grid:{color:'#e5e7eb'}},y:{ticks:{color:'#6b7280',font:{size:9}},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function buildCostCategoryChart(dailyData, kpis){
+  destroyChart('cost_cat');
+  if(!kpis||!kpis.total_cost) return;
+  var catTotals = {};
+  if(dailyData) {
+    dailyData.forEach(function(r) {
+      catTotals[r.category] = (catTotals[r.category]||0) + r.hours;
+    });
+  }
+  var labels = Object.keys(catTotals).filter(function(k){return catTotals[k]>0;});
+  var values = labels.map(function(k){return Math.round(catTotals[k]*10)/10;});
+  var colors = labels.map(function(k){return CAT_COLORS[k]||'#6b7280';});
+  charts['cost_cat'] = new Chart(document.getElementById('chart-cost-cat').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:labels, datasets:[{data:values, backgroundColor:colors, borderWidth:2, borderColor:'#fff'}]},
+    options:{plugins:{legend:{position:'right',labels:{color:'#374151',font:{family:'Inter',size:11},padding:10}}},responsive:true,maintainAspectRatio:true}
+  });
+}
+
+// ── Analytics Filters ─────────────────────────────────────────────────────────
+document.getElementById('analytics-filter-toggle').addEventListener('click',function(){
+  document.getElementById('analytics-filter-toggle').classList.toggle('open');
+  document.getElementById('analytics-filter-body').classList.toggle('open');
+});
+
+function populateAnalyticsFilters(){
+  fillSelect('f-an-holes', filterOpts.holes||[]);
+  fillSelect('f-an-sites', filterOpts.sites||[]);
+  var projSel = document.getElementById('f-an-project');
+  if(projSel && typeof projects !== 'undefined'){
+    var current = projSel.value;
+    projSel.innerHTML = '<option value="">All Projects</option>';
+    projects.forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p.name; opt.textContent = p.name;
+      if(p.name===current) opt.selected = true;
+      projSel.appendChild(opt);
+    });
+  }
+}
+
+function applyAnalyticsFilters(){
+  var hole = 'all';
+  var selectedHoles = getSelVals('f-an-holes');
+  if(selectedHoles.length === 1) hole = selectedHoles[0];
+  loadAnalytics(hole);
+}
+
+function resetAnalyticsFilters(){
+  selectAll('f-an-holes');
+  selectAll('f-an-sites');
+  var projSel = document.getElementById('f-an-project');
+  if(projSel) projSel.value = '';
+  document.getElementById('f-an-date-from').value = '';
+  document.getElementById('f-an-date-to').value = '';
+  loadAnalytics('all');
 }
 
 function renderAnomalies(anomalies){
