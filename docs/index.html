@@ -42,7 +42,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .login-error{color:var(--red);font-size:12px;margin-top:10px;text-align:center;min-height:16px;}
 
 /* Header */
-header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;box-shadow:var(--shadow);}
+header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:900;box-shadow:var(--shadow);}
 .logo{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-0.5px;}
 .logo span{color:var(--text);}
 .header-right{display:flex;align-items:center;gap:12px;}
@@ -217,6 +217,11 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 /* Borehole map label */
 .bh-label{background:transparent!important;border:none!important;box-shadow:none!important;font-family:Inter,sans-serif;font-size:10px;font-weight:700;color:#111827;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff;white-space:nowrap;}
 .leaflet-popup-content-wrapper{border-radius:8px!important;box-shadow:0 4px 20px rgba(0,0,0,0.12)!important;}
+
+.leaflet-container{z-index:1!important;}
+.leaflet-pane{z-index:1!important;}
+.leaflet-top,.leaflet-bottom{z-index:2!important;}
+.leaflet-control{z-index:2!important;}
 </style>
 </head>
 <body>
@@ -725,17 +730,22 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         <div style="padding:16px;border-bottom:1px solid var(--border);background:var(--bg3);">
           <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Add New Borehole</div>
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px;">
+            <div class="filter-group"><label>Project</label><input type="text" id="add-bh-project" placeholder="Ironbark No.1"/></div>
+            <div class="filter-group"><label>Year</label><input type="text" id="add-bh-year" placeholder="2026" value="2026"/></div>
+            <div class="filter-group"><label>Site ID</label><input type="text" id="add-bh-site" placeholder="CD-26-004"/></div>
             <div class="filter-group"><label>Hole ID *</label><input type="text" id="add-bh-id" placeholder="26-062"/></div>
             <div class="filter-group"><label>Type</label>
               <select id="add-bh-type"><option>Core</option><option>Chip</option></select></div>
             <div class="filter-group"><label>Bit</label>
-              <select id="add-bh-bit"><option>HQ</option><option>PQ</option></select></div>
-            <div class="filter-group"><label>Purpose</label><input type="text" id="add-bh-purpose" placeholder="Coal Quality"/></div>
-            <div class="filter-group"><label>Days</label><input type="number" id="add-bh-days" placeholder="3.5" step="0.5"/></div>
+              <select id="add-bh-bit"><option>HQ</option><option>PQ</option><option>NQ</option></select></div>
+            <div class="filter-group"><label>Purpose</label><input type="text" id="add-bh-purpose" placeholder="Geotech"/></div>
+            <div class="filter-group"><label>Planned Days</label><input type="number" id="add-bh-days" placeholder="3.5" step="0.5"/></div>
             <div class="filter-group"><label>Easting (MGA55)</label><input type="number" id="add-bh-east" placeholder="620000"/></div>
             <div class="filter-group"><label>Northing (MGA55)</label><input type="number" id="add-bh-north" placeholder="7594000"/></div>
             <div class="filter-group"><label>RL (m)</label><input type="number" id="add-bh-rl" placeholder="320" step="0.01"/></div>
             <div class="filter-group"><label>Chip Depth (m)</label><input type="number" id="add-bh-depth" placeholder="200" step="0.01"/></div>
+            <div class="filter-group"><label>EOH Depth (m)</label><input type="number" id="add-bh-eoh" placeholder="250" step="0.01"/></div>
+            <div class="filter-group"><label>Total Core (m)</label><input type="number" id="add-bh-core" placeholder="25" step="0.01"/></div>
             <div class="filter-group"><label>Seam Tk (m)</label><input type="number" id="add-bh-seam" placeholder="5.0" step="0.1"/></div>
             <div class="filter-group"><label>Budget $</label><input type="number" id="add-bh-budget" placeholder="0" step="100"/></div>
             <div class="filter-group"><label>Status</label>
@@ -758,8 +768,8 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         <div class="tbl-scroll">
           <table id="bh-table">
             <thead><tr>
-              <th>#</th><th>Hole ID</th><th>Type</th><th>Bit</th><th>Purpose</th>
-              <th>Easting</th><th>Northing</th><th>RL</th><th>Chip Depth</th><th>Seam Tk</th>
+              <th>#</th><th>Project</th><th>Year</th><th>Site ID</th><th>Hole ID</th><th>Type</th><th>Bit</th><th>Purpose</th>
+              <th>Easting</th><th>Northing</th><th>RL</th><th>Chip Depth</th><th>EOH Depth</th><th>Total Core</th><th>Seam Tk</th>
               <th>Days</th><th>Status</th><th>Budget $</th><th>EOS $</th><th>Variance</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="bh-body"></tbody>
@@ -2221,8 +2231,11 @@ function renderBhTable(rows) {
     const statusOpts = ['Planned','In Progress','Complete','Cancelled'].map(function(s) {
       return '<option value="'+s+'"'+(s===b.status?' selected':'')+'>'+s+'</option>';
     }).join('');
-    return '<tr data-hole="'+esc(b.hole_id)+'">'
+    return '<tr data-hole="'+esc(b.hole_id)+'" style="cursor:pointer;" onclick="bhMap&&bhMap.setView(['+b.lat+','+b.lng+'],16)">'
       +'<td style="color:var(--muted);font-size:11px;">'+(b.drill_order||'')+'</td>'
+      +'<td contenteditable="true" data-col="project" style="font-size:12px;">'+ esc(b.project||'')+'</td>'
+      +'<td contenteditable="true" data-col="planned_year" style="font-size:12px;">'+ esc(b.planned_year||'')+'</td>'
+      +'<td contenteditable="true" data-col="site_id" style="font-size:12px;">'+ esc(b.site_id||'')+'</td>'
       +'<td contenteditable="true" data-col="hole_id" style="font-weight:700;color:var(--accent);">'+esc(b.hole_id)+'</td>'
       +'<td contenteditable="true" data-col="bh_type"><span class="badge '+(t==='Core'?'badge-drill':'badge-standby')+'">'+esc(t)+'</span></td>'
       +'<td contenteditable="true" data-col="bit_type" style="font-family:var(--font-mono);font-size:11px;">'+esc(b.bit_type||'')+'</td>'
@@ -2231,15 +2244,17 @@ function renderBhTable(rows) {
       +'<td contenteditable="true" data-col="northing" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.northing||0).toFixed(0)+'</td>'
       +'<td contenteditable="true" data-col="rl" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.rl||0).toFixed(1)+'</td>'
       +'<td contenteditable="true" data-col="chip_depth" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.chip_depth||0).toFixed(1)+'</td>'
+      +'<td contenteditable="true" data-col="eoh_depth" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.eoh_depth||0).toFixed(1)+'</td>'
+      +'<td contenteditable="true" data-col="total_core" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.total_core||0).toFixed(1)+'</td>'
       +'<td contenteditable="true" data-col="seam_tk" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.seam_tk||'')+'</td>'
       +'<td contenteditable="true" data-col="days_budgeted" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.days_budgeted||b.days||'')+'</td>'
       +'<td><select onchange="setBhStatus(&apos;'+b.hole_id+'&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
-      +'<td contenteditable="true" data-col="budget_total" data-num="true" style="font-weight:600;">'+(bgt>0?bgt.toLocaleString('en-AU',{maximumFractionDigits:0}):'')+'</td>'
-      +'<td style="color:var(--accent);font-weight:600;">'+(eos>0?'$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0}):'—')+'</td>'
-      +'<td style="color:'+(variance===null?'var(--muted)':variance>0?'var(--red)':'var(--green)')+';font-weight:600;">'
-        +(variance===null?'—':(variance>0?'+':'')+('$'+Math.abs(Math.round(variance)).toLocaleString('en-AU')))+'</td>'
+      +'<td contenteditable="true" data-col="budget_total" data-num="true" style="font-weight:600;">'+(bgt>0?bgt.toLocaleString("en-AU",{maximumFractionDigits:0}):"")+'</td>'
+      +'<td style="color:var(--accent);font-weight:600;">'+(eos>0?"$"+eos.toLocaleString("en-AU",{maximumFractionDigits:0}):"\u2014")+'</td>'
+      +'<td style="color:'+(variance===null?"var(--muted)":variance>0?"var(--red)":"var(--green)")+';font-weight:600;">'
+        +(variance===null?"\u2014":(variance>0?"+":"")+("$"+Math.abs(Math.round(variance)).toLocaleString("en-AU")))+'</td>'
       +'<td contenteditable="true" data-col="notes" style="font-size:11px;color:var(--muted);max-width:120px;">'+esc(b.notes||'')+'</td>'
-      +'<td><button onclick="deleteBorehole(&apos;'+esc(b.hole_id)+'&apos;)" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px;">✕</button></td>'
+      +'<td><button onclick="deleteBorehole(&apos;'+esc(b.hole_id)+'&apos;)" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px;">\u2715</button></td>'
       +'</tr>';
   }).join('');
 
@@ -2286,6 +2301,9 @@ async function addBorehole() {
   const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
   const newBh = {
     hole_id:holeId,
+    project:document.getElementById('add-bh-project').value,
+    planned_year:document.getElementById('add-bh-year').value,
+    site_id:document.getElementById('add-bh-site').value,
     bh_type:document.getElementById('add-bh-type').value,
     type:document.getElementById('add-bh-type').value,
     bit_type:document.getElementById('add-bh-bit').value,
@@ -2295,6 +2313,8 @@ async function addBorehole() {
     easting:easting, northing:northing,
     rl:parseFloat(document.getElementById('add-bh-rl').value)||null,
     chip_depth:parseFloat(document.getElementById('add-bh-depth').value)||null,
+    eoh_depth:parseFloat(document.getElementById('add-bh-eoh').value)||null,
+    total_core:parseFloat(document.getElementById('add-bh-core').value)||null,
     seam_tk:parseFloat(document.getElementById('add-bh-seam').value)||null,
     budget_total:parseFloat(document.getElementById('add-bh-budget').value)||null,
     status:document.getElementById('add-bh-status').value,
@@ -2310,7 +2330,7 @@ async function addBorehole() {
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
     bhData.push(newBh);
-    ['add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(function(id){
+    ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(function(id){
       const el=document.getElementById(id); if(el) el.value='';
     });
     document.getElementById('bh-add-form').style.display='none';
@@ -2335,8 +2355,8 @@ async function deleteBorehole(holeId) {
 
 function downloadBhCsvTemplate(e) {
   e.preventDefault();
-  const cols = 'hole_id,type,bit_type,purpose,days,easting,northing,rl,chip_depth,seam_tk,budget_total,notes';
-  const example = '26-062,Core,HQ,Geotech,3.5,620000,7594000,320.5,250.0,5.2,85000,Example hole';
+  const cols = 'project,planned_year,hole_id,site_id,type,bit_type,purpose,planned_days,easting,northing,rl,chip_depth,seam_tk,eoh_depth,total_core,budget_total,notes';
+  const example = 'Ironbark No.1,2026,26-062,CD-26-004,Core,HQ,Geotech,3.5,620000,7594000,320.5,250,5.2,239.5,25.2,85000,Example hole';
   const csv = cols + String.fromCharCode(10) + example;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -2365,13 +2385,15 @@ function importBhCSV(input) {
       const northing = parseFloat(row.northing)||0;
       const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
       boreholes.push({
-        hole_id:row.hole_id, bh_type:row.type||'Core', type:row.type||'Core',
+        hole_id:row.hole_id, project:row.project||'', planned_year:row.planned_year||row.year||'', site_id:row.site_id||'', bh_type:row.type||'Core', type:row.type||'Core',
         bit_type:row.bit_type||row.bittype||'HQ', purpose:row.purpose||'',
-        days_budgeted:parseFloat(row.days)||null, days:parseFloat(row.days)||null,
+        days_budgeted:parseFloat(row.planned_days||row.days)||null, days:parseFloat(row.planned_days||row.days)||null,
         easting:easting, northing:northing,
         rl:parseFloat(row.rl)||null,
         chip_depth:parseFloat(row.chip_depth||row.chipdepth)||null,
         seam_tk:parseFloat(row.seam_tk||row.seamtk)||null,
+        eoh_depth:parseFloat(row.eoh_depth||row.eoh)||null,
+        total_core:parseFloat(row.total_core)||null,
         budget_total:parseFloat(row.budget_total||row.budget)||null,
         notes:row.notes||'',
         lat:wgs.lat, lng:wgs.lng,
