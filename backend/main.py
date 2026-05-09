@@ -238,6 +238,18 @@ def init_db():
                 )
             """)
 
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id         SERIAL PRIMARY KEY,
+                    contractor TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    name       TEXT NOT NULL,
+                    year       TEXT,
+                    status     TEXT DEFAULT 'Active',
+                    notes      TEXT,
+                    UNIQUE(contractor, name)
+                )
+            """)
+
             # ── Invoices ──────────────────────────────────────────────────────
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
@@ -1783,6 +1795,53 @@ def get_borehole_summary(contractor: str = Query(...)):
                 return summary
     except Exception as e:
         raise HTTPException(500, f"Summary error: {str(e)}")
+
+
+# ── Projects ──────────────────────────────────────────────────────────────────
+
+@app.get("/projects")
+def get_projects(contractor: str = Query(...)):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM projects WHERE contractor=%s ORDER BY name", (contractor,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.post("/projects")
+async def add_project(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    name = payload.get("name", "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    contractor = payload.get("contractor", "Allianz Drilling")
+    year = payload.get("year", "")
+    notes = payload.get("notes", "")
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO projects (contractor, name, year, notes)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (contractor, name) DO UPDATE SET year=EXCLUDED.year, notes=EXCLUDED.notes
+                    RETURNING id
+                """, (contractor, name, year, notes))
+                pid = cur.fetchone()["id"]
+            conn.commit()
+        return {"status": "created", "id": pid, "name": name}
+    except Exception as e:
+        raise HTTPException(500, f"Failed: {str(e)}")
+
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id=%s", (project_id,))
+        conn.commit()
+    return {"status": "deleted"}
 
 
 @app.delete("/reset")
