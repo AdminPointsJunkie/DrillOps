@@ -569,10 +569,16 @@ def parse_activities_adr001(text, header, filename, contractor):
         line = line.strip()
         if not line:
             continue
-        # Skip header lines, total lines, empty rows
-        if line.startswith("NOTES") or line.startswith("TOTAL DURATION") or line.startswith("PEOPLE ON"):
-            break
-        if line.startswith("CLIENT:") or line.startswith("SHIFT:") or line.startswith("ALLIANZ"):
+        # Skip header lines, total lines, crew section
+        if line.startswith("NOTES") or line.startswith("TOTAL DURATION"):
+            continue
+        if line.startswith("PEOPLE ON") or line.startswith("Position") or line.startswith("Supervisor") or line.startswith("Driller") or line.startswith("Trainee") or line.startswith("Offsider") or line.startswith("Operator"):
+            continue
+        if line.startswith("CONSUMABLES") or line.startswith("Consumable"):
+            continue
+        if line.startswith("CLIENT:") or line.startswith("SHIFT:") or line.startswith("ALLIANZ") or line.startswith("Delay Hours"):
+            continue
+        if line.startswith("Non Drilling") or "REPRESENTATIVE" in line:
             continue
         if line == "0:00 0 0 0":
             continue
