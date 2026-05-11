@@ -1929,41 +1929,140 @@ def rematch_all(contractor: str = Query(...)):
 
 @app.post("/reprice")
 def reprice_activities(contractor: str = Query(...)):
-    """Re-run the pricing engine on all existing activities for a contractor."""
+    """Full rationalisation: fix hole IDs, normalise dates, standardise sites, then reprice."""
+
+    # ── Site → Hole ID mapping ────────────────────────────────────────────
+    SITE_TO_HOLE = {
+        "CD-26-001": "CD1817C", "CD-26-002": "CD1818C", "CD-26-004": "CD1819C",
+        "CD-26-005": "CD1820C", "CD-26-006": "CD1821C", "CD-26-007": "CD1822C",
+        "CD-26-008": "CD1823C", "CD-26-009": "CD1824C", "CD-26-010": "CD1825C",
+        "CD-26-011": "CD1826C", "CD-26-012": "CD1827C", "CD-26-013": "CD1828C",
+        "CD-26-014": "CD1829C", "CD-26-016": "CD1830C", "CD-26-017": "CD1831C",
+        "CD-26-018": "CD1832C", "CD-26-019": "CD1833C", "CD-26-020": "CD1834C",
+        "CD-26-021": "CD1833C", "CD-26-022": "CD1834C", "CD-26-023": "CD1835C",
+    }
+    # Also reverse: if hole_num is a site name, fix it
+    HOLE_FIXES = {**SITE_TO_HOLE}
+    # If hole_num is "0" or empty but site_name is valid, use the mapping
+    for k, v in SITE_TO_HOLE.items():
+        HOLE_FIXES[k] = v
+
+    def normalise_date(d):
+        """Convert any date format to dd/mm/yyyy."""
+        if not d:
+            return d
+        d = d.strip()
+        # Already dd/mm/yyyy
+        if re.match(r"^\d{2}/\d{2}/\d{4}$", d):
+            return d
+        # d/m/yyyy (single digits)
+        m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", d)
+        if m:
+            return f"{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}"
+        # 28-March-2026 or 1-May-2026
+        m = re.match(r"^(\d{1,2})-(\w+)-(\d{4})$", d)
+        if m:
+            months = {"january":"01","february":"02","march":"03","april":"04",
+                      "may":"05","june":"06","july":"07","august":"08",
+                      "september":"09","october":"10","november":"11","december":"12"}
+            mon = months.get(m.group(2).lower(), "01")
+            return f"{int(m.group(1)):02d}/{mon}/{m.group(3)}"
+        return d
+
+    stats = {"total": 0, "dates_fixed": 0, "holes_fixed": 0, "sites_fixed": 0, "priced": 0}
+    skipped_codes = {}
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
+            stats["total"] = len(rows)
 
-            # Check what rates are available
+            # Check available rates
             cur.execute("SELECT DISTINCT year FROM drilling_rates WHERE contractor=%s", (contractor,))
             dr_years = [r["year"] for r in cur.fetchall()]
             cur.execute("SELECT DISTINCT year FROM hourly_rates WHERE contractor=%s", (contractor,))
             hr_years = [r["year"] for r in cur.fetchall()]
 
-        updated = 0
-        skipped_codes = {}
         with conn.cursor() as cur:
             for row in rows:
+                updates = {}
+                rid = row["id"]
+
+                # ── 1. Normalise date ──────────────────────────────────────
+                old_date = row.get("date", "")
+                new_date = normalise_date(old_date)
+                if new_date != old_date:
+                    updates["date"] = new_date
+                    row["date"] = new_date
+                    stats["dates_fixed"] += 1
+
+                # ── 2. Fix hole_num from site_name ─────────────────────────
+                hole = row.get("hole_num", "") or ""
+                site = row.get("site_name", "") or ""
+
+                # If hole is "0", empty, or is actually a site name → fix it
+                if (not hole or hole == "0") and site in HOLE_FIXES:
+                    updates["hole_num"] = HOLE_FIXES[site]
+                    row["hole_num"] = HOLE_FIXES[site]
+                    stats["holes_fixed"] += 1
+                elif hole in HOLE_FIXES:
+                    updates["hole_num"] = HOLE_FIXES[hole]
+                    row["hole_num"] = HOLE_FIXES[hole]
+                    stats["holes_fixed"] += 1
+                elif site in HOLE_FIXES and hole != HOLE_FIXES[site]:
+                    updates["hole_num"] = HOLE_FIXES[site]
+                    row["hole_num"] = HOLE_FIXES[site]
+                    stats["holes_fixed"] += 1
+
+                # ── 3. Fill missing site_name from hole_num ────────────────
+                if not site and hole:
+                    # Reverse lookup
+                    for sk, hv in SITE_TO_HOLE.items():
+                        if hv == hole or hv == row.get("hole_num",""):
+                            updates["site_name"] = sk
+                            row["site_name"] = sk
+                            stats["sites_fixed"] += 1
+                            break
+
+                # ── 4. Normalise location ──────────────────────────────────
+                loc = row.get("location", "") or ""
+                if loc and loc.lower() in ("cdm sth", "cdm south", "cdm", "carborough downs mine", "carborough downs"):
+                    if loc != "Carborough Downs":
+                        updates["location"] = "Carborough Downs"
+                        row["location"] = "Carborough Downs"
+
+                # ── 5. Reprice ─────────────────────────────────────────────
                 priced = price_activity(cur, dict(row), contractor)
                 if priced.get("line_cost") is not None:
-                    cur.execute("""
-                        UPDATE activities
-                        SET rate_year=%s, unit_rate=%s, quantity=%s,
-                            line_cost=%s, rate_basis=%s
-                        WHERE id=%s
-                    """, (priced["rate_year"], priced["unit_rate"],
-                          priced["quantity"], priced["line_cost"],
-                          priced["rate_basis"], row["id"]))
-                    updated += 1
+                    updates["rate_year"] = priced["rate_year"]
+                    updates["unit_rate"] = priced["unit_rate"]
+                    updates["quantity"] = priced["quantity"]
+                    updates["line_cost"] = priced["line_cost"]
+                    updates["rate_basis"] = priced["rate_basis"]
+                    stats["priced"] += 1
                 else:
-                    code = row.get("code","") or "empty"
+                    code = row.get("code", "") or "empty"
                     skipped_codes[code] = skipped_codes.get(code, 0) + 1
+
+                # ── Apply all updates in one query ─────────────────────────
+                if updates:
+                    set_clause = ", ".join(f"{k}=%s" for k in updates)
+                    vals = list(updates.values()) + [rid]
+                    cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%s", vals)
+
         conn.commit()
+
     return {
-        "status": "repriced", "total": len(rows), "priced": updated,
-        "drilling_rate_years": dr_years, "hourly_rate_years": hr_years,
-        "skipped_codes": skipped_codes
+        "status": "rationalised",
+        "total": stats["total"],
+        "dates_fixed": stats["dates_fixed"],
+        "holes_fixed": stats["holes_fixed"],
+        "sites_fixed": stats["sites_fixed"],
+        "priced": stats["priced"],
+        "drilling_rate_years": dr_years,
+        "hourly_rate_years": hr_years,
+        "skipped_codes": skipped_codes,
     }
 
 
