@@ -526,6 +526,158 @@ def parse_header(text):
                 if re.search(p, text, re.IGNORECASE) else "") for k, p in patterns.items()}
 
 
+def detect_pdf_format(text):
+    """Detect whether this is standard EOS or ADR001 format."""
+    if "EXPLORATION DAILY SUPERVISORS REPORT" in text:
+        return "adr001"
+    return "standard"
+
+
+def parse_activities_adr001(text, header, filename, contractor):
+    """Parse ADR001 format: decimal durations, full bit type names."""
+    # ADR001 header may have hole_num at different position
+    m = re.search(r"HOLE #:\s*(\S+)", text, re.IGNORECASE)
+    if m and not header.get("hole_num"):
+        header["hole_num"] = m.group(1)
+
+    m = re.search(r"DRILL RIG #:\s*(\S+)", text, re.IGNORECASE)
+    if m and not header.get("drill_rig"):
+        header["drill_rig"] = m.group(1)
+
+    # ADR001 row pattern: notes time_from time_to decimal_duration [bit_type diameter] metres_from metres_to metres_drilled
+    # e.g. "flush hole 8:15 8:30 0.25 0 0 0"
+    # e.g. "HQ - 211.40m to 214.40m... 16:30 17:00 0.50 HQ / HQ3 (Triple Tube / Wireline) 96 mm 211.4 214.4 3"
+    row_re = re.compile(
+        r"^(.+?)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d+\.?\d*)"
+        r"\s+(?:([A-Z][A-Z\s/()]*?(?:Wireline|Tube))\s+(\d+\s*mm)\s+)?"
+        r"(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s*$",
+        re.IGNORECASE
+    )
+
+    # Simpler pattern for most lines: notes time_from time_to decimal 0 0 0
+    simple_re = re.compile(
+        r"^(.+?)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s*$"
+    )
+
+    # Pattern for lines with no times: "Backhoe on standby 0:00 0 0 0"
+    no_time_re = re.compile(
+        r"^(.+?)\s+0:00\s+0\s+0\s+0\s*$"
+    )
+
+    rows = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Skip header lines, total lines, empty rows
+        if line.startswith("NOTES") or line.startswith("TOTAL DURATION") or line.startswith("PEOPLE ON"):
+            break
+        if line.startswith("CLIENT:") or line.startswith("SHIFT:") or line.startswith("ALLIANZ"):
+            continue
+        if line == "0:00 0 0 0":
+            continue
+
+        # Try no-time pattern first (Backhoe on standby, Water cart, etc)
+        nm = no_time_re.match(line)
+        if nm:
+            desc = nm.group(1).strip()
+            if not desc or desc in ("0", ""):
+                continue
+            # Determine code from description
+            code = ""
+            dl = desc.lower()
+            if "backhoe" in dl and "standby" in dl:
+                code = "D_Backhoe_Standby"
+            elif "backhoe" in dl:
+                code = "D_Backhoe"
+            elif "water cart" in dl and "standby" in dl:
+                code = "D_Water_Cart_Standby"
+            elif "water cart" in dl:
+                code = "D_Water_Cart"
+
+            if code:
+                rows.append({
+                    "source_file": filename, "contractor": contractor,
+                    "date": header.get("date",""), "hole_num": header.get("hole_num",""),
+                    "site_name": header.get("site_name",""), "location": header.get("location",""),
+                    "drill_rig": header.get("drill_rig",""), "client": header.get("client",""),
+                    "contract": header.get("contract",""), "shift": header.get("shift",""),
+                    "time_from": "", "time_to": "", "total_time": "",
+                    "bit_type": "", "diameter": "",
+                    "metres_from": None, "metres_to": None, "total_metres": None,
+                    "code": code, "notes": desc,
+                    "rate_year": None, "unit_rate": None, "quantity": None,
+                    "line_cost": None, "rate_basis": None, "po_id": None,
+                })
+            continue
+
+        # Try the full HQ drilling line pattern
+        rm = row_re.match(line)
+        if rm:
+            notes, tf, tt, dur, bt, diam, mf, mt, mto = rm.groups()
+            # Convert decimal duration to H:MM
+            dur_f = float(dur) if dur else 0
+            h = int(dur_f)
+            m_val = int((dur_f - h) * 60)
+            total_time = f"{h}:{m_val:02d}"
+
+            bit_type = ""
+            if bt:
+                btl = bt.strip().upper()
+                if "HQ" in btl:
+                    bit_type = "HQ_HQ3"
+                elif "PCD" in btl:
+                    bit_type = "PCD"
+                elif "NQ" in btl:
+                    bit_type = "NQ"
+
+            rows.append({
+                "source_file": filename, "contractor": contractor,
+                "date": header.get("date",""), "hole_num": header.get("hole_num",""),
+                "site_name": header.get("site_name",""), "location": header.get("location",""),
+                "drill_rig": header.get("drill_rig",""), "client": header.get("client",""),
+                "contract": header.get("contract",""), "shift": header.get("shift",""),
+                "time_from": tf, "time_to": tt, "total_time": total_time,
+                "bit_type": bit_type, "diameter": (diam or "").strip(),
+                "metres_from": float(mf) if mf and float(mf) > 0 else None,
+                "metres_to": float(mt) if mt and float(mt) > 0 else None,
+                "total_metres": float(mto) if mto and float(mto) > 0 else None,
+                "code": "", "notes": notes.strip(),
+                "rate_year": None, "unit_rate": None, "quantity": None,
+                "line_cost": None, "rate_basis": None, "po_id": None,
+            })
+            continue
+
+        # Try simple pattern (most common: notes time_from time_to decimal mf mt md)
+        sm = simple_re.match(line)
+        if sm:
+            notes, tf, tt, dur, mf, mt, mto = sm.groups()
+            dur_f = float(dur) if dur else 0
+            if dur_f == 0 and tf == "0" and tt == "0":
+                continue
+            h = int(dur_f)
+            m_val = int((dur_f - h) * 60)
+            total_time = f"{h}:{m_val:02d}"
+
+            rows.append({
+                "source_file": filename, "contractor": contractor,
+                "date": header.get("date",""), "hole_num": header.get("hole_num",""),
+                "site_name": header.get("site_name",""), "location": header.get("location",""),
+                "drill_rig": header.get("drill_rig",""), "client": header.get("client",""),
+                "contract": header.get("contract",""), "shift": header.get("shift",""),
+                "time_from": tf, "time_to": tt, "total_time": total_time,
+                "bit_type": "", "diameter": "",
+                "metres_from": float(mf) if mf and float(mf) > 0 else None,
+                "metres_to": float(mt) if mt and float(mt) > 0 else None,
+                "total_metres": float(mto) if mto and float(mto) > 0 else None,
+                "code": "", "notes": notes.strip(),
+                "rate_year": None, "unit_rate": None, "quantity": None,
+                "line_cost": None, "rate_basis": None, "po_id": None,
+            })
+
+    return rows
+
+
 def parse_activities(text, header, filename, contractor):
     time_pat = r"\d{1,2}:\d{2}"
 
@@ -758,7 +910,11 @@ async def import_pdf(
         raise HTTPException(400, f"Could not read PDF: {e}")
 
     header = parse_header(text)
-    acts   = parse_activities(text, header, filename, contractor)
+    fmt = detect_pdf_format(text)
+    if fmt == "adr001":
+        acts = parse_activities_adr001(text, header, filename, contractor)
+    else:
+        acts = parse_activities(text, header, filename, contractor)
     cons   = parse_consumables(text, header, filename, contractor)
     crew   = parse_crew(text, header, filename, contractor)
 
