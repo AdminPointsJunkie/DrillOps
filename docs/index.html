@@ -372,28 +372,40 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
     <!-- Importer -->
     <section class="page" id="page-importer">
-      <h2 class="section-title">📥 Import Data</h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <h2 class="section-title">Import Data</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
         <!-- EOS Daily Reports -->
         <div class="chart-card" style="padding:24px;">
-          <div class="chart-title">📋 EOS Daily Reports</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Import daily drilling report PDFs from the field.</p>
+          <div class="chart-title">EOS Daily Reports</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Typed/digital drilling report PDFs (Allianz format).</p>
           <div class="upload-zone" id="drop-zone" style="margin-bottom:10px;">
             <input type="file" id="file-input" multiple accept=".pdf"/>
-            <div class="up-icon">📄</div>
-            <p>Drop EOS PDFs or click to browse</p>
+            <div class="up-icon" style="font-size:28px;">&#x1F4C4;</div>
+            <p>Drop EOS PDFs or click</p>
           </div>
           <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import EOS Reports</button>
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
+        <!-- Handwritten OCR -->
+        <div class="chart-card" style="padding:24px;border:1.5px solid var(--accent);">
+          <div class="chart-title" style="color:var(--accent);">Handwritten Drill Logs (AI OCR)</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Scanned handwritten logs (DEPCO etc). Uses Google Gemini AI to read handwriting.</p>
+          <div class="upload-zone" id="ocr-drop-zone" style="margin-bottom:10px;border-color:var(--accent);">
+            <input type="file" id="ocr-file-input" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;"/>
+            <div style="font-size:28px;margin-bottom:4px;">&#x1F916;</div>
+            <p>Drop handwritten PDFs</p>
+          </div>
+          <button id="ocr-import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Read &amp; Import</button>
+          <div id="ocr-import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:160px;overflow-y:auto;"></div>
+        </div>
         <!-- Tax Invoices -->
         <div class="chart-card" style="padding:24px;">
-          <div class="chart-title">🧾 Tax Invoices (Allianz)</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Import contractor invoice PDFs. Stored for viewing and reconciliation.</p>
+          <div class="chart-title">Tax Invoices</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Contractor invoice PDFs. Stored for viewing and reconciliation.</p>
           <div class="upload-zone" id="inv-drop-zone-sidebar" style="margin-bottom:10px;">
             <input type="file" id="inv-file-input-sidebar" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;"/>
-            <div class="up-icon">🧾</div>
-            <p>Drop Invoice PDFs or click to browse</p>
+            <div class="up-icon" style="font-size:28px;">&#x1F9FE;</div>
+            <p>Drop Invoice PDFs or click</p>
           </div>
           <button id="inv-import-btn-sidebar" disabled style="width:100%;padding:10px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Invoices</button>
           <div id="inv-import-log-sidebar" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
@@ -1982,6 +1994,67 @@ invSidebarBtn.addEventListener('click', async()=>{
   // Refresh invoices tab if open
   if(document.getElementById('page-invoices').classList.contains('active')) loadInvoices();
 });
+
+// ── OCR Import (handwritten drill logs via Gemini) ────────────────────────────
+var ocrFileInput = document.getElementById('ocr-file-input');
+var ocrImportBtn = document.getElementById('ocr-import-btn');
+var ocrPendingFiles = [];
+
+if(ocrFileInput) {
+  ocrFileInput.addEventListener('change', function(e) {
+    ocrPendingFiles = [].slice.call(e.target.files);
+    ocrImportBtn.disabled = ocrPendingFiles.length === 0;
+    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Import';
+  });
+}
+
+if(document.getElementById('ocr-drop-zone')) {
+  document.getElementById('ocr-drop-zone').addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.getElementById('ocr-drop-zone').addEventListener('drop', function(e) {
+    e.preventDefault();
+    ocrPendingFiles = [].slice.call(e.dataTransfer.files).filter(function(f) { return f.name.endsWith('.pdf'); });
+    ocrImportBtn.disabled = ocrPendingFiles.length === 0;
+    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Import';
+  });
+}
+
+if(ocrImportBtn) {
+  ocrImportBtn.addEventListener('click', async function() {
+    if (!ocrPendingFiles.length) return;
+    ocrImportBtn.disabled = true;
+    ocrImportBtn.innerHTML = '<span class="spinner"></span>AI reading...';
+    var log = document.getElementById('ocr-import-log');
+    log.innerHTML = '';
+
+    for (var fi = 0; fi < ocrPendingFiles.length; fi++) {
+      var file = ocrPendingFiles[fi];
+      log.innerHTML += '<div style="color:var(--accent);">\u23f3 Reading ' + file.name + ' with Gemini AI...</div>';
+      var fd = new FormData();
+      fd.append('file', file);
+      fd.append('contractor', activeContractor);
+      try {
+        var res = await fetch(API + '/import/ocr', { method: 'POST', body: fd });
+        var d = await res.json();
+        if (d.status === 'imported') {
+          log.innerHTML += '<div style="color:var(--green);">\u2713 ' + (d.hole_num || file.name) + ' \u2014 ' + d.date + ' \u2014 ' + d.rows + ' activities extracted</div>';
+        } else if (d.status === 'skipped') {
+          log.innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + file.name + ' already imported</div>';
+        } else {
+          log.innerHTML += '<div style="color:var(--red);">\u2717 ' + file.name + ': ' + (d.detail || 'Unknown error') + '</div>';
+        }
+      } catch (err) {
+        log.innerHTML += '<div style="color:var(--red);">\u2717 ' + file.name + ': ' + err.message + '</div>';
+      }
+    }
+
+    ocrImportBtn.textContent = 'AI Read & Import';
+    ocrImportBtn.disabled = false;
+    ocrPendingFiles = [];
+    if (ocrFileInput) ocrFileInput.value = '';
+    await updateDbCount();
+    toast('\u2713 OCR import complete');
+  });
+}
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 let invoicesData = [], discrepanciesData = [];
