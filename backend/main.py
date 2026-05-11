@@ -527,9 +527,23 @@ def parse_header(text):
 
 
 def detect_pdf_format(text):
-    """Detect whether this is standard EOS or ADR001 format."""
+    """Detect whether this is standard EOS, ADR001-decimal, or ADR001-standard format."""
     if "EXPLORATION DAILY SUPERVISORS REPORT" in text:
-        return "adr001"
+        # ADR001 template — but check if durations are decimal (March) or H:MM (May+)
+        # Look for a CODE column or H:MM style third time field
+        lines = text.splitlines()
+        for line in lines:
+            line = line.strip()
+            # If line has 3 H:MM times and a code at end → standard format with ADR001 header
+            if re.search(r'\d{1,2}:\d{2}\s+\d{1,2}:\d{2}\s+\d{1,2}:\d{2}\s+\S', line):
+                return "standard"
+            # If line has decimal duration (0.25, 1.50) → ADR001 decimal format
+            if re.search(r'\d{1,2}:\d{2}\s+\d{1,2}:\d{2}\s+\d+\.\d+\s+\d', line):
+                return "adr001"
+        # If CODE appears in the column header → standard
+        if re.search(r'TOTAL\s+METRES\s+CODE', text):
+            return "standard"
+        return "adr001"  # fallback for old format
     return "standard"
 
 
