@@ -6,6 +6,8 @@ Multi-contractor: every query is filtered by contractor
 
 import re
 import os
+import base64
+import json
 from io import BytesIO
 from typing import Optional
 
@@ -13,6 +15,7 @@ import pdfplumber
 import pandas as pd
 import psycopg2
 import psycopg2.extras
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -1842,6 +1845,228 @@ def delete_project(project_id: int):
             cur.execute("DELETE FROM projects WHERE id=%s", (project_id,))
         conn.commit()
     return {"status": "deleted"}
+
+
+# ── Gemini Vision OCR for handwritten drill logs ──────────────────────────────
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+GEMINI_PROMPT = """You are reading a scanned handwritten drilling End-of-Shift report (DEPCO Drill Log format).
+
+Extract ALL data from this image into a JSON object with these exact fields:
+
+{
+  "log_number": "the No. at top right e.g. 099839",
+  "client": "client name from Client field",
+  "location": "Location/Area field",
+  "hole_num": "Hole # field e.g. CR57",
+  "date": "Date field in d/m/yyyy format",
+  "day": "Day of week",
+  "shift": "Day or Night",
+  "start_time": "Start Time e.g. 0600",
+  "finish_time": "Finish Time e.g. 1730",
+  "travel_hours": "Travel Hours if filled",
+  "driller": "Driller name",
+  "offsider1": "Offsider 1 name",
+  "offsider2": "Offsider 2 name",
+  "rig_no": "Rig No.",
+  "drill_rig": "Rod Trailer No. next to Rig No.",
+  "activities": [
+    {
+      "comments": "handwritten description of the activity",
+      "time_from": "HH:MM format e.g. 05:30",
+      "time_to": "HH:MM format e.g. 06:00",
+      "total_time": "duration in H:MM or fraction e.g. 0:30 or 0.5",
+      "metres_from": null or number,
+      "metres_to": null or number,
+      "total_metres": null or number
+    }
+  ]
+}
+
+IMPORTANT RULES:
+- Read the DRILLING section table carefully - each row has: COMMENTS, TIME FROM, TIME TO, TOTAL TIME, METERS FROM, METERS TO, TOTAL METERS
+- Times are in 24hr format (e.g. 0530 means 05:30, 1415 means 14:15)
+- Total Time is usually in fractions like 2, 1/2, 3/4 etc. Convert: 1/2=0:30, 1/4=0:15, 3/4=0:45
+- The handwriting may be difficult - do your best to read it
+- If a field is empty or unreadable, use null
+- Return ONLY valid JSON, no markdown, no explanation
+"""
+
+
+async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
+    """Send a PDF page image to Gemini Vision and extract structured data."""
+    if not GEMINI_API_KEY:
+        raise HTTPException(500, "GEMINI_API_KEY not configured on server")
+
+    # Convert PDF to image using pdfplumber
+    from PIL import Image
+    import io
+
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        if not pdf.pages:
+            raise HTTPException(400, "PDF has no pages")
+        page = pdf.pages[0]
+        # Render page to image
+        img = page.to_image(resolution=300)
+        img_buffer = io.BytesIO()
+        img.original.save(img_buffer, format='PNG')
+        img_bytes = img_buffer.getvalue()
+
+    b64_image = base64.b64encode(img_bytes).decode('utf-8')
+
+    # Call Gemini API
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": GEMINI_PROMPT},
+                {
+                    "inline_data": {
+                        "mime_type": "image/png",
+                        "data": b64_image
+                    }
+                }
+            ]
+        }],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 4096
+        }
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(url, json=payload)
+
+    if resp.status_code != 200:
+        raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
+
+    result = resp.json()
+    try:
+        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        # Clean up - remove markdown fences if present
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        if text.startswith("json"):
+            text = text[4:].strip()
+        return json.loads(text)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        raise HTTPException(422, f"Could not parse Gemini response: {str(e)}")
+
+
+@app.post("/import/ocr")
+async def import_ocr_pdf(
+    file: UploadFile = File(...),
+    contractor: str = Form(default="DEPCO Drilling"),
+):
+    """Import a handwritten drill log PDF using Gemini Vision OCR."""
+    filename = file.filename
+    content = await file.read()
+
+    # Check if already imported
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
+                        (filename, contractor))
+            if cur.fetchone():
+                return {"status": "skipped", "filename": filename}
+
+    # OCR with Gemini
+    try:
+        data = await ocr_with_gemini(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(422, f"OCR failed: {str(e)}")
+
+    # Convert to activity rows
+    activities = data.get("activities", [])
+    hole_num = data.get("hole_num", "")
+    date_str = data.get("date", "")
+    location = data.get("location", "")
+    driller = data.get("driller", "")
+    shift = data.get("shift", "Day")
+    site_name = location
+
+    rows = []
+    for act in activities:
+        time_from = act.get("time_from", "")
+        time_to = act.get("time_to", "")
+        total_time = act.get("total_time", "")
+
+        # Normalise total_time to H:MM
+        if total_time and isinstance(total_time, (int, float)):
+            h = int(total_time)
+            m = int((total_time - h) * 60)
+            total_time = f"{h}:{m:02d}"
+
+        metres_from = act.get("metres_from")
+        metres_to = act.get("metres_to")
+        total_metres = act.get("total_metres")
+        comments = act.get("comments", "")
+
+        rows.append({
+            "source_file": filename, "contractor": contractor,
+            "date": date_str, "hole_num": hole_num,
+            "site_name": site_name, "location": location,
+            "drill_rig": data.get("rig_no", ""), "client": data.get("client", ""),
+            "contract": "", "shift": shift,
+            "time_from": time_from, "time_to": time_to,
+            "total_time": total_time,
+            "bit_type": "", "diameter": "",
+            "metres_from": float(metres_from) if metres_from else None,
+            "metres_to": float(metres_to) if metres_to else None,
+            "total_metres": float(total_metres) if total_metres else None,
+            "code": "", "notes": comments,
+            "rate_year": None, "unit_rate": None, "quantity": None,
+            "line_cost": None, "rate_basis": None, "po_id": None,
+        })
+
+    # Save to database
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if rows:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO activities
+                    (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                     client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                     metres_from,metres_to,total_metres,code,notes,
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                    VALUES
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                     %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                     %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                     %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                """, rows)
+            cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                        (filename, contractor))
+        conn.commit()
+
+    return {
+        "status": "imported",
+        "filename": filename,
+        "ocr_data": data,
+        "rows": len(rows),
+        "hole_num": hole_num,
+        "date": date_str,
+        "contractor": contractor,
+    }
+
+
+@app.post("/import/ocr/preview")
+async def preview_ocr_pdf(
+    file: UploadFile = File(...),
+):
+    """Preview OCR results without saving — for testing."""
+    content = await file.read()
+    data = await ocr_with_gemini(content)
+    return {"ocr_data": data, "activity_count": len(data.get("activities", []))}
 
 
 @app.delete("/reset")
