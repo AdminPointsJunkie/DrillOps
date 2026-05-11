@@ -397,15 +397,19 @@ ACTIVE_CODES = {
 }
 STANDBY_CODES = {
     "H_Standby_Sumps","H_Standby_AAC","H_Standby_Logger",
-    "H_Standby_Grout","H_Standby_Cement_Set",
+    "H_Standby_Grout","H_Standby_Cement_Set","H_Standby_Cement_set",
 }
 DAY_RATE_CODES = {
-    "D_Backhoe":                ("D_Backhoe",            "day"),
-    "D_Backhoe - Day Rate":     ("D_Backhoe",            "day"),
-    "D_Backhoe - Standby Rate": ("D_Backhoe_Standby",    "day"),
-    "D_Water_Cart_Day_Rate":    ("D_Water_Cart",         "day"),
-    "D_Water Cart - Standby Rate":("D_Water_Cart_Standby","day"),
-    "D_Water_Cart":             ("D_Water_Cart",         "day"),
+    "D_Backhoe":                  ("D_Backhoe",            "day"),
+    "D_Backhoe_Day_Rate":         ("D_Backhoe",            "day"),
+    "D_Backhoe - Day Rate":       ("D_Backhoe",            "day"),
+    "D_Backhoe - Standby Rate":   ("D_Backhoe_Standby",    "day"),
+    "D_Backhoe_Standby":          ("D_Backhoe_Standby",    "day"),
+    "D_WaterCart_Day_Rate":       ("D_Water_Cart",         "day"),
+    "D_Water_Cart_Day_Rate":      ("D_Water_Cart",         "day"),
+    "D_Water_Cart":               ("D_Water_Cart",         "day"),
+    "D_Water Cart - Standby Rate":("D_Water_Cart_Standby", "day"),
+    "D_Water_Cart_Standby":       ("D_Water_Cart_Standby", "day"),
 }
 BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S"}
 
@@ -467,7 +471,7 @@ def price_activity(cur, row, contractor):
             quantity   = total_metres
             line_cost  = round(r * total_metres, 2)
             rate_basis = f"$/m @ {(metres_to or 0):.0f}m ({bk})"
-    elif any(k in code for k in DAY_RATE_CODES):
+    elif any(k in code for k in DAY_RATE_CODES) or any(code in k for k in DAY_RATE_CODES):
         matched = next((v for k,v in DAY_RATE_CODES.items() if k in code or code in k), None)
         if matched:
             r = get_hr(matched[0])
@@ -476,21 +480,30 @@ def price_activity(cur, row, contractor):
                 rate_basis = f"${r:,.2f}/{matched[1]}"
     elif "Standby" in code or code in STANDBY_CODES:
         r = get_hr("H_Inactive")
-        if r and hours > 0:
-            unit_rate  = r; quantity = round(hours,2)
-            line_cost  = round(r * hours, 2); rate_basis = f"inactive $/hr × {hours:.2f}h"
+        if r:
+            qty = round(hours, 2) if hours > 0 else 1
+            unit_rate  = r; quantity = qty
+            line_cost  = round(r * qty, 2)
+            rate_basis = f"inactive $/hr x {qty}h" if hours > 0 else f"inactive day rate ${r:,.2f}"
     elif hours > 0 and (code in ACTIVE_CODES or "H_" in code or "Crew_Travel" in code):
         r = get_hr("H_Active")
         if r:
             unit_rate  = r; quantity = round(hours,2)
             line_cost  = round(r * hours, 2); rate_basis = f"active $/hr x {hours:.2f}h"
 
-    # Fallback: any activity with hours but no code match → price at active rate
+    # Fallback: any activity with hours but no code match -> price at active rate
     if line_cost is None and hours > 0 and code:
         r = get_hr("H_Active")
         if r:
             unit_rate  = r; quantity = round(hours,2)
             line_cost  = round(r * hours, 2); rate_basis = f"fallback active $/hr x {hours:.2f}h"
+
+    # Fallback 2: code present but no hours and no match above -> try day rate
+    if line_cost is None and code and not hours:
+        if "PVC" in code or "Casing" in code or "Cement" in code:
+            rate_basis = "consumable - no rate"
+        elif "D_" in code:
+            rate_basis = "day rate code - check schedule of rates"
 
     row.update(rate_year=year, unit_rate=unit_rate, quantity=quantity,
                line_cost=line_cost, rate_basis=rate_basis)
@@ -515,19 +528,105 @@ def parse_header(text):
 
 def parse_activities(text, header, filename, contractor):
     time_pat = r"\d{1,2}:\d{2}"
+
+    # Primary pattern: lines with 3 time fields (time_from, time_to, total_time)
     row_re = re.compile(
         r"^(.*?)(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})"
         r"(?:\s+(HQ_HQ3|PCD|NQ|HQ)\s+(\S+))?"
         r"(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?"
         r"(?:\s+([\w_]+))?\s*$", re.IGNORECASE)
+
+    # Secondary pattern: lines with just a code and maybe numbers (day rates, consumables as activities)
+    # e.g. "D_WaterCart_Day_Rate" or "D_Backhoe - Day Rate" or "PVC Casing 100mm Class 9"
+    code_only_re = re.compile(
+        r"^(.*?)\s+(D_\w+|H_\w+|PVC[\w\s]+|Cement[\w\s]*)\s*"
+        r"(?:(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*))?"
+        r"\s*$", re.IGNORECASE)
+
+    # Tertiary: lines with a code at the end and optional quantities but no times
+    any_code_re = re.compile(
+        r"^(.*?)\s+([\w_][\w_\-]+(?:\s*[\w_\-]+)*)\s*$"
+    )
+
     rows = []
+    known_codes = {
+        "D_WaterCart_Day_Rate", "D_Water_Cart", "D_Water_Cart_Day_Rate",
+        "D_Water_Cart_Standby", "D_Backhoe", "D_Backhoe_Day_Rate",
+        "D_Backhoe_Standby", "H_Standby_Cement_Set", "H_Standby_Cement_set",
+        "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Logger",
+        "H_Standby_Grout", "H_Water_Flow_Measure",
+        "Drill_Core", "Drill_Chip_or_Open_hole",
+        "H_Tripping_Rods", "H_Circulation_Flush", "H_Circulation_Lost",
+        "H_Reaming", "H_Change_Drill_Mthd", "H_Surface_Setup",
+        "H_Casing_Install", "H_Rig_Cementing", "H_Mud_Mixing",
+        "H_Repairs", "H_Training", "H_Safety_Prestart",
+        "H_Safety_Contractor", "Crew_Travel", "MOB", "DEMOB",
+    }
+
     for line in text.splitlines():
         line = line.strip()
-        if not line or len(re.findall(time_pat, line)) < 2:
+        if not line:
             continue
-        m = row_re.match(line)
-        if m:
-            notes,tf,tt,total,bt,diam,mf,mt,mto,code = m.groups()
+
+        # Try primary pattern (with times)
+        time_count = len(re.findall(time_pat, line))
+        if time_count >= 2:
+            m = row_re.match(line)
+            if m:
+                notes, tf, tt, total, bt, diam, mf, mt, mto, code = m.groups()
+                rows.append({
+                    "source_file": filename, "contractor": contractor,
+                    "date": header.get("date",""), "hole_num": header.get("hole_num",""),
+                    "site_name": header.get("site_name",""), "location": header.get("location",""),
+                    "drill_rig": header.get("drill_rig",""), "client": header.get("client",""),
+                    "contract": header.get("contract",""), "shift": header.get("shift",""),
+                    "time_from": tf, "time_to": tt, "total_time": total,
+                    "bit_type": bt or "", "diameter": diam or "",
+                    "metres_from": float(mf) if mf else None,
+                    "metres_to": float(mt) if mt else None,
+                    "total_metres": float(mto) if mto else None,
+                    "code": code or "", "notes": notes.strip(),
+                    "rate_year": None, "unit_rate": None, "quantity": None,
+                    "line_cost": None, "rate_basis": None, "po_id": None,
+                })
+                continue
+
+        # Try secondary: line contains a known code or day-rate pattern
+        # Check if any known code appears in the line
+        found_code = None
+        for kc in known_codes:
+            if kc in line or kc.replace("_", " ") in line:
+                found_code = kc
+                break
+
+        # Also catch lines like "D_Backhoe - Day Rate" or "PVC Casing 100mm Class 9"
+        if not found_code:
+            if re.search(r"D_\w+|PVC\s+Casing|Water.?Cart|Backhoe", line, re.IGNORECASE):
+                # Extract the code-like part
+                cm = re.search(r"(D_\w+[\w\s\-]*|PVC\s+Casing[\w\s]*|H_\w+)", line)
+                if cm:
+                    found_code = cm.group(1).strip()
+
+        if found_code:
+            # Extract any numbers from the line
+            nums = re.findall(r"(\d+\.?\d*)", line)
+            # Try to find times
+            times = re.findall(r"(\d{1,2}:\d{2})", line)
+            tf = times[0] if len(times) > 0 else ""
+            tt = times[1] if len(times) > 1 else ""
+            total = times[2] if len(times) > 2 else ""
+
+            # Get metres if present (numbers that aren't part of times)
+            non_time_nums = [n for n in nums if ":" not in n and float(n) < 9000]
+            mf = float(non_time_nums[0]) if len(non_time_nums) > 0 and float(non_time_nums[0]) > 0 else None
+            mt = float(non_time_nums[1]) if len(non_time_nums) > 1 else None
+            mto = float(non_time_nums[2]) if len(non_time_nums) > 2 else None
+
+            # Clean up notes - remove the code from the line
+            notes = line.replace(found_code, "").strip()
+            notes = re.sub(r"\d{1,2}:\d{2}", "", notes).strip()
+            notes = re.sub(r"\s+", " ", notes).strip()
+
             rows.append({
                 "source_file": filename, "contractor": contractor,
                 "date": header.get("date",""), "hole_num": header.get("hole_num",""),
@@ -535,14 +634,13 @@ def parse_activities(text, header, filename, contractor):
                 "drill_rig": header.get("drill_rig",""), "client": header.get("client",""),
                 "contract": header.get("contract",""), "shift": header.get("shift",""),
                 "time_from": tf, "time_to": tt, "total_time": total,
-                "bit_type": bt or "", "diameter": diam or "",
-                "metres_from": float(mf) if mf else None,
-                "metres_to":   float(mt) if mt else None,
-                "total_metres":float(mto) if mto else None,
-                "code": code or "", "notes": notes.strip(),
+                "bit_type": "", "diameter": "",
+                "metres_from": mf, "metres_to": mt, "total_metres": mto,
+                "code": found_code, "notes": notes,
                 "rate_year": None, "unit_rate": None, "quantity": None,
                 "line_cost": None, "rate_basis": None, "po_id": None,
             })
+
     return rows
 
 
