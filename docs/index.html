@@ -443,7 +443,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
               <th>Bit Type</th><th>Ø</th>
               <th>From m</th><th>To m</th><th>Metres</th>
               <th>Code</th><th>Notes</th>
-              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th>
+              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
             </tr></thead>
             <tbody id="act-body"></tbody>
           </table>
@@ -1340,6 +1340,7 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
       <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
       <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
+      <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':''}</td>
     </tr>`).join('');
 
   tbody.querySelectorAll('[contenteditable]').forEach(cell=>{
@@ -2199,6 +2200,10 @@ function viewInvoicePdf(invoiceId) {
   window.open(`${API}/invoices/${invoiceId}/pdf`, '_blank');
 }
 
+function viewSourcePdf(filename) {
+  window.open(API+'/source_files/'+encodeURIComponent(filename), '_blank');
+}
+
 // ── Reconciliation ────────────────────────────────────────────────────────────
 async function loadReconciliation(){
   try{
@@ -2320,7 +2325,7 @@ function getBhColor(bh) {
 async function loadBoreholes() {
   let dbData = [];
   try {
-    const res = await fetch(API+'/boreholes?contractor='+encodeURIComponent(activeContractor));
+    const res = await fetch(API+'/boreholes');
     if(res.ok) dbData = await res.json();
   } catch(e) {}
 
@@ -2468,7 +2473,7 @@ async function setBhStatus(holeId, status) {
   try {
     await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
       method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor, status:status})
+      body:JSON.stringify({status:status})
     });
     toast('✓ '+holeId+' → '+status);
   } catch(e) { toast('Save failed','err'); }
@@ -2540,7 +2545,7 @@ function renderBhTable(rows) {
       try {
         await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
           method:'PATCH', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(Object.assign({contractor:activeContractor}, {[col]:val}))
+          body:JSON.stringify({[col]:val})
         });
         toast('✓ Saved');
       } catch(e) { toast('Save failed','err'); }
@@ -2590,7 +2595,7 @@ async function addBorehole() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
+      body:JSON.stringify({contractor:'Company', boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
     bhData.push(newBh);
@@ -2608,7 +2613,7 @@ async function addBorehole() {
 async function deleteBorehole(holeId) {
   if(!confirm('Delete borehole '+holeId+'? This cannot be undone.')) return;
   try {
-    await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(activeContractor), {method:'DELETE'});
+    await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {method:'DELETE'});
     bhData = bhData.filter(function(b){return b.hole_id!==holeId;});
     toast(holeId+' deleted','warn');
     renderBhTable(bhData);
@@ -2669,7 +2674,7 @@ function importBhCSV(input) {
     try {
       const res = await fetch(API+'/boreholes/import_budget', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contractor:activeContractor, boreholes:boreholes})
+        body:JSON.stringify({contractor:'Company', boreholes:boreholes})
       });
       if(!res.ok) { toast('Import failed','err'); return; }
       const d = await res.json();
@@ -2713,7 +2718,7 @@ async function importBudgetToDb() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor, boreholes:bhData})
+      body:JSON.stringify({contractor:'Company', boreholes:bhData})
     });
     if(!res.ok) { toast('Failed to save','err'); return; }
     const d = await res.json();
