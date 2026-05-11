@@ -560,7 +560,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">If costs show $0.00, click Reprice to calculate costs from the Schedule of Rates.</p>
-        <button class="btn-primary" style="margin-left:auto;white-space:nowrap;" onclick="repriceActivities()">🔄 Reprice All Activities</button>
+        <button class="btn-primary" style="margin-left:auto;white-space:nowrap;" onclick="repriceActivities()">🔄 Rationalise &amp; Reprice</button>
       </div>
       <div class="po-banner-grid" id="po-summary-banner"></div>
       <div class="kpi-row">
@@ -1561,19 +1561,23 @@ function renderHeatmap(heatmap,daily){
 
 async function repriceActivities(){
   try{
-    const btn=event.target;
-    btn.disabled=true;btn.textContent='Repricing...';
-    const res=await fetch(`${API}/reprice?contractor=${encodeURIComponent(activeContractor)}`,{method:'POST'});
-    const d=await res.json();
-    console.log('Reprice result:', d);
-    if(d.priced > 0) {
-      toast(`\u2713 Repriced ${d.priced} of ${d.total} activities`);
-    } else {
-      toast(`Repriced ${d.priced} of ${d.total}. Rate years: ${(d.drilling_rate_years||[]).join(",")}. Skipped: ${JSON.stringify(d.skipped_codes||{}).substring(0,100)}`,'warn');
-    }
+    var btn=event.target;
+    btn.disabled=true;btn.textContent='Rationalising...';
+    var res=await fetch(API+'/reprice?contractor='+encodeURIComponent(activeContractor),{method:'POST'});
+    var d=await res.json();
+    console.log('Rationalise result:', d);
+    var msg = '\u2713 Rationalised '+d.total+' activities: ';
+    var parts = [];
+    if(d.dates_fixed > 0) parts.push(d.dates_fixed+' dates fixed');
+    if(d.holes_fixed > 0) parts.push(d.holes_fixed+' hole IDs fixed');
+    if(d.sites_fixed > 0) parts.push(d.sites_fixed+' sites filled');
+    parts.push(d.priced+' priced');
+    msg += parts.join(', ');
+    toast(msg);
     loadCosting();
-    btn.textContent='\uD83D\uDD04 Reprice All Activities';btn.disabled=false;
-  }catch(e){toast('Reprice failed: '+e.message,'err');}
+    loadActivities();
+    btn.textContent='\uD83D\uDD04 Rationalise & Reprice';btn.disabled=false;
+  }catch(e){toast('Rationalise failed: '+e.message,'err');}
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
