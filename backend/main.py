@@ -233,6 +233,18 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS source_files (
+                    id          SERIAL PRIMARY KEY,
+                    filename    TEXT NOT NULL,
+                    contractor  TEXT,
+                    file_type   TEXT,
+                    pdf_data    BYTEA,
+                    uploaded_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(filename, contractor)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS contractors (
                     id         SERIAL PRIMARY KEY,
                     name       TEXT NOT NULL UNIQUE,
@@ -681,6 +693,10 @@ async def import_pdf(
                 """, crew)
             cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                         (filename, contractor))
+            cur.execute("""
+                INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                VALUES (%s, %s, 'eos', %s) ON CONFLICT (filename, contractor) DO NOTHING
+            """, (filename, contractor, psycopg2.Binary(content)))
         conn.commit()
 
     return {"status":"imported","filename":filename,"rows":len(acts),
@@ -1681,19 +1697,29 @@ def reprice_activities(contractor: str = Query(...)):
 # ── Borehole Planning ─────────────────────────────────────────────────────────
 
 @app.get("/boreholes")
-def get_boreholes(contractor: str = Query(...)):
+def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT b.*,
-                        COALESCE(SUM(a.line_cost),0) AS eos_cost,
-                        SUM(a.total_metres) AS eos_metres
-                    FROM boreholes b
-                    LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
-                    WHERE b.contractor=%s
-                    GROUP BY b.id ORDER BY b.drill_order
-                """, (contractor,))
+                if contractor:
+                    cur.execute("""
+                        SELECT b.*,
+                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                            SUM(a.total_metres) AS eos_metres
+                        FROM boreholes b
+                        LEFT JOIN activities a ON a.hole_num=b.hole_id
+                        WHERE b.contractor=%s
+                        GROUP BY b.id ORDER BY b.drill_order
+                    """, (contractor,))
+                else:
+                    cur.execute("""
+                        SELECT b.*,
+                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                            SUM(a.total_metres) AS eos_metres
+                        FROM boreholes b
+                        LEFT JOIN activities a ON a.hole_num=b.hole_id
+                        GROUP BY b.id ORDER BY b.drill_order
+                    """)
                 rows = [dict(r) for r in cur.fetchall()]
                 return rows
     except Exception as e:
@@ -1762,21 +1788,26 @@ async def update_borehole(hole_id: str, request: Request):
 
 
 @app.delete("/boreholes/{hole_id}")
-def delete_borehole(hole_id: str, contractor: str = Query(...)):
+def delete_borehole(hole_id: str, contractor: Optional[str] = Query(None)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM boreholes WHERE hole_id=%s AND contractor=%s", (hole_id, contractor))
+            if contractor:
+                cur.execute("DELETE FROM boreholes WHERE hole_id=%s AND contractor=%s", (hole_id, contractor))
+            else:
+                cur.execute("DELETE FROM boreholes WHERE hole_id=%s", (hole_id,))
         conn.commit()
     return {"status": "deleted"}
 
 
 @app.get("/boreholes/summary")
-def get_borehole_summary(contractor: str = Query(...)):
+def get_borehole_summary(contractor: Optional[str] = Query(None)):
     """Budget vs actual summary for reconciliation."""
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
+                where = "WHERE contractor=%s" if contractor else ""
+                params = (contractor,) if contractor else ()
+                cur.execute(f"""
                     SELECT
                         COUNT(*) AS total_holes,
                         SUM(days_budgeted) AS total_days_budgeted,
@@ -1784,16 +1815,15 @@ def get_borehole_summary(contractor: str = Query(...)):
                         COUNT(CASE WHEN status='Complete' THEN 1 END) AS completed,
                         COUNT(CASE WHEN status='In Progress' THEN 1 END) AS in_progress,
                         COUNT(CASE WHEN status='Planned' THEN 1 END) AS planned
-                    FROM boreholes WHERE contractor=%s
-                """, (contractor,))
+                    FROM boreholes {where}
+                """, params)
                 summary = dict(cur.fetchone())
-                # Get actual EOS cost total
-                cur.execute("""
+                cur.execute(f"""
                     SELECT COALESCE(SUM(a.line_cost),0) AS actual_total
                     FROM activities a
-                    JOIN boreholes b ON b.hole_id=a.hole_num AND b.contractor=a.contractor
-                    WHERE a.contractor=%s AND a.line_cost IS NOT NULL
-                """, (contractor,))
+                    JOIN boreholes b ON b.hole_id=a.hole_num
+                    {("WHERE a.contractor=%s" if contractor else "")}
+                """, params)
                 summary["actual_total"] = float(cur.fetchone()["actual_total"] or 0)
                 return summary
     except Exception as e:
@@ -2046,6 +2076,10 @@ async def import_ocr_pdf(
                 """, rows)
             cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                         (filename, contractor))
+            cur.execute("""
+                INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
+            """, (filename, contractor, psycopg2.Binary(content)))
         conn.commit()
 
     return {
@@ -2067,6 +2101,26 @@ async def preview_ocr_pdf(
     content = await file.read()
     data = await ocr_with_gemini(content)
     return {"ocr_data": data, "activity_count": len(data.get("activities", []))}
+
+
+@app.get("/source_files/{filename}")
+def get_source_file(filename: str, contractor: Optional[str] = Query(None)):
+    """Return a stored source PDF for viewing."""
+    from fastapi.responses import Response
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if contractor:
+                cur.execute("SELECT pdf_data FROM source_files WHERE filename=%s AND contractor=%s", (filename, contractor))
+            else:
+                cur.execute("SELECT pdf_data FROM source_files WHERE filename=%s LIMIT 1", (filename,))
+            row = cur.fetchone()
+            if not row or not row["pdf_data"]:
+                raise HTTPException(404, "Source file not found")
+            return Response(
+                content=bytes(row["pdf_data"]),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="{filename}"'}
+            )
 
 
 @app.delete("/reset")
