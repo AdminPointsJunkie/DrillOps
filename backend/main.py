@@ -366,16 +366,46 @@ def seed_2025_rates():
             """, drilling)
 
             hourly = [
-                (CON, YEAR, "H_Active",           "Active drilling rate (per hour)",           745.00, "hour"),
-                (CON, YEAR, "H_Inactive",          "Inactive / standby rate (per hour)",        675.00, "hour"),
-                (CON, YEAR, "H_Standby_NoCrew",    "Standby without crew (per day)",           4470.00, "day"),
-                (CON, YEAR, "H_Min_Shift",         "Minimum shift rate (per shift)",           8940.00, "shift"),
-                (CON, YEAR, "D_Backhoe",           "Backhoe day rate (with operator)",         1850.00, "day"),
-                (CON, YEAR, "D_Backhoe_Standby",   "Backhoe standby rate",                      620.00, "day"),
-                (CON, YEAR, "D_Water_Cart",        "Water cart day rate (20,000L)",            1650.00, "day"),
-                (CON, YEAR, "D_Water_Cart_Standby","Water cart standby rate",                    550.00, "day"),
-                (CON, YEAR, "MOB",                 "Mobilisation to site",                   38760.00, "event"),
-                (CON, YEAR, "DEMOB",               "Demobilisation from site",               38760.00, "event"),
+                # Active rates (charged at active $/hr)
+                (CON, YEAR, "H_Active",              "Active drilling rate (per hour)",                       745.00, "hour"),
+                (CON, YEAR, "H_Change_Drill_Mthd",   "Changing drilling method (e.g. air to mud)",            745.00, "hour"),
+                (CON, YEAR, "H_Tripping_Rods",       "Tripping drilling rods in and out of borehole",        745.00, "hour"),
+                (CON, YEAR, "H_Circulation_Flush",    "Flushing borehole and attaining circulation",          745.00, "hour"),
+                (CON, YEAR, "H_Circulation_Lost",     "Lost circulation time",                                745.00, "hour"),
+                (CON, YEAR, "H_Reaming",              "Reaming time",                                         745.00, "hour"),
+                (CON, YEAR, "H_Casing_Install",       "Installing casing",                                    745.00, "hour"),
+                (CON, YEAR, "H_Rig_Cementing",        "Cementing boreholes using a drilling rig",             745.00, "hour"),
+                # Inactive rates (charged at inactive $/hr)
+                (CON, YEAR, "H_Inactive",             "Inactive / standby rate (per hour)",                   675.00, "hour"),
+                (CON, YEAR, "H_Crew_Travel_On",       "Crew travel on company lease gate to drill location",  675.00, "hour"),
+                (CON, YEAR, "H_Crew_Travel_Off",      "Crew travel off site",                                 675.00, "hour"),
+                (CON, YEAR, "H_Rig_Move",             "Time spent moving between drill sites",                675.00, "hour"),
+                (CON, YEAR, "H_Setup_Packup_Site",    "Moving between drill sites within a hub",              675.00, "hour"),
+                (CON, YEAR, "H_Safety_Contractor",    "Contractor safety work",                               675.00, "hour"),
+                (CON, YEAR, "H_Safety_Prestart",      "Pre-start safety (toolbox/shift-start talks)",         675.00, "hour"),
+                (CON, YEAR, "H_Con_Collect_Plan",     "Collecting consumables from local stockpile",          675.00, "hour"),
+                (CON, YEAR, "H_Standby_Sumps",        "Standby waiting on sumps",                             675.00, "hour"),
+                (CON, YEAR, "H_Standby_AAC",          "Standby due to company instruction to stop work",      675.00, "hour"),
+                (CON, YEAR, "H_Standby_Logger",       "Standby waiting for geophysical logger",               675.00, "hour"),
+                (CON, YEAR, "H_Standby_Grout",        "Standby whilst grouting unit operating",               675.00, "hour"),
+                (CON, YEAR, "H_Standby_Cement_Set",   "Standby waiting for cement to set",                    675.00, "hour"),
+                (CON, YEAR, "H_Mud_Mixing",           "Mixing drilling fluids while plant not operating",     675.00, "hour"),
+                (CON, YEAR, "H_Surface_Setup",        "Surface setup / moving between areas on hub",          675.00, "hour"),
+                (CON, YEAR, "H_Training",             "Training, site inductions and authorisations",         675.00, "hour"),
+                (CON, YEAR, "H_Water_Flow_Measure",   "Water flow measurement",                               675.00, "hour"),
+                # Not chargeable
+                (CON, YEAR, "H_Repairs",              "Repairs (not chargeable)",                              0.00, "hour"),
+                (CON, YEAR, "Crew_Travel",            "Crew travel (not chargeable)",                          0.00, "hour"),
+                # Day rates
+                (CON, YEAR, "D_Backhoe",              "Backhoe in use on site",                              1850.00, "day"),
+                (CON, YEAR, "D_Backhoe_Standby",      "Backhoe standby",                                     620.00, "day"),
+                (CON, YEAR, "D_Water_Cart",           "Water cart in use on site (20,000L)",                 1650.00, "day"),
+                (CON, YEAR, "D_Water_Cart_Standby",   "Water cart standby",                                   550.00, "day"),
+                # Other rates
+                (CON, YEAR, "H_Standby_NoCrew",       "Standby without crew (per day)",                     4470.00, "day"),
+                (CON, YEAR, "H_Min_Shift",            "Minimum shift rate (per shift)",                     8940.00, "shift"),
+                (CON, YEAR, "MOB",                    "Mobilisation to site",                              38760.00, "event"),
+                (CON, YEAR, "DEMOB",                  "Demobilisation from site",                          38760.00, "event"),
             ]
             psycopg2.extras.execute_batch(cur, """
                 INSERT INTO hourly_rates (contractor,year,code,description,rate,unit)
@@ -388,13 +418,23 @@ seed_2025_rates()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
+# Codes charged at Active rate ($/hr)
 ACTIVE_CODES = {
-    "Drill_Core","Drill_Chip_or_Open_hole","H_Tripping_Rods",
-    "H_Circulation_Flush","H_Circulation_Lost","H_Reaming",
-    "H_Change_Drill_Mthd","H_Surface_Setup","H_Casing_Install",
-    "H_Rig_Cementing","H_Mud_Mixing","H_Water_Flow_Measure",
-    "H_Repairs","H_Training","H_Safety_Prestart","H_Safety_Contractor",
+    "Drill_Core","Drill_Chip_or_Open_hole",
+    "H_Tripping_Rods","H_Circulation_Flush","H_Circulation_Lost",
+    "H_Reaming","H_Change_Drill_Mthd",
+    "H_Casing_Install","H_Rig_Cementing",
 }
+# Codes charged at Inactive rate ($/hr)
+INACTIVE_CODES = {
+    "H_Crew_Travel_On","H_Crew_Travel_Off","H_Rig_Move","H_Setup_Packup_Site",
+    "H_Safety_Contractor","H_Safety_Prestart","H_Con_Collect_Plan",
+    "H_Standby_Sumps","H_Standby_AAC","H_Standby_Logger","H_Standby_Grout",
+    "H_Standby_Cement_Set","H_Standby_Cement_set",
+    "H_Mud_Mixing","H_Surface_Setup","H_Training","H_Water_Flow_Measure",
+}
+# Not chargeable
+NOT_CHARGEABLE = {"H_Repairs","Crew_Travel"}
 STANDBY_CODES = {
     "H_Standby_Sumps","H_Standby_AAC","H_Standby_Logger",
     "H_Standby_Grout","H_Standby_Cement_Set","H_Standby_Cement_set",
@@ -478,29 +518,49 @@ def price_activity(cur, row, contractor):
             if r:
                 unit_rate  = r; quantity = 1; line_cost = r
                 rate_basis = f"${r:,.2f}/{matched[1]}"
-    elif "Standby" in code or code in STANDBY_CODES:
-        r = get_hr("H_Inactive")
+    elif code in NOT_CHARGEABLE:
+        unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
+        line_cost = 0; rate_basis = "not chargeable"
+    elif code in STANDBY_CODES or "Standby" in code:
+        r = get_hr(code) or get_hr("H_Inactive")
         if r:
             qty = round(hours, 2) if hours > 0 else 1
             unit_rate  = r; quantity = qty
             line_cost  = round(r * qty, 2)
-            rate_basis = f"inactive $/hr x {qty}h" if hours > 0 else f"inactive day rate ${r:,.2f}"
-    elif hours > 0 and (code in ACTIVE_CODES or "H_" in code or "Crew_Travel" in code):
-        r = get_hr("H_Active")
+            rate_basis = f"inactive ${r:,.2f}/hr x {qty}h"
+    elif code in INACTIVE_CODES:
+        r = get_hr(code) or get_hr("H_Inactive")
+        if r:
+            qty = round(hours, 2) if hours > 0 else 1
+            unit_rate  = r; quantity = qty
+            line_cost  = round(r * qty, 2)
+            rate_basis = f"inactive ${r:,.2f}/hr x {qty}h"
+    elif hours > 0 and (code in ACTIVE_CODES or "H_" in code):
+        r = get_hr(code) or get_hr("H_Active")
         if r:
             unit_rate  = r; quantity = round(hours,2)
-            line_cost  = round(r * hours, 2); rate_basis = f"active $/hr x {hours:.2f}h"
+            line_cost  = round(r * hours, 2); rate_basis = f"active ${r:,.2f}/hr x {hours:.2f}h"
 
-    # Fallback: any activity with hours but no code match -> price at active rate
+    # Fallback: any activity with hours but no match above
     if line_cost is None and hours > 0 and code:
-        r = get_hr("H_Active")
-        if r:
-            unit_rate  = r; quantity = round(hours,2)
-            line_cost  = round(r * hours, 2); rate_basis = f"fallback active $/hr x {hours:.2f}h"
+        # Check if we have a specific rate for this code
+        r = get_hr(code)
+        if r and r > 0:
+            unit_rate = r; quantity = round(hours, 2)
+            line_cost = round(r * hours, 2); rate_basis = f"${r:,.2f}/hr x {hours:.2f}h (code match)"
+        else:
+            r = get_hr("H_Active")
+            if r:
+                unit_rate = r; quantity = round(hours, 2)
+                line_cost = round(r * hours, 2); rate_basis = f"fallback active ${r:,.2f}/hr x {hours:.2f}h"
 
-    # Fallback 2: code present but no hours and no match above -> try day rate
+    # Fallback 2: code present but no hours and no match above
     if line_cost is None and code and not hours:
-        if "PVC" in code or "Casing" in code or "Cement" in code:
+        r = get_hr(code)
+        if r and r > 0:
+            unit_rate = r; quantity = 1
+            line_cost = r; rate_basis = f"${r:,.2f} (1 unit, code match)"
+        elif "PVC" in code or "Casing" in code or "Cement" in code:
             rate_basis = "consumable - no rate"
         elif "D_" in code:
             rate_basis = "day rate code - check schedule of rates"
