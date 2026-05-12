@@ -284,13 +284,15 @@ def init_db():
                     amount_due      FLOAT DEFAULT 0,
                     status          TEXT DEFAULT 'Unpaid',
                     notes           TEXT,
-                    pdf_data        BYTEA
+                    pdf_data        BYTEA,
+                    billing_month   TEXT
                 )
             """)
-            try:
-                cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_data BYTEA")
-            except Exception:
-                conn.rollback()
+            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT")]:
+                try:
+                    cur.execute(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
 
             # ── Invoice line items ────────────────────────────────────────────
             cur.execute("""
@@ -1831,6 +1833,22 @@ def get_invoice_lines(invoice_id: int):
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY id", (invoice_id,))
             return [dict(r) for r in cur.fetchall()]
+
+
+
+@app.patch("/invoices/{invoice_id}")
+async def update_invoice(invoice_id: int, request: Request):
+    payload = await request.json()
+    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference"}
+    u = {k:v for k,v in payload.items() if k in safe}
+    if not u: raise HTTPException(400, "No valid fields")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            set_clause = ", ".join(f"{k}=%s" for k in u)
+            vals = list(u.values()) + [invoice_id]
+            cur.execute(f"UPDATE invoices SET {set_clause} WHERE id=%s", vals)
+        conn.commit()
+    return {"status": "updated"}
 
 
 @app.get("/invoices/{invoice_id}/pdf")
