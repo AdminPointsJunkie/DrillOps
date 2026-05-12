@@ -880,7 +880,16 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
     <!-- Reconciliation -->
     <section class="page" id="page-reconciliation">
-      <h2 class="section-title">⚖️ Invoice vs EOS Reconciliation</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Invoice vs EOS Reconciliation</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);">Period</label>
+          <select id="rec-month-filter" onchange="loadReconciliation()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;">
+            <option value="">All Months</option>
+          </select>
+          <button class="btn-ghost" onclick="rematchAll()">🔄 Re-match</button>
+        </div>
+      </div>
 
       <!-- Grand total comparison -->
       <div class="kpi-row">
@@ -891,14 +900,9 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         <div class="kpi warn"><div class="kpi-label">Invoice Outstanding</div><div class="kpi-value" id="rec-due">—</div></div>
       </div>
 
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
-        <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Category Comparison</h3>
-        <button class="btn-ghost" style="font-size:10px;margin-left:auto;" onclick="rematchAll()">🔄 Re-run Matching</button>
-      </div>
-
       <!-- Category comparison table -->
       <div class="table-wrap" style="margin-bottom:20px;">
-        <div class="table-toolbar"><div class="table-count">Invoice vs EOS by category</div></div>
+        <div class="table-toolbar"><div class="table-count">Category Comparison</div></div>
         <div class="tbl-scroll">
           <table id="rec-cat-table">
             <thead><tr>
@@ -910,25 +914,41 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         </div>
       </div>
 
-      <!-- Invoice list with status -->
-      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Invoice Register</h3>
+      <!-- Invoice register (editable) -->
       <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="table-toolbar">
+          <div class="table-count">Invoice Register</div>
+          <div style="font-size:11px;color:var(--muted);">Assign billing months to invoices for period matching</div>
+        </div>
         <div class="tbl-scroll">
           <table id="rec-inv-table">
             <thead><tr>
-              <th>Invoice #</th><th>Date</th><th>PO Reference</th>
-              <th>Total AUD</th><th>Paid</th><th>Due</th><th>Payment Status</th>
+              <th>Invoice #</th><th>Date</th><th>Billing Month</th><th>PO Reference</th>
+              <th>Total AUD</th><th>Paid</th><th>Due</th><th>Status</th><th>PDF</th>
             </tr></thead>
             <tbody id="rec-inv-body"></tbody>
           </table>
         </div>
       </div>
 
+      <!-- Monthly summary -->
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="table-toolbar"><div class="table-count">Month-by-Month Summary</div></div>
+        <div class="tbl-scroll">
+          <table id="rec-monthly-table">
+            <thead><tr>
+              <th>Month</th><th>Invoice Count</th><th>Invoiced $</th><th>EOS Cost $</th>
+              <th>Variance $</th><th>Variance %</th><th>Status</th>
+            </tr></thead>
+            <tbody id="rec-monthly-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Discrepancies -->
-      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">🚨 Line Item Discrepancies</h3>
       <div class="table-wrap">
         <div class="table-toolbar">
-          <div class="table-count"><span id="rec-disc-count">—</span> discrepancies</div>
+          <div class="table-count"><span id="rec-disc-count">—</span> line item discrepancies</div>
           <button class="btn-csv" onclick="downloadCSV('discrepancies')">⬇ CSV</button>
         </div>
         <div class="tbl-scroll">
@@ -2235,80 +2255,187 @@ function viewSourcePdf(filename) {
 // ── Reconciliation ────────────────────────────────────────────────────────────
 async function loadReconciliation(){
   try{
-    const d=await fetch(`${API}/reconciliation?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
-    const t=d.totals;
+    var d = await fetch(API+'/reconciliation?contractor='+encodeURIComponent(activeContractor)).then(function(r){return r.json();});
+    var t = d.totals;
+    var monthFilter = document.getElementById('rec-month-filter').value;
+
+    // Build month options from invoice data
+    var months = {};
+    (d.invoices||[]).forEach(function(inv){
+      var bm = inv.billing_month || '';
+      if(bm) months[bm] = true;
+      // Also extract month from invoice_date
+      var dt = inv.invoice_date || '';
+      var parts = dt.split('/');
+      if(parts.length === 3) {
+        var mk = parts[1]+'/'+parts[2]; // mm/yyyy
+        months[mk] = true;
+      }
+    });
+    var sel = document.getElementById('rec-month-filter');
+    var current = sel.value;
+    var opts = '<option value="">All Months</option>';
+    Object.keys(months).sort().forEach(function(m){
+      opts += '<option value="'+m+'"'+(m===current?' selected':'')+'>'+m+'</option>';
+    });
+    sel.innerHTML = opts;
+
+    // Filter invoices by month if selected
+    var filteredInvoices = d.invoices || [];
+    if(monthFilter) {
+      filteredInvoices = filteredInvoices.filter(function(inv){
+        if(inv.billing_month === monthFilter) return true;
+        var dt = inv.invoice_date || '';
+        var parts = dt.split('/');
+        if(parts.length === 3 && (parts[1]+'/'+parts[2]) === monthFilter) return true;
+        return false;
+      });
+    }
+
+    // Recalculate totals for filtered data
+    var invTotal = filteredInvoices.reduce(function(s,r){return s+(parseFloat(r.total_aud)||0);},0);
+    var invPaid = filteredInvoices.reduce(function(s,r){return s+(parseFloat(r.amount_paid)||0);},0);
+    var invDue = filteredInvoices.reduce(function(s,r){return s+(parseFloat(r.amount_due)||0);},0);
+    var eosTotal = monthFilter ? 0 : (t.eos_total||0); // TODO: filter EOS by month too
+    if(!monthFilter) { invTotal = t.invoice_total; invPaid = t.invoice_paid; invDue = t.invoice_due; eosTotal = t.eos_total; }
+    var variance = invTotal - eosTotal;
 
     // KPIs
-    document.getElementById('rec-inv-total').textContent=cur(t.invoice_total);
-    document.getElementById('rec-eos-total').textContent=cur(t.eos_total);
-    document.getElementById('rec-variance').textContent=(t.grand_variance>=0?'+':'')+cur(t.grand_variance);
-    document.getElementById('rec-variance').style.color=t.grand_variance>100?'var(--red)':t.grand_variance<-100?'var(--blue)':'var(--green)';
-    document.getElementById('rec-variance-note').textContent=t.invoice_total>0?
-      `${((t.grand_variance/t.invoice_total)*100).toFixed(1)}% of invoiced`:'-';
-    document.getElementById('rec-paid').textContent=cur(t.invoice_paid);
-    document.getElementById('rec-due').textContent=cur(t.invoice_due);
+    document.getElementById('rec-inv-total').textContent = cur(invTotal);
+    document.getElementById('rec-eos-total').textContent = cur(eosTotal);
+    document.getElementById('rec-variance').textContent = (variance>=0?'+':'')+cur(variance);
+    document.getElementById('rec-variance').style.color = variance>100?'var(--red)':variance<-100?'var(--blue)':'var(--green)';
+    document.getElementById('rec-variance-note').textContent = invTotal>0?
+      ((variance/invTotal)*100).toFixed(1)+'% of invoiced':'—';
+    document.getElementById('rec-paid').textContent = cur(invPaid);
+    document.getElementById('rec-due').textContent = cur(invDue);
 
     // Category comparison
-    const STATUS_STYLE={
-      match:'color:var(--green)',
-      over:'color:var(--red)',
-      under:'color:var(--blue)'
-    };
-    const STATUS_LABEL={match:'✓ Match',over:'▲ Invoice Over EOS',under:'▼ Invoice Under EOS'};
-    document.getElementById('rec-cat-body').innerHTML=d.comparison.map(r=>`
-      <tr>
-        <td style="text-transform:capitalize">${esc(r.category.replace(/_/g,' '))}</td>
-        <td style="color:var(--accent)">${cur(r.invoice_total)}</td>
-        <td>${cur(r.eos_total)}</td>
-        <td style="${r.variance>100?'color:var(--red)':r.variance<-100?'color:var(--blue)':'color:var(--green)'}">
-          ${r.variance>=0?'+':''}${cur(r.variance)}
-        </td>
-        <td style="${r.variance_pct!=null&&Math.abs(r.variance_pct)>5?'color:var(--red)':'color:var(--muted)'}">
-          ${r.variance_pct!=null?(r.variance_pct>=0?'+':'')+r.variance_pct+'%':'N/A'}
-        </td>
-        <td><span style="${STATUS_STYLE[r.status]||''}">${STATUS_LABEL[r.status]||r.status}</span></td>
-      </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No data — import invoices and EOS reports first</td></tr>';
+    var STATUS_STYLE = {match:'color:var(--green)',over:'color:var(--red)',under:'color:var(--blue)'};
+    var STATUS_LABEL = {match:'\u2713 Match',over:'\u25b2 Over',under:'\u25bc Under'};
+    document.getElementById('rec-cat-body').innerHTML = (d.comparison||[]).map(function(r){
+      return '<tr>'
+        +'<td style="text-transform:capitalize">'+esc((r.category||'').replace(/_/g,' '))+'</td>'
+        +'<td style="color:var(--accent)">'+cur(r.invoice_total)+'</td>'
+        +'<td>'+cur(r.eos_total)+'</td>'
+        +'<td style="'+(r.variance>100?'color:var(--red)':r.variance<-100?'color:var(--blue)':'color:var(--green)')+'">'+
+          (r.variance>=0?'+':'')+cur(r.variance)+'</td>'
+        +'<td style="'+(r.variance_pct!=null&&Math.abs(r.variance_pct)>5?'color:var(--red)':'color:var(--muted)')+'">'+
+          (r.variance_pct!=null?(r.variance_pct>=0?'+':'')+r.variance_pct+'%':'N/A')+'</td>'
+        +'<td><span style="'+(STATUS_STYLE[r.status]||'')+'">'+
+          (STATUS_LABEL[r.status]||r.status)+'</span></td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);">No data</td></tr>';
     makeTableSortable('rec-cat-table');
 
-    // Invoice register
-    document.getElementById('rec-inv-body').innerHTML=d.invoices.map(r=>`
-      <tr>
-        <td style="color:var(--accent);font-weight:600">${esc(r.invoice_number)}</td>
-        <td>${esc(r.invoice_date||'')}</td>
-        <td style="font-size:10px">${esc(r.po_reference||'')}</td>
-        <td>${cur(r.total_aud)}</td>
-        <td style="color:var(--green)">${cur(r.amount_paid)}</td>
-        <td style="color:${(r.amount_due||0)>0?'var(--red)':'var(--muted)'}">${cur(r.amount_due)}</td>
-        <td><span style="color:${r.status==='Paid'?'var(--green)':r.status==='Unpaid'?'var(--red)':'var(--yellow)'}">${esc(r.status||'')}</span></td>
-      </tr>`).join('');
+    // Invoice register (editable billing month + status)
+    var MONTH_OPTIONS = ['','01/2026','02/2026','03/2026','04/2026','05/2026','06/2026','07/2026','08/2026','09/2026','10/2026','11/2026','12/2026',
+                         '01/2027','02/2027','03/2027'];
+    document.getElementById('rec-inv-body').innerHTML = filteredInvoices.map(function(r){
+      var monthOpts = MONTH_OPTIONS.map(function(m){
+        var label = m || '— Assign —';
+        return '<option value="'+m+'"'+(m===(r.billing_month||'')?'selected':'')+'>'+label+'</option>';
+      }).join('');
+      var statusOpts = ['Unpaid','Partial','Paid','Disputed'].map(function(s){
+        return '<option value="'+s+'"'+(s===r.status?' selected':'')+'>'+s+'</option>';
+      }).join('');
+      return '<tr>'
+        +'<td style="color:var(--accent);font-weight:600">'+esc(r.invoice_number)+'</td>'
+        +'<td>'+esc(r.invoice_date||'')+'</td>'
+        +'<td><select onchange="updateInvoiceField('+r.id+',&apos;billing_month&apos;,this.value)" style="font-size:12px;padding:3px 6px;border:1.5px solid var(--border);border-radius:4px;outline:none;background:#fff;color:var(--text);font-family:var(--font);">'+monthOpts+'</select></td>'
+        +'<td contenteditable="true" data-inv-id="'+r.id+'" data-col="po_reference" style="font-size:11px;">'+esc(r.po_reference||'')+'</td>'
+        +'<td style="color:var(--accent);font-weight:600;">'+cur(r.total_aud)+'</td>'
+        +'<td contenteditable="true" data-inv-id="'+r.id+'" data-col="amount_paid" style="color:var(--green)">'+((r.amount_paid||0)>0?(r.amount_paid||0).toLocaleString("en-AU",{maximumFractionDigits:2}):'')+'</td>'
+        +'<td style="color:'+((r.amount_due||0)>0?'var(--red)':'var(--muted)')+'">'+cur(r.amount_due)+'</td>'
+        +'<td><select onchange="updateInvoiceField('+r.id+',&apos;status&apos;,this.value)" style="font-size:11px;padding:2px 6px;border:1.5px solid var(--border);border-radius:12px;outline:none;background:#fff;color:var(--text);font-family:var(--font);">'+statusOpts+'</select></td>'
+        +'<td>'+(r.id?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')+'</td>'
+        +'</tr>';
+    }).join('');
+
+    // Wire up contenteditable blur for inline edits
+    document.getElementById('rec-inv-body').querySelectorAll('[contenteditable]').forEach(function(cell){
+      cell.addEventListener('blur', function(){
+        var invId = cell.dataset.invId;
+        var col = cell.dataset.col;
+        var val = cell.textContent.trim().replace(/[$,]/g,'');
+        if(col === 'amount_paid') val = parseFloat(val) || 0;
+        updateInvoiceField(parseInt(invId), col, val);
+      });
+    });
     makeTableSortable('rec-inv-table');
 
+    // Monthly summary
+    var monthlyData = {};
+    (d.invoices||[]).forEach(function(inv){
+      var mk = inv.billing_month || '';
+      if(!mk) {
+        var dt = inv.invoice_date || '';
+        var parts = dt.split('/');
+        if(parts.length === 3) mk = parts[1]+'/'+parts[2];
+      }
+      if(!mk) mk = 'Unassigned';
+      if(!monthlyData[mk]) monthlyData[mk] = {count:0, invoiced:0, paid:0, due:0};
+      monthlyData[mk].count++;
+      monthlyData[mk].invoiced += parseFloat(inv.total_aud)||0;
+      monthlyData[mk].paid += parseFloat(inv.amount_paid)||0;
+      monthlyData[mk].due += parseFloat(inv.amount_due)||0;
+    });
+    document.getElementById('rec-monthly-body').innerHTML = Object.entries(monthlyData).sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(entry){
+      var mk = entry[0], v = entry[1];
+      var eos = 0; // TODO: sum EOS for this month
+      var variance = v.invoiced - eos;
+      var vpct = eos > 0 ? ((variance/eos)*100).toFixed(1) : 'N/A';
+      return '<tr style="cursor:pointer;" onclick="document.getElementById(&apos;rec-month-filter&apos;).value=&apos;'+mk+'&apos;;loadReconciliation();">'
+        +'<td style="font-weight:600;">'+esc(mk)+'</td>'
+        +'<td>'+v.count+'</td>'
+        +'<td style="color:var(--accent);font-weight:600;">'+cur(v.invoiced)+'</td>'
+        +'<td>'+cur(eos)+'</td>'
+        +'<td style="color:'+(variance>100?'var(--red)':'var(--green)')+'">'+
+          (variance>=0?'+':'')+cur(variance)+'</td>'
+        +'<td>'+vpct+(vpct!=='N/A'?'%':'')+'</td>'
+        +'<td style="color:'+(v.due>0?'var(--red)':'var(--green)')+'">'+
+          (v.due>0?v.count+' outstanding':'\u2713 Settled')+'</td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--muted);">No invoices imported yet</td></tr>';
+    makeTableSortable('rec-monthly-table');
+
     // Discrepancies
-    discrepanciesData=d.discrepancies;
-    document.getElementById('rec-disc-count').textContent=d.discrepancies.length;
-    document.getElementById('rec-disc-body').innerHTML=d.discrepancies.map(r=>`
-      <tr>
-        <td style="color:var(--accent)">${esc(r.invoice_number)}</td>
-        <td style="max-width:280px;white-space:normal;font-size:10px">${esc(r.description)}</td>
-        <td><span class="badge badge-other">${esc(r.category||'')}</span></td>
-        <td>${cur(r.amount)}</td>
-        <td>${r.matched_eos_cost!=null?cur(r.matched_eos_cost):'—'}</td>
-        <td style="color:${(r.variance||0)>5?'var(--red)':(r.variance||0)<-5?'var(--blue)':'var(--green)'}">
-          ${r.variance!=null?(r.variance>=0?'+':'')+cur(r.variance):'—'}
-        </td>
-        <td style="color:${r.match_status==='invoice_over_eos'?'var(--red)':'var(--blue)'}">
-          ${(r.match_status||'').replace(/_/g,' ')}
-        </td>
-      </tr>`).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--green);font-family:var(--font-mono)">✓ No significant discrepancies</td></tr>';
+    discrepanciesData = d.discrepancies || [];
+    document.getElementById('rec-disc-count').textContent = discrepanciesData.length;
+    document.getElementById('rec-disc-body').innerHTML = discrepanciesData.map(function(r){
+      return '<tr>'
+        +'<td style="color:var(--accent)">'+esc(r.invoice_number)+'</td>'
+        +'<td style="max-width:280px;white-space:normal;font-size:11px;">'+esc(r.description)+'</td>'
+        +'<td><span class="badge badge-other">'+esc(r.category||'')+'</span></td>'
+        +'<td>'+cur(r.amount)+'</td>'
+        +'<td>'+(r.matched_eos_cost!=null?cur(r.matched_eos_cost):'\u2014')+'</td>'
+        +'<td style="color:'+((r.variance||0)>5?'var(--red)':(r.variance||0)<-5?'var(--blue)':'var(--green)')+'">'
+          +(r.variance!=null?(r.variance>=0?'+':'')+cur(r.variance):'\u2014')+'</td>'
+        +'<td style="color:'+((r.match_status||'').indexOf('over')>=0?'var(--red)':'var(--blue)')+'">'
+          +((r.match_status||'').replace(/_/g,' '))+'</td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--green);">\u2713 No significant discrepancies</td></tr>';
     makeTableSortable('rec-disc-table');
 
   }catch(e){console.error('Reconciliation error:',e);}
 }
 
+async function updateInvoiceField(invoiceId, field, value) {
+  try {
+    var body = {};
+    body[field] = value;
+    await fetch(API+'/invoices/'+invoiceId, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    toast('\u2713 Invoice updated');
+  } catch(e) { toast('Update failed','err'); }
+}
+
 async function rematchAll(){
-  toast('Re-running matching…');
-  await fetch(`${API}/reconciliation/rematch?contractor=${encodeURIComponent(activeContractor)}`,{method:'POST'});
-  toast('✓ Matching complete');
+  toast('Re-running matching...');
+  await fetch(API+'/reconciliation/rematch?contractor='+encodeURIComponent(activeContractor),{method:'POST'});
+  toast('\u2713 Matching complete');
   loadReconciliation();
 }
 
