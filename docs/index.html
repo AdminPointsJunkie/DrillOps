@@ -1339,18 +1339,22 @@ function resetFilters(){
 }
 
 async function loadActivities(){
-  const dates=getSelVals('f-dates').join(',');
-  const holes=getSelVals('f-holes').join(',');
-  const sites=getSelVals('f-sites').join(',');
-  const codes=getSelVals('f-codes').join(',');
-  const search=document.getElementById('f-search').value.trim();
-  const p=new URLSearchParams({contractor:activeContractor,dates,holes,sites,codes});
+  var dates=getSelVals('f-dates').filter(function(d){return d;}).join(',');
+  var holes=getSelVals('f-holes').filter(function(d){return d;}).join(',');
+  var sites=getSelVals('f-sites').filter(function(d){return d;}).join(',');
+  var codes=getSelVals('f-codes').filter(function(d){return d;}).join(',');
+  var search=(document.getElementById('f-search')?document.getElementById('f-search').value:'').trim();
+  var p=new URLSearchParams({contractor:activeContractor});
+  if(dates)p.set('dates',dates);
+  if(holes)p.set('holes',holes);
+  if(sites)p.set('sites',sites);
+  if(codes)p.set('codes',codes);
   if(search)p.set('search',search);
   try{
-    activitiesData=await fetch(`${API}/activities?${p}`).then(r=>r.json());
+    activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
     renderActivities(activitiesData);
   }catch(e){
-    document.getElementById('act-body').innerHTML=`<tr><td colspan="17" style="color:var(--red);padding:20px">API offline</td></tr>`;
+    document.getElementById('act-body').innerHTML='<tr><td colspan="17" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
 }
 
@@ -1406,9 +1410,11 @@ function renderActivities(rows){
 
 // ── Consumables ───────────────────────────────────────────────────────────────
 async function loadConsumables(){
-  const dates=getSelVals('f-con-dates').join(',');
+  var dates=getSelVals('f-con-dates').filter(function(d){return d;}).join(',');
+  var url=API+'/consumables?contractor='+encodeURIComponent(activeContractor);
+  if(dates) url+='&dates='+dates;
   try{
-    consumablesData=await fetch(`${API}/consumables?contractor=${encodeURIComponent(activeContractor)}&dates=${dates}`).then(r=>r.json());
+    consumablesData=await fetch(url).then(function(r){return r.json();});
     document.getElementById('con-count').textContent=consumablesData.length;
     document.getElementById('con-body').innerHTML=consumablesData.map(function(r){
       var up = parseFloat(r.unit_price)||0;
@@ -1450,9 +1456,11 @@ async function loadConsumables(){
 
 // ── Crew ──────────────────────────────────────────────────────────────────────
 async function loadCrew(){
-  const dates=getSelVals('f-crew-dates').join(',');
+  var dates=getSelVals('f-crew-dates').filter(function(d){return d;}).join(',');
+  var url=API+'/crew?contractor='+encodeURIComponent(activeContractor);
+  if(dates) url+='&dates='+dates;
   try{
-    crewData=await fetch(`${API}/crew?contractor=${encodeURIComponent(activeContractor)}&dates=${dates}`).then(r=>r.json());
+    crewData=await fetch(url).then(function(r){return r.json();});
     document.getElementById('crew-count').textContent=crewData.length;
     document.getElementById('crew-body').innerHTML=crewData.map(r=>
       `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.hours)}</td></tr>`
