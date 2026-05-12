@@ -245,6 +245,18 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS consumable_rates (
+                    id          SERIAL PRIMARY KEY,
+                    contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    year        TEXT NOT NULL DEFAULT '2025',
+                    product     TEXT NOT NULL,
+                    description TEXT,
+                    unit_price  FLOAT DEFAULT 0,
+                    unit        TEXT DEFAULT 'each'
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS contractors (
                     id         SERIAL PRIMARY KEY,
                     name       TEXT NOT NULL UNIQUE,
@@ -413,6 +425,28 @@ def seed_2025_rates():
                 INSERT INTO hourly_rates (contractor,year,code,description,rate,unit)
                 VALUES (%s,%s,%s,%s,%s,%s)
             """, hourly)
+
+            # Consumable rates
+            consumables = [
+                (CON, YEAR, "AMC CR650",                  "AMC CR650 drilling fluid",              127.10, "each"),
+                (CON, YEAR, "MUDLOGIC SWELL HIB",         "Mudlogic Swell HIB",                    224.80, "each"),
+                (CON, YEAR, "AMC HARD SET",               "AMC Hard Set cement additive",           66.55, "each"),
+                (CON, YEAR, "AMC TORQ FREE XTRA 20LTR",  "AMC Torq Free Xtra 20L cube",          156.40, "each"),
+                (CON, YEAR, "GP CEMENT",                  "General purpose cement",                 11.47, "bag"),
+                (CON, YEAR, "PART A FOAM",                "Part A foam",                            18.86, "each"),
+                (CON, YEAR, "PART B FOAM",                "Part B foam",                            18.86, "each"),
+                (CON, YEAR, "AMC SUPERLUBE",              "AMC Superlube drilling lubricant",      150.26, "each"),
+                (CON, YEAR, "AMC SUPERFOAM",              "AMC Superfoam",                         127.36, "each"),
+                (CON, YEAR, "AMC BEN",                    "AMC Bentonite",                           0.00, "each"),
+                (CON, YEAR, "AMC GEL",                    "AMC Gel",                                 0.00, "each"),
+                (CON, YEAR, "PVC CASING 100MM CLASS 9",   "PVC Casing 100mm Class 9 (18m)",         0.00, "metre"),
+            ]
+            cur.execute("SELECT COUNT(*) AS n FROM consumable_rates WHERE year=%s AND contractor=%s", (YEAR, CON))
+            if cur.fetchone()["n"] == 0:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO consumable_rates (contractor,year,product,description,unit_price,unit)
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                """, consumables)
         conn.commit()
 
 
@@ -1329,6 +1363,53 @@ def del_drilling_rate(rid: int):
 def del_hourly_rate(rid: int):
     with get_conn() as conn:
         with conn.cursor() as cur: cur.execute("DELETE FROM hourly_rates WHERE id=%s",(rid,))
+        conn.commit()
+    return {"status":"deleted"}
+
+
+# ── Consumable Rates ──────────────────────────────────────────────────────────
+
+@app.get("/rates/consumables")
+def get_consumable_rates(contractor: str = Query(...), year: Optional[str]=Query(None)):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if year:
+                cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s AND year=%s ORDER BY product", (contractor, year))
+            else:
+                cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s ORDER BY year,product", (contractor,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.put("/rates/consumables/{rid}")
+def update_consumable_rate(rid: int, payload: dict):
+    safe = {"product","description","unit_price","unit","year"}
+    u = {k:v for k,v in payload.items() if k in safe}
+    if not u: raise HTTPException(400,"No valid fields")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE consumable_rates SET {','.join(f'{k}=%({k})s' for k in u)} WHERE id=%(id)s", {**u,"id":rid})
+        conn.commit()
+    return {"status":"updated"}
+
+
+@app.post("/rates/consumables")
+def add_consumable_rate(payload: dict):
+    req = {"contractor","year","product","unit_price"}
+    if not req.issubset(payload): raise HTTPException(400, f"Required: {req}")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO consumable_rates (contractor,year,product,description,unit_price,unit)
+                VALUES (%(contractor)s,%(year)s,%(product)s,%(description)s,%(unit_price)s,%(unit)s) RETURNING id""",
+                {**{"description":"","unit":"each"},**payload})
+            nid = cur.fetchone()["id"]
+        conn.commit()
+    return {"status":"created","id":nid}
+
+
+@app.delete("/rates/consumables/{rid}")
+def del_consumable_rate(rid: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur: cur.execute("DELETE FROM consumable_rates WHERE id=%s",(rid,))
         conn.commit()
     return {"status":"deleted"}
 
