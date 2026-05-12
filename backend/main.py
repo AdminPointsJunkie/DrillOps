@@ -2466,49 +2466,52 @@ def reprice_activities(contractor: str = Query(...)):
                 cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%s", vals)
 
             # ── Reprice consumables ───────────────────────────────────────
-            cur.execute("SELECT * FROM consumables WHERE contractor=%s", (contractor,))
-            cons_rows = [dict(r) for r in cur.fetchall()]
+            try:
+                cur.execute("SELECT * FROM consumables WHERE contractor=%s", (contractor,))
+                cons_rows = [dict(r) for r in cur.fetchall()]
 
-            cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
-            all_cr = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+                all_cr = [dict(r) for r in cur.fetchall()]
 
-            # Build consumable rate lookup: {normalised_product: unit_price}
-            cr_lookup = {}
-            for r in all_cr:
-                key = r["product"].strip().upper()
-                cr_lookup[key] = float(r["unit_price"])
-                # Also add without spaces for fuzzy matching
-                cr_lookup[key.replace(" ", "")] = float(r["unit_price"])
+                # Build consumable rate lookup: {normalised_product: unit_price}
+                cr_lookup = {}
+                for r in all_cr:
+                    key = r["product"].strip().upper()
+                    cr_lookup[key] = float(r["unit_price"] or 0)
+                    cr_lookup[key.replace(" ", "")] = float(r["unit_price"] or 0)
 
-            cons_priced = 0
-            for crow in cons_rows:
-                product = (crow.get("consumable") or crow.get("type") or "").strip()
-                product_upper = product.upper()
-                product_nospace = product_upper.replace(" ", "")
+                cons_priced = 0
+                for crow in cons_rows:
+                    product = (crow.get("consumable") or crow.get("type") or "").strip()
+                    product_upper = product.upper()
+                    product_nospace = product_upper.replace(" ", "")
 
-                # Try exact, then normalised, then fuzzy
-                price = cr_lookup.get(product_upper) or cr_lookup.get(product_nospace)
+                    price = cr_lookup.get(product_upper)
+                    if price is None:
+                        price = cr_lookup.get(product_nospace)
+                    if price is None:
+                        for rk, rv in cr_lookup.items():
+                            if rk in product_upper or product_upper in rk:
+                                price = rv
+                                break
 
-                # Fuzzy: try partial matching
-                if price is None:
-                    for rk, rv in cr_lookup.items():
-                        if rk in product_upper or product_upper in rk:
-                            price = rv
-                            break
-
-                if price is not None and price > 0:
-                    qty = 1
-                    try:
-                        qty = float(crow.get("quantity") or 1)
-                    except (ValueError, TypeError):
+                    if price is not None and price > 0:
                         qty = 1
-                    lc = round(price * qty, 2)
-                    cur.execute("UPDATE consumables SET unit_price=%s, line_cost=%s WHERE id=%s",
-                                (price, lc, crow["id"]))
-                    cons_priced += 1
+                        try:
+                            qty = float(crow.get("quantity") or 1)
+                        except (ValueError, TypeError):
+                            qty = 1
+                        lc = round(price * qty, 2)
+                        cur.execute("UPDATE consumables SET unit_price=%s, line_cost=%s WHERE id=%s",
+                                    (price, lc, crow["id"]))
+                        cons_priced += 1
 
-            stats["consumables_priced"] = cons_priced
-            stats["consumables_total"] = len(cons_rows)
+                stats["consumables_priced"] = cons_priced
+                stats["consumables_total"] = len(cons_rows)
+            except Exception as e:
+                stats["consumables_error"] = str(e)
+                stats["consumables_priced"] = 0
+                stats["consumables_total"] = 0
 
         conn.commit()
 
