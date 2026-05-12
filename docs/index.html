@@ -667,7 +667,17 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
           <tbody id="hr-body"></tbody>
         </table></div>
       </div>
-      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:10px;">✏️ Click any cell to edit. Changes save automatically.</p>
+
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;margin-top:20px;">Consumable Rates — $/unit</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="cr-count">—</span> consumables</div><button class="btn-primary" style="font-size:10px;padding:4px 10px;" onclick="addConsumableRate()">+ Add Row</button></div>
+        <div class="tbl-scroll"><table id="cr-table">
+          <thead><tr><th>Year</th><th>Product</th><th>Description</th><th>Unit Price ($)</th><th>Unit</th><th></th></tr></thead>
+          <tbody id="cr-body"></tbody>
+        </table></div>
+      </div>
+
+      <p style="font-size:11px;color:var(--muted);margin-top:10px;">Click any cell to edit. Changes save automatically.</p>
     </section>
     <!-- Invoices -->
     <section class="page" id="page-invoices">
@@ -1820,14 +1830,17 @@ async function initRatesTab(){
 
 async function loadRates(year){
   try{
-    const [dr,hr]=await Promise.all([
+    const [dr,hr,cr]=await Promise.all([
       fetch(`${API}/rates/drilling?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
       fetch(`${API}/rates/hourly?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
+      fetch(`${API}/rates/consumables?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
     ]);
-    drillingRatesData=dr;hourlyRatesData=hr;
-    renderDrillingRates(dr);renderHourlyRates(hr);
+    drillingRatesData=dr;hourlyRatesData=hr;consumableRatesData=cr;
+    renderDrillingRates(dr);renderHourlyRates(hr);renderConsumableRates(cr);
   }catch(e){}
 }
+
+var consumableRatesData=[];
 
 function renderDrillingRates(rows){
   document.getElementById('dr-count').textContent=rows.length;
@@ -1838,8 +1851,8 @@ function renderDrillingRates(rows){
       <td contenteditable="true" data-col="depth_from" data-numeric="true">${r.depth_from}</td>
       <td contenteditable="true" data-col="depth_to" data-numeric="true">${r.depth_to}</td>
       <td contenteditable="true" data-col="rate" data-numeric="true">$${r.rate.toFixed(2)}</td>
-      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
-    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+      <td><button onclick="deleteRate('drilling',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">\u2715</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);">No rates for this year</td></tr>';
   attachRateEdits('drilling');makeTableSortable('dr-table');
 }
 
@@ -1852,20 +1865,35 @@ function renderHourlyRates(rows){
       <td contenteditable="true" data-col="description">${esc(r.description||'')}</td>
       <td contenteditable="true" data-col="rate" data-numeric="true">$${r.rate.toFixed(2)}</td>
       <td contenteditable="true" data-col="unit">${esc(r.unit)}</td>
-      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">✕</button></td>
-    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No rates for this year</td></tr>';
+      <td><button onclick="deleteRate('hourly',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">\u2715</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);">No rates for this year</td></tr>';
   attachRateEdits('hourly');makeTableSortable('hr-table');
 }
 
+function renderConsumableRates(rows){
+  document.getElementById('cr-count').textContent=rows.length;
+  document.getElementById('cr-body').innerHTML=rows.map(r=>`
+    <tr data-id="${r.id}">
+      <td contenteditable="true" data-col="year">${esc(r.year)}</td>
+      <td contenteditable="true" data-col="product" style="font-weight:600;">${esc(r.product)}</td>
+      <td contenteditable="true" data-col="description">${esc(r.description||'')}</td>
+      <td contenteditable="true" data-col="unit_price" data-numeric="true" style="color:var(--accent);font-weight:600;">$${(r.unit_price||0).toFixed(2)}</td>
+      <td contenteditable="true" data-col="unit">${esc(r.unit||'each')}</td>
+      <td><button onclick="deleteRate('consumables',${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px">\u2715</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="padding:16px;color:var(--muted);">No consumable rates for this year</td></tr>';
+  attachRateEdits('consumables');makeTableSortable('cr-table');
+}
+
 function attachRateEdits(table){
-  const id=table==='drilling'?'dr-body':'hr-body';
+  var id=table==='drilling'?'dr-body':table==='hourly'?'hr-body':'cr-body';
+  var endpoint=table==='consumables'?'rates/consumables':'rates/'+table;
   document.getElementById(id).querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',async()=>{
       const row=cell.closest('tr');const rid=row.dataset.id;const col=cell.dataset.col;
       let val=cell.textContent.trim().replace(/^\$/,'');
       if(cell.dataset.numeric)val=parseFloat(val)||0;
-      await fetch(`${API}/rates/${table}/${rid}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
-      toast('✓ Rate saved');
+      await fetch(`${API}/${endpoint}/${rid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
+      toast('\u2713 Rate saved');
     });
   });
 }
@@ -1888,6 +1916,12 @@ async function addHourlyRate(){
   loadRates(year);toast('New row added');
 }
 
+async function addConsumableRate(){
+  const year=activeRateYear||'2025';
+  await fetch(`${API}/rates/consumables`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:year,product:'NEW PRODUCT',description:'',unit_price:0,unit:'each'})});
+  loadRates(year);toast('New consumable added');
+}
+
 async function copyRatesYear(){
   const ny=document.getElementById('new-year-input').value.trim();
   if(!ny||!/^\d{4}$/.test(ny)){toast('Enter valid 4-digit year','err');return;}
@@ -1895,7 +1929,9 @@ async function copyRatesYear(){
     await fetch(`${API}/rates/drilling`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:ny,bit_type:r.bit_type,depth_from:r.depth_from,depth_to:r.depth_to,rate:r.rate})});
   for(const r of hourlyRatesData)
     await fetch(`${API}/rates/hourly`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:ny,code:r.code,description:r.description,rate:r.rate,unit:r.unit})});
-  toast(`✓ Rates copied to ${ny}`);
+  for(const r of consumableRatesData)
+    await fetch(`${API}/rates/consumables`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor:activeContractor,year:ny,product:r.product,description:r.description,unit_price:r.unit_price,unit:r.unit})});
+  toast(`\u2713 All rates copied to ${ny}`);
   document.getElementById('new-year-input').value='';
   initRatesTab();
 }
