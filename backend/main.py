@@ -1043,7 +1043,129 @@ async def import_pdf(
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            acts = [price_activity(cur, row, contractor) for row in acts]
+            # Load all rates into memory for fast pricing (same as reprice)
+            cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+            all_dr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+            all_hr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+            all_cr = [dict(r) for r in cur.fetchall()]
+
+        hr_lookup = {}
+        for r in all_hr:
+            hr_lookup[(r["year"], r["code"])] = float(r["rate"])
+        dr_lookup = {}
+        for r in all_dr:
+            key = (r["year"], r["bit_type"])
+            if key not in dr_lookup: dr_lookup[key] = []
+            dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
+        cr_lookup = {}
+        for r in all_cr:
+            cr_lookup[r["product"].strip().upper()] = float(r["unit_price"])
+            cr_lookup[r["product"].strip().upper().replace(" ","")] = float(r["unit_price"])
+
+        def _get_hr(code, year):
+            for ty in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
+                r = hr_lookup.get((ty, code))
+                if r is not None: return r
+            return None
+
+        def _get_dr(bit_key, depth, year):
+            for ty in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
+                for frm, to, rate in dr_lookup.get((ty, bit_key), []):
+                    if frm <= depth < to: return rate
+            return None
+
+        def _price_row(row):
+            code = row.get("code","") or ""
+            total_time = row.get("total_time","") or ""
+            hours = 0
+            mt = re.match(r"(\d+):(\d+)", str(total_time))
+            if mt: hours = int(mt.group(1)) + int(mt.group(2))/60.0
+            else:
+                try: hours = float(total_time)
+                except: pass
+
+            bit_type = row.get("bit_type","") or ""
+            metres = 0
+            try: metres = float(row.get("total_metres",0) or 0)
+            except: pass
+            depth = None
+            mf, mto = row.get("metres_from"), row.get("metres_to")
+            if mf is not None and mto is not None:
+                try: depth = (float(mf) + float(mto)) / 2
+                except: pass
+
+            date_str = row.get("date","") or ""
+            year = "2026"
+            for p in date_str.replace("-","/").split("/"):
+                if len(p)==4 and p.isdigit(): year = p; break
+
+            lc = None; ur = None; qty = None; rb = None
+
+            # Drilling metres
+            if metres > 0 and bit_type and depth is not None:
+                r = _get_dr(bit_type.replace(" ","_"), depth, year)
+                if r:
+                    ur = r; qty = round(metres,2); lc = round(r*metres,2); rb = f"${r:.2f}/m x {metres:.2f}m"
+
+            # Day rates
+            if lc is None:
+                for dk, (dk_code, dk_unit) in DAY_RATE_CODES.items():
+                    if dk in code or code in dk:
+                        r = _get_hr(dk_code, year)
+                        if r: ur = r; qty = 1; lc = r; rb = f"${r:,.2f}/{dk_unit}"
+                        break
+
+            # Not chargeable
+            if lc is None and code in NOT_CHARGEABLE:
+                ur = 0; qty = round(hours,2) if hours > 0 else 1; lc = 0; rb = "not chargeable"
+
+            # Standby/inactive
+            if lc is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):
+                r = _get_hr(code, year) or _get_hr("H_Inactive", year)
+                if r:
+                    q = round(hours,2) if hours > 0 else 1
+                    ur = r; qty = q; lc = round(r*q,2); rb = f"inactive ${r:,.2f}/hr x {q}"
+
+            # Active
+            if lc is None and hours > 0 and (code in ACTIVE_CODES or code.startswith("H_")):
+                r = _get_hr(code, year) or _get_hr("H_Active", year)
+                if r:
+                    ur = r; qty = round(hours,2); lc = round(r*hours,2); rb = f"active ${r:,.2f}/hr x {hours:.2f}h"
+
+            # Fallback
+            if lc is None and hours > 0 and code:
+                r = _get_hr("H_Active", year)
+                if r:
+                    ur = r; qty = round(hours,2); lc = round(r*hours,2); rb = f"fallback ${r:,.2f}/hr x {hours:.2f}h"
+
+            row["rate_year"] = year; row["unit_rate"] = ur; row["quantity"] = qty
+            row["line_cost"] = lc; row["rate_basis"] = rb
+            return row
+
+        # Price all activities in memory
+        acts = [_price_row(row) for row in acts]
+
+        # Price consumables
+        for c in cons:
+            product = (c.get("consumable") or c.get("type") or "").strip().upper()
+            price = cr_lookup.get(product) or cr_lookup.get(product.replace(" ",""))
+            if price is None:
+                for rk, rv in cr_lookup.items():
+                    if rk in product or product in rk:
+                        price = rv; break
+            if price is not None and price > 0:
+                qty = 1
+                try: qty = float(c.get("quantity") or 1)
+                except: pass
+                c["unit_price"] = price
+                c["line_cost"] = round(price * qty, 2)
+            else:
+                c["unit_price"] = None
+                c["line_cost"] = None
+
+        with conn.cursor() as cur:
             if acts:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
@@ -1060,8 +1182,8 @@ async def import_pdf(
                 """, acts)
             if cons:
                 psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO consumables (source_file,contractor,date,hole_num,site_name,consumable,type,quantity,unit)
-                    VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s)
+                    INSERT INTO consumables (source_file,contractor,date,hole_num,site_name,consumable,type,quantity,unit,unit_price,line_cost)
+                    VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s,%(unit_price)s,%(line_cost)s)
                 """, cons)
             if crew:
                 psycopg2.extras.execute_batch(cur, """
