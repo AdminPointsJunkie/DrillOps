@@ -1268,6 +1268,33 @@ def get_consumables(contractor: str = Query(...), dates: Optional[str] = Query(N
             cur.execute(q,p); return [dict(r) for r in cur.fetchall()]
 
 
+@app.patch("/consumables/{row_id}")
+async def update_consumable(row_id: int, request: Request):
+    payload = await request.json()
+    safe = {"date","hole_num","site_name","consumable","type","quantity","unit","unit_price","line_cost"}
+    updates = {k:v for k,v in payload.items() if k in safe}
+    if not updates: raise HTTPException(400, "No valid fields")
+    # Auto-recalculate line_cost if unit_price or quantity changed
+    if "unit_price" in updates or "quantity" in updates:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM consumables WHERE id=%s", (row_id,))
+                row = dict(cur.fetchone()) if cur.rowcount else {}
+        qty = updates.get("quantity", row.get("quantity", 1))
+        up = updates.get("unit_price", row.get("unit_price", 0))
+        try:
+            updates["line_cost"] = round(float(up or 0) * float(qty or 1), 2)
+        except (ValueError, TypeError):
+            pass
+    set_clause = ",".join(f"{k}=%({k})s" for k in updates)
+    updates["row_id"] = row_id
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE consumables SET {set_clause} WHERE id=%(row_id)s", updates)
+        conn.commit()
+    return {"status": "updated"}
+
+
 @app.get("/crew")
 def get_crew(contractor: str = Query(...), dates: Optional[str] = Query(None)):
     q = "SELECT * FROM crew WHERE contractor=%(contractor)s"
