@@ -2088,128 +2088,212 @@ def rematch_all(contractor: str = Query(...)):
 
 @app.post("/reprice")
 def reprice_activities(contractor: str = Query(...)):
-    """Full rationalisation: fix hole IDs, normalise dates, standardise sites, then reprice."""
+    """Fast rationalisation: fix dates, holes, sites, locations, then batch reprice."""
 
-    # ── Site → Hole ID mapping ────────────────────────────────────────────
     SITE_TO_HOLE = {
-        "CD-26-001": "CD1817C", "CD-26-002": "CD1818C", "CD-26-004": "CD1819C",
-        "CD-26-005": "CD1820C", "CD-26-006": "CD1821C", "CD-26-007": "CD1822C",
-        "CD-26-008": "CD1823C", "CD-26-009": "CD1824C", "CD-26-010": "CD1825C",
-        "CD-26-011": "CD1826C", "CD-26-012": "CD1827C", "CD-26-013": "CD1828C",
-        "CD-26-014": "CD1829C", "CD-26-016": "CD1830C", "CD-26-017": "CD1831C",
-        "CD-26-018": "CD1832C", "CD-26-019": "CD1833C", "CD-26-020": "CD1834C",
-        "CD-26-021": "CD1833C", "CD-26-022": "CD1834C", "CD-26-023": "CD1835C",
+        "CD-26-001":"CD1817C","CD-26-002":"CD1818C","CD-26-004":"CD1819C",
+        "CD-26-005":"CD1820C","CD-26-006":"CD1821C","CD-26-007":"CD1822C",
+        "CD-26-008":"CD1823C","CD-26-009":"CD1824C","CD-26-010":"CD1825C",
+        "CD-26-011":"CD1826C","CD-26-012":"CD1827C","CD-26-013":"CD1828C",
+        "CD-26-014":"CD1829C","CD-26-016":"CD1830C","CD-26-017":"CD1831C",
+        "CD-26-018":"CD1832C","CD-26-019":"CD1833C","CD-26-020":"CD1834C",
+        "CD-26-021":"CD1833C","CD-26-022":"CD1834C","CD-26-023":"CD1835C",
     }
-    # Also reverse: if hole_num is a site name, fix it
-    HOLE_FIXES = {**SITE_TO_HOLE}
-    # If hole_num is "0" or empty but site_name is valid, use the mapping
+    REVERSE_HOLE = {}
     for k, v in SITE_TO_HOLE.items():
-        HOLE_FIXES[k] = v
+        REVERSE_HOLE[v] = k
+
+    months_map = {"january":"01","february":"02","march":"03","april":"04",
+                  "may":"05","june":"06","july":"07","august":"08",
+                  "september":"09","october":"10","november":"11","december":"12"}
 
     def normalise_date(d):
-        """Convert any date format to dd/mm/yyyy."""
-        if not d:
-            return d
+        if not d: return d
         d = d.strip()
-        # Already dd/mm/yyyy
-        if re.match(r"^\d{2}/\d{2}/\d{4}$", d):
-            return d
-        # d/m/yyyy (single digits)
+        if re.match(r"^\d{2}/\d{2}/\d{4}$", d): return d
         m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", d)
-        if m:
-            return f"{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}"
-        # 28-March-2026 or 1-May-2026
+        if m: return f"{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}"
         m = re.match(r"^(\d{1,2})-(\w+)-(\d{4})$", d)
         if m:
-            months = {"january":"01","february":"02","march":"03","april":"04",
-                      "may":"05","june":"06","july":"07","august":"08",
-                      "september":"09","october":"10","november":"11","december":"12"}
-            mon = months.get(m.group(2).lower(), "01")
+            mon = months_map.get(m.group(2).lower(), "01")
             return f"{int(m.group(1)):02d}/{mon}/{m.group(3)}"
         return d
 
-    stats = {"total": 0, "dates_fixed": 0, "holes_fixed": 0, "sites_fixed": 0, "priced": 0}
+    stats = {"total":0,"dates_fixed":0,"holes_fixed":0,"sites_fixed":0,"priced":0}
     skipped_codes = {}
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # ── Load ALL data in 4 queries total ──────────────────────
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
             stats["total"] = len(rows)
 
-            # Check available rates
-            cur.execute("SELECT DISTINCT year FROM drilling_rates WHERE contractor=%s", (contractor,))
-            dr_years = [r["year"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT year FROM hourly_rates WHERE contractor=%s", (contractor,))
-            hr_years = [r["year"] for r in cur.fetchall()]
+            cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+            all_dr = [dict(r) for r in cur.fetchall()]
 
+            cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+            all_hr = [dict(r) for r in cur.fetchall()]
+
+            dr_years = sorted(set(r["year"] for r in all_dr))
+            hr_years = sorted(set(r["year"] for r in all_hr))
+
+        # ── Build rate lookup dicts in memory ─────────────────────────
+        # hourly: {(year, code): rate}
+        hr_lookup = {}
+        for r in all_hr:
+            hr_lookup[(r["year"], r["code"])] = float(r["rate"])
+
+        # drilling: {(year, bit_type, depth): rate}  — depth is the matching band
+        dr_lookup = {}
+        for r in all_dr:
+            key = (r["year"], r["bit_type"])
+            if key not in dr_lookup: dr_lookup[key] = []
+            dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
+
+        def get_hr_mem(code, year):
+            for try_year in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
+                r = hr_lookup.get((try_year, code))
+                if r is not None: return r
+            return None
+
+        def get_dr_mem(bit_key, depth, year):
+            for try_year in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
+                bands = dr_lookup.get((try_year, bit_key), [])
+                for frm, to, rate in bands:
+                    if frm <= depth < to:
+                        return rate
+            return None
+
+        def extract_year(date_str):
+            if not date_str: return "2026"
+            parts = date_str.replace("-","/").split("/")
+            for p in parts:
+                if len(p) == 4 and p.isdigit(): return p
+            return "2026"
+
+        def parse_hours(t):
+            if not t: return 0
+            t = str(t).strip()
+            m = re.match(r"(\d+):(\d+)", t)
+            if m: return int(m.group(1)) + int(m.group(2))/60.0
+            try: return float(t)
+            except: return 0
+
+        # ── Process all rows in memory ────────────────────────────────
+        batch_updates = []
+        for row in rows:
+            updates = {}
+            rid = row["id"]
+
+            # 1. Date
+            old_date = row.get("date","") or ""
+            new_date = normalise_date(old_date)
+            if new_date != old_date:
+                updates["date"] = new_date
+                row["date"] = new_date
+                stats["dates_fixed"] += 1
+
+            # 2. Hole ID from site
+            hole = row.get("hole_num","") or ""
+            site = row.get("site_name","") or ""
+            if (not hole or hole == "0") and site in SITE_TO_HOLE:
+                updates["hole_num"] = SITE_TO_HOLE[site]; row["hole_num"] = SITE_TO_HOLE[site]; stats["holes_fixed"] += 1
+            elif hole in SITE_TO_HOLE:
+                updates["hole_num"] = SITE_TO_HOLE[hole]; row["hole_num"] = SITE_TO_HOLE[hole]; stats["holes_fixed"] += 1
+            elif site in SITE_TO_HOLE and hole != SITE_TO_HOLE[site]:
+                updates["hole_num"] = SITE_TO_HOLE[site]; row["hole_num"] = SITE_TO_HOLE[site]; stats["holes_fixed"] += 1
+
+            # 3. Site from hole
+            if not site and row.get("hole_num","") in REVERSE_HOLE:
+                updates["site_name"] = REVERSE_HOLE[row["hole_num"]]; stats["sites_fixed"] += 1
+
+            # 4. Location
+            loc = (row.get("location","") or "").lower()
+            if loc in ("cdm sth","cdm south","cdm","carborough downs mine"):
+                updates["location"] = "Carborough Downs"
+
+            # 5. Reprice (in memory — no DB queries)
+            year = extract_year(row.get("date",""))
+            code = row.get("code","") or ""
+            hours = parse_hours(row.get("total_time",""))
+            bit_type = row.get("bit_type","") or ""
+            depth = None
+            mf = row.get("metres_from")
+            mt = row.get("metres_to")
+            if mf is not None and mt is not None:
+                try: depth = (float(mf) + float(mt)) / 2
+                except: pass
+            metres = 0
+            try: metres = float(row.get("total_metres",0) or 0)
+            except: pass
+
+            line_cost = None; unit_rate = None; quantity = None; rate_basis = None
+
+            # Drilling metres
+            if metres > 0 and bit_type:
+                d_key = bit_type.replace(" ","_")
+                if depth is not None:
+                    r = get_dr_mem(d_key, depth, year)
+                    if r:
+                        unit_rate = r; quantity = round(metres,2)
+                        line_cost = round(r * metres, 2); rate_basis = f"${r:.2f}/m x {metres:.2f}m"
+
+            # Day rates
+            if line_cost is None:
+                for dk, (dk_code, dk_unit) in DAY_RATE_CODES.items():
+                    if dk in code or code in dk:
+                        r = get_hr_mem(dk_code, year)
+                        if r:
+                            unit_rate = r; quantity = 1; line_cost = r; rate_basis = f"${r:,.2f}/{dk_unit}"
+                        break
+
+            # Not chargeable
+            if line_cost is None and code in NOT_CHARGEABLE:
+                unit_rate = 0; quantity = round(hours,2) if hours > 0 else 1
+                line_cost = 0; rate_basis = "not chargeable"
+
+            # Standby / inactive
+            if line_cost is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):
+                r = get_hr_mem(code, year) or get_hr_mem("H_Inactive", year)
+                if r:
+                    qty = round(hours,2) if hours > 0 else 1
+                    unit_rate = r; quantity = qty; line_cost = round(r * qty, 2)
+                    rate_basis = f"inactive ${r:,.2f}/hr x {qty}"
+
+            # Active codes
+            if line_cost is None and hours > 0 and (code in ACTIVE_CODES or code.startswith("H_")):
+                r = get_hr_mem(code, year) or get_hr_mem("H_Active", year)
+                if r:
+                    unit_rate = r; quantity = round(hours,2)
+                    line_cost = round(r * hours, 2); rate_basis = f"active ${r:,.2f}/hr x {hours:.2f}h"
+
+            # Fallback: hours but no match
+            if line_cost is None and hours > 0 and code:
+                r = get_hr_mem("H_Active", year)
+                if r:
+                    unit_rate = r; quantity = round(hours,2)
+                    line_cost = round(r * hours, 2); rate_basis = f"fallback ${r:,.2f}/hr x {hours:.2f}h"
+
+            if line_cost is not None:
+                updates["rate_year"] = year
+                updates["unit_rate"] = unit_rate
+                updates["quantity"] = quantity
+                updates["line_cost"] = line_cost
+                updates["rate_basis"] = rate_basis
+                stats["priced"] += 1
+            else:
+                skipped_codes[code or "empty"] = skipped_codes.get(code or "empty", 0) + 1
+
+            if updates:
+                batch_updates.append((updates, rid))
+
+        # ── Batch update in one transaction ───────────────────────────
         with conn.cursor() as cur:
-            for row in rows:
-                updates = {}
-                rid = row["id"]
-
-                # ── 1. Normalise date ──────────────────────────────────────
-                old_date = row.get("date", "")
-                new_date = normalise_date(old_date)
-                if new_date != old_date:
-                    updates["date"] = new_date
-                    row["date"] = new_date
-                    stats["dates_fixed"] += 1
-
-                # ── 2. Fix hole_num from site_name ─────────────────────────
-                hole = row.get("hole_num", "") or ""
-                site = row.get("site_name", "") or ""
-
-                # If hole is "0", empty, or is actually a site name → fix it
-                if (not hole or hole == "0") and site in HOLE_FIXES:
-                    updates["hole_num"] = HOLE_FIXES[site]
-                    row["hole_num"] = HOLE_FIXES[site]
-                    stats["holes_fixed"] += 1
-                elif hole in HOLE_FIXES:
-                    updates["hole_num"] = HOLE_FIXES[hole]
-                    row["hole_num"] = HOLE_FIXES[hole]
-                    stats["holes_fixed"] += 1
-                elif site in HOLE_FIXES and hole != HOLE_FIXES[site]:
-                    updates["hole_num"] = HOLE_FIXES[site]
-                    row["hole_num"] = HOLE_FIXES[site]
-                    stats["holes_fixed"] += 1
-
-                # ── 3. Fill missing site_name from hole_num ────────────────
-                if not site and hole:
-                    # Reverse lookup
-                    for sk, hv in SITE_TO_HOLE.items():
-                        if hv == hole or hv == row.get("hole_num",""):
-                            updates["site_name"] = sk
-                            row["site_name"] = sk
-                            stats["sites_fixed"] += 1
-                            break
-
-                # ── 4. Normalise location ──────────────────────────────────
-                loc = row.get("location", "") or ""
-                if loc and loc.lower() in ("cdm sth", "cdm south", "cdm", "carborough downs mine", "carborough downs"):
-                    if loc != "Carborough Downs":
-                        updates["location"] = "Carborough Downs"
-                        row["location"] = "Carborough Downs"
-
-                # ── 5. Reprice ─────────────────────────────────────────────
-                priced = price_activity(cur, dict(row), contractor)
-                if priced.get("line_cost") is not None:
-                    updates["rate_year"] = priced["rate_year"]
-                    updates["unit_rate"] = priced["unit_rate"]
-                    updates["quantity"] = priced["quantity"]
-                    updates["line_cost"] = priced["line_cost"]
-                    updates["rate_basis"] = priced["rate_basis"]
-                    stats["priced"] += 1
-                else:
-                    code = row.get("code", "") or "empty"
-                    skipped_codes[code] = skipped_codes.get(code, 0) + 1
-
-                # ── Apply all updates in one query ─────────────────────────
-                if updates:
-                    set_clause = ", ".join(f"{k}=%s" for k in updates)
-                    vals = list(updates.values()) + [rid]
-                    cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%s", vals)
-
+            for updates, rid in batch_updates:
+                set_clause = ", ".join(f"{k}=%s" for k in updates)
+                vals = list(updates.values()) + [rid]
+                cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%s", vals)
         conn.commit()
 
     return {
