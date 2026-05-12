@@ -1413,13 +1413,37 @@ async function loadConsumables(){
     document.getElementById('con-body').innerHTML=consumablesData.map(function(r){
       var up = parseFloat(r.unit_price)||0;
       var lc = parseFloat(r.line_cost)||0;
-      return '<tr><td>'+esc(r.date)+'</td><td>'+esc(r.hole_num)+'</td><td>'+esc(r.site_name)+'</td>'
-        +'<td style="font-weight:600;">'+esc(r.consumable)+'</td><td>'+esc(r.type)+'</td>'
-        +'<td>'+esc(r.quantity)+'</td><td>'+esc(r.unit)+'</td>'
-        +'<td style="color:var(--accent);">'+(up>0?'$'+up.toFixed(2):'\u2014')+'</td>'
+      return '<tr data-con-id="'+r.id+'">'
+        +'<td contenteditable="true" data-col="date">'+esc(r.date)+'</td>'
+        +'<td contenteditable="true" data-col="hole_num">'+esc(r.hole_num)+'</td>'
+        +'<td contenteditable="true" data-col="site_name">'+esc(r.site_name)+'</td>'
+        +'<td contenteditable="true" data-col="consumable" style="font-weight:600;">'+esc(r.consumable)+'</td>'
+        +'<td contenteditable="true" data-col="type">'+esc(r.type)+'</td>'
+        +'<td contenteditable="true" data-col="quantity" data-num="true">'+esc(r.quantity)+'</td>'
+        +'<td contenteditable="true" data-col="unit">'+esc(r.unit)+'</td>'
+        +'<td contenteditable="true" data-col="unit_price" data-num="true" style="color:var(--accent);">'+(up>0?up.toFixed(2):'')+'</td>'
         +'<td style="font-weight:600;color:'+(lc>0?'var(--accent)':'var(--muted)')+';">'+(lc>0?'$'+lc.toFixed(2):'\u2014')+'</td>'
         +'</tr>';
     }).join('')||'<tr><td colspan="9"><div class="empty-state">No data</div></td></tr>';
+
+    // Wire up inline edits
+    document.getElementById('con-body').querySelectorAll('[contenteditable]').forEach(function(cell){
+      cell.addEventListener('blur', async function(){
+        var row = cell.closest('tr');
+        var rid = row.dataset.conId;
+        var col = cell.dataset.col;
+        var val = cell.textContent.trim().replace(/[$,]/g,'');
+        if(cell.dataset.num) val = val===''?null:parseFloat(val);
+        try {
+          var body = {};
+          body[col] = val;
+          await fetch(API+'/consumables/'+rid, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+          toast('\u2713 Saved');
+          // If price or qty changed, reload to get updated line_cost
+          if(col === 'unit_price' || col === 'quantity') loadConsumables();
+        } catch(e) { toast('Save failed','err'); }
+      });
+    });
     makeTableSortable('con-table');
   }catch(e){}
 }
@@ -1608,7 +1632,6 @@ async function rationaliseAndSync() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Rationalising...';
   try {
-    // Step 1: Rationalise & reprice on the server
     var res = await fetch(API+"/reprice?contractor="+encodeURIComponent(activeContractor), {method:"POST"});
     var d = await res.json();
     console.log("Rationalise result:", d);
@@ -1621,11 +1644,11 @@ async function rationaliseAndSync() {
     if(d.consumables_priced > 0) parts.push(d.consumables_priced+" of "+d.consumables_total+" consumables priced");
     toast("\u2713 "+parts.join(", "));
 
-    // Step 2: Refresh ALL data across all tabs
+    // Refresh ALL data across all tabs
     await loadActivities();
     await updateDbCount();
-
-    // Pre-load other tabs so they're fresh when switched to
+    try { await loadConsumables(); } catch(e) {}
+    try { await loadCrew(); } catch(e) {}
     try { await loadCosting(); } catch(e) {}
     try { await loadInvoices(); } catch(e) {}
 
