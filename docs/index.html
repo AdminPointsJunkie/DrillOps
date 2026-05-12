@@ -473,7 +473,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
       <div class="table-wrap">
         <div class="table-toolbar"><div class="table-count"><span id="con-count">—</span> rows</div><button class="btn-csv" onclick="downloadCSV('consumables')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="con-table">
-          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th></tr></thead>
+          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Line Cost</th></tr></thead>
           <tbody id="con-body"></tbody>
         </table></div>
       </div>
@@ -1410,9 +1410,16 @@ async function loadConsumables(){
   try{
     consumablesData=await fetch(`${API}/consumables?contractor=${encodeURIComponent(activeContractor)}&dates=${dates}`).then(r=>r.json());
     document.getElementById('con-count').textContent=consumablesData.length;
-    document.getElementById('con-body').innerHTML=consumablesData.map(r=>
-      `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.consumable)}</td><td>${esc(r.type)}</td><td>${esc(r.quantity)}</td><td>${esc(r.unit)}</td></tr>`
-    ).join('')||'<tr><td colspan="7"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
+    document.getElementById('con-body').innerHTML=consumablesData.map(function(r){
+      var up = parseFloat(r.unit_price)||0;
+      var lc = parseFloat(r.line_cost)||0;
+      return '<tr><td>'+esc(r.date)+'</td><td>'+esc(r.hole_num)+'</td><td>'+esc(r.site_name)+'</td>'
+        +'<td style="font-weight:600;">'+esc(r.consumable)+'</td><td>'+esc(r.type)+'</td>'
+        +'<td>'+esc(r.quantity)+'</td><td>'+esc(r.unit)+'</td>'
+        +'<td style="color:var(--accent);">'+(up>0?'$'+up.toFixed(2):'\u2014')+'</td>'
+        +'<td style="font-weight:600;color:'+(lc>0?'var(--accent)':'var(--muted)')+';">'+(lc>0?'$'+lc.toFixed(2):'\u2014')+'</td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="9"><div class="empty-state">No data</div></td></tr>';
     makeTableSortable('con-table');
   }catch(e){}
 }
@@ -1610,7 +1617,8 @@ async function rationaliseAndSync() {
     if(d.dates_fixed > 0) parts.push(d.dates_fixed+" dates fixed");
     if(d.holes_fixed > 0) parts.push(d.holes_fixed+" hole IDs fixed");
     if(d.sites_fixed > 0) parts.push(d.sites_fixed+" sites filled");
-    parts.push(d.priced+" of "+d.total+" priced");
+    parts.push(d.priced+" of "+d.total+" activities priced");
+    if(d.consumables_priced > 0) parts.push(d.consumables_priced+" of "+d.consumables_total+" consumables priced");
     toast("\u2713 "+parts.join(", "));
 
     // Step 2: Refresh ALL data across all tabs
