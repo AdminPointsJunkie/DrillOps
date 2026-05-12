@@ -1092,10 +1092,18 @@ def get_activities(
 ):
     conds = ["contractor=%(contractor)s"]
     params = {"contractor": contractor}
-    if dates: conds.append("date=ANY(%(dates)s)");     params["dates"]=dates.split(",")
-    if holes: conds.append("hole_num=ANY(%(holes)s)"); params["holes"]=holes.split(",")
-    if sites: conds.append("site_name=ANY(%(sites)s)");params["sites"]=sites.split(",")
-    if codes: conds.append("code=ANY(%(codes)s)");     params["codes"]=codes.split(",")
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl: conds.append("date=ANY(%(dates)s)"); params["dates"] = dl
+    if holes and holes.strip():
+        hl = [h.strip() for h in holes.split(",") if h.strip()]
+        if hl: conds.append("hole_num=ANY(%(holes)s)"); params["holes"] = hl
+    if sites and sites.strip():
+        sl = [s.strip() for s in sites.split(",") if s.strip()]
+        if sl: conds.append("site_name=ANY(%(sites)s)"); params["sites"] = sl
+    if codes and codes.strip():
+        cl = [c.strip() for c in codes.split(",") if c.strip()]
+        if cl: conds.append("code=ANY(%(codes)s)"); params["codes"] = cl
     if search:
         conds.append("(notes ILIKE %(search)s OR code ILIKE %(search)s)")
         params["search"] = f"%{search}%"
@@ -1128,7 +1136,10 @@ async def update_activity(row_id: int, request: Request):
 def get_consumables(contractor: str = Query(...), dates: Optional[str] = Query(None)):
     q = "SELECT * FROM consumables WHERE contractor=%(contractor)s"
     p = {"contractor": contractor}
-    if dates: q += " AND date=ANY(%(dates)s)"; p["dates"]=dates.split(",")
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl:
+            q += " AND date=ANY(%(dates)s)"; p["dates"] = dl
     q += " ORDER BY date"
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -1139,7 +1150,10 @@ def get_consumables(contractor: str = Query(...), dates: Optional[str] = Query(N
 def get_crew(contractor: str = Query(...), dates: Optional[str] = Query(None)):
     q = "SELECT * FROM crew WHERE contractor=%(contractor)s"
     p = {"contractor": contractor}
-    if dates: q += " AND date=ANY(%(dates)s)"; p["dates"]=dates.split(",")
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl:
+            q += " AND date=ANY(%(dates)s)"; p["dates"] = dl
     q += " ORDER BY date"
     with get_conn() as conn:
         with conn.cursor() as cur:
