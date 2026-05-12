@@ -415,7 +415,13 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
     <!-- Activities -->
     <section class="page" id="page-activities">
-      <h2 class="section-title">Activity Log</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Activity Log</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-primary" onclick="rationaliseAndSync()" id="sync-btn">🔄 Rationalise &amp; Sync All</button>
+          <button class="btn-ghost" onclick="loadActivities()">↻ Refresh</button>
+        </div>
+      </div>
       <div class="filter-bar">
         <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
         <div class="filter-body" id="act-filter-body">
@@ -1207,17 +1213,18 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 });
 
 function triggerPageLoad(page){
-  if(page==='importer')     {}; // static page, no load needed
+  // Always reload fresh data when switching tabs — no caching
+  if(page==='importer')     {};
   if(page==='boreholes')    loadBoreholes();
-  if(page==='activities')  loadActivities();
-  if(page==='consumables') loadConsumables();
-  if(page==='crew')        loadCrew();
-  if(page==='analytics')   { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
-  if(page==='costing')     loadCosting();
+  if(page==='activities')   loadActivities();
+  if(page==='consumables')  loadConsumables();
+  if(page==='crew')         loadCrew();
+  if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
+  if(page==='costing')      loadCosting();
   if(page==='purchase-orders') loadPOs();
-  if(page==='invoices')    loadInvoices();
+  if(page==='invoices')     loadInvoices();
   if(page==='reconciliation')  loadReconciliation();
-  if(page==='rates')       initRatesTab();
+  if(page==='rates')        initRatesTab();
 }
 
 // Collapsible filters
@@ -1559,25 +1566,42 @@ function renderHeatmap(heatmap,daily){
   el.innerHTML=html+'</tbody></table>';
 }
 
-async function repriceActivities(){
-  try{
-    var btn=event.target;
-    btn.disabled=true;btn.textContent='Rationalising...';
-    var res=await fetch(API+'/reprice?contractor='+encodeURIComponent(activeContractor),{method:'POST'});
-    var d=await res.json();
-    console.log('Rationalise result:', d);
-    var msg = '\u2713 Rationalised '+d.total+' activities: ';
+async function rationaliseAndSync() {
+  var btn = document.getElementById("sync-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Rationalising...';
+  try {
+    // Step 1: Rationalise & reprice on the server
+    var res = await fetch(API+"/reprice?contractor="+encodeURIComponent(activeContractor), {method:"POST"});
+    var d = await res.json();
+    console.log("Rationalise result:", d);
+
     var parts = [];
-    if(d.dates_fixed > 0) parts.push(d.dates_fixed+' dates fixed');
-    if(d.holes_fixed > 0) parts.push(d.holes_fixed+' hole IDs fixed');
-    if(d.sites_fixed > 0) parts.push(d.sites_fixed+' sites filled');
-    parts.push(d.priced+' priced');
-    msg += parts.join(', ');
-    toast(msg);
-    loadCosting();
-    loadActivities();
-    btn.textContent='\uD83D\uDD04 Rationalise & Reprice';btn.disabled=false;
-  }catch(e){toast('Rationalise failed: '+e.message,'err');}
+    if(d.dates_fixed > 0) parts.push(d.dates_fixed+" dates fixed");
+    if(d.holes_fixed > 0) parts.push(d.holes_fixed+" hole IDs fixed");
+    if(d.sites_fixed > 0) parts.push(d.sites_fixed+" sites filled");
+    parts.push(d.priced+" of "+d.total+" priced");
+    toast("\u2713 "+parts.join(", "));
+
+    // Step 2: Refresh ALL data across all tabs
+    await loadActivities();
+    await updateDbCount();
+
+    // Pre-load other tabs so they're fresh when switched to
+    try { await loadCosting(); } catch(e) {}
+    try { await loadInvoices(); } catch(e) {}
+
+  } catch(e) {
+    toast("Rationalise failed: "+e.message, "err");
+    console.error(e);
+  }
+  btn.innerHTML = "\uD83D\uDD04 Rationalise & Sync All";
+  btn.disabled = false;
+}
+
+async function repriceActivities(){
+  // Just call the main sync function
+  await rationaliseAndSync();
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
