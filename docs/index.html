@@ -418,7 +418,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Activity Log</h2>
         <div style="display:flex;gap:8px;">
-          <button class="btn-primary" onclick="rationaliseAndSync()" id="sync-btn">🔄 Rationalise &amp; Sync All</button>
+          
           <button class="btn-ghost" onclick="loadActivities()">↻ Refresh</button>
         </div>
       </div>
@@ -566,7 +566,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">If costs show $0.00, click Reprice to calculate costs from the Schedule of Rates.</p>
-        <button class="btn-primary" style="margin-left:auto;white-space:nowrap;" onclick="repriceActivities()">🔄 Rationalise &amp; Reprice</button>
+        
       </div>
       <div class="po-banner-grid" id="po-summary-banner"></div>
       <div class="kpi-row">
@@ -804,7 +804,12 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-labels" checked onchange="filterBoreholesByProject()"> Show labels</label>
             </div>
           </div>
-          <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">⬇ Export KML (Google Earth)</button>
+          <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
+          <div style="position:relative;width:100%;">
+            <input type="file" id="dxf-file-input" accept=".dxf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;" onchange="uploadDXF(this)"/>
+            <button class="btn-ghost" style="width:100%;font-size:12px;">Upload DXF Overlay</button>
+          </div>
+          <button class="btn-ghost" onclick="clearDxfOverlay()" id="dxf-clear-btn" style="width:100%;font-size:12px;display:none;">Clear DXF</button>
           <button class="btn-ghost" onclick="importBudgetToDb()" style="width:100%;font-size:12px;">💾 Save All to Database</button>
         </div>
       </div>
@@ -1451,7 +1456,7 @@ async function loadConsumables(){
       });
     });
     makeTableSortable('con-table');
-  }catch(e){}
+  }catch(e){ console.error('loadConsumables error:', e); document.getElementById('con-body').innerHTML='<tr><td colspan="9" style="color:var(--red);padding:16px;">Error loading: '+e.message+'</td></tr>'; }
 }
 
 // ── Crew ──────────────────────────────────────────────────────────────────────
@@ -1641,6 +1646,13 @@ async function rationaliseAndSync() {
   btn.innerHTML = '<span class="spinner"></span> Rationalising...';
   try {
     var res = await fetch(API+"/reprice?contractor="+encodeURIComponent(activeContractor), {method:"POST"});
+    if(!res.ok) {
+      var errText = await res.text();
+      toast("Rationalise failed: "+res.status+" "+errText.substring(0,100), "err");
+      btn.innerHTML = "\uD83D\uDD04 Rationalise & Sync All";
+      btn.disabled = false;
+      return;
+    }
     var d = await res.json();
     console.log("Rationalise result:", d);
 
@@ -1649,21 +1661,24 @@ async function rationaliseAndSync() {
     if(d.holes_fixed > 0) parts.push(d.holes_fixed+" hole IDs fixed");
     if(d.sites_fixed > 0) parts.push(d.sites_fixed+" sites filled");
     parts.push(d.priced+" of "+d.total+" activities priced");
-    if(d.consumables_priced > 0) parts.push(d.consumables_priced+" of "+d.consumables_total+" consumables priced");
+    if(d.consumables_priced > 0) parts.push(d.consumables_priced+" of "+(d.consumables_total||0)+" consumables priced");
+    if(d.consumables_error) parts.push("consumables error: "+d.consumables_error);
     toast("\u2713 "+parts.join(", "));
-
-    // Refresh ALL data across all tabs
-    await loadActivities();
-    await updateDbCount();
-    try { await loadConsumables(); } catch(e) {}
-    try { await loadCrew(); } catch(e) {}
-    try { await loadCosting(); } catch(e) {}
-    try { await loadInvoices(); } catch(e) {}
 
   } catch(e) {
     toast("Rationalise failed: "+e.message, "err");
-    console.error(e);
+    console.error("Rationalise error:", e);
   }
+
+  // Always refresh all tabs regardless of rationalise result
+  btn.innerHTML = '<span class="spinner"></span> Refreshing...';
+  try { await loadActivities(); } catch(e) { console.error("loadActivities:", e); }
+  try { await updateDbCount(); } catch(e) {}
+  try { await loadConsumables(); } catch(e) { console.error("loadConsumables:", e); }
+  try { await loadCrew(); } catch(e) { console.error("loadCrew:", e); }
+  try { await loadCosting(); } catch(e) {}
+  try { await loadInvoices(); } catch(e) {}
+
   btn.innerHTML = "\uD83D\uDD04 Rationalise & Sync All";
   btn.disabled = false;
 }
@@ -2952,8 +2967,87 @@ async function importBudgetToDb() {
     });
     if(!res.ok) { toast('Failed to save','err'); return; }
     const d = await res.json();
-    toast('✓ '+d.count+' boreholes saved to database');
+    toast('\u2713 '+d.count+' boreholes saved to database');
   } catch(e) { toast('Save failed: '+e.message,'err'); }
+}
+
+// ── DXF Overlay ───────────────────────────────────────────────────────────────
+var dxfLayer = null;
+var DXF_COLORS = {
+  1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
+  6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
+  30:'#ff6600',40:'#ff9900',50:'#cccc00',60:'#00cc66',
+  70:'#0099cc',80:'#3366ff',90:'#6633ff',140:'#ff3399',
+};
+function dxfColor(c) { return DXF_COLORS[c] || '#e74c3c'; }
+
+async function uploadDXF(input) {
+  var file = input.files[0];
+  if(!file) return;
+  toast('Parsing DXF...');
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('epsg', '20355');
+  try {
+    var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
+    if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
+    var d = await res.json();
+    console.log('DXF:', d.entity_count+' entities, layers:', d.layers);
+    renderDxfOverlay(d.geojson, d.layers, file.name);
+    toast('\u2713 DXF loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
+  } catch(e) {
+    toast('DXF failed: '+e.message, 'err');
+  }
+  input.value = '';
+}
+
+function renderDxfOverlay(geojson, layers, filename) {
+  if(!bhMap) { toast('Map not ready','err'); return; }
+  clearDxfOverlay();
+  dxfLayer = L.geoJSON(geojson, {
+    style: function(feature) {
+      var col = dxfColor(feature.properties.color);
+      return {
+        color: col, weight: feature.properties.type==='polygon'?2:1.5,
+        opacity: 0.85, fillColor: col,
+        fillOpacity: feature.properties.type==='polygon'?0.1:0,
+      };
+    },
+    pointToLayer: function(feature, latlng) {
+      if(feature.properties.type==='text') {
+        return L.marker(latlng, {icon: L.divIcon({
+          html: '<div style="font-size:9px;color:'+dxfColor(feature.properties.color)+';white-space:nowrap;text-shadow:1px 1px 1px rgba(0,0,0,0.5);">'+feature.properties.text+'</div>',
+          className:'', iconSize:[100,14], iconAnchor:[0,7]
+        })});
+      }
+      if(feature.properties.type==='circle') {
+        return L.circle(latlng, {radius:feature.properties.radius||5,
+          color:dxfColor(feature.properties.color), weight:1.5, fillOpacity:0.1});
+      }
+      return L.circleMarker(latlng, {radius:3,
+        color:dxfColor(feature.properties.color), weight:1, fillOpacity:0.8});
+    },
+    onEachFeature: function(feature, layer) {
+      var props = feature.properties;
+      var popup = '<div style="font-family:Inter,sans-serif;font-size:12px;">';
+      popup += '<b>Layer:</b> '+props.layer+'<br><b>Type:</b> '+props.type;
+      if(props.text) popup += '<br><b>Text:</b> '+props.text;
+      popup += '</div>';
+      layer.bindPopup(popup);
+    }
+  });
+  dxfLayer.addTo(bhMap);
+  document.getElementById('dxf-clear-btn').style.display = 'block';
+  try {
+    var bounds = dxfLayer.getBounds();
+    if(bounds.isValid()) bhMap.fitBounds(bounds, {padding:[30,30]});
+  } catch(e) {}
+}
+
+function clearDxfOverlay() {
+  if(dxfLayer && bhMap) { bhMap.removeLayer(dxfLayer); dxfLayer = null; }
+  var btn = document.getElementById('dxf-clear-btn');
+  if(btn) btn.style.display = 'none';
 }
 
 
