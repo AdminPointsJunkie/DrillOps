@@ -804,15 +804,49 @@ def parse_activities_adr001(text, header, filename, contractor):
 def parse_activities(text, header, filename, contractor):
     time_pat = r"\d{1,2}:\d{2}"
 
+    # Pre-process text: join split lines where a code wraps (e.g. "Drill_Chip_or_Open_hol\n...e")
+    lines_raw = text.splitlines()
+    lines_joined = []
+    i = 0
+    while i < len(lines_raw):
+        line = lines_raw[i].strip()
+        # Check if this line is a partial code that continues on the next line
+        # e.g. "Drill_Chip_or_Open_hol" followed by "e" or "drill to 243.55m 8:45..."
+        if (line.endswith("_hol") or line.endswith("_Open_hol") or
+            line.endswith("_Da") or line.endswith("_Day_Ra") or
+            line.endswith("_Standby")):
+            if i+1 < len(lines_raw):
+                next_line = lines_raw[i+1].strip()
+                # If next line starts with the rest of the code or has time data
+                if re.match(r'^[a-z_]', next_line) and len(next_line) < 5:
+                    # Just the end of a code like "e" or "te"
+                    lines_joined.append(line + next_line)
+                    i += 2
+                    continue
+                elif re.search(time_pat, next_line):
+                    # Next line has the actual data — prepend the code
+                    code_part = line.split()[-1] if line.split() else ""
+                    lines_joined.append(next_line + " " + code_part)
+                    i += 2
+                    continue
+        # Check if this line IS a dangling code fragment
+        if re.match(r'^[a-z]\w*$', line) and len(line) < 5 and lines_joined:
+            # Append to previous line
+            lines_joined[-1] = lines_joined[-1] + line
+            i += 1
+            continue
+        lines_joined.append(line)
+        i += 1
+
     # Primary pattern: lines with 3 time fields (time_from, time_to, total_time)
+    # Now handles PCD with diameter like: PCD 4" or PCD 5-7/8" or HQ_HQ3
     row_re = re.compile(
         r"^(.*?)(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})"
-        r"(?:\s+(HQ_HQ3|PCD|NQ|HQ)\s+(\S+))?"
+        r'(?:\s+(HQ_HQ3|HQ|PCD|NQ|PQ)\s+([^\s]+))?'
         r"(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?(?:\s+(\d+\.?\d*))?"
         r"(?:\s+([\w_]+))?\s*$", re.IGNORECASE)
 
     # Secondary pattern: lines with just a code and maybe numbers (day rates, consumables as activities)
-    # e.g. "D_WaterCart_Day_Rate" or "D_Backhoe - Day Rate" or "PVC Casing 100mm Class 9"
     code_only_re = re.compile(
         r"^(.*?)\s+(D_\w+|H_\w+|PVC[\w\s]+|Cement[\w\s]*)\s*"
         r"(?:(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*))?"
@@ -836,9 +870,10 @@ def parse_activities(text, header, filename, contractor):
         "H_Casing_Install", "H_Rig_Cementing", "H_Mud_Mixing",
         "H_Repairs", "H_Training", "H_Safety_Prestart",
         "H_Safety_Contractor", "Crew_Travel", "MOB", "DEMOB",
+        "H_Con_Collect_Plan", "H_Crew_Travel_On", "H_Crew_Travel_Off",
     }
 
-    for line in text.splitlines():
+    for line in lines_joined:
         line = line.strip()
         if not line:
             continue
@@ -1105,7 +1140,11 @@ async def import_pdf(
 
             # Drilling metres
             if metres > 0 and bit_type and depth is not None:
-                r = _get_dr(bit_type.replace(" ","_"), depth, year)
+                bk = bit_type.replace(" ","_").upper()
+                # Map common bit types to rate card keys
+                bit_map = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S","PQ":"HQ_HQ3"}
+                bk = bit_map.get(bk, "PCD_S" if "Chip" in code or "PCD" in bk else "HQ_HQ3")
+                r = _get_dr(bk, depth, year)
                 if r:
                     ur = r; qty = round(metres,2); lc = round(r*metres,2); rb = f"${r:.2f}/m x {metres:.2f}m"
 
@@ -2552,9 +2591,11 @@ def reprice_activities(contractor: str = Query(...)):
 
             # Drilling metres
             if metres > 0 and bit_type:
-                d_key = bit_type.replace(" ","_")
+                bk = bit_type.replace(" ","_").upper()
+                bit_map = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S","PQ":"HQ_HQ3"}
+                bk = bit_map.get(bk, "PCD_S" if "Chip" in code or "PCD" in bk else "HQ_HQ3")
                 if depth is not None:
-                    r = get_dr_mem(d_key, depth, year)
+                    r = get_dr_mem(bk, depth, year)
                     if r:
                         unit_rate = r; quantity = round(metres,2)
                         line_cost = round(r * metres, 2); rate_basis = f"${r:.2f}/m x {metres:.2f}m"
