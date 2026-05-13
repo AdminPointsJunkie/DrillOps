@@ -956,17 +956,36 @@ def parse_activities(text, header, filename, contractor):
 
 def parse_consumables(text, header, filename, contractor):
     rows = []
-    m = re.search(r"CONSUMABLES\s*\n(.*?)(?:ALLIANZ REPRESENTATIVE|$)", text, re.DOTALL|re.IGNORECASE)
+    m = re.search(r"CONSUMABLES\s*\n(.*?)(?:ALLIANZ REPRESENTATIVE|CONTRACTOR REPRESENTATIVE|$)", text, re.DOTALL|re.IGNORECASE)
     if not m: return rows
-    for cm in re.finditer(
-        r"^(.+?)\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube)\s+(\d+)\s+(\S+)\s*$",
-        m.group(1), re.IGNORECASE|re.MULTILINE
-    ):
-        rows.append({"source_file":filename,"contractor":contractor,
-                     "date":header.get("date",""),"hole_num":header.get("hole_num",""),
-                     "site_name":header.get("site_name",""),
-                     "consumable":cm.group(1).strip(),"type":cm.group(2).strip(),
-                     "quantity":cm.group(3).strip(),"unit":cm.group(4).strip()})
+    block = m.group(1)
+    # Match any consumable line - just grab the product name, set qty=1
+    # Patterns: "AMC CR650 drum 1 Ltrs" or "AMC CR650 1" or "Fuel (Diesel) Ltrs"
+    for line in block.splitlines():
+        line = line.strip()
+        if not line or line.lower().startswith('consumable') or line.lower().startswith('type') or line.lower().startswith('quantity'):
+            continue
+        # Skip lines that are just numbers or units
+        if re.match(r'^[\d\s]+$', line) or re.match(r'^(Ltrs?|Kgs?|Mtrs?|drum|bucket|bags?)$', line, re.IGNORECASE):
+            continue
+        # Extract product name - strip trailing numbers, units, and quantity+unit combos
+        product = re.sub(r'\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube|each)\s+\d+\s+\S+\s*$', '', line, flags=re.IGNORECASE).strip()
+        product = re.sub(r'\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube|each)\s+\d+\s*$', '', product, flags=re.IGNORECASE).strip()
+        product = re.sub(r'\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube|each)\s*$', '', product, flags=re.IGNORECASE).strip()
+        product = re.sub(r'\s+\d+\s+(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube|each)\s*$', '', product, flags=re.IGNORECASE).strip()
+        product = re.sub(r'\s+\d+\s*$', '', product).strip()
+        if not product or len(product) < 3:
+            continue
+        # Determine unit from original line
+        unit_m = re.search(r'(drum|bucket|bags?|tins?|slurry|Kgs?|Ltrs?|Mtrs?|cube|each)', line, re.IGNORECASE)
+        unit = unit_m.group(1) if unit_m else 'each'
+        rows.append({
+            "source_file": filename, "contractor": contractor,
+            "date": header.get("date",""), "hole_num": header.get("hole_num",""),
+            "site_name": header.get("site_name",""),
+            "consumable": product, "type": product, "quantity": "1", "unit": unit,
+            "unit_price": None, "line_cost": None,
+        })
     return rows
 
 
