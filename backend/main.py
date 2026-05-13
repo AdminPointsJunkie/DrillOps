@@ -1643,26 +1643,34 @@ def del_consumable_rate(rid: int):
 
 
 @app.get("/purchase_orders")
-def get_pos(contractor: str = Query(...)):
+def get_pos(contractor: Optional[str] = Query(None)):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT id, po_number, contractor, description,
-                           issue_date, expiry_date, po_value, status, notes
-                    FROM purchase_orders
-                    WHERE contractor=%s
-                    ORDER BY issue_date DESC
-                """, (contractor,))
+                if contractor:
+                    cur.execute("""
+                        SELECT id, po_number, contractor, description,
+                               issue_date, expiry_date, po_value, status, notes
+                        FROM purchase_orders
+                        WHERE contractor=%s
+                        ORDER BY issue_date DESC
+                    """, (contractor,))
+                else:
+                    cur.execute("""
+                        SELECT id, po_number, contractor, description,
+                               issue_date, expiry_date, po_value, status, notes
+                        FROM purchase_orders
+                        ORDER BY issue_date DESC
+                    """)
                 pos = [dict(r) for r in cur.fetchall()]
 
-                # Add spent/remaining for each PO
+                # Add spent from invoices matched to this PO
                 for po in pos:
                     cur.execute("""
-                        SELECT COALESCE(SUM(line_cost),0) AS spent
-                        FROM activities
-                        WHERE po_id=%s AND contractor=%s AND line_cost IS NOT NULL
-                    """, (po["id"], contractor))
+                        SELECT COALESCE(SUM(total_aud),0) AS spent
+                        FROM invoices
+                        WHERE po_reference LIKE %s
+                    """, (f"%{po['po_number']}%",))
                     spent = float(cur.fetchone()["spent"] or 0)
                     po["spent_to_date"] = spent
                     po["remaining"] = (po["po_value"] or 0) - spent
