@@ -2256,6 +2256,156 @@ def rematch_all(contractor: str = Query(...)):
     return {"status": "rematched", "count": len(invoices)}
 
 
+@app.post("/reconciliation/ai-audit")
+async def ai_audit_reconciliation(request: Request):
+    """Use Gemini AI to intelligently audit invoices against EOS field data."""
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    month = payload.get("month", "")
+
+    if not GEMINI_API_KEY:
+        raise HTTPException(500, "GEMINI_API_KEY not configured on server. Add it in Render environment variables.")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Get invoices
+            if month:
+                cur.execute("""SELECT invoice_number, invoice_date, billing_month, total_aud,
+                       amount_paid, amount_due, status, po_reference
+                    FROM invoices WHERE contractor=%s
+                    AND (billing_month=%s OR invoice_date LIKE %s)
+                    ORDER BY invoice_date""", (contractor, month, f"%{month}%"))
+            else:
+                cur.execute("""SELECT invoice_number, invoice_date, billing_month, total_aud,
+                       amount_paid, amount_due, status, po_reference
+                    FROM invoices WHERE contractor=%s ORDER BY invoice_date""", (contractor,))
+            invoices = [dict(r) for r in cur.fetchall()]
+
+            inv_lines = []
+            for inv in invoices:
+                cur.execute("""SELECT il.* FROM invoice_lines il
+                    JOIN invoices i ON i.id=il.invoice_id
+                    WHERE i.invoice_number=%s AND i.contractor=%s""",
+                    (inv["invoice_number"], contractor))
+                inv_lines.extend([dict(r) for r in cur.fetchall()])
+
+            # EOS summary
+            cur.execute("""SELECT date, hole_num, site_name, code, notes, total_time,
+                       total_metres, bit_type, unit_rate, quantity, line_cost, rate_basis
+                FROM activities WHERE contractor=%s AND line_cost IS NOT NULL
+                ORDER BY date""", (contractor,))
+            activities = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("SELECT code, description, rate, unit FROM hourly_rates WHERE contractor=%s", (contractor,))
+            rates = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("""SELECT consumable, SUM(COALESCE(NULLIF(quantity,'')::FLOAT,1)) AS total_qty,
+                       MAX(unit_price) AS unit_price, SUM(line_cost) AS total_cost
+                FROM consumables WHERE contractor=%s AND line_cost > 0
+                GROUP BY consumable""", (contractor,))
+            consumables = [dict(r) for r in cur.fetchall()]
+
+    inv_total = sum(float(i.get("total_aud") or 0) for i in invoices)
+    eos_total = sum(float(a.get("line_cost") or 0) for a in activities)
+    cons_total = sum(float(c.get("total_cost") or 0) for c in consumables)
+
+    eos_by_code = {}
+    for a in activities:
+        code = a.get("code") or "unknown"
+        eos_by_code[code] = eos_by_code.get(code, 0) + float(a.get("line_cost") or 0)
+
+    eos_by_date = {}
+    for a in activities:
+        d = a.get("date") or "unknown"
+        eos_by_date[d] = eos_by_date.get(d, 0) + float(a.get("line_cost") or 0)
+
+    prompt = f"""You are a mining industry financial auditor specialising in drilling contractor invoices for Australian coal exploration. Analyse this data and identify discrepancies, overcharges, and anomalies.
+
+CONTRACTOR: {contractor}
+PERIOD: {month or 'All dates'}
+
+INVOICES ({len(invoices)} invoices, total ${inv_total:,.2f}):
+{json.dumps(invoices, indent=2, default=str)[:3000]}
+
+INVOICE LINE ITEMS ({len(inv_lines)} lines):
+{json.dumps(inv_lines[:50], indent=2, default=str)[:3000]}
+
+EOS FIELD DATA SUMMARY:
+Total EOS calculated cost: ${eos_total:,.2f}
+Total consumables cost: ${cons_total:,.2f}
+Grand variance (Invoice - EOS - Consumables): ${inv_total - eos_total - cons_total:,.2f}
+
+Cost by activity code:
+{json.dumps(eos_by_code, indent=2, default=str)[:2000]}
+
+Daily totals (EOS):
+{json.dumps(dict(list(eos_by_date.items())[:30]), indent=2, default=str)[:1500]}
+
+SCHEDULE OF RATES:
+{json.dumps(rates[:30], indent=2, default=str)[:1500]}
+
+CONSUMABLES:
+{json.dumps(consumables, indent=2, default=str)[:1000]}
+
+Provide your audit as JSON with this exact structure:
+{{
+  "summary": "2-3 sentence executive summary",
+  "grand_variance": {{"invoiced": 0, "eos_calculated": 0, "consumables": 0, "difference": 0, "percentage": 0}},
+  "findings": [
+    {{
+      "severity": "critical or warning or info",
+      "category": "overcharge or undercharge or rate_mismatch or missing_data or duplicate or suspicious",
+      "title": "short title",
+      "detail": "detailed explanation",
+      "amount": 0,
+      "recommendation": "action to take"
+    }}
+  ],
+  "rate_check": [
+    {{
+      "code": "H_Active",
+      "schedule_rate": 745,
+      "invoiced_rate": 0,
+      "status": "match or mismatch or not_found",
+      "note": "explanation"
+    }}
+  ],
+  "recommendations": ["list of action items"]
+}}
+
+Return ONLY valid JSON. No markdown fences. No text outside the JSON object."""
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    gemini_payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192}
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(url, json=gemini_payload)
+    except Exception as e:
+        raise HTTPException(502, f"Gemini request failed: {str(e)}")
+
+    if resp.status_code != 200:
+        raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
+
+    result = resp.json()
+    try:
+        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        text = text.strip()
+        if text.startswith("```"): text = text.split("\n", 1)[1]
+        if text.endswith("```"): text = text[:-3]
+        text = text.strip()
+        if text.lower().startswith("json"): text = text[4:].strip()
+        audit = json.loads(text)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        raw = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        return {"status": "partial", "raw_response": raw[:3000], "error": str(e)}
+
+    return {"status": "ok", "audit": audit}
+
+
 @app.post("/reprice")
 def reprice_activities(contractor: str = Query(...)):
     """Fast rationalisation: fix dates, holes, sites, locations, then batch reprice."""
