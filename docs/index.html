@@ -616,7 +616,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
     <section class="page" id="page-purchase-orders">
       <h2 class="section-title">🧾 Purchase Orders</h2>
       <div class="filter-bar">
-        <button class="filter-toggle" id="po-add-toggle">➕ &nbsp;Add New PO <span class="arrow">▼</span></button>
+        <button class="filter-toggle" id="po-add-toggle" onclick="this.classList.toggle('open');document.getElementById('po-add-body').classList.toggle('open');">➕ &nbsp;Add New PO <span class="arrow">▼</span></button>
         <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
@@ -1775,7 +1775,7 @@ async function loadCostingLines(){
 // ── Purchase Orders ───────────────────────────────────────────────────────────
 async function loadPOs(){
   try{
-    const res=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`);
+    const res=await fetch(API+'/purchase_orders');
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load POs','err');return;}
     posData=await res.json();
     if(!Array.isArray(posData)){toast('PO data error','err');return;}
@@ -1785,7 +1785,7 @@ async function loadPOs(){
 
 async function loadPOBanner(){
   try{
-    const res=await fetch(`${API}/purchase_orders?contractor=${encodeURIComponent(activeContractor)}`);
+    const res=await fetch(API+'/purchase_orders');
     if(!res.ok)return;
     posData=await res.json();
     if(Array.isArray(posData))renderPOBanner(posData);
