@@ -1973,18 +1973,23 @@ async function switchContractor(name){
 
 // ── DB count / filters ────────────────────────────────────────────────────────
 async function updateDbCount(){
+  const dbEl = document.getElementById('db-count');
+  if(dbEl) dbEl.textContent='checking...';
   try{
-    const res = await fetch(`${API}/filters?contractor=${encodeURIComponent(activeContractor)}`);
+    const res = await apiFetch(`${API}/filters?contractor=${encodeURIComponent(activeContractor)}`, {}, 2);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const d=await res.json();
-    document.getElementById('db-count').textContent=d.total_rows.toLocaleString();
+    if(dbEl) dbEl.textContent=(d.total_rows||0).toLocaleString();
     filterOpts=d;
     fillSelect('f-dates',d.dates);fillSelect('f-holes',d.holes);
     fillSelect('f-sites',d.sites);fillSelect('f-codes',d.codes);
     fillSelect('f-con-dates',d.dates);fillSelect('f-crew-dates',d.dates);
     buildHoleSelector(d.holes);
   }catch(e){
-    document.getElementById('db-count').textContent='offline';
+    if(dbEl) {
+      dbEl.textContent='offline';
+      dbEl.title=`Could not reach ${API}. ${e.message}`;
+    }
     console.error('API error:', e.message);
   }
 }
