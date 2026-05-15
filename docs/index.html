@@ -59,10 +59,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 #login-screen{position:fixed;inset:0;z-index:9998;background:#0f172a;}
 
 /* Header */
-header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:900;box-shadow:var(--shadow);}
-.logo{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-0.5px;}
+header{display:flex;align-items:center;justify-content:flex-start;gap:16px;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:900;box-shadow:var(--shadow);}
+.logo{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:0;line-height:1;white-space:nowrap;}
 .logo span{color:var(--text);}
-.header-right{display:flex;align-items:center;gap:12px;}
+#contractor-switcher{flex:1;}
+.header-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
 .header-meta{font-size:12px;color:var(--muted);}
 #db-count{color:var(--accent);font-weight:600;}
 
@@ -787,7 +788,7 @@ tbody td[contenteditable=true]:focus {
     position:sticky;
     top:0;
     display:grid;
-    grid-template-columns:44px 1fr;
+    grid-template-columns:44px minmax(0,1fr);
     align-items:center;
     min-height:58px;
     padding:8px 10px;
@@ -798,8 +799,14 @@ tbody td[contenteditable=true]:focus {
     height:40px;
   }
   .logo {
-    font-size:18px;
+    font-size:24px;
+    font-weight:800;
+    line-height:1;
     justify-self:start;
+  }
+  #contractor-switcher {
+    grid-column:1 / -1;
+    width:100%;
   }
   .header-right {
     grid-column:1 / -1;
