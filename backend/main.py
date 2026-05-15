@@ -307,7 +307,7 @@ def init_db():
                     billing_month   TEXT
                 )
             """)
-            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT")]:
+            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT"), ("version", "INTEGER DEFAULT 1"), ("query_notes", "TEXT")]:
                 try:
                     cur.execute(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
@@ -2156,16 +2156,21 @@ def get_invoice_lines(invoice_id: int):
 @app.patch("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: int, request: Request):
     payload = await request.json()
-    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference"}
-    u = {k:v for k,v in payload.items() if k in safe}
+    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","invoice_date","subtotal","gst","total_aud","invoice_number"}
+    u = {k:v for k,v in payload.items() if k in safe and k != "version"}
     if not u: raise HTTPException(400, "No valid fields")
+    # Auto-increment version on any edit
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT version FROM invoices WHERE id=%s", (invoice_id,))
+            row = cur.fetchone()
+            current_version = int(row["version"] or 1) if row else 1
+            u["version"] = current_version + 1
             set_clause = ", ".join(f"{k}=%s" for k in u)
             vals = list(u.values()) + [invoice_id]
             cur.execute(f"UPDATE invoices SET {set_clause} WHERE id=%s", vals)
         conn.commit()
-    return {"status": "updated"}
+    return {"status": "updated", "version": u["version"]}
 
 
 @app.get("/invoices/{invoice_id}/pdf")
