@@ -324,11 +324,9 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
       <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span>📋</span> Activities</button>
       <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span>🧪</span> Consumables</button>
       <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span>👷</span> Crew</button>
-      <button class="drawer-nav-item" data-page="analytics" onclick="drawerNav(this)"><span>📊</span> Analytics</button>
-      <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span>💰</span> Costing</button>
+            <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span>💰</span> Costing</button>
       <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span>🧾</span> Purchase Orders</button>
       <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span>🧮</span> Invoices</button>
-      <button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><span>⚖️</span> Reconciliation</button>
       <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span>📄</span> Schedule of Rates</button>
     </div>
 
@@ -502,63 +500,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
     </section>
 
     <!-- Analytics -->
-    <section class="page" id="page-analytics">
-      <h2 class="section-title">Analytics &amp; Anomalies</h2>
-
-      <!-- Filter bar -->
-      <div class="filter-bar" style="margin-bottom:16px;">
-        <button class="filter-toggle" id="analytics-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
-        <div class="filter-body" id="analytics-filter-body" style="grid-template-columns:repeat(5,1fr);">
-          <div class="filter-group"><label>Hole #</label><select id="f-an-holes" multiple></select></div>
-          <div class="filter-group"><label>Site</label><select id="f-an-sites" multiple></select></div>
-          <div class="filter-group"><label>Project</label><select id="f-an-project"><option value="">All Projects</option></select></div>
-          <div class="filter-group"><label>Date From</label><input type="date" id="f-an-date-from"/></div>
-          <div class="filter-group"><label>Date To</label><input type="date" id="f-an-date-to"/></div>
-          <div class="filter-actions" style="grid-column:1/-1;">
-            <button class="btn-primary" onclick="applyAnalyticsFilters()">Apply Filters</button>
-            <button class="btn-ghost" onclick="resetAnalyticsFilters()">Reset</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Hole selector pills -->
-      <div class="hole-selector" id="hole-selector"><button class="hole-btn active" data-hole="all">All Holes</button></div>
-
-      <!-- KPIs -->
-      <div class="kpi-row">
-        <div class="kpi"><div class="kpi-label">Total Shift Hours</div><div class="kpi-value" id="kpi-total">—</div></div>
-        <div class="kpi"><div class="kpi-label">Productive Drilling</div><div class="kpi-value" id="kpi-drill">—</div><div class="kpi-sub" id="kpi-eff">—</div></div>
-        <div class="kpi"><div class="kpi-label">Repairs / Maint.</div><div class="kpi-value" id="kpi-repair">—</div></div>
-        <div class="kpi"><div class="kpi-label">Standby / Delays</div><div class="kpi-value" id="kpi-delay">—</div></div>
-        <div class="kpi"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="kpi-metres">—</div></div>
-      </div>
-
-      <!-- Charts -->
-      <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Time Breakdown by Day</div><canvas id="chart-daily"></canvas></div>
-        <div class="chart-card"><div class="chart-title">Cumulative Metres Drilled</div><canvas id="chart-cumulative"></canvas></div>
-      </div>
-      <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Metres per Drill Run</div><canvas id="chart-runs"></canvas></div>
-        <div class="chart-card"><div class="chart-title">Cost Breakdown by Category</div><canvas id="chart-cost-cat"></canvas></div>
-      </div>
-
-      <!-- Anomalies -->
-      <h2 class="section-title" style="margin-top:8px;">Anomaly Report</h2>
-      <div class="table-wrap">
-        <div class="table-toolbar"><div class="table-count"><span id="anom-count">—</span> anomalies</div><button class="btn-csv" onclick="downloadCSV('anomalies')">⬇ CSV</button></div>
-        <div class="tbl-scroll"><table id="anom-table">
-          <thead><tr><th>Date</th><th>Hole</th><th>Type</th><th>Detail</th></tr></thead>
-          <tbody id="anom-body"></tbody>
-        </table></div>
-      </div>
-
-      <!-- NPT Heatmap -->
-      <div class="chart-card" style="margin-bottom:20px;">
-        <div class="chart-title">Non-Productive Time Heatmap</div>
-        <div id="heatmap-container"></div>
-      </div>
-    </section>
+    
 
     <!-- Costing -->
     <section class="page" id="page-costing">
@@ -681,66 +623,48 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
     </section>
     <!-- Invoices -->
     <section class="page" id="page-invoices">
-      <h2 class="section-title">🧮 Invoices</h2>
-
-      <!-- Invoice import -->
-      <div class="filter-bar" style="margin-bottom:20px;">
-        <button class="filter-toggle" id="inv-import-toggle">📥 &nbsp;Import Invoice PDFs <span class="arrow">▼</span></button>
-        <div class="filter-body" id="inv-import-body" style="grid-template-columns:1fr;">
-          <div style="border:1px dashed var(--border);border-radius:4px;padding:16px;text-align:center;position:relative;cursor:pointer;" id="inv-drop-zone">
-            <input type="file" id="inv-file-input" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;"/>
-            <div style="font-size:24px;margin-bottom:6px;">📄</div>
-            <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Drop invoice PDFs or click to browse</p>
-          </div>
-          <div style="margin-top:8px;">
-            <button id="inv-import-btn" class="btn-primary" style="width:100%;" disabled>Import Invoices</button>
-            <div id="inv-import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.8;color:var(--muted);max-height:80px;overflow-y:auto;"></div>
-          </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Invoice Register</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="inv-contractor-filter" onchange="loadInvoices()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:160px;">
+            <option value="">All Contractors</option>
+          </select>
+          <select id="inv-status-filter" onchange="loadInvoices()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:120px;">
+            <option value="">All Status</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Paid">Paid</option>
+            <option value="Query">Query</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+          <button class="btn-csv" onclick="downloadCSV('invoices')">⬇ CSV</button>
         </div>
       </div>
 
-      <!-- Invoice summary KPIs -->
-      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <!-- KPIs -->
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
         <div class="kpi"><div class="kpi-label">Total Invoiced</div><div class="kpi-value" id="inv-kpi-total">—</div></div>
-        <div class="kpi good"><div class="kpi-label">Amount Paid</div><div class="kpi-value" id="inv-kpi-paid">—</div></div>
-        <div class="kpi warn"><div class="kpi-label">Amount Due</div><div class="kpi-value" id="inv-kpi-due">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Paid</div><div class="kpi-value" id="inv-kpi-paid">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Outstanding</div><div class="kpi-value" id="inv-kpi-due">—</div></div>
         <div class="kpi"><div class="kpi-label">Invoices</div><div class="kpi-value" id="inv-kpi-count">—</div></div>
+        <div class="kpi"><div class="kpi-label">In Query</div><div class="kpi-value" id="inv-kpi-query">—</div></div>
       </div>
 
-      <!-- Invoice table -->
+      <!-- Main table -->
       <div class="table-wrap">
         <div class="table-toolbar">
           <div class="table-count"><span id="inv-count">—</span> invoices</div>
-          <button class="btn-csv" onclick="downloadCSV('invoices')">⬇ CSV</button>
+          <div style="font-size:11px;color:var(--muted);">Click any cell to edit · Changes save automatically</div>
         </div>
         <div class="tbl-scroll">
           <table id="inv-table">
             <thead><tr>
-              <th>Invoice #</th><th>Date</th><th>Due Date</th><th>PO Reference</th>
-              <th>Subtotal</th><th>GST</th><th>Total AUD</th><th>Paid</th><th>Due</th>
-              <th>Status</th><th>Lines</th><th>Matches</th><th>Discrepancies</th><th></th>
+              <th>Invoice #</th><th>Contractor</th><th>Invoice Date</th><th>Invoice Month</th>
+              <th>PO Number</th><th>Subtotal</th><th>GST</th><th>Total AUD</th>
+              <th>Amount Paid</th><th>Amount Due</th><th>Status</th><th>Query Notes</th>
+              <th>Version</th><th>PDF</th><th></th>
             </tr></thead>
             <tbody id="inv-body"></tbody>
           </table>
-        </div>
-      </div>
-
-      <!-- Invoice line detail (shown when clicking an invoice) -->
-      <div id="inv-lines-panel" style="display:none;">
-        <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">
-          Line Items — <span id="inv-lines-title"></span>
-          <button onclick="closeInvLines()" style="float:right;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px;">✕ Close</button>
-        </h3>
-        <div class="table-wrap">
-          <div class="tbl-scroll">
-            <table id="inv-lines-table">
-              <thead><tr>
-                <th>Description</th><th>Category</th><th>Qty</th><th>Unit Price</th>
-                <th>Amount</th><th>Matched EOS $</th><th>Variance</th><th>Status</th>
-              </tr></thead>
-              <tbody id="inv-lines-body"></tbody>
-            </table>
-          </div>
         </div>
       </div>
     </section>
@@ -894,112 +818,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
     </section>
 
     <!-- Reconciliation -->
-    <section class="page" id="page-reconciliation">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Invoice vs EOS Reconciliation</h2>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);">Period</label>
-          <select id="rec-month-filter" onchange="loadReconciliation()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;">
-            <option value="">All Months</option>
-          </select>
-          <button class="btn-ghost" onclick="rematchAll()">🔄 Re-match</button>
-          <button class="btn-primary" onclick="runAiAudit()" id="ai-audit-btn" style="background:#7c3aed;">🤖 AI Audit</button>
-        </div>
-      </div>
-
-      <!-- Grand total comparison -->
-      <div class="kpi-row">
-        <div class="kpi"><div class="kpi-label">Total Invoiced</div><div class="kpi-value" id="rec-inv-total">—</div></div>
-        <div class="kpi"><div class="kpi-label">EOS Calculated Cost</div><div class="kpi-value" id="rec-eos-total">—</div></div>
-        <div class="kpi"><div class="kpi-label">Grand Variance</div><div class="kpi-value" id="rec-variance">—</div><div class="kpi-sub" id="rec-variance-note">—</div></div>
-        <div class="kpi good"><div class="kpi-label">Invoice Paid</div><div class="kpi-value" id="rec-paid">—</div></div>
-        <div class="kpi warn"><div class="kpi-label">Invoice Outstanding</div><div class="kpi-value" id="rec-due">—</div></div>
-      </div>
-
-      <!-- Category comparison table -->
-      <div class="table-wrap" style="margin-bottom:20px;">
-        <div class="table-toolbar"><div class="table-count">Category Comparison</div></div>
-        <div class="tbl-scroll">
-          <table id="rec-cat-table">
-            <thead><tr>
-              <th>Category</th><th>Invoice Total</th><th>EOS Total</th>
-              <th>Variance $</th><th>Variance %</th><th>Status</th>
-            </tr></thead>
-            <tbody id="rec-cat-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Invoice register (editable) -->
-      <div class="table-wrap" style="margin-bottom:20px;">
-        <div class="table-toolbar">
-          <div class="table-count">Invoice Register</div>
-          <div style="font-size:11px;color:var(--muted);">Assign billing months to invoices for period matching</div>
-        </div>
-        <div class="tbl-scroll">
-          <table id="rec-inv-table">
-            <thead><tr>
-              <th>Invoice #</th><th>Date</th><th>Billing Month</th><th>PO Reference</th>
-              <th>Total AUD</th><th>Paid</th><th>Due</th><th>Status</th><th>PDF</th>
-            </tr></thead>
-            <tbody id="rec-inv-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Monthly summary -->
-      <div class="table-wrap" style="margin-bottom:20px;">
-        <div class="table-toolbar"><div class="table-count">Month-by-Month Summary</div></div>
-        <div class="tbl-scroll">
-          <table id="rec-monthly-table">
-            <thead><tr>
-              <th>Month</th><th>Invoice Count</th><th>Invoiced $</th><th>EOS Cost $</th>
-              <th>Variance $</th><th>Variance %</th><th>Status</th>
-            </tr></thead>
-            <tbody id="rec-monthly-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- AI Audit Results -->
-      <div id="ai-audit-panel" style="display:none;margin-bottom:20px;">
-        <div class="chart-card" style="padding:0;border:2px solid #7c3aed;overflow:hidden;">
-          <div style="background:#7c3aed;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="color:#fff;font-weight:700;font-size:14px;">🤖 AI Audit Report</div>
-            <button onclick="document.getElementById('ai-audit-panel').style.display='none'" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">Close</button>
-          </div>
-          <div style="padding:20px;">
-            <!-- Summary -->
-            <div id="ai-summary" style="font-size:14px;color:var(--text);line-height:1.7;margin-bottom:16px;padding:12px;background:var(--bg3);border-radius:8px;"></div>
-            <!-- Variance -->
-            <div id="ai-variance" style="margin-bottom:16px;"></div>
-            <!-- Findings -->
-            <div id="ai-findings" style="margin-bottom:16px;"></div>
-            <!-- Rate checks -->
-            <div id="ai-rates" style="margin-bottom:16px;"></div>
-            <!-- Recommendations -->
-            <div id="ai-recommendations" style="margin-bottom:8px;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Discrepancies -->
-      <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="rec-disc-count">—</span> line item discrepancies</div>
-          <button class="btn-csv" onclick="downloadCSV('discrepancies')">⬇ CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="rec-disc-table">
-            <thead><tr>
-              <th>Invoice #</th><th>Description</th><th>Category</th>
-              <th>Invoice $</th><th>EOS $</th><th>Variance $</th><th>Status</th>
-            </tr></thead>
-            <tbody id="rec-disc-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+    
 
   </main>
 </div>
@@ -1281,7 +1100,6 @@ function triggerPageLoad(page){
   if(page==='costing')      loadCosting();
   if(page==='purchase-orders') loadPOs();
   if(page==='invoices')     loadInvoices();
-  if(page==='reconciliation')  loadReconciliation();
   if(page==='rates')        initRatesTab();
 }
 
@@ -2268,97 +2086,119 @@ invImportBtn.addEventListener('click',async()=>{
 
 async function loadInvoices(){
   try{
-    const res=await fetch(`${API}/invoices?contractor=${encodeURIComponent(activeContractor)}`);
-    if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load invoices','err');return;}
-    invoicesData=await res.json();
-    if(!Array.isArray(invoicesData)){toast('Invoice data error','err');return;}
-    renderInvoices(invoicesData);
-  }catch(e){console.error('loadInvoices:',e);}
+    var res = await fetch(API+'/invoices?contractor='+encodeURIComponent(activeContractor));
+    if(!res.ok) return;
+    invoicesData = await res.json();
+    if(!Array.isArray(invoicesData)) invoicesData = [];
+
+    // Apply client-side filters
+    var cfilt = document.getElementById('inv-contractor-filter').value;
+    var sfilt = document.getElementById('inv-status-filter').value;
+    var filtered = invoicesData;
+    if(cfilt) filtered = filtered.filter(function(r){ return (r.contractor||'') === cfilt; });
+    if(sfilt) filtered = filtered.filter(function(r){ return (r.status||'') === sfilt; });
+
+    // Populate contractor filter
+    var contractors = {};
+    invoicesData.forEach(function(r){ if(r.contractor) contractors[r.contractor] = true; });
+    var csel = document.getElementById('inv-contractor-filter');
+    var cv = csel.value;
+    csel.innerHTML = '<option value="">All Contractors</option>';
+    Object.keys(contractors).sort().forEach(function(c){
+      csel.innerHTML += '<option value="'+esc(c)+'"'+(c===cv?' selected':'')+'>'+esc(c)+'</option>';
+    });
+
+    renderInvoices(filtered);
+  }catch(e){ console.error('loadInvoices:',e); }
 }
 
 function renderInvoices(rows){
-  if(!Array.isArray(rows)){rows=[];}
-  document.getElementById('inv-count').textContent=rows.length;
-  // KPIs
-  const totalInv=rows.reduce((s,r)=>s+(parseFloat(r.total_aud)||0),0);
-  const totalPaid=rows.reduce((s,r)=>s+(parseFloat(r.amount_paid)||0),0);
-  const totalDue=rows.reduce((s,r)=>s+(parseFloat(r.amount_due)||0),0);
-  document.getElementById('inv-kpi-total').textContent=cur(totalInv);
-  document.getElementById('inv-kpi-paid').textContent=cur(totalPaid);
-  document.getElementById('inv-kpi-due').textContent=cur(totalDue);
-  document.getElementById('inv-kpi-count').textContent=rows.length;
+  if(!Array.isArray(rows)) rows = [];
+  document.getElementById('inv-count').textContent = rows.length;
 
-  const STATUS_COLOR={Paid:'var(--green)',Unpaid:'var(--red)',Partial:'var(--yellow)'};
-  document.getElementById('inv-body').innerHTML=rows.map(r=>`
-    <tr style="cursor:pointer" onclick="loadInvLines(${r.id},'${esc(r.invoice_number)}')">
-      <td style="color:var(--accent);font-weight:600">${esc(r.invoice_number)}</td>
-      <td>${esc(r.invoice_date||'')}</td>
-      <td>${esc(r.due_date||'')}</td>
-      <td style="font-size:10px">${esc(r.po_reference||'')}</td>
-      <td>${cur(r.subtotal)}</td>
-      <td>${cur(r.gst)}</td>
-      <td style="color:var(--accent);font-weight:600">${cur(r.total_aud)}</td>
-      <td style="color:var(--green)">${cur(r.amount_paid)}</td>
-      <td style="color:${(r.amount_due||0)>0?'var(--red)':'var(--muted)'}">${cur(r.amount_due)}</td>
-      <td><span class="badge" style="background:${STATUS_COLOR[r.status]||'var(--muted)'}22;color:${STATUS_COLOR[r.status]||'var(--muted)'}">${esc(r.status||'')}</span></td>
-      <td>${r.line_count||0}</td>
-      <td style="color:var(--green)">${r.exact_matches||0}</td>
-      <td style="color:${(r.over_count||0)+(r.under_count||0)>0?'var(--red)':'var(--muted)'}">${(r.over_count||0)+(r.under_count||0)}</td>
-      <td style="display:flex;gap:4px;">
-        <button onclick="event.stopPropagation();viewInvoicePdf(${r.id})" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--font);">PDF</button>
-        <button onclick="event.stopPropagation();deleteInvoice(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">\u2715</button>
-      </td>
-    </tr>`).join('')||'<tr><td colspan="14"><div class="empty-state"><div class="big">\ud83e\uddee</div>No invoices yet \u2014 import PDF invoices above</div></td></tr>';
+  var totalInv = rows.reduce(function(s,r){return s+(parseFloat(r.total_aud)||0);},0);
+  var totalPaid = rows.reduce(function(s,r){return s+(parseFloat(r.amount_paid)||0);},0);
+  var totalDue = rows.reduce(function(s,r){return s+(parseFloat(r.amount_due)||0);},0);
+  var queryCount = rows.filter(function(r){return r.status==='Query';}).length;
+
+  document.getElementById('inv-kpi-total').textContent = cur(totalInv);
+  document.getElementById('inv-kpi-paid').textContent = cur(totalPaid);
+  document.getElementById('inv-kpi-due').textContent = cur(totalDue);
+  document.getElementById('inv-kpi-count').textContent = rows.length;
+  document.getElementById('inv-kpi-query').textContent = queryCount;
+
+  // Build PO options per contractor for dropdown
+  var STATUS_CLR = {Paid:'#16a34a',Unpaid:'#dc2626',Query:'#d97706',Rejected:'#6b7280'};
+  var STATUS_OPTS = ['Unpaid','Paid','Query','Rejected'];
+  var MONTH_OPTS = ['','01/2025','02/2025','03/2025','04/2025','05/2025','06/2025','07/2025','08/2025','09/2025','10/2025','11/2025','12/2025',
+                    '01/2026','02/2026','03/2026','04/2026','05/2026','06/2026','07/2026','08/2026','09/2026','10/2026','11/2026','12/2026'];
+
+  document.getElementById('inv-body').innerHTML = rows.map(function(r){
+    var sc = STATUS_CLR[r.status] || '#6b7280';
+    var statusOpts = STATUS_OPTS.map(function(s){
+      return '<option value="'+s+'"'+(s===r.status?' selected':'')+'>'+s+'</option>';
+    }).join('');
+    var monthOpts = MONTH_OPTS.map(function(m){
+      var label = m || '— Select —';
+      return '<option value="'+m+'"'+(m===(r.billing_month||'')?' selected':'')+'>'+label+'</option>';
+    }).join('');
+    return '<tr data-inv-id="'+r.id+'">'
+      +'<td contenteditable="true" data-col="invoice_number" style="color:var(--accent);font-weight:700;">'+esc(r.invoice_number||'')+'</td>'
+      +'<td contenteditable="true" data-col="contractor" style="font-size:12px;">'+esc(r.contractor||'')+'</td>'
+      +'<td contenteditable="true" data-col="invoice_date">'+esc(r.invoice_date||'')+'</td>'
+      +'<td><select onchange="saveInvField('+r.id+',&apos;billing_month&apos;,this.value)" style="font-size:12px;padding:3px 6px;border:1.5px solid var(--border);border-radius:4px;outline:none;background:#fff;color:var(--text);font-family:var(--font);min-width:100px;">'+monthOpts+'</select></td>'
+      +'<td contenteditable="true" data-col="po_reference" style="font-size:12px;">'+esc(r.po_reference||'')+'</td>'
+      +'<td contenteditable="true" data-col="subtotal" data-num="true">'+((r.subtotal||0)>0?(r.subtotal).toLocaleString("en-AU",{minimumFractionDigits:2}):'')+'</td>'
+      +'<td contenteditable="true" data-col="gst" data-num="true">'+((r.gst||0)>0?(r.gst).toLocaleString("en-AU",{minimumFractionDigits:2}):'')+'</td>'
+      +'<td contenteditable="true" data-col="total_aud" data-num="true" style="color:var(--accent);font-weight:700;">'+((r.total_aud||0)>0?(r.total_aud).toLocaleString("en-AU",{minimumFractionDigits:2}):'')+'</td>'
+      +'<td contenteditable="true" data-col="amount_paid" data-num="true" style="color:var(--green);">'+((r.amount_paid||0)>0?(r.amount_paid).toLocaleString("en-AU",{minimumFractionDigits:2}):'')+'</td>'
+      +'<td style="color:'+((r.amount_due||0)>0?'var(--red)':'var(--muted)')+';">'+cur(r.amount_due)+'</td>'
+      +'<td><select onchange="saveInvField('+r.id+',&apos;status&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 8px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
+      +'<td contenteditable="true" data-col="query_notes" style="font-size:11px;color:var(--muted);max-width:180px;">'+esc(r.query_notes||'')+'</td>'
+      +'<td style="font-size:11px;color:var(--muted);text-align:center;">v'+(r.version||1)+'</td>'
+      +'<td style="display:flex;gap:4px;">'
+        +(r.id?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
+        +'<button onclick="deleteInvoice('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;">\u2715</button>'
+      +'</td></tr>';
+  }).join('') || '<tr><td colspan="15" style="padding:20px;color:var(--muted);text-align:center;">No invoices — import via the Import Data tab</td></tr>';
+
+  // Wire up inline edits
+  document.getElementById('inv-body').querySelectorAll('[contenteditable]').forEach(function(cell){
+    cell.addEventListener('blur', function(){
+      var row = cell.closest('tr');
+      var invId = row.dataset.invId;
+      var col = cell.dataset.col;
+      var val = cell.textContent.trim().replace(/[$,]/g,'');
+      if(cell.dataset.num) val = val===''?null:parseFloat(val);
+      // Increment version on any edit
+      saveInvField(parseInt(invId), col, val, true);
+    });
+  });
   makeTableSortable('inv-table');
 }
 
-async function loadInvLines(invoiceId, invoiceNum){
-  try{
-    const lines=await fetch(`${API}/invoices/${invoiceId}/lines`).then(r=>r.json());
-    document.getElementById('inv-lines-panel').style.display='block';
-    document.getElementById('inv-lines-title').textContent=invoiceNum;
-    const MATCH_COLORS={
-      exact_match:'var(--green)',close_match:'var(--yellow)',
-      invoice_over_eos:'var(--red)',invoice_under_eos:'var(--blue)',
-      no_eos_data:'var(--muted)',unmatched:'var(--muted)'
-    };
-    const MATCH_ICONS={
-      exact_match:'✓',close_match:'~',invoice_over_eos:'▲',
-      invoice_under_eos:'▼',no_eos_data:'?',unmatched:'?'
-    };
-    document.getElementById('inv-lines-body').innerHTML=lines.map(l=>`
-      <tr>
-        <td style="max-width:300px;white-space:normal;font-size:10px">${esc(l.description)}</td>
-        <td><span class="badge badge-other">${esc(l.category||'')}</span></td>
-        <td>${(l.quantity||0).toFixed(2)}</td>
-        <td>${cur(l.unit_price)}</td>
-        <td style="color:var(--accent);font-weight:600">${cur(l.amount)}</td>
-        <td style="color:var(--muted)">${l.matched_eos_cost!=null?cur(l.matched_eos_cost):'—'}</td>
-        <td style="color:${l.variance!=null?(l.variance>5?'var(--red)':l.variance<-5?'var(--blue)':'var(--green)'):'var(--muted)'}">
-          ${l.variance!=null?(l.variance>0?'+':'')+cur(l.variance):'—'}
-        </td>
-        <td><span style="color:${MATCH_COLORS[l.match_status]||'var(--muted)'}">
-          ${MATCH_ICONS[l.match_status]||'?'} ${(l.match_status||'').replace(/_/g,' ')}
-        </span></td>
-      </tr>`).join('');
-    makeTableSortable('inv-lines-table');
-    document.getElementById('inv-lines-panel').scrollIntoView({behavior:'smooth'});
-  }catch(e){}
-}
-
-function closeInvLines(){
-  document.getElementById('inv-lines-panel').style.display='none';
+async function saveInvField(invId, field, value, bumpVersion) {
+  try {
+    var body = {};
+    body[field] = value;
+    if(bumpVersion) body.version = null; // server will increment
+    await fetch(API+'/invoices/'+invId, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    toast('\u2713 Saved');
+  } catch(e) { toast('Save failed','err'); }
 }
 
 async function deleteInvoice(id){
   if(!confirm('Delete this invoice?'))return;
-  await fetch(`${API}/invoices/${id}`,{method:'DELETE'});
+  await fetch(API+'/invoices/'+id,{method:'DELETE'});
   toast('Invoice deleted','warn');
   loadInvoices();
 }
 
 function viewInvoicePdf(invoiceId) {
-  window.open(`${API}/invoices/${invoiceId}/pdf`, '_blank');
+  window.open(API+'/invoices/'+invoiceId+'/pdf', '_blank');
 }
 
 function viewSourcePdf(filename) {
