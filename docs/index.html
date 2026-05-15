@@ -3,10 +3,37 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="description" content="DrillOps is field operations intelligence software for exploration drilling teams, with borehole planning, EOS report imports, contractor management, invoice reconciliation, budget tracking, and drilling analytics."/>
+<meta name="keywords" content="DrillOps, drilling operations software, borehole planning, exploration drilling, mining field operations, drilling invoice reconciliation, EOS reports, contractor management, Australian mining software"/>
+<meta name="author" content="DrillOps"/>
+<meta name="robots" content="index,follow,max-image-preview:large"/>
+<meta name="theme-color" content="#1f5f8b"/>
+<link rel="canonical" href="https://drillops.com.au/"/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="DrillOps"/>
+<meta property="og:title" content="DrillOps — Field Operations Intelligence"/>
+<meta property="og:description" content="Plan boreholes, import daily drilling reports, manage contractors, reconcile invoices, and track budgets for Australian exploration drilling programs."/>
+<meta property="og:url" content="https://drillops.com.au/"/>
+<meta property="og:locale" content="en_AU"/>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="DrillOps — Field Operations Intelligence"/>
+<meta name="twitter:description" content="A professional operations dashboard for exploration drilling: planning, reporting, invoices, budgets, and analytics."/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>DrillOps — Field Operations</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "DrillOps",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": "Field operations intelligence software for exploration drilling programs, including borehole planning, drilling report imports, contractor management, invoice reconciliation, budget tracking, and analytics.",
+  "areaServed": "AU",
+  "url": "https://drillops.com.au/"
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -212,6 +239,872 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .leaflet-pane{z-index:1!important;}
 .leaflet-top,.leaflet-bottom{z-index:2!important;}
 .leaflet-control{z-index:2!important;}
+
+/* Professional visual refresh */
+:root {
+  --bg:#eef1f5;
+  --bg2:#ffffff;
+  --bg3:#f6f7f9;
+  --border:#d7dde5;
+  --accent:#1f5f8b;
+  --accent-light:#eaf2f9;
+  --accent-hover:#174d72;
+  --text:#17202b;
+  --text2:#344151;
+  --muted:#667383;
+  --muted2:#9aa5b2;
+  --shadow:0 1px 2px rgba(15,23,42,0.06);
+  --shadow-md:0 12px 28px rgba(15,23,42,0.10);
+  --radius:6px;
+  --radius-sm:5px;
+}
+body {
+  background:linear-gradient(180deg,#f7f8fa 0,#eef1f5 260px);
+  color:var(--text);
+  line-height:1.45;
+}
+header {
+  height:64px;
+  padding:0 28px;
+  background:rgba(255,255,255,0.96);
+  border-bottom:1px solid #dfe4ea;
+  box-shadow:0 1px 0 rgba(15,23,42,0.04);
+  backdrop-filter:saturate(140%) blur(8px);
+}
+.logo {
+  color:#174d72;
+  font-size:19px;
+  font-weight:750;
+}
+.header-right { gap:14px; }
+.header-meta {
+  color:#526070;
+  font-weight:500;
+}
+#db-count { color:#0f766e; }
+.hamburger {
+  width:40px;
+  height:40px;
+  background:#fff;
+  border:1px solid var(--border);
+  box-shadow:var(--shadow);
+}
+.hamburger:hover {
+  background:var(--accent-light);
+  box-shadow:0 4px 14px rgba(31,95,139,0.12);
+}
+#contractor-switcher { gap:6px; }
+.con-btn,
+.hole-btn {
+  border:1px solid #cfd7e1;
+  background:#fff;
+  color:#526070;
+  font-weight:600;
+  box-shadow:0 1px 0 rgba(15,23,42,0.03);
+}
+.con-btn.active,
+.hole-btn.active {
+  background:#17324d;
+  border-color:#17324d;
+  color:#fff;
+}
+#drawer-overlay { background:rgba(15,23,42,0.34); }
+#drawer {
+  background:#fbfcfd;
+  border-right:1px solid #d8dee7;
+  box-shadow:20px 0 50px rgba(15,23,42,0.18);
+}
+.drawer-header {
+  padding:20px 24px;
+  background:#fff;
+}
+.drawer-title {
+  color:#162332;
+  font-size:15px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+.drawer-section {
+  padding:18px 22px;
+  border-bottom:1px solid #e2e7ed;
+}
+.drawer-section-title {
+  color:#758293;
+  font-size:10px;
+  letter-spacing:0.11em;
+}
+.drawer-nav-item,
+.nav-item {
+  min-height:38px;
+  padding:9px 11px;
+  border-radius:6px;
+  color:#4b5969;
+  font-weight:600;
+}
+.drawer-nav-item:hover,
+.nav-item:hover {
+  background:#eef3f7;
+  color:#17202b;
+}
+.drawer-nav-item.active,
+.nav-item.active {
+  background:#e5eff7;
+  color:#174d72;
+  box-shadow:inset 3px 0 0 #1f5f8b;
+}
+.contractor-item {
+  background:#fff;
+  border:1px solid #e0e6ed;
+  box-shadow:0 1px 0 rgba(15,23,42,0.03);
+}
+.contractor-item.active {
+  background:#eef6f8;
+  border-color:#8fc4cf;
+}
+.shell { min-height:calc(100vh - 64px); }
+main {
+  padding:24px 28px 36px;
+  background:transparent;
+}
+.page {
+  max-width:1680px;
+  margin:0 auto;
+}
+.section-title {
+  margin-bottom:18px;
+  color:#162332;
+  font-size:21px;
+  font-weight:750;
+}
+.section-title::after { background:#d7dde5; }
+.kpi-row {
+  gap:14px;
+  margin-bottom:22px;
+}
+.kpi,
+.chart-card,
+.filter-bar,
+.table-wrap {
+  background:rgba(255,255,255,0.98);
+  border:1px solid #dce2e9;
+  border-radius:7px;
+  box-shadow:0 1px 2px rgba(15,23,42,0.04);
+}
+.kpi {
+  padding:17px 18px 16px;
+}
+.kpi::before {
+  height:2px;
+  background:#1f5f8b;
+}
+.kpi-label,
+.chart-title,
+.filter-group label {
+  color:#697789;
+  font-weight:700;
+  letter-spacing:0.08em;
+}
+.kpi-value {
+  color:#17202b;
+  font-size:25px;
+  font-weight:760;
+}
+.kpi-sub { color:#7b8795; }
+.filter-bar {
+  margin-bottom:16px;
+}
+.filter-toggle {
+  padding:12px 15px;
+  color:#344151;
+  font-weight:650;
+}
+.filter-toggle:hover { background:#f4f7fa; }
+.filter-body {
+  background:#fbfcfd;
+  padding:14px 15px 16px;
+}
+.filter-group select,
+.filter-group input,
+.drawer-input {
+  border:1px solid #cfd7e1;
+  background:#fff;
+  color:#243140;
+}
+.filter-group select:focus,
+.filter-group input:focus,
+.drawer-input:focus {
+  border-color:#1f5f8b;
+  box-shadow:0 0 0 3px rgba(31,95,139,0.12);
+}
+.btn-primary,
+#import-btn {
+  background:#1f5f8b;
+  border:1px solid #1f5f8b;
+  box-shadow:0 1px 0 rgba(15,23,42,0.08);
+}
+.btn-primary:hover,
+#import-btn:hover {
+  background:#174d72;
+  border-color:#174d72;
+}
+.btn-ghost,
+.btn-csv,
+#inv-import-btn-sidebar {
+  background:#fff;
+  border:1px solid #cfd7e1;
+  color:#405064;
+}
+.btn-ghost:hover,
+.btn-csv:hover,
+#inv-import-btn-sidebar:hover {
+  background:#eef3f7;
+  border-color:#9fb0c2;
+  color:#174d72;
+}
+.table-wrap {
+  overflow:hidden;
+}
+.table-toolbar {
+  padding:12px 15px;
+  background:#f8fafc;
+}
+.table-count {
+  color:#5d6a7a;
+  font-weight:650;
+}
+.tbl-scroll {
+  max-height:calc(100vh - 300px);
+}
+table {
+  font-size:12.5px;
+}
+thead th {
+  background:#f1f4f7;
+  color:#647285;
+  padding:10px 12px;
+  border-bottom:1px solid #d8dee7;
+  font-size:10px;
+  letter-spacing:0.08em;
+}
+tbody tr {
+  border-bottom:1px solid #edf0f3;
+}
+tbody tr:hover {
+  background:#f5f9fc;
+}
+tbody td {
+  padding:9px 12px;
+  color:#334155;
+}
+tbody td[contenteditable=true]:hover {
+  background:#eef6f8;
+}
+tbody td[contenteditable=true]:focus {
+  background:#e6f0f6;
+  box-shadow:inset 0 0 0 2px #1f5f8b;
+}
+.chart-card {
+  padding:18px;
+}
+.charts-grid {
+  gap:16px;
+}
+.badge {
+  border-radius:999px;
+  font-weight:700;
+}
+.upload-zone {
+  background:#f8fafc!important;
+  border-color:#cfd7e1!important;
+  border-style:dashed!important;
+}
+#toast {
+  border-radius:7px;
+  box-shadow:0 16px 36px rgba(15,23,42,0.16);
+}
+#bh-map {
+  border-radius:6px;
+  border:1px solid #d7dde5;
+  overflow:hidden;
+}
+@media (max-width:1100px) {
+  main { padding:18px; }
+  .kpi-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .charts-grid { grid-template-columns:1fr; }
+  .filter-body.open { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:700px) {
+  header {
+    height:auto;
+    min-height:64px;
+    padding:10px 14px;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .header-right {
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+  #drawer {
+    left:-100%;
+    width:min(92vw,400px);
+  }
+  .kpi-row,
+  .filter-body.open {
+    grid-template-columns:1fr;
+  }
+  main { padding:14px; }
+}
+
+/* Drawer redesign */
+#drawer {
+  width:360px;
+  left:-380px;
+  background:#f8fafc;
+  border-right:1px solid #d7dde5;
+}
+.drawer-header {
+  min-height:76px;
+  padding:18px 20px;
+  background:#ffffff;
+  border-bottom:1px solid #dce2e9;
+}
+.drawer-title {
+  font-size:18px;
+  font-weight:760;
+  color:#132233;
+  text-transform:none;
+  letter-spacing:0;
+}
+.drawer-subtitle {
+  margin-top:2px;
+  color:#718093;
+  font-size:11px;
+  font-weight:650;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+}
+.drawer-close {
+  width:auto;
+  min-width:54px;
+  height:32px;
+  padding:0 12px;
+  border:1px solid #cfd7e1;
+  border-radius:5px;
+  background:#fff;
+  color:#405064;
+  font-size:12px;
+  font-weight:650;
+}
+.drawer-close:hover {
+  border-color:#9fb0c2;
+  background:#f4f7fa;
+  color:#17202b;
+}
+.drawer-body {
+  padding:12px;
+}
+.drawer-body::-webkit-scrollbar {
+  width:8px;
+}
+.drawer-body::-webkit-scrollbar-thumb {
+  background:#c8d1dc;
+  border-radius:8px;
+}
+.drawer-section {
+  margin-bottom:10px;
+  padding:14px;
+  border:1px solid #e0e6ed;
+  border-radius:7px;
+  background:#fff;
+}
+.drawer-section-subtle {
+  background:#fbfcfd;
+}
+.drawer-section-title {
+  margin-bottom:10px;
+  color:#6a788a;
+  font-size:10px;
+  font-weight:760;
+  letter-spacing:0.12em;
+}
+.drawer-nav-list {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.drawer-nav-item {
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  min-height:38px;
+  gap:12px;
+  padding:7px 10px 7px 13px;
+  border:1px solid transparent;
+  border-radius:5px;
+  background:transparent;
+  color:#253244;
+}
+.drawer-nav-item span {
+  display:block;
+}
+.drawer-nav-item::before {
+  content:'';
+  position:absolute;
+  left:0;
+  top:8px;
+  bottom:8px;
+  width:3px;
+  border-radius:2px;
+  background:transparent;
+}
+.drawer-nav-item:hover {
+  background:#f3f6f9;
+  border-color:#e1e7ee;
+}
+.drawer-nav-item.active {
+  background:#eaf2f9;
+  border-color:#c9dcea;
+  color:#174d72;
+  box-shadow:none;
+}
+.drawer-nav-item.active::before {
+  background:#1f5f8b;
+}
+.drawer-nav-label {
+  font-size:12.5px;
+  font-weight:720;
+  line-height:1.2;
+}
+.drawer-nav-meta {
+  color:#7a8797;
+  font-size:9px;
+  font-weight:650;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+}
+.drawer-nav-item.active .drawer-nav-meta {
+  color:#4d7898;
+}
+.contractor-item {
+  min-height:40px;
+  padding:8px 10px;
+  border:1px solid #e0e6ed;
+  border-radius:5px;
+  background:#fbfcfd;
+}
+.contractor-item:hover {
+  background:#f5f8fb;
+  border-color:#cfd7e1;
+}
+.contractor-item.active {
+  background:#eaf2f9;
+  border-color:#b9d1e3;
+}
+.contractor-dot {
+  width:4px;
+  height:26px;
+  border-radius:2px;
+  background:#c5ced8;
+}
+.contractor-name {
+  font-weight:700;
+}
+.contractor-code {
+  margin-top:1px;
+  font-size:9px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+}
+.icon-btn {
+  padding:4px 7px;
+  border:1px solid #e0e6ed;
+  border-radius:4px;
+  background:#fff;
+  color:#7a8797;
+  font-size:10px;
+  font-weight:700;
+}
+.icon-btn:hover {
+  border-color:#e4b6b6;
+  background:#fff7f7;
+  color:#b42318;
+}
+.add-contractor-form {
+  background:#f8fafc;
+  border:1px solid #dce2e9;
+}
+.drawer-danger-btn {
+  padding:9px 11px;
+  border:1px solid #e4b6b6;
+  background:#fff;
+  color:#b42318;
+  font-weight:700;
+}
+.drawer-danger-btn:hover {
+  background:#fff7f7;
+}
+.drawer-help-text {
+  margin-top:8px;
+  color:#7a8797;
+  font-family:var(--font);
+  font-size:11px;
+  line-height:1.45;
+}
+.hamburger:focus,
+.drawer-close:focus,
+.drawer-nav-item:focus,
+.contractor-item:focus,
+.btn-ghost:focus,
+.btn-primary:focus {
+  outline:2px solid rgba(31,95,139,0.24);
+  outline-offset:2px;
+}
+@media (max-width:700px) {
+  #drawer {
+    width:min(92vw,360px);
+    left:-100%;
+  }
+  .drawer-body {
+    padding:10px;
+  }
+}
+
+/* Mobile application layout */
+@media (max-width:760px) {
+  html,
+  body {
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
+  }
+  body {
+    font-size:13px;
+    background:#eef1f5;
+  }
+  header {
+    position:sticky;
+    top:0;
+    display:grid;
+    grid-template-columns:44px 1fr;
+    align-items:center;
+    min-height:58px;
+    padding:8px 10px;
+    gap:8px;
+  }
+  .hamburger {
+    width:40px;
+    height:40px;
+  }
+  .logo {
+    font-size:18px;
+    justify-self:start;
+  }
+  .header-right {
+    grid-column:1 / -1;
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:8px;
+    align-items:center;
+  }
+  #contractor-switcher {
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    padding:2px 0 4px;
+    scrollbar-width:none;
+  }
+  #contractor-switcher::-webkit-scrollbar {
+    display:none;
+  }
+  .con-btn {
+    flex:0 0 auto;
+    padding:6px 10px;
+    max-width:170px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .header-meta {
+    white-space:nowrap;
+    font-size:11px;
+    text-align:right;
+  }
+  .shell {
+    min-height:calc(100vh - 100px);
+  }
+  main {
+    padding:12px;
+  }
+  .page {
+    width:100%;
+    max-width:none;
+  }
+  .section-title {
+    display:block;
+    margin:4px 0 12px;
+    font-size:18px;
+    line-height:1.25;
+  }
+  .section-title::after {
+    display:none;
+  }
+  .kpi-row {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .kpi {
+    min-width:0;
+    padding:12px;
+  }
+  .kpi-label {
+    font-size:9px;
+    line-height:1.25;
+  }
+  .kpi-value {
+    font-size:20px;
+    overflow-wrap:anywhere;
+  }
+  .kpi-sub {
+    font-size:10px;
+  }
+  .chart-card,
+  .filter-bar,
+  .table-wrap {
+    border-radius:6px;
+    margin-bottom:12px;
+  }
+  .chart-card {
+    padding:12px;
+  }
+  .charts-grid {
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .filter-toggle {
+    padding:11px 12px;
+  }
+  .filter-body.open {
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    padding:12px;
+  }
+  .filter-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+  }
+  .filter-actions .btn-primary,
+  .filter-actions .btn-ghost {
+    width:100%;
+  }
+  .btn-primary,
+  .btn-ghost,
+  .btn-csv {
+    min-height:36px;
+  }
+  .table-toolbar {
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:8px;
+    align-items:center;
+    padding:10px 12px;
+  }
+  .table-count {
+    min-width:0;
+    font-size:11px;
+    line-height:1.35;
+  }
+  .tbl-scroll {
+    max-height:58vh;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  table {
+    min-width:760px;
+    font-size:12px;
+  }
+  thead th {
+    padding:8px 10px;
+    font-size:9px;
+  }
+  tbody td {
+    padding:8px 10px;
+    max-width:180px;
+  }
+  .hole-selector {
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    padding-bottom:4px;
+  }
+  .hole-btn {
+    flex:0 0 auto;
+    padding:7px 11px;
+  }
+  #toast {
+    left:12px;
+    right:12px;
+    bottom:12px;
+    width:auto;
+  }
+  #drawer {
+    width:100vw;
+    left:-100vw;
+    border-right:none;
+  }
+  #drawer.open {
+    left:0;
+  }
+  .drawer-header {
+    min-height:64px;
+    padding:14px 16px;
+  }
+  .drawer-body {
+    padding:10px;
+  }
+  .drawer-section {
+    padding:12px;
+  }
+  .drawer-nav-item {
+    grid-template-columns:1fr;
+    gap:2px;
+    min-height:44px;
+    padding:8px 10px 8px 13px;
+  }
+  .drawer-nav-meta {
+    font-size:9px;
+  }
+  .contractor-item {
+    min-height:42px;
+  }
+  .form-row {
+    grid-template-columns:1fr;
+  }
+  .drawer-close {
+    min-width:58px;
+    height:34px;
+  }
+  #bh-map {
+    height:320px!important;
+  }
+  #page-boreholes > div[style*="grid-template-columns:1fr 260px"] {
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+  }
+  #page-boreholes > div[style*="grid-template-columns:1fr 260px"] > .chart-card {
+    min-height:320px!important;
+  }
+  #page-boreholes > div[style*="grid-template-columns:1fr 260px"] > div[style*="flex-direction:column"] {
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+  }
+  #page-boreholes > div[style*="display:flex"][style*="margin-bottom:12px"] {
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+  }
+  #page-boreholes > div[style*="display:flex"][style*="margin-bottom:12px"] > *,
+  #page-boreholes > div[style*="display:flex"][style*="margin-bottom:12px"] button,
+  #page-boreholes > div[style*="display:flex"][style*="margin-bottom:12px"] select {
+    width:100%!important;
+    max-width:100%!important;
+  }
+  #page-boreholes > div[style*="display:flex"][style*="margin-bottom:12px"] > div[style*="margin-left:auto"] {
+    margin-left:0!important;
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+  }
+  #bh-add-form [style*="grid-template-columns:repeat(5"] {
+    grid-template-columns:1fr!important;
+  }
+  .leaflet-control-layers {
+    max-width:180px;
+    font-size:11px;
+  }
+  .upload-zone {
+    min-height:100px;
+  }
+  input,
+  select,
+  button {
+    font-size:13px;
+  }
+}
+
+@media (max-width:460px) {
+  main {
+    padding:10px;
+  }
+  .kpi-row {
+    grid-template-columns:1fr;
+  }
+  .header-right {
+    grid-template-columns:1fr;
+  }
+  .header-meta {
+    text-align:left;
+  }
+  .table-toolbar {
+    grid-template-columns:1fr;
+  }
+  .table-toolbar .btn-csv {
+    width:100%;
+  }
+  table {
+    min-width:700px;
+  }
+  #bh-map {
+    height:280px!important;
+  }
+  .filter-actions {
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width:860px) {
+  #login-screen > div > div:first-child {
+    align-items:flex-start!important;
+    justify-content:flex-start!important;
+    min-height:auto!important;
+    padding:24px 14px!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) {
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:28px!important;
+    width:100%!important;
+    max-width:520px!important;
+    padding:0!important;
+    margin:0 auto!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) > div:first-child {
+    width:100%!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) > div:first-child > div:first-child {
+    font-size:34px!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) > div:first-child > div:nth-child(2) {
+    font-size:15px!important;
+    line-height:1.5!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) > div:nth-child(2) {
+    width:100%!important;
+  }
+  #login-screen > div > div:first-child > div:nth-child(4) > div:nth-child(2) > div {
+    padding:28px 22px!important;
+    border-radius:10px!important;
+  }
+  #login-screen > div > div:last-child {
+    display:none!important;
+  }
+}
 </style>
 </head>
 <body>
@@ -295,16 +1188,35 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 <!-- Slide-out Drawer -->
 <div id="drawer">
   <div class="drawer-header">
-    <div class="drawer-title">DrillOps</div>
-    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    <div>
+      <div class="drawer-title">DrillOps</div>
+      <div class="drawer-subtitle">Operations workspace</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()" aria-label="Close menu">Close</button>
   </div>
   <div class="drawer-body">
+
+    <!-- Navigation -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">Navigation</div>
+      <div class="drawer-nav-list">
+        <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
+        <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
+        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
+        <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span class="drawer-nav-label">Consumables</span><span class="drawer-nav-meta">Materials</span></button>
+        <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span class="drawer-nav-label">Crew</span><span class="drawer-nav-meta">Labour</span></button>
+        <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span class="drawer-nav-label">Costing</span><span class="drawer-nav-meta">Actuals</span></button>
+        <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
+        <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
+        <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span class="drawer-nav-label">Schedule of Rates</span><span class="drawer-nav-meta">Pricing</span></button>
+      </div>
+    </div>
 
     <!-- Contractor Management -->
     <div class="drawer-section">
       <div class="drawer-section-title">Contractors</div>
       <div id="drawer-contractor-list"></div>
-      <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:10px;" onclick="toggleAddContractorForm()">+ Add Contractor</button>
+      <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:10px;" onclick="toggleAddContractorForm()">Add Contractor</button>
       <div class="add-contractor-form" id="add-contractor-form">
         <div class="form-row">
           <div><label style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:4px;">NAME</label>
@@ -314,27 +1226,6 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         </div>
         <button class="btn-primary" style="width:100%;" onclick="addContractor()">Add Contractor</button>
       </div>
-    </div>
-
-    <!-- Navigation -->
-    <div class="drawer-section">
-      <div class="drawer-section-title">Navigation</div>
-      <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span>📥</span> Import Data</button>
-      <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span>🗺️</span> Borehole Planning</button>
-      <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span>📋</span> Activities</button>
-      <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span>🧪</span> Consumables</button>
-      <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span>👷</span> Crew</button>
-            <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span>💰</span> Costing</button>
-      <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span>🧾</span> Purchase Orders</button>
-      <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span>🧮</span> Invoices</button>
-      <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span>📄</span> Schedule of Rates</button>
-    </div>
-
-    <!-- Danger Zone -->
-    <div class="drawer-section">
-      <div class="drawer-section-title">Danger Zone</div>
-      <button class="drawer-danger-btn" id="clear-btn">⚠ Clear <span id="clear-con-name">Contractor</span> Data</button>
-      <p style="font-family:var(--font-mono);font-size:9px;color:var(--muted);line-height:1.6;">Only removes data for the currently active contractor. Other contractors are unaffected.</p>
     </div>
 
     <!-- Settings -->
@@ -347,12 +1238,19 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
       </div>
     </div>
 
+    <!-- Data Management -->
+    <div class="drawer-section drawer-section-subtle">
+      <div class="drawer-section-title">Data Management</div>
+      <button class="drawer-danger-btn" id="clear-btn">Clear <span id="clear-con-name">Contractor</span> Data</button>
+      <p class="drawer-help-text">Removes data for the active contractor only. Other contractors are unaffected.</p>
+    </div>
+
   </div>
 </div>
 
 <!-- Header -->
 <header>
-  <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()">
+  <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()" aria-label="Open menu">
     <span></span><span></span><span></span>
   </button>
   <div class="logo">Drill<span>Ops</span></div>
@@ -506,11 +1404,13 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
     <section class="page" id="page-costing">
       <h2 class="section-title">💰 Costing Summary</h2>
 
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">If costs show $0.00, click Reprice to calculate costs from the Schedule of Rates.</p>
-        
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">Editable cost register. Manual line edits save immediately and refresh the summaries below.</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn-primary" id="cost-reprice-btn" onclick="repriceCosting()">Reprice from Rates</button>
+          <button class="btn-ghost" onclick="loadCosting()">Refresh</button>
+        </div>
       </div>
-      <div class="po-banner-grid" id="po-summary-banner"></div>
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
         <div class="kpi"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
@@ -546,7 +1446,10 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
         </div>
       </div>
       <div class="table-wrap">
-        <div class="table-toolbar"><div class="table-count">Showing <span id="cost-line-count">—</span> priced rows</div><button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ CSV</button></div>
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="cost-line-count">—</span> priced rows · click yellow/cost cells to edit</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ CSV</button>
+        </div>
         <div class="tbl-scroll"><table id="cost-line-table">
           <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
           <tbody id="cost-line-body"></tbody>
@@ -901,11 +1804,13 @@ function closeDrawer(){
 }
 function drawerNav(btn){
   const page=btn.dataset.page;
+  const pageEl=document.getElementById(`page-${page}`);
+  if(!pageEl){toast('Page not found: '+page,'err');closeDrawer();return;}
   // Sync sidebar nav
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
-  document.getElementById(`page-${page}`)?.classList.add('active');
+  pageEl.classList.add('active');
   triggerPageLoad(page);
   // Update drawer nav highlight
   document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
@@ -925,7 +1830,7 @@ function renderDrawerContractors(){
         </div>
       </div>
       <div class="contractor-item-actions">
-        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractor(${i})">🗑</button>
+        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractor(${i})">Remove</button>
       </div>
     </div>`).join('');
 }
@@ -1008,6 +1913,13 @@ function fmt(v,d=2){if(v==null||v==='')return'';const n=parseFloat(v);return isN
 function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
 function selectAll(id){const s=document.getElementById(id);if(s)[...s.options].forEach(o=>o.selected=true);}
+function isPageActive(page){return document.getElementById('page-'+page)?.classList.contains('active');}
+let costingRefreshTimer=null;
+function refreshCostingIfActive(delay=250){
+  if(!isPageActive('costing'))return;
+  clearTimeout(costingRefreshTimer);
+  costingRefreshTimer=setTimeout(()=>loadCosting(),delay);
+}
 function fillSelect(id,vals,allSel=true){
   const s=document.getElementById(id); if(!s)return;
   s.innerHTML='';
@@ -1080,11 +1992,13 @@ async function updateDbCount(){
 // ── Navigation ────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{
+    const page=btn.dataset.page;
+    const pageEl=document.getElementById(`page-${page}`);
+    if(!pageEl){toast('Page not found: '+page,'err');return;}
     document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
-    const page=btn.dataset.page;
-    document.getElementById(`page-${page}`).classList.add('active');
+    pageEl.classList.add('active');
     triggerPageLoad(page);
   });
 });
@@ -1106,19 +2020,16 @@ function triggerPageLoad(page){
 // Collapsible filters
 ['act','con','crew'].forEach(p=>{
   const t=document.getElementById(`${p}-filter-toggle`);
-  if(t)t.addEventListener('click',()=>{t.classList.toggle('open');document.getElementById(`${p}-filter-body`).classList.toggle('open');});
+  const body=document.getElementById(`${p}-filter-body`);
+  if(t&&body)t.addEventListener('click',()=>{t.classList.toggle('open');body.classList.toggle('open');});
 });
-['cost','po-add'].forEach(p=>{
-  const t=document.getElementById(`${p}-filter-toggle`)||document.getElementById(`${p}-toggle`);
-  if(t)t.addEventListener('click',()=>{t.classList.toggle('open');document.getElementById(`${p}-filter-body`)||document.getElementById(`${p}-body`)&&(document.getElementById(`${p}-filter-body`)||document.getElementById(`${p}-body`)).classList.toggle('open');});
-});
-document.getElementById('cost-filter-toggle').addEventListener('click',()=>{
-  document.getElementById('cost-filter-toggle').classList.toggle('open');
-  document.getElementById('cost-filter-body').classList.toggle('open');
-});
-document.getElementById('po-add-toggle').addEventListener('click',()=>{
-  document.getElementById('po-add-toggle').classList.toggle('open');
-  document.getElementById('po-add-body').classList.toggle('open');
+[
+  ['cost-filter-toggle','cost-filter-body'],
+  ['po-add-toggle','po-add-body']
+].forEach(([toggleId,bodyId])=>{
+  const t=document.getElementById(toggleId);
+  const body=document.getElementById(bodyId);
+  if(t&&body)t.addEventListener('click',()=>{t.classList.toggle('open');body.classList.toggle('open');});
 });
 
 // ── EOS File Upload (daily reports only) ─────────────────────────────────────
@@ -1168,13 +2079,6 @@ importBtn.addEventListener('click',async()=>{
   pendingFiles=[];fileInput.value='';
   await updateDbCount();
   if(total>0){toast(`✓ Imported ${total} rows for ${activeContractor}`);loadActivities();}
-});
-
-document.getElementById('clear-btn').addEventListener('click',async()=>{
-  if(!confirm(`Clear ALL data for ${activeContractor}?`))return;
-  await fetch(`${API}/reset?contractor=${encodeURIComponent(activeContractor)}`,{method:'DELETE'});
-  toast(`${activeContractor} data cleared`,'warn');
-  await updateDbCount();loadActivities();
 });
 
 // ── Activities ────────────────────────────────────────────────────────────────
@@ -1245,6 +2149,7 @@ function renderActivities(rows){
       try{
         await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
         toast('✓ Saved');
+        refreshCostingIfActive();
       }catch(e){toast('Save failed','err');}
     });
     cell.addEventListener('keydown',e=>{
@@ -1415,10 +2320,14 @@ function buildCostCategoryChart(dailyData, kpis){
 }
 
 // ── Analytics Filters ─────────────────────────────────────────────────────────
-document.getElementById('analytics-filter-toggle').addEventListener('click',function(){
-  document.getElementById('analytics-filter-toggle').classList.toggle('open');
-  document.getElementById('analytics-filter-body').classList.toggle('open');
-});
+const analyticsFilterToggle = document.getElementById('analytics-filter-toggle');
+const analyticsFilterBody = document.getElementById('analytics-filter-body');
+if(analyticsFilterToggle && analyticsFilterBody) {
+  analyticsFilterToggle.addEventListener('click',function(){
+    analyticsFilterToggle.classList.toggle('open');
+    analyticsFilterBody.classList.toggle('open');
+  });
+}
 
 function populateAnalyticsFilters(){
   fillSelect('f-an-holes', filterOpts.holes||[]);
@@ -1530,41 +2439,69 @@ async function repriceActivities(){
 }
 
 // ── Costing ───────────────────────────────────────────────────────────────────
+async function repriceCosting(){
+  const btn=document.getElementById('cost-reprice-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Repricing...';}
+  try{
+    const res=await fetch(API+"/reprice?contractor="+encodeURIComponent(activeContractor),{method:"POST"});
+    if(!res.ok){
+      const txt=await res.text();
+      toast("Reprice failed: "+txt.substring(0,120),"err");
+      return;
+    }
+    const d=await res.json();
+    const parts=[];
+    if(d.priced!=null)parts.push((d.priced||0)+" priced");
+    if(d.total!=null)parts.push((d.total||0)+" activities checked");
+    if(d.consumables_priced)parts.push(d.consumables_priced+" consumables priced");
+    toast("✓ Repriced "+(parts.length?parts.join(", "):"costing"));
+    await updateDbCount();
+    await loadCosting();
+  }catch(e){
+    toast("Reprice failed: "+e.message,"err");
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Reprice from Rates';}
+  }
+}
+
 async function loadCosting(){
   try{
     const url=`${API}/costing?contractor=${encodeURIComponent(activeContractor)}`;
     const d=await fetch(url).then(r=>r.json());
-    costingHolesData=d.by_hole;costingDatesData=d.by_date;
+    costingHolesData=Array.isArray(d.by_hole)?d.by_hole:[];
+    costingDatesData=Array.isArray(d.by_date)?d.by_date:[];
     const grand=d.grand_total;
-    const totalDrill=d.by_hole.reduce((s,r)=>s+(r.drilling_cost||0),0);
-    const totalNon=d.by_hole.reduce((s,r)=>s+(r.non_drilling_cost||0),0);
-    const totalM=d.by_hole.reduce((s,r)=>s+(r.total_metres||0),0);
+    const totalDrill=costingHolesData.reduce((s,r)=>s+(parseFloat(r.drilling_cost)||0),0);
+    const totalNon=costingHolesData.reduce((s,r)=>s+(parseFloat(r.non_drilling_cost)||0),0);
+    const totalM=costingHolesData.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
     document.getElementById('cost-grand').textContent=cur(grand);
     document.getElementById('cost-drilling').textContent=cur(totalDrill);
     document.getElementById('cost-nondrilling').textContent=cur(totalNon);
     document.getElementById('cost-metres').textContent=totalM.toFixed(1)+' m';
     document.getElementById('cost-per-m').textContent=totalM>0?'$'+(grand/totalM).toFixed(2):'—';
-    document.getElementById('cost-hole-count').textContent=d.by_hole.length;
-    document.getElementById('cost-hole-body').innerHTML=d.by_hole.map(r=>`<tr>
+    document.getElementById('cost-hole-count').textContent=costingHolesData.length;
+    document.getElementById('cost-hole-body').innerHTML=costingHolesData.map(r=>`<tr>
       <td>${esc(r.hole_num)}</td>
       <td style="color:var(--accent)">${cur(r.total_cost)}</td>
       <td>${cur(r.drilling_cost)}</td>
       <td>${cur(r.non_drilling_cost)}</td>
-      <td>${(r.total_metres||0).toFixed(1)}</td>
-      <td>${r.total_metres>0?'$'+(r.total_cost/r.total_metres).toFixed(2):'—'}</td>
+      <td>${(parseFloat(r.total_metres)||0).toFixed(1)}</td>
+      <td>${parseFloat(r.total_metres)>0?'$'+((parseFloat(r.total_cost)||0)/parseFloat(r.total_metres)).toFixed(2):'—'}</td>
       <td>${r.activity_count}</td></tr>`).join('')||'<tr><td colspan="7" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No priced data yet</td></tr>';
-    document.getElementById('cost-date-count').textContent=d.by_date.length;
-    document.getElementById('cost-date-body').innerHTML=d.by_date.map(r=>`<tr>
+    document.getElementById('cost-date-count').textContent=costingDatesData.length;
+    document.getElementById('cost-date-body').innerHTML=costingDatesData.map(r=>`<tr>
       <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>
       <td style="color:var(--accent)">${cur(r.total_cost)}</td>
-      <td>${(r.total_metres||0).toFixed(1)}</td></tr>`).join('');
-    // Populate cost line item filters
-    fillSelect('f-cost-holes',filterOpts.holes||[]);
-    fillSelect('f-cost-dates',filterOpts.dates||[]);
+      <td>${(parseFloat(r.total_metres)||0).toFixed(1)}</td></tr>`).join('')||'<tr><td colspan="4" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No daily costs yet</td></tr>';
+    // Populate cost line item filters without blowing away the user's current filter.
+    const selectedCostHoles=getSelVals('f-cost-holes');
+    const selectedCostDates=getSelVals('f-cost-dates');
+    fillSelect('f-cost-holes',filterOpts.holes||[],selectedCostHoles.length===0);
+    fillSelect('f-cost-dates',filterOpts.dates||[],selectedCostDates.length===0);
+    if(selectedCostHoles.length)document.querySelectorAll('#f-cost-holes option').forEach(o=>o.selected=selectedCostHoles.includes(o.value));
+    if(selectedCostDates.length)document.querySelectorAll('#f-cost-dates option').forEach(o=>o.selected=selectedCostDates.includes(o.value));
     await loadCostingLines();
     ['cost-hole-table','cost-date-table'].forEach(id=>makeTableSortable(id));
-    // Load PO banner
-    await loadPOBanner();
   }catch(e){console.error('Costing error:',e);}
 }
 
@@ -1576,18 +2513,53 @@ async function loadCostingLines(){
     const all=await fetch(`${API}/activities?${p}`).then(r=>r.json());
     costingLinesData=all.filter(r=>r.line_cost!=null);
     document.getElementById('cost-line-count').textContent=costingLinesData.length;
-    document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr>
+    document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr data-id="${r.id}">
       <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>
       <td>${codeBadge(r.code)}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.notes)}">${esc(r.notes)}</td>
-      <td>${r.total_metres!=null?r.total_metres.toFixed(2):''}</td>
-      <td style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
-      <td>$${(r.unit_rate||0).toFixed(2)}</td>
-      <td>${(r.quantity||0).toFixed(2)}</td>
-      <td style="color:var(--accent);font-weight:600">${cur(r.line_cost)}</td></tr>`).join('')
+      <td contenteditable="true" data-col="total_metres" data-numeric="true">${r.total_metres!=null?parseFloat(r.total_metres).toFixed(2):''}</td>
+      <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
+      <td contenteditable="true" data-col="unit_rate" data-numeric="true" data-recalc="true" style="color:var(--yellow);font-weight:600">${r.unit_rate!=null?parseFloat(r.unit_rate).toFixed(2):''}</td>
+      <td contenteditable="true" data-col="quantity" data-numeric="true" data-recalc="true" style="color:var(--yellow);font-weight:600">${r.quantity!=null?parseFloat(r.quantity).toFixed(2):''}</td>
+      <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:700">${r.line_cost!=null?parseFloat(r.line_cost).toFixed(2):''}</td></tr>`).join('')
       ||'<tr><td colspan="9" style="padding:16px;color:var(--muted);font-family:var(--font-mono)">No priced rows</td></tr>';
+    attachCostingLineEdits();
     makeTableSortable('cost-line-table');
   }catch(e){}
+}
+
+function attachCostingLineEdits(){
+  document.getElementById('cost-line-body').querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',async()=>{
+      const row=cell.closest('tr');
+      const id=row.dataset.id;
+      const col=cell.dataset.col;
+      let val=cell.textContent.trim().replace(/[$,]/g,'');
+      if(cell.dataset.numeric)val=val===''?null:parseFloat(val);
+      const body={[col]:val};
+      if(cell.dataset.recalc){
+        const ur=parseFloat(row.querySelector('[data-col="unit_rate"]').textContent.replace(/[$,]/g,''))||0;
+        const qty=parseFloat(row.querySelector('[data-col="quantity"]').textContent.replace(/[$,]/g,''))||0;
+        const lineCell=row.querySelector('[data-col="line_cost"]');
+        if(ur&&qty){
+          const lc=parseFloat((ur*qty).toFixed(2));
+          body.line_cost=lc;
+          lineCell.textContent=lc.toFixed(2);
+        }
+      }
+      try{
+        const res=await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if(!res.ok)throw new Error('HTTP '+res.status);
+        toast('✓ Cost saved');
+        refreshCostingIfActive(150);
+      }catch(e){
+        toast('Cost save failed','err');
+      }
+    });
+    cell.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();cell.blur();}
+    });
+  });
 }
 
 // ── Purchase Orders ───────────────────────────────────────────────────────────
@@ -1599,15 +2571,6 @@ async function loadPOs(){
     if(!Array.isArray(posData)){toast('PO data error','err');return;}
     renderPOs(posData);
   }catch(e){console.error('loadPOs:',e);}
-}
-
-async function loadPOBanner(){
-  try{
-    const res=await fetch(API+'/purchase_orders');
-    if(!res.ok)return;
-    posData=await res.json();
-    if(Array.isArray(posData))renderPOBanner(posData);
-  }catch(e){}
 }
 
 function renderPOs(rows){
@@ -1645,29 +2608,6 @@ function renderPOs(rows){
     });
   });
   makeTableSortable('po-table');
-}
-
-function renderPOBanner(pos){
-  const banner=document.getElementById('po-summary-banner');if(!banner)return;
-  const active=pos.filter(p=>p.status==='Active');
-  if(!active.length){banner.innerHTML='';return;}
-  banner.innerHTML=active.map(r=>{
-    const spent=parseFloat(r.spent_to_date)||0;const value=parseFloat(r.po_value)||0;
-    const rem=value-spent;const pct=value>0?Math.min(spent/value*100,100).toFixed(1):'0.0';
-    const bc=parseFloat(pct)>90?'var(--red)':parseFloat(pct)>70?'var(--yellow)':'var(--green)';
-    return`<div class="po-card" style="border-top:2px solid ${bc};">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <div><div style="font-family:var(--font);font-size:15px;color:var(--accent)">${esc(r.po_number)}</div>
-        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${esc(r.description||'')}</div></div>
-        <div style="text-align:right"><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Remaining</div>
-        <div style="font-family:var(--font);font-size:18px;color:${rem<0?'var(--red)':'var(--green)'}">$${rem.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</div></div>
-      </div>
-      <div style="height:5px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:5px;"><div style="width:${pct}%;height:100%;background:${bc};"></div></div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--muted);">
-        <span>Spent: $${spent.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
-        <span>${pct}% of $${value.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
-      </div></div>`;
-  }).join('');
 }
 
 async function addPO(){
@@ -2040,49 +2980,58 @@ if(ocrImportBtn) {
 let invoicesData = [], discrepanciesData = [];
 let invPendingFiles = [];
 
-// Invoice import collapsible
-document.getElementById('inv-import-toggle').addEventListener('click',()=>{
-  document.getElementById('inv-import-toggle').classList.toggle('open');
-  document.getElementById('inv-import-body').classList.toggle('open');
-});
+// Invoice import controls are optional; the current UI uses the sidebar uploader.
+const invImportToggle = document.getElementById('inv-import-toggle');
+const invImportBody = document.getElementById('inv-import-body');
+if(invImportToggle && invImportBody) {
+  invImportToggle.addEventListener('click',()=>{
+    invImportToggle.classList.toggle('open');
+    invImportBody.classList.toggle('open');
+  });
+}
 
 // Invoice file input
 const invFileInput = document.getElementById('inv-file-input');
 const invImportBtn = document.getElementById('inv-import-btn');
 const invDropZone  = document.getElementById('inv-drop-zone');
 
-invFileInput.addEventListener('change',e=>{
-  invPendingFiles=[...e.target.files];
-  invImportBtn.disabled=invPendingFiles.length===0;
-  invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
-});
-invDropZone.addEventListener('dragover',e=>{e.preventDefault();invDropZone.style.borderColor='var(--accent)';});
-invDropZone.addEventListener('dragleave',()=>invDropZone.style.borderColor='');
-invDropZone.addEventListener('drop',e=>{
-  e.preventDefault();invDropZone.style.borderColor='';
-  invPendingFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
-  invImportBtn.disabled=invPendingFiles.length===0;
-  invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
-});
+if(invFileInput && invImportBtn && invDropZone) {
+  invFileInput.addEventListener('change',e=>{
+    invPendingFiles=[...e.target.files];
+    invImportBtn.disabled=invPendingFiles.length===0;
+    invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
+  });
+  invDropZone.addEventListener('dragover',e=>{e.preventDefault();invDropZone.style.borderColor='var(--accent)';});
+  invDropZone.addEventListener('dragleave',()=>invDropZone.style.borderColor='');
+  invDropZone.addEventListener('drop',e=>{
+    e.preventDefault();invDropZone.style.borderColor='';
+    invPendingFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
+    invImportBtn.disabled=invPendingFiles.length===0;
+    invImportBtn.textContent=invPendingFiles.length>0?`Import ${invPendingFiles.length} invoice(s)`:'Import Invoices';
+  });
 
-invImportBtn.addEventListener('click',async()=>{
-  if(!invPendingFiles.length)return;
-  invImportBtn.disabled=true;invImportBtn.innerHTML='<span class="spinner"></span>Importing…';
-  const log=document.getElementById('inv-import-log');log.innerHTML='';
-  for(const file of invPendingFiles){
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
-    try{
-      const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported')
-        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — ${cur(d.total_aud)} (${d.line_count} lines)</div>`;
-      else
-        log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} (already imported)</div>`;
-    }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
-  }
-  invImportBtn.textContent='Import Invoices';invImportBtn.disabled=false;
-  invPendingFiles=[];invFileInput.value='';
-  loadInvoices();
-});
+  invImportBtn.addEventListener('click',async()=>{
+    if(!invPendingFiles.length)return;
+    invImportBtn.disabled=true;invImportBtn.innerHTML='<span class="spinner"></span>Importing...';
+    const log=document.getElementById('inv-import-log');
+    if(log) log.innerHTML='';
+    for(const file of invPendingFiles){
+      const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+      try{
+        const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
+        if(log) {
+          if(d.status==='imported')
+            log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} - ${cur(d.total_aud)} (${d.line_count} lines)</div>`;
+          else
+            log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} (already imported)</div>`;
+        }
+      }catch(e){if(log) log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
+    }
+    invImportBtn.textContent='Import Invoices';invImportBtn.disabled=false;
+    invPendingFiles=[];invFileInput.value='';
+    loadInvoices();
+  });
+}
 
 async function loadInvoices(){
   try{
@@ -3156,3 +4105,5 @@ buildContractorSwitcher();
 </script>
 </body>
 </html>
+
+
