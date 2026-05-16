@@ -3529,17 +3529,39 @@ function renderInvoices(rows){
   makeTableSortable('inv-table');
 }
 
+function syncInvoiceLocal(invId, patch) {
+  var row = invoicesData.find(function(r){ return Number(r.id) === Number(invId); });
+  if(row) Object.assign(row, patch);
+  return row;
+}
+
 async function saveInvField(invId, field, value, bumpVersion) {
   try {
     var body = {};
     body[field] = value;
     if(bumpVersion) body.version = null; // server will increment
-    await fetch(API+'/invoices/'+invId, {
+    if(field === 'status') {
+      var inv = invoicesData.find(function(r){ return Number(r.id) === Number(invId); });
+      var total = inv ? (parseFloat(inv.total_aud) || 0) : 0;
+      if(value === 'Paid' && total > 0) {
+        body.amount_paid = total;
+        body.amount_due = 0;
+      } else if(value === 'Unpaid' && total > 0) {
+        body.amount_paid = 0;
+        body.amount_due = total;
+      }
+    }
+    var res = await fetch(API+'/invoices/'+encodeURIComponent(invId), {
       method:'PATCH', headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)
     });
+    if(!res.ok) throw new Error(await res.text());
+    var saved = await res.json().catch(function(){ return {}; });
+    if(saved && saved.version) body.version = saved.version;
+    syncInvoiceLocal(invId, body);
     toast('\u2713 Saved');
-  } catch(e) { toast('Save failed','err'); }
+    if(field === 'status' || field === 'amount_paid' || field === 'amount_due' || field === 'total_aud') loadInvoices();
+  } catch(e) { toast('Save failed: '+((e&&e.message)||'change was not saved'),'err'); }
 }
 
 async function deleteInvoice(id){
@@ -3726,15 +3748,8 @@ async function loadReconciliation(){
 }
 
 async function updateInvoiceField(invoiceId, field, value) {
-  try {
-    var body = {};
-    body[field] = value;
-    await fetch(API+'/invoices/'+invoiceId, {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    });
-    toast('\u2713 Invoice updated');
-  } catch(e) { toast('Update failed','err'); }
+  await saveInvField(invoiceId, field, value);
+  loadReconciliation();
 }
 
 async function rematchAll(){
@@ -4038,14 +4053,19 @@ function renderBhMap() {
 async function setBhStatus(holeId, status) {
   const bh = bhData.find(function(b){return b.hole_id===holeId;});
   if(!bh) return;
+  const previous = bh.status;
   bh.status = status;
   try {
-    await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
+    const res = await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
       method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({status:status})
+      body:JSON.stringify({contractor:activeContractor,status:status})
     });
+    if(!res.ok) throw new Error(await res.text());
     toast('✓ '+holeId+' → '+status);
-  } catch(e) { toast('Save failed','err'); }
+  } catch(e) {
+    bh.status = previous;
+    toast('Save failed: '+((e&&e.message)||'status was not saved'),'err');
+  }
   renderBhTable(bhData);
   renderBhMap();
   updateBhKPIs();
@@ -4086,7 +4106,7 @@ function renderBhTable(rows) {
       +'<td contenteditable="true" data-col="total_core" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.total_core||0).toFixed(1)+'</td>'
       +'<td contenteditable="true" data-col="seam_tk" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.seam_tk||'')+'</td>'
       +'<td contenteditable="true" data-col="days_budgeted" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.days_budgeted||b.days||'')+'</td>'
-      +'<td><select onchange="setBhStatus(&apos;'+b.hole_id+'&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
+      +'<td><select onclick="event.stopPropagation()" onchange="setBhStatus(&apos;'+b.hole_id+'&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
       +'<td contenteditable="true" data-col="budget_total" data-num="true" style="font-weight:600;">'+(bgt>0?bgt.toLocaleString("en-AU",{maximumFractionDigits:0}):"")+'</td>'
       +'<td style="color:var(--accent);font-weight:600;">'+(eos>0?"$"+eos.toLocaleString("en-AU",{maximumFractionDigits:0}):"\u2014")+'</td>'
       +'<td style="color:'+(variance===null?"var(--muted)":variance>0?"var(--red)":"var(--green)")+';font-weight:600;">'
@@ -4112,12 +4132,13 @@ function renderBhTable(rows) {
         }
       }
       try {
-        await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
+        const res = await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
           method:'PATCH', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({[col]:val})
+          body:JSON.stringify({contractor:activeContractor,[col]:val})
         });
+        if(!res.ok) throw new Error(await res.text());
         toast('✓ Saved');
-      } catch(e) { toast('Save failed','err'); }
+      } catch(e) { toast('Save failed: '+((e&&e.message)||'change was not saved'),'err'); }
       updateBhKPIs();
       if(col==='easting'||col==='northing') renderBhMap();
     });
