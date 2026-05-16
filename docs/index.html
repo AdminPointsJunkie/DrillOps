@@ -80,6 +80,11 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:16px;paddi
 .con-btn{padding:4px 12px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;border-radius:20px;transition:all 0.15s;white-space:nowrap;}
 .con-btn:hover{border-color:var(--accent);color:var(--accent);}
 .con-btn.active{border-color:var(--accent);color:#fff;background:var(--accent);}
+.active-contractor-pill{font-size:12px;font-weight:700;color:#174d72;background:#eaf2f9;border:1px solid #c9dcea;border-radius:999px;padding:6px 12px;white-space:nowrap;}
+.contractor-page-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,0.9fr);gap:14px;margin-bottom:18px;}
+.contractor-panel-list{display:flex;flex-direction:column;gap:8px;}
+.account-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.drawer-admin-legacy{display:none;}
 
 /* Drawer */
 #drawer-overlay{position:fixed;inset:0;background:rgba(17,24,39,0.4);z-index:300;opacity:0;pointer-events:none;transition:opacity 0.25s;}
@@ -688,6 +693,67 @@ tbody td[contenteditable=true]:focus {
 .drawer-nav-item.active .drawer-nav-meta {
   color:#4d7898;
 }
+.tenement-grid {
+  display:grid;
+  grid-template-columns:1.1fr 0.9fr;
+  gap:14px;
+  margin-bottom:18px;
+}
+.tenement-map {
+  position:relative;
+  min-height:300px;
+  border:1px solid #d7dde5;
+  border-radius:6px;
+  overflow:hidden;
+  background:
+    linear-gradient(90deg, rgba(148,163,184,0.13) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(148,163,184,0.13) 1px, transparent 1px),
+    linear-gradient(135deg,#edf2f7,#f8fafc);
+  background-size:32px 32px,32px 32px,100% 100%;
+}
+.tenement-block {
+  position:absolute;
+  border:2px solid #1f5f8b;
+  background:rgba(31,95,139,0.12);
+  border-radius:4px;
+  padding:8px;
+  font-size:11px;
+  font-weight:750;
+  color:#174d72;
+  box-shadow:0 6px 18px rgba(15,23,42,0.08);
+}
+.tenement-block.warn { border-color:#d97706; background:rgba(217,119,6,0.14); color:#8a4b08; }
+.tenement-block.crit { border-color:#dc2626; background:rgba(220,38,38,0.12); color:#991b1b; }
+.tenement-alert-list {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.tenement-alert {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid #e0e6ed;
+  border-radius:6px;
+  background:#fbfcfd;
+}
+.tenement-alert strong { font-size:12px; color:#17202b; }
+.tenement-alert span { font-size:11px; color:#6b7788; }
+.tenement-risk {
+  display:inline-flex;
+  align-items:center;
+  min-width:72px;
+  justify-content:center;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:750;
+  text-transform:uppercase;
+}
+.tenement-risk.ok { background:#dcfce7; color:#166534; }
+.tenement-risk.warn { background:#fef3c7; color:#92400e; }
+.tenement-risk.crit { background:#fee2e2; color:#991b1b; }
 .contractor-item {
   min-height:40px;
   padding:8px 10px;
@@ -890,6 +956,18 @@ tbody td[contenteditable=true]:focus {
   .charts-grid {
     grid-template-columns:1fr;
     gap:10px;
+  }
+  .tenement-grid {
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .contractor-page-grid,
+  .account-settings-grid {
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .tenement-map {
+    min-height:240px;
   }
   .filter-toggle {
     padding:11px 12px;
@@ -1208,7 +1286,9 @@ tbody td[contenteditable=true]:focus {
       <div class="drawer-section-title">Navigation</div>
       <div class="drawer-nav-list">
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
+        <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
+        <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
         <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span class="drawer-nav-label">Consumables</span><span class="drawer-nav-meta">Materials</span></button>
         <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span class="drawer-nav-label">Crew</span><span class="drawer-nav-meta">Labour</span></button>
@@ -1217,39 +1297,6 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
         <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span class="drawer-nav-label">Schedule of Rates</span><span class="drawer-nav-meta">Pricing</span></button>
       </div>
-    </div>
-
-    <!-- Contractor Management -->
-    <div class="drawer-section">
-      <div class="drawer-section-title">Contractors</div>
-      <div id="drawer-contractor-list"></div>
-      <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:10px;" onclick="toggleAddContractorForm()">Add Contractor</button>
-      <div class="add-contractor-form" id="add-contractor-form">
-        <div class="form-row">
-          <div><label style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:4px;">NAME</label>
-            <input class="drawer-input" id="new-con-name" placeholder="e.g. Boart Longyear" style="width:100%"/></div>
-          <div><label style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:4px;">CODE</label>
-            <input class="drawer-input" id="new-con-code" placeholder="BLY" style="width:100%"/></div>
-        </div>
-        <button class="btn-primary" style="width:100%;" onclick="addContractor()">Add Contractor</button>
-      </div>
-    </div>
-
-    <!-- Settings -->
-    <div class="drawer-section">
-      <div class="drawer-section-title">Settings</div>
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:8px;">Password</div>
-      <div style="display:flex;gap:8px;">
-        <input class="drawer-input" id="new-password" type="password" placeholder="New password" style="flex:1"/>
-        <button class="btn-primary" onclick="changePassword()">Set</button>
-      </div>
-    </div>
-
-    <!-- Data Management -->
-    <div class="drawer-section drawer-section-subtle">
-      <div class="drawer-section-title">Data Management</div>
-      <button class="drawer-danger-btn" id="clear-btn">Clear <span id="clear-con-name">Contractor</span> Data</button>
-      <p class="drawer-help-text">Removes data for the active contractor only. Other contractors are unaffected.</p>
     </div>
 
   </div>
@@ -1261,7 +1308,7 @@ tbody td[contenteditable=true]:focus {
     <span></span><span></span><span></span>
   </button>
   <div class="logo">Drill<span>Ops</span></div>
-  <div id="contractor-switcher"></div>
+  <div class="active-contractor-pill" id="active-contractor-label">Allianz Drilling</div>
   <div class="header-right">
     <div class="header-meta"><span id="db-count">—</span> records</div>
   </div>
@@ -1312,6 +1359,63 @@ tbody td[contenteditable=true]:focus {
           </div>
           <button id="inv-import-btn-sidebar" disabled style="width:100%;padding:10px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Invoices</button>
           <div id="inv-import-log-sidebar" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contractors & User Accounts -->
+    <section class="page" id="page-contractors">
+      <h2 class="section-title">Contractors &amp; User Accounts</h2>
+
+      <div class="contractor-page-grid">
+        <div class="chart-card">
+          <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('contractor-panel-body').classList.toggle('open');">Contractors <span class="arrow">▼</span></button>
+          <div class="filter-body open" id="contractor-panel-body" style="display:block;padding:14px;">
+            <div class="contractor-panel-list" id="contractors-page-list"></div>
+            <div style="display:grid;grid-template-columns:1fr 110px auto;gap:8px;margin-top:12px;">
+              <input class="drawer-input" id="page-new-con-name" placeholder="Contractor name"/>
+              <input class="drawer-input" id="page-new-con-code" placeholder="Code"/>
+              <button class="btn-primary" onclick="addContractor()">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('account-panel-body').classList.toggle('open');">User Accounts <span class="arrow">▼</span></button>
+          <div class="filter-body open" id="account-panel-body" style="display:block;padding:14px;">
+            <div class="table-wrap" style="margin-bottom:12px;">
+              <div class="table-toolbar"><div class="table-count"><span id="user-count">—</span> users</div></div>
+              <div class="tbl-scroll" style="max-height:260px;"><table id="user-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+                <tbody id="user-body"></tbody>
+              </table></div>
+            </div>
+            <div class="account-settings-grid">
+              <div class="filter-group"><label>Name</label><input id="user-name" placeholder="Jane Smith"/></div>
+              <div class="filter-group"><label>Email</label><input id="user-email" placeholder="jane@company.com"/></div>
+              <div class="filter-group"><label>Role</label><select id="user-role"><option>Admin</option><option>Manager</option><option>Field User</option><option>Viewer</option></select></div>
+              <div class="filter-group"><label>Status</label><select id="user-status"><option>Active</option><option>Pending</option><option>Disabled</option></select></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+              <button class="btn-primary" onclick="addUserAccount()">Add User</button>
+              <button class="btn-ghost" onclick="clearUserForm()">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="account-settings-grid">
+        <div class="chart-card">
+          <div class="chart-title">Session Password</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+            <input class="drawer-input" id="new-password" type="password" placeholder="New password"/>
+            <button class="btn-primary" onclick="changePassword()">Set</button>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Data Management</div>
+          <button class="drawer-danger-btn" id="clear-btn">Clear <span id="clear-con-name">Contractor</span> Data</button>
+          <p class="drawer-help-text">Removes records for the active contractor only. Other contractors are unaffected.</p>
         </div>
       </div>
     </section>
@@ -1490,6 +1594,63 @@ tbody td[contenteditable=true]:focus {
           <thead><tr><th>PO Number</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value</th><th>Spent</th><th>Remaining</th><th>% Used</th><th>Status</th><th>Notes</th><th></th></tr></thead>
           <tbody id="po-body"></tbody>
         </table></div>
+      </div>
+    </section>
+
+    <!-- Tenement Management -->
+    <section class="page" id="page-tenements">
+      <h2 class="section-title">Tenement Management</h2>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Total Tenements</div><div class="kpi-value" id="ten-kpi-total">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Granted</div><div class="kpi-value" id="ten-kpi-granted">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Due 90 Days</div><div class="kpi-value" id="ten-kpi-due">—</div></div>
+        <div class="kpi crit"><div class="kpi-label">Overdue</div><div class="kpi-value" id="ten-kpi-overdue">—</div></div>
+        <div class="kpi"><div class="kpi-label">Spend Variance</div><div class="kpi-value" id="ten-kpi-variance">—</div></div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-toggle" id="ten-add-toggle" onclick="this.classList.toggle('open');document.getElementById('ten-add-body').classList.toggle('open');">Add Tenement <span class="arrow">▼</span></button>
+        <div class="filter-body" id="ten-add-body" style="grid-template-columns:repeat(4,1fr);">
+          <div class="filter-group"><label>Tenement ID *</label><input id="ten-id" placeholder="EPC 1234"/></div>
+          <div class="filter-group"><label>Name</label><input id="ten-name" placeholder="Ironbark North"/></div>
+          <div class="filter-group"><label>Project</label><input id="ten-project" placeholder="Ironbark"/></div>
+          <div class="filter-group"><label>Status</label><select id="ten-status"><option>Granted</option><option>Application</option><option>Renewal Due</option><option>Suspended</option><option>Surrendered</option></select></div>
+          <div class="filter-group"><label>Holder</label><input id="ten-holder" placeholder="Entity / JV"/></div>
+          <div class="filter-group"><label>Area ha</label><input id="ten-area" type="number" placeholder="0" step="0.01"/></div>
+          <div class="filter-group"><label>Expiry</label><input id="ten-expiry" placeholder="dd/mm/yyyy"/></div>
+          <div class="filter-group"><label>Renewal Due</label><input id="ten-renewal" placeholder="dd/mm/yyyy"/></div>
+          <div class="filter-group"><label>Min Spend $</label><input id="ten-min-spend" type="number" placeholder="0" step="100"/></div>
+          <div class="filter-group"><label>Actual Spend $</label><input id="ten-actual-spend" type="number" placeholder="0" step="100"/></div>
+          <div class="filter-group"><label>Next Obligation</label><input id="ten-obligation" placeholder="Annual report / rent / renewal"/></div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="addTenement()">Save Tenement</button>
+            <button class="btn-ghost" onclick="clearTenementForm()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tenement-grid">
+        <div class="chart-card">
+          <div class="chart-title">Tenement Footprint</div>
+          <div class="tenement-map" id="tenement-map"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Compliance Watchlist</div>
+          <div class="tenement-alert-list" id="tenement-alerts"></div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="ten-count">—</span> tenements</div>
+          <button class="btn-csv" onclick="downloadCSV('tenements')">CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="ten-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Project</th><th>Status</th><th>Holder</th><th>Area ha</th><th>Expiry</th><th>Renewal Due</th><th>Min Spend</th><th>Actual Spend</th><th>Variance</th><th>Next Obligation</th><th></th></tr></thead>
+            <tbody id="ten-body"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -1827,6 +1988,7 @@ function drawerNav(btn){
 
 function renderDrawerContractors(){
   const list=document.getElementById('drawer-contractor-list');
+  if(!list)return;
   list.innerHTML=CONTRACTORS.map((c,i)=>`
     <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
       <div class="contractor-item-left">
@@ -1842,14 +2004,34 @@ function renderDrawerContractors(){
     </div>`).join('');
 }
 
+function renderContractorsPage(){
+  const list=document.getElementById('contractors-page-list');
+  if(!list)return;
+  list.innerHTML=CONTRACTORS.map((c,i)=>`
+    <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
+      <div class="contractor-item-left">
+        <div class="contractor-dot"></div>
+        <div>
+          <div class="contractor-name">${esc(c.name)}</div>
+          <div class="contractor-code">${esc(c.short_code||'')}</div>
+        </div>
+      </div>
+      <div class="contractor-item-actions">
+        ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':`<button class="icon-btn" onclick="event.stopPropagation();removeContractor(${i})">Remove</button>`}
+      </div>
+    </div>`).join('');
+}
+
 function toggleAddContractorForm(){
   const f=document.getElementById('add-contractor-form');
   f.classList.toggle('open');
 }
 
 async function addContractor(){
-  const name=document.getElementById('new-con-name').value.trim();
-  const code=document.getElementById('new-con-code').value.trim().toUpperCase();
+  const nameEl=document.getElementById('page-new-con-name')||document.getElementById('new-con-name');
+  const codeEl=document.getElementById('page-new-con-code')||document.getElementById('new-con-code');
+  const name=nameEl.value.trim();
+  const code=codeEl.value.trim().toUpperCase();
   if(!name){toast('Contractor name required','err');return;}
   try{
     const res=await fetch(`${API}/contractors`,{
@@ -1864,11 +2046,12 @@ async function addContractor(){
       CONTRACTORS.push({name,short_code:d.short_code});
       sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     }
-    document.getElementById('new-con-name').value='';
-    document.getElementById('new-con-code').value='';
-    document.getElementById('add-contractor-form').classList.remove('open');
+    nameEl.value='';
+    codeEl.value='';
+    document.getElementById('add-contractor-form')?.classList.remove('open');
     buildContractorSwitcher();
     renderDrawerContractors();
+    renderContractorsPage();
     toast(`✓ ${name} saved to database`);
   }catch(e){toast('Network error — could not save contractor','err');}
 }
@@ -1883,6 +2066,7 @@ async function removeContractor(idx){
     sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     buildContractorSwitcher();
     renderDrawerContractors();
+    renderContractorsPage();
     toast(`${c.name} removed`,'warn');
   }catch(e){toast('Failed to remove contractor','err');}
 }
@@ -1896,6 +2080,64 @@ function doClearContractor(){
 document.getElementById('clear-btn').addEventListener('click',doClearContractor);
 // sidebar removed
 
+// ── User accounts ────────────────────────────────────────────────────────────
+function userAccountsKey(){
+  return 'drillops_user_accounts';
+}
+function seedUserAccounts(){
+  return [
+    {name:'Workspace Admin',email:'admin@drillops.local',role:'Admin',status:'Active'},
+    {name:'Field Manager',email:'manager@drillops.local',role:'Manager',status:'Active'}
+  ];
+}
+function loadUserAccounts(){
+  try{
+    userAccountsData=JSON.parse(localStorage.getItem(userAccountsKey())||'null')||seedUserAccounts();
+  }catch(e){
+    userAccountsData=seedUserAccounts();
+  }
+  saveUserAccounts();
+  renderUserAccounts();
+}
+function saveUserAccounts(){
+  localStorage.setItem(userAccountsKey(),JSON.stringify(userAccountsData));
+}
+function renderUserAccounts(){
+  const body=document.getElementById('user-body');
+  const count=document.getElementById('user-count');
+  if(!body)return;
+  if(count)count.textContent=userAccountsData.length;
+  body.innerHTML=userAccountsData.map((u,i)=>`
+    <tr>
+      <td>${esc(u.name)}</td>
+      <td>${esc(u.email)}</td>
+      <td>${esc(u.role)}</td>
+      <td><span class="tenement-risk ${u.status==='Active'?'ok':u.status==='Pending'?'warn':'crit'}">${esc(u.status)}</span></td>
+      <td><button class="btn-csv" onclick="removeUserAccount(${i})">Remove</button></td>
+    </tr>`).join('')||'<tr><td colspan="5"><div class="empty-state">No users yet</div></td></tr>';
+}
+function clearUserForm(){
+  ['user-name','user-email'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const role=document.getElementById('user-role');if(role)role.value='Admin';
+  const status=document.getElementById('user-status');if(status)status.value='Active';
+}
+function addUserAccount(){
+  const name=document.getElementById('user-name').value.trim();
+  const email=document.getElementById('user-email').value.trim();
+  if(!name||!email){toast('User name and email required','err');return;}
+  const user={name,email,role:document.getElementById('user-role').value,status:document.getElementById('user-status').value};
+  const existing=userAccountsData.findIndex(u=>u.email.toLowerCase()===email.toLowerCase());
+  if(existing>=0)userAccountsData[existing]=user;
+  else userAccountsData.push(user);
+  saveUserAccounts();renderUserAccounts();clearUserForm();toast('User account saved');
+}
+function removeUserAccount(index){
+  const user=userAccountsData[index];
+  if(!user||!confirm('Remove '+user.email+'?'))return;
+  userAccountsData.splice(index,1);
+  saveUserAccounts();renderUserAccounts();toast('User removed','warn');
+}
+
 // ── Global State ──────────────────────────────────────────────────────────────
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let pendingFiles = [];
@@ -1904,6 +2146,8 @@ let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
 let drillingRatesData=[], hourlyRatesData=[];
 let posData=[];
+let tenementsData=[];
+let userAccountsData=[];
 let charts={};
 let activeRateYear=null;
 
@@ -1930,6 +2174,7 @@ function refreshCostingIfActive(delay=250){
 function fillSelect(id,vals,allSel=true){
   const s=document.getElementById(id); if(!s)return;
   s.innerHTML='';
+  vals = Array.isArray(vals) ? vals : [];
   vals.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;o.selected=allSel;s.appendChild(o);});
 }
 function codeBadge(code){
@@ -1947,19 +2192,12 @@ function dateSortKey(d){
 
 // ── Contractor switcher ───────────────────────────────────────────────────────
 function buildContractorSwitcher(){
-  const el=document.getElementById('contractor-switcher');
-  el.innerHTML='';
-  CONTRACTORS.forEach(c=>{
-    const name=typeof c==='string'?c:c.name;
-    const btn=document.createElement('button');
-    btn.className='con-btn'+(name===activeContractor?' active':'');
-    btn.textContent=name;
-    btn.onclick=()=>switchContractor(name);
-    el.appendChild(btn);
-  });
+  const label=document.getElementById('active-contractor-label');
+  if(label)label.textContent=activeContractor;
   // Update clear button label
   const cn=document.getElementById('clear-con-name');
   if(cn)cn.textContent=activeContractor;
+  renderContractorsPage();
 }
 
 async function switchContractor(name){
@@ -1967,6 +2205,7 @@ async function switchContractor(name){
   activeContractor=name;
   sessionStorage.setItem('drillops_contractor',name);
   buildContractorSwitcher();
+  renderDrawerContractors();
   // Reset all state
   filterOpts={dates:[],holes:[],sites:[],codes:[]};
   activitiesData=[];consumablesData=[];crewData=[];anomaliesData=[];
@@ -1988,10 +2227,14 @@ async function updateDbCount(){
     const d=await res.json();
     if(dbEl) dbEl.textContent=(d.total_rows||0).toLocaleString();
     filterOpts=d;
-    fillSelect('f-dates',d.dates);fillSelect('f-holes',d.holes);
-    fillSelect('f-sites',d.sites);fillSelect('f-codes',d.codes);
-    fillSelect('f-con-dates',d.dates);fillSelect('f-crew-dates',d.dates);
-    buildHoleSelector(d.holes);
+    try{
+      fillSelect('f-dates',d.dates);fillSelect('f-holes',d.holes);
+      fillSelect('f-sites',d.sites);fillSelect('f-codes',d.codes);
+      fillSelect('f-con-dates',d.dates);fillSelect('f-crew-dates',d.dates);
+      buildHoleSelector(d.holes);
+    }catch(uiErr){
+      console.warn('Filter UI refresh skipped:', uiErr.message);
+    }
   }catch(e){
     if(dbEl) {
       dbEl.textContent='offline';
@@ -2018,6 +2261,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 function triggerPageLoad(page){
   // Always reload fresh data when switching tabs — no caching
   if(page==='importer')     {};
+  if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
   if(page==='activities')   loadActivities();
   if(page==='consumables')  loadConsumables();
@@ -2025,6 +2269,7 @@ function triggerPageLoad(page){
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='costing')      loadCosting();
   if(page==='purchase-orders') loadPOs();
+  if(page==='tenements')    loadTenements();
   if(page==='invoices')     loadInvoices();
   if(page==='rates')        initRatesTab();
 }
@@ -2237,7 +2482,10 @@ const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Cir
   'Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
 
 function buildHoleSelector(holes){
-  const sel=document.getElementById('hole-selector');sel.innerHTML='';
+  const sel=document.getElementById('hole-selector');
+  if(!sel) return;
+  holes = Array.isArray(holes) ? holes : [];
+  sel.innerHTML='';
   const allBtn=document.createElement('button');
   allBtn.className='hole-btn active';allBtn.dataset.hole='all';allBtn.textContent='All Holes';
   allBtn.addEventListener('click',()=>{sel.querySelectorAll('.hole-btn').forEach(b=>b.classList.remove('active'));allBtn.classList.add('active');loadAnalytics('all');});
@@ -2657,6 +2905,149 @@ async function deletePO(id){
   toast('PO deleted','warn');loadPOs();
 }
 
+// ── Tenements ────────────────────────────────────────────────────────────────
+function tenementStorageKey(){
+  return 'drillops_tenements_'+activeContractor.replace(/\W+/g,'_');
+}
+
+function seedTenements(){
+  return [
+    {id:'EPC 3021',name:'Ironbark North',project:'Ironbark',status:'Granted',holder:'Exploration Co Pty Ltd',area_ha:1860,expiry:'31/12/2026',renewal_due:'30/09/2026',min_spend:450000,actual_spend:392500,next_obligation:'Annual expenditure report',x:8,y:14,w:34,h:32},
+    {id:'EPC 3178',name:'Carborough West',project:'Carborough',status:'Renewal Due',holder:'Exploration Co Pty Ltd',area_ha:1245,expiry:'15/08/2026',renewal_due:'15/06/2026',min_spend:280000,actual_spend:301250,next_obligation:'Renewal application',x:44,y:18,w:28,h:26},
+    {id:'MDL 901',name:'Codrilla Corridor',project:'Codrilla',status:'Granted',holder:'JV Operations',area_ha:740,expiry:'22/03/2027',renewal_due:'22/01/2027',min_spend:180000,actual_spend:96500,next_obligation:'Rent payment',x:26,y:55,w:42,h:24}
+  ];
+}
+
+async function loadTenements(){
+  const saved=localStorage.getItem(tenementStorageKey());
+  try{
+    const res=await fetch(`${API}/tenements?contractor=${encodeURIComponent(activeContractor)}`);
+    if(res.ok){
+      const rows=await res.json();
+      tenementsData=Array.isArray(rows)&&rows.length?rows:(saved?JSON.parse(saved):seedTenements());
+      saveTenements();
+      renderTenements();
+      return;
+    }
+  }catch(e){}
+  try{
+    tenementsData=saved?JSON.parse(saved):seedTenements();
+  }catch(e){
+    tenementsData=seedTenements();
+  }
+  saveTenements();
+  renderTenements();
+}
+
+function saveTenements(){
+  localStorage.setItem(tenementStorageKey(), JSON.stringify(tenementsData));
+}
+
+function parseTenDate(value){
+  const parts=String(value||'').split(/[\/\-]/).map(Number);
+  if(parts.length<3||parts.some(isNaN))return null;
+  const normal=parts[0]>31?[parts[2],parts[1],parts[0]]:parts;
+  return new Date(normal[2],normal[1]-1,normal[0]);
+}
+
+function tenementRisk(t){
+  const dates=[parseTenDate(t.renewal_due),parseTenDate(t.expiry)].filter(Boolean);
+  if(!dates.length)return {cls:'ok',label:'Current',days:null};
+  const next=new Date(Math.min(...dates.map(d=>d.getTime())));
+  const today=new Date(); today.setHours(0,0,0,0);
+  const days=Math.ceil((next-today)/86400000);
+  if(days<0)return {cls:'crit',label:'Overdue',days};
+  if(days<=90)return {cls:'warn',label:days+' days',days};
+  return {cls:'ok',label:'Current',days};
+}
+
+function renderTenements(){
+  const rows=Array.isArray(tenementsData)?tenementsData:[];
+  document.getElementById('ten-count').textContent=rows.length;
+  const granted=rows.filter(r=>(r.status||'')==='Granted').length;
+  const due=rows.filter(r=>tenementRisk(r).cls==='warn').length;
+  const overdue=rows.filter(r=>tenementRisk(r).cls==='crit').length;
+  const variance=rows.reduce((s,r)=>s+((parseFloat(r.actual_spend)||0)-(parseFloat(r.min_spend)||0)),0);
+  document.getElementById('ten-kpi-total').textContent=rows.length;
+  document.getElementById('ten-kpi-granted').textContent=granted;
+  document.getElementById('ten-kpi-due').textContent=due;
+  document.getElementById('ten-kpi-overdue').textContent=overdue;
+  document.getElementById('ten-kpi-variance').textContent=cur(variance);
+
+  document.getElementById('tenement-map').innerHTML=rows.map((r,i)=>{
+    const risk=tenementRisk(r);
+    const x=r.x??(8+(i*18)%70),y=r.y??(12+(i*15)%62),w=r.w??28,h=r.h??24;
+    return `<div class="tenement-block ${risk.cls==='ok'?'':risk.cls}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;">${esc(r.id)}<br><span style="font-weight:600;">${esc(r.project||'')}</span></div>`;
+  }).join('');
+
+  const watch=rows.slice().sort((a,b)=>(tenementRisk(a).days??9999)-(tenementRisk(b).days??9999)).slice(0,5);
+  document.getElementById('tenement-alerts').innerHTML=watch.length?watch.map(r=>{
+    const risk=tenementRisk(r);
+    return `<div class="tenement-alert"><div><strong>${esc(r.id)} ${esc(r.name||'')}</strong><br><span>${esc(r.next_obligation||'Next obligation')} · Renewal ${esc(r.renewal_due||'—')}</span></div><div class="tenement-risk ${risk.cls}">${esc(risk.label)}</div></div>`;
+  }).join(''):'<div class="empty-state">No tenements yet</div>';
+
+  const tbody=document.getElementById('ten-body');
+  tbody.innerHTML=rows.length?rows.map((r,i)=>{
+    const spend=(parseFloat(r.actual_spend)||0)-(parseFloat(r.min_spend)||0);
+    const risk=tenementRisk(r);
+    return `<tr>
+      <td>${esc(r.id)}</td><td>${esc(r.name)}</td><td>${esc(r.project)}</td>
+      <td><span class="tenement-risk ${risk.cls}">${esc(r.status||'')}</span></td>
+      <td>${esc(r.holder)}</td><td>${Number(r.area_ha||0).toLocaleString()}</td>
+      <td>${esc(r.expiry)}</td><td>${esc(r.renewal_due)}</td>
+      <td>${cur(r.min_spend)}</td><td>${cur(r.actual_spend)}</td>
+      <td style="color:${spend<0?'var(--red)':'var(--green)'};font-weight:700;">${cur(spend)}</td>
+      <td>${esc(r.next_obligation)}</td>
+      <td><button class="btn-csv" onclick="deleteTenement(${i})">Remove</button></td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="13"><div class="empty-state">No tenements yet</div></td></tr>';
+  makeTableSortable('ten-table');
+}
+
+function clearTenementForm(){
+  ['ten-id','ten-name','ten-project','ten-holder','ten-area','ten-expiry','ten-renewal','ten-min-spend','ten-actual-spend','ten-obligation'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const status=document.getElementById('ten-status');if(status)status.value='Granted';
+}
+
+async function addTenement(){
+  const id=document.getElementById('ten-id').value.trim();
+  if(!id){toast('Enter a tenement ID','err');return;}
+  const existing=tenementsData.findIndex(t=>String(t.id).toLowerCase()===id.toLowerCase());
+  const item={
+    id,
+    name:document.getElementById('ten-name').value.trim(),
+    project:document.getElementById('ten-project').value.trim(),
+    status:document.getElementById('ten-status').value,
+    holder:document.getElementById('ten-holder').value.trim(),
+    area_ha:parseFloat(document.getElementById('ten-area').value)||0,
+    expiry:document.getElementById('ten-expiry').value.trim(),
+    renewal_due:document.getElementById('ten-renewal').value.trim(),
+    min_spend:parseFloat(document.getElementById('ten-min-spend').value)||0,
+    actual_spend:parseFloat(document.getElementById('ten-actual-spend').value)||0,
+    next_obligation:document.getElementById('ten-obligation').value.trim(),
+    x:8+((tenementsData.length*17)%68),y:12+((tenementsData.length*13)%58),w:28,h:24
+  };
+  try{
+    const res=await fetch(`${API}/tenements`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({contractor:activeContractor},item))});
+    if(res.ok){
+      clearTenementForm();toast('Tenement saved');await loadTenements();return;
+    }
+  }catch(e){}
+  if(existing>=0)tenementsData[existing]=Object.assign({},tenementsData[existing],item);
+  else tenementsData.push(item);
+  saveTenements();renderTenements();clearTenementForm();toast('Tenement saved');
+}
+
+async function deleteTenement(index){
+  const item=tenementsData[index];
+  if(!item||!confirm('Remove '+item.id+' from this register?'))return;
+  try{
+    await fetch(`${API}/tenements/${encodeURIComponent(item.id)}?contractor=${encodeURIComponent(activeContractor)}`,{method:'DELETE'});
+  }catch(e){}
+  tenementsData.splice(index,1);
+  saveTenements();renderTenements();toast('Tenement removed','warn');
+}
+
 // ── Rates ─────────────────────────────────────────────────────────────────────
 function buildRateYearSelector(years){
   const sel=document.getElementById('rate-year-selector');sel.innerHTML='';
@@ -2880,7 +3271,7 @@ function downloadCSV(type){
     costing_holes:[costingHolesData,'costing_holes.csv'],costing_dates:[costingDatesData,'costing_dates.csv'],
     costing_lines:[costingLinesData,'costing_lines.csv'],pos:[posData,'purchase_orders.csv'],
     invoices:[invoicesData,'invoices.csv'],discrepancies:[discrepanciesData,'reconciliation_discrepancies.csv'],
-    boreholes:[boreholesCsvData,'boreholes_2026.csv']};
+    boreholes:[boreholesCsvData,'boreholes_2026.csv'],tenements:[tenementsData,'tenements.csv']};
   const [rows,filename]=map[type]||[null,null];
   if(!rows||!rows.length)return;
   const keys=Object.keys(rows[0]);
