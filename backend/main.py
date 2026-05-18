@@ -2191,20 +2191,6 @@ def get_invoice_pdf(invoice_id: int):
             )
 
 
-@app.patch("/invoices/{invoice_id}")
-def update_invoice(invoice_id: int, payload: dict):
-    safe = {"invoice_number","invoice_date","due_date","po_reference","status","notes",
-            "subtotal","gst","total_aud","amount_paid","amount_due"}
-    u = {k:v for k,v in payload.items() if k in safe}
-    if not u: raise HTTPException(400,"No valid fields")
-    u["iid"]=invoice_id
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE invoices SET {','.join(f'{k}=%('+k+')s' for k in u if k!='iid')} WHERE id=%(iid)s", u)
-        conn.commit()
-    return {"status":"updated"}
-
-
 @app.delete("/invoices/{invoice_id}")
 def delete_invoice(invoice_id: int):
     with get_conn() as conn:
