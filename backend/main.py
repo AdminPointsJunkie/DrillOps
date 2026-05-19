@@ -230,6 +230,7 @@ def init_db():
                     id              SERIAL PRIMARY KEY,
                     po_number       TEXT NOT NULL,
                     contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    project         TEXT,
                     description     TEXT,
                     issue_date      TEXT,
                     expiry_date     TEXT,
@@ -238,6 +239,11 @@ def init_db():
                     notes           TEXT
                 )
             """)
+            for col, typedef in [("project", "TEXT")]:
+                try:
+                    cur.execute(f"ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS source_files (
@@ -307,7 +313,7 @@ def init_db():
                     billing_month   TEXT
                 )
             """)
-            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT"), ("version", "INTEGER DEFAULT 1"), ("query_notes", "TEXT")]:
+            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT"), ("version", "INTEGER DEFAULT 1"), ("query_notes", "TEXT"), ("project", "TEXT")]:
                 try:
                     cur.execute(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
@@ -1650,7 +1656,7 @@ def get_pos(contractor: Optional[str] = Query(None)):
                 if contractor:
                     cur.execute("""
                         SELECT id, po_number, contractor, description,
-                               issue_date, expiry_date, po_value, status, notes
+                               project, issue_date, expiry_date, po_value, status, notes
                         FROM purchase_orders
                         WHERE contractor=%s
                         ORDER BY issue_date DESC
@@ -1658,7 +1664,7 @@ def get_pos(contractor: Optional[str] = Query(None)):
                 else:
                     cur.execute("""
                         SELECT id, po_number, contractor, description,
-                               issue_date, expiry_date, po_value, status, notes
+                               project, issue_date, expiry_date, po_value, status, notes
                         FROM purchase_orders
                         ORDER BY issue_date DESC
                     """)
@@ -1692,10 +1698,11 @@ async def add_po(request: Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO purchase_orders (po_number,contractor,description,issue_date,expiry_date,po_value,status,notes)
-                    VALUES (%(po_number)s,%(contractor)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
+                    INSERT INTO purchase_orders (po_number,contractor,project,description,issue_date,expiry_date,po_value,status,notes)
+                    VALUES (%(po_number)s,%(contractor)s,%(project)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
                     RETURNING id
                 """, {"po_number":payload["po_number"],"contractor":payload["contractor"],
+                      "project":payload.get("project",""),
                       "description":payload.get("description",""),"issue_date":payload.get("issue_date",""),
                       "expiry_date":payload.get("expiry_date",""),"po_value":payload.get("po_value",0),
                       "status":payload.get("status","Active"),"notes":payload.get("notes","")})
@@ -1709,7 +1716,7 @@ async def add_po(request: Request):
 @app.patch("/purchase_orders/{po_id}")
 async def update_po(po_id: int, request: Request):
     payload = await request.json()
-    safe = {"po_number","description","issue_date","expiry_date","po_value","status","notes"}
+    safe = {"po_number","project","description","issue_date","expiry_date","po_value","status","notes"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400,"No valid fields")
     u["po_id"]=po_id
@@ -2112,7 +2119,7 @@ def get_invoices(contractor: str = Query(...)):
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, source_file, contractor, invoice_number,
-                           invoice_date, due_date, po_reference, client, abn,
+                           project, invoice_date, due_date, po_reference, client, abn,
                            subtotal, gst, total_aud, amount_paid, amount_due,
                            status, notes, billing_month, query_notes, version
                     FROM invoices
@@ -2156,7 +2163,7 @@ def get_invoice_lines(invoice_id: int):
 @app.patch("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: int, request: Request):
     payload = await request.json()
-    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","invoice_date","subtotal","gst","total_aud","invoice_number"}
+    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","project","invoice_date","subtotal","gst","total_aud","invoice_number"}
     u = {k:v for k,v in payload.items() if k in safe and k != "version"}
     if not u: raise HTTPException(400, "No valid fields")
     # Auto-increment version on any edit
