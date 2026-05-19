@@ -2114,7 +2114,7 @@ def get_invoices(contractor: str = Query(...)):
                     SELECT id, source_file, contractor, invoice_number,
                            invoice_date, due_date, po_reference, client, abn,
                            subtotal, gst, total_aud, amount_paid, amount_due,
-                           status, notes
+                           status, notes, billing_month, query_notes, version
                     FROM invoices
                     WHERE contractor=%s
                     ORDER BY invoice_date DESC
