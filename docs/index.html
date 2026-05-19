@@ -196,6 +196,7 @@ tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s;}
 tbody tr:hover{background:#f8faff;}
 tbody tr:last-child{border-bottom:none;}
 tbody td{padding:8px 12px;color:var(--text2);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;}
+tbody td.multiline-cell{white-space:normal;max-width:none;overflow:visible;text-overflow:clip;line-height:1.35;min-width:220px;}
 tbody td[contenteditable=true]{cursor:text;outline:none;}
 tbody td[contenteditable=true]:hover{background:#f0f4ff;}
 tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2px var(--accent);}
@@ -1576,6 +1577,7 @@ tbody td[contenteditable=true]:focus {
         <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
+          <div class="filter-group"><label>Project</label><input type="text" id="po-project" placeholder="e.g. Ironbark North"/></div>
           <div class="filter-group"><label>PO Value ($)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
           <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>
@@ -1591,7 +1593,7 @@ tbody td[contenteditable=true]:focus {
       <div class="table-wrap">
         <div class="table-toolbar"><div class="table-count"><span id="po-count">—</span> purchase orders</div><button class="btn-csv" onclick="downloadCSV('pos')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="po-table">
-          <thead><tr><th>PO Number</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value</th><th>Spent</th><th>Remaining</th><th>% Used</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>PO Number</th><th>Project</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value</th><th>Spent</th><th>Remaining</th><th>% Used</th><th>Status</th><th>Notes</th><th></th></tr></thead>
           <tbody id="po-body"></tbody>
         </table></div>
       </div>
@@ -1729,7 +1731,7 @@ tbody td[contenteditable=true]:focus {
         <div class="tbl-scroll">
           <table id="inv-table">
             <thead><tr>
-              <th>Invoice #</th><th>Contractor</th><th>Invoice Date</th><th>Invoice Month</th>
+              <th>Invoice #</th><th>Contractor</th><th>Project</th><th>Invoice Date</th><th>Invoice Month</th>
               <th>PO Number</th><th>Subtotal</th><th>GST</th><th>Total AUD</th>
               <th>Amount Paid</th><th>Amount Due</th><th>Status</th><th>Query Notes</th>
               <th>Version</th><th>PDF</th><th></th>
@@ -2836,7 +2838,7 @@ async function loadPOs(){
 function renderPOs(rows){
   document.getElementById('po-count').textContent=rows.length;
   const tbody=document.getElementById('po-body');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="11"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet</div></td></tr>`;return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet</div></td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>{
     const spent=parseFloat(r.spent_to_date)||0;
     const value=parseFloat(r.po_value)||0;
@@ -2846,6 +2848,7 @@ function renderPOs(rows){
     const sc=r.status==='Active'?'var(--green)':r.status==='Completed'?'var(--blue)':'var(--muted)';
     return`<tr data-id="${r.id}">
       <td contenteditable="true" data-col="po_number" style="color:var(--accent);font-weight:600">${esc(r.po_number)}</td>
+      <td contenteditable="true" data-col="project">${esc(r.project||'')}</td>
       <td contenteditable="true" data-col="description">${esc(r.description||'')}</td>
       <td contenteditable="true" data-col="issue_date">${esc(r.issue_date||'')}</td>
       <td contenteditable="true" data-col="expiry_date">${esc(r.expiry_date||'')}</td>
@@ -2854,7 +2857,7 @@ function renderPOs(rows){
       <td style="color:${rem<0?'var(--red)':'var(--green)'}">${cur(rem)}</td>
       <td><div style="display:flex;align-items:center;gap:5px;"><div style="flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};"></div></div><span style="font-family:var(--font-mono);font-size:9px;color:${bc}">${pct}%</span></div></td>
       <td contenteditable="true" data-col="status" style="color:${sc}">${esc(r.status||'Active')}</td>
-      <td contenteditable="true" data-col="notes">${esc(r.notes||'')}</td>
+      <td contenteditable="true" data-col="notes" class="multiline-cell">${esc(r.notes||'')}</td>
       <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
   }).join('');
@@ -2877,6 +2880,7 @@ async function addPO(){
     const payload={
       po_number:pn,
       contractor:activeContractor,
+      project:document.getElementById('po-project').value,
       description:document.getElementById('po-description').value,
       po_value:parseFloat(document.getElementById('po-value').value)||0,
       issue_date:document.getElementById('po-issue-date').value,
@@ -2893,7 +2897,7 @@ async function addPO(){
     const d=await res.json();
     console.log('PO response:', res.status, d);
     if(!res.ok){toast(d.detail||'Failed to save PO — see console','err');return;}
-    ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
+    ['po-number','po-project','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
     toast('✓ Purchase order saved');
     loadPOs();
   }catch(e){toast('Network error: '+e.message,'err');console.error('addPO error:',e);}
@@ -3497,6 +3501,7 @@ function renderInvoices(rows){
     return '<tr data-inv-id="'+r.id+'">'
       +'<td contenteditable="true" data-col="invoice_number" style="color:var(--accent);font-weight:700;">'+esc(r.invoice_number||'')+'</td>'
       +'<td contenteditable="true" data-col="contractor" style="font-size:12px;">'+esc(r.contractor||'')+'</td>'
+      +'<td contenteditable="true" data-col="project" style="font-size:12px;">'+esc(r.project||'')+'</td>'
       +'<td contenteditable="true" data-col="invoice_date">'+esc(r.invoice_date||'')+'</td>'
       +'<td><select onchange="saveInvField('+r.id+',&apos;billing_month&apos;,this.value)" style="font-size:12px;padding:3px 6px;border:1.5px solid var(--border);border-radius:4px;outline:none;background:#fff;color:var(--text);font-family:var(--font);min-width:100px;">'+monthOpts+'</select></td>'
       +'<td contenteditable="true" data-col="po_reference" style="font-size:12px;">'+esc(r.po_reference||'')+'</td>'
@@ -3506,13 +3511,13 @@ function renderInvoices(rows){
       +'<td contenteditable="true" data-col="amount_paid" data-num="true" style="color:var(--green);">'+((r.amount_paid||0)>0?(r.amount_paid).toLocaleString("en-AU",{minimumFractionDigits:2}):'')+'</td>'
       +'<td style="color:'+((r.amount_due||0)>0?'var(--red)':'var(--muted)')+';">'+cur(r.amount_due)+'</td>'
       +'<td><select onchange="saveInvField('+r.id+',&apos;status&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 8px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
-      +'<td contenteditable="true" data-col="query_notes" style="font-size:11px;color:var(--muted);max-width:180px;">'+esc(r.query_notes||'')+'</td>'
+      +'<td contenteditable="true" data-col="query_notes" class="multiline-cell" style="font-size:11px;color:var(--muted);">'+esc(r.query_notes||'')+'</td>'
       +'<td style="font-size:11px;color:var(--muted);text-align:center;">v'+(r.version||1)+'</td>'
       +'<td style="display:flex;gap:4px;">'
         +(r.id?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
         +'<button onclick="deleteInvoice('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;">\u2715</button>'
       +'</td></tr>';
-  }).join('') || '<tr><td colspan="15" style="padding:20px;color:var(--muted);text-align:center;">No invoices — import via the Import Data tab</td></tr>';
+  }).join('') || '<tr><td colspan="16" style="padding:20px;color:var(--muted);text-align:center;">No invoices — import via the Import Data tab</td></tr>';
 
   // Wire up inline edits
   document.getElementById('inv-body').querySelectorAll('[contenteditable]').forEach(function(cell){
@@ -4529,5 +4534,3 @@ buildContractorSwitcher();
 </script>
 </body>
 </html>
-
-
