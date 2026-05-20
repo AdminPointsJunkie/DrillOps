@@ -219,6 +219,35 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .chart-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;}
 .chart-card canvas{max-height:240px;}
 
+/* Drilling schedule */
+.schedule-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.schedule-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.schedule-controls label{font-size:12px;font-weight:600;color:var(--muted);}
+.schedule-controls select{background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:170px;}
+.schedule-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+.schedule-scroll{overflow:auto;max-height:calc(100vh - 250px);}
+.schedule-grid{min-width:980px;}
+.schedule-header,.schedule-row{display:grid;grid-template-columns:240px 1fr;min-height:42px;}
+.schedule-header{position:sticky;top:0;z-index:5;background:var(--bg3);border-bottom:1px solid var(--border);}
+.schedule-left{padding:10px 12px;border-right:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.schedule-head-scale,.schedule-track{display:grid;grid-template-columns:repeat(var(--schedule-days,30),minmax(34px,1fr));}
+.schedule-day{padding:10px 4px;text-align:center;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.schedule-project{background:#f8fafc;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.schedule-project .schedule-left{font-weight:700;color:var(--text);}
+.schedule-project .schedule-track{background:repeating-linear-gradient(90deg,#f8fafc 0,#f8fafc 33px,#eef2f7 34px);}
+.schedule-row{border-bottom:1px solid #edf0f4;}
+.schedule-row:hover{background:#f8faff;}
+.schedule-hole-meta{min-width:0;}
+.schedule-hole-title{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.schedule-hole-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.schedule-track{position:relative;align-items:center;background:repeating-linear-gradient(90deg,#fff 0,#fff 33px,#f0f2f5 34px);}
+.schedule-bar{grid-row:1;height:24px;border-radius:5px;color:#fff;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(15,23,42,0.16);min-width:28px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.schedule-bar.planned{background:#64748b;}
+.schedule-bar.in-progress{background:#d97706;}
+.schedule-bar.complete{background:#16a34a;}
+.schedule-bar.cancelled{background:#dc2626;}
+.schedule-empty{padding:46px 20px;text-align:center;color:var(--muted);font-size:13px;}
+
 /* Hole selector */
 .hole-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
 .hole-btn{padding:5px 14px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;border-radius:20px;transition:all 0.15s;}
@@ -1289,6 +1318,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
+        <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Drilling Schedule</span><span class="drawer-nav-meta">Project Gantt</span></button>
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
         <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span class="drawer-nav-label">Consumables</span><span class="drawer-nav-meta">Materials</span></button>
@@ -1738,6 +1768,42 @@ tbody td[contenteditable=true]:focus {
             </tr></thead>
             <tbody id="inv-body"></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Drilling Schedule -->
+    <section class="page" id="page-drilling-schedule">
+      <div class="schedule-toolbar">
+        <div>
+          <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Drilling Schedule</h2>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Planned sequence grouped by project, using drill order and budgeted days.</div>
+        </div>
+        <div class="schedule-controls">
+          <label for="schedule-project-filter">Project</label>
+          <select id="schedule-project-filter" onchange="renderDrillingSchedule()">
+            <option value="">All Projects</option>
+          </select>
+          <label for="schedule-status-filter">Status</label>
+          <select id="schedule-status-filter" onchange="renderDrillingSchedule()">
+            <option value="">All Status</option>
+            <option value="Planned">Planned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <button class="btn-ghost" onclick="loadBoreholes()">Refresh</button>
+        </div>
+      </div>
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Scheduled Holes</div><div class="kpi-value" id="schedule-kpi-holes">—</div></div>
+        <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="schedule-kpi-projects">—</div></div>
+        <div class="kpi"><div class="kpi-label">Planned Duration</div><div class="kpi-value" id="schedule-kpi-days">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="schedule-kpi-complete">—</div></div>
+      </div>
+      <div class="schedule-wrap">
+        <div class="schedule-scroll">
+          <div class="schedule-grid" id="schedule-grid"></div>
         </div>
       </div>
     </section>
@@ -2265,6 +2331,7 @@ function triggerPageLoad(page){
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
+  if(page==='drilling-schedule') loadDrillingSchedule();
   if(page==='activities')   loadActivities();
   if(page==='consumables')  loadConsumables();
   if(page==='crew')         loadCrew();
@@ -3939,8 +4006,103 @@ async function loadBoreholes() {
   bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
   updateBhKPIs();
   renderBhTable(bhData);
-  setTimeout(initBhMap, 100);
+  if(isPageActive('boreholes')) setTimeout(initBhMap, 100);
   await fetchProjects();
+  if(isPageActive('drilling-schedule')) renderDrillingSchedule();
+}
+
+async function loadDrillingSchedule() {
+  if(!bhData.length) await loadBoreholes();
+  else renderDrillingSchedule();
+}
+
+function syncScheduleProjectFilter(rows) {
+  const sel = document.getElementById('schedule-project-filter');
+  if(!sel) return;
+  const current = sel.value;
+  const projects = Array.from(new Set(rows.map(function(b){return b.project||'Unassigned';}))).sort();
+  sel.innerHTML = '<option value="">All Projects</option>';
+  projects.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  if(projects.includes(current)) sel.value = current;
+}
+
+function scheduleStatusClass(status) {
+  const s = String(status||'Planned').toLowerCase().replace(/\s+/g,'-');
+  return ['planned','in-progress','complete','cancelled'].includes(s) ? s : 'planned';
+}
+
+function renderDrillingSchedule() {
+  const grid = document.getElementById('schedule-grid');
+  if(!grid) return;
+  const rows = (bhData||[]).slice().sort(function(a,b) {
+    const projectCompare = String(a.project||'Unassigned').localeCompare(String(b.project||'Unassigned'));
+    if(projectCompare) return projectCompare;
+    return (parseFloat(a.drill_order)||9999) - (parseFloat(b.drill_order)||9999);
+  });
+  syncScheduleProjectFilter(rows);
+  const projectFilter = document.getElementById('schedule-project-filter')?.value || '';
+  const statusFilter = document.getElementById('schedule-status-filter')?.value || '';
+  const filtered = rows.filter(function(b) {
+    const project = b.project||'Unassigned';
+    if(projectFilter && project!==projectFilter) return false;
+    if(statusFilter && (b.status||'Planned')!==statusFilter) return false;
+    return true;
+  });
+  const totalDays = filtered.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
+  const complete = filtered.filter(function(b){return b.status==='Complete';}).length;
+  const projects = Array.from(new Set(filtered.map(function(b){return b.project||'Unassigned';})));
+  const projectDurations = {};
+  filtered.forEach(function(b) {
+    const project = b.project||'Unassigned';
+    projectDurations[project] = (projectDurations[project]||0) + (parseFloat(b.days_budgeted||b.days)||1);
+  });
+  const dayCount = Math.max(14, Math.ceil(Math.max.apply(null, Object.values(projectDurations).concat([0])))+2);
+  grid.style.setProperty('--schedule-days', dayCount);
+  const holesEl = document.getElementById('schedule-kpi-holes');
+  const projectsEl = document.getElementById('schedule-kpi-projects');
+  const daysEl = document.getElementById('schedule-kpi-days');
+  const completeEl = document.getElementById('schedule-kpi-complete');
+  if(holesEl) holesEl.textContent = filtered.length;
+  if(projectsEl) projectsEl.textContent = projects.length;
+  if(daysEl) daysEl.textContent = totalDays ? totalDays.toFixed(1)+' d' : '—';
+  if(completeEl) completeEl.textContent = complete;
+  if(!filtered.length) {
+    grid.innerHTML = '<div class="schedule-empty">No boreholes match the selected schedule filters.</div>';
+    return;
+  }
+  const dayHeaders = Array.from({length:dayCount}, function(_,i) {
+    return '<div class="schedule-day">D'+(i+1)+'</div>';
+  }).join('');
+  let html = '<div class="schedule-header"><div class="schedule-left">Project / Hole</div><div class="schedule-head-scale">'+dayHeaders+'</div></div>';
+  const grouped = {};
+  filtered.forEach(function(b) {
+    const project = b.project||'Unassigned';
+    if(!grouped[project]) grouped[project] = [];
+    grouped[project].push(b);
+  });
+  Object.keys(grouped).sort().forEach(function(project) {
+    const group = grouped[project];
+    const projectDays = group.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
+    html += '<div class="schedule-row schedule-project"><div class="schedule-left">'+esc(project)+'</div><div class="schedule-track"><div style="grid-column:1 / -1;padding:10px 12px;font-size:12px;color:var(--muted);">'+group.length+' holes · '+projectDays.toFixed(1)+' days</div></div></div>';
+    let projectDay = 1;
+    group.forEach(function(b) {
+      const days = Math.max(1, Math.ceil(parseFloat(b.days_budgeted||b.days)||1));
+      const start = Math.min(projectDay, dayCount);
+      const end = Math.min(dayCount+1, start+days);
+      const label = esc((b.hole_id||'Hole')+' · '+(b.status||'Planned'));
+      html += '<div class="schedule-row">'
+        +'<div class="schedule-left"><div class="schedule-hole-meta"><div class="schedule-hole-title">'+esc(b.hole_id||'Untitled hole')+'</div><div class="schedule-hole-sub">'+esc((b.bh_type||b.type||'')+' '+(b.bit_type||'')+' · '+(b.purpose||''))+'</div></div></div>'
+        +'<div class="schedule-track"><div class="schedule-bar '+scheduleStatusClass(b.status)+'" title="'+label+'" style="grid-column:'+start+' / '+end+';">'+label+'</div></div>'
+        +'</div>';
+      projectDay += days;
+    });
+  });
+  grid.innerHTML = html;
 }
 
 function updateBhKPIs() {
