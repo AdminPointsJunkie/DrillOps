@@ -227,21 +227,25 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .schedule-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
 .schedule-scroll{overflow:auto;max-height:calc(100vh - 250px);}
 .schedule-grid{min-width:980px;}
-.schedule-header,.schedule-row{display:grid;grid-template-columns:240px 1fr;min-height:42px;}
+.schedule-header,.schedule-row{display:grid;grid-template-columns:220px 1fr;min-height:26px;}
 .schedule-header{position:sticky;top:0;z-index:5;background:var(--bg3);border-bottom:1px solid var(--border);}
-.schedule-left{padding:10px 12px;border-right:1px solid var(--border);display:flex;align-items:center;gap:8px;}
-.schedule-head-scale,.schedule-track{display:grid;grid-template-columns:repeat(var(--schedule-days,30),minmax(34px,1fr));}
-.schedule-day{padding:10px 4px;text-align:center;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.schedule-left{padding:4px 10px;border-right:1px solid var(--border);display:flex;align-items:center;gap:8px;min-width:0;}
+.schedule-head-scale,.schedule-track{display:grid;grid-template-columns:repeat(var(--schedule-days,30),minmax(30px,1fr));}
+.schedule-day{padding:7px 3px;text-align:center;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.schedule-company{min-height:32px;background:#eaf2f9;border-top:1px solid #c9dcea;border-bottom:1px solid #c9dcea;}
+.schedule-company .schedule-left{font-weight:800;color:#174d72;text-transform:uppercase;font-size:11px;letter-spacing:0.04em;}
+.schedule-company .schedule-track{background:#eaf2f9;}
 .schedule-project{background:#f8fafc;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
-.schedule-project .schedule-left{font-weight:700;color:var(--text);}
+.schedule-project{min-height:28px;}
+.schedule-project .schedule-left{font-weight:700;color:var(--text);font-size:12px;}
 .schedule-project .schedule-track{background:repeating-linear-gradient(90deg,#f8fafc 0,#f8fafc 33px,#eef2f7 34px);}
 .schedule-row{border-bottom:1px solid #edf0f4;}
 .schedule-row:hover{background:#f8faff;}
 .schedule-hole-meta{min-width:0;}
-.schedule-hole-title{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.schedule-hole-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.schedule-hole-title{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;}
+.schedule-hole-sub{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;}
 .schedule-track{position:relative;align-items:center;background:repeating-linear-gradient(90deg,#fff 0,#fff 33px,#f0f2f5 34px);}
-.schedule-bar{grid-row:1;height:24px;border-radius:5px;color:#fff;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(15,23,42,0.16);min-width:28px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.schedule-bar{grid-row:1;height:16px;border-radius:4px;color:#fff;display:flex;align-items:center;padding:0 6px;font-size:10px;font-weight:700;box-shadow:0 1px 2px rgba(15,23,42,0.14);min-width:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .schedule-bar.planned{background:#64748b;}
 .schedule-bar.in-progress{background:#d97706;}
 .schedule-bar.complete{background:#16a34a;}
@@ -1800,15 +1804,15 @@ tbody td[contenteditable=true]:focus {
             <option value="Cancelled">Cancelled</option>
           </select>
           <input id="details-search" placeholder="Search hole, site, purpose..." oninput="renderBoreholeDetails()"/>
-          <button class="btn-ghost" onclick="loadBoreholes()">Refresh</button>
+          <button class="btn-primary" id="schedule-update-btn" onclick="updateDrillingSchedule()">Update Schedule</button>
           <button class="btn-csv" onclick="downloadCSV('borehole_details')">Export CSV</button>
         </div>
       </div>
       <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
         <div class="kpi"><div class="kpi-label">Rows</div><div class="kpi-value" id="details-kpi-rows">—</div></div>
         <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="details-kpi-projects">—</div></div>
-        <div class="kpi"><div class="kpi-label">Planned Metres</div><div class="kpi-value" id="details-kpi-depth">—</div></div>
-        <div class="kpi"><div class="kpi-label">Budget</div><div class="kpi-value" id="details-kpi-budget">—</div></div>
+        <div class="kpi"><div class="kpi-label">Area</div><div class="kpi-value" id="details-kpi-depth">—</div></div>
+        <div class="kpi"><div class="kpi-label">Inspected</div><div class="kpi-value" id="details-kpi-budget">—</div></div>
         <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="details-kpi-complete">—</div></div>
       </div>
       <div class="table-wrap details-table">
@@ -4068,32 +4072,73 @@ async function loadBoreholes() {
 }
 
 const BOREHOLE_DETAIL_COLUMNS = [
-  {key:'drill_order', label:'Order', editable:true, num:true},
-  {key:'project', label:'Project', editable:true},
-  {key:'planned_year', label:'Year', editable:true},
   {key:'site_id', label:'Site ID', editable:true},
   {key:'hole_id', label:'Hole ID', editable:false},
-  {key:'status', label:'Status', editable:true, type:'status'},
-  {key:'bh_type', label:'BH Type', editable:true},
-  {key:'bit_type', label:'Bit Type', editable:true},
-  {key:'purpose', label:'Purpose', editable:true},
-  {key:'easting', label:'Easting', editable:true, num:true, digits:0},
-  {key:'northing', label:'Northing', editable:true, num:true, digits:0},
-  {key:'rl', label:'RL', editable:true, num:true, digits:2},
-  {key:'chip_depth', label:'Chip Depth', editable:true, num:true, digits:2},
-  {key:'eoh_depth', label:'EOH Depth', editable:true, num:true, digits:2},
-  {key:'total_core', label:'Total Core', editable:true, num:true, digits:2},
-  {key:'seam_tk', label:'Seam Tk', editable:true, num:true, digits:2},
-  {key:'days_budgeted', label:'Budget Days', editable:true, num:true, digits:1},
-  {key:'budget_total', label:'Budget $', editable:true, num:true, money:true},
-  {key:'eos_metres', label:'EOS Metres', editable:false, num:true, digits:2},
-  {key:'eos_cost', label:'EOS $', editable:false, num:true, money:true},
-  {key:'actual_total', label:'Actual $', editable:true, num:true, money:true},
-  {key:'variance', label:'Variance $', editable:false, money:true},
-  {key:'lat', label:'Latitude', editable:false, num:true, digits:6},
-  {key:'lng', label:'Longitude', editable:false, num:true, digits:6},
-  {key:'notes', label:'Notes', editable:true}
+  {key:'ug_location', label:'UG Location', editable:true, extra:true},
+  {key:'status', label:'Borehole Status', editable:true, type:'status'},
+  {key:'notes', label:'Comments', editable:true},
+  {key:'area_m2', label:'AREA m2', editable:true, num:true, extra:true, digits:2},
+  {key:'lcp', label:'LCP', editable:true, extra:true},
+  {key:'lcp_submitted', label:'Submitted', editable:true, extra:true},
+  {key:'lcp_expiry', label:'Expiry', editable:true, extra:true},
+  {key:'lcp_signed', label:'Signed', editable:true, extra:true},
+  {key:'lcp_link', label:'Link', editable:true, extra:true},
+  {key:'lcp_closed', label:'Closed', editable:true, extra:true},
+  {key:'pte', label:'PTE', editable:true, extra:true},
+  {key:'pte_expiry', label:'Expiry', editable:true, extra:true},
+  {key:'pte_link', label:'Link', editable:true, extra:true},
+  {key:'pte_signed', label:'Signed', editable:true, extra:true},
+  {key:'pte_closed', label:'Closed', editable:true, extra:true},
+  {key:'ptdrill', label:'PTDrill', editable:true, extra:true},
+  {key:'bh_type', label:'Type', editable:true},
+  {key:'issued_date', label:'Issued Date', editable:true, extra:true},
+  {key:'issued_link', label:'LINK', editable:true, extra:true},
+  {key:'best_coord', label:'Best Co Ord', editable:true, extra:true},
+  {key:'easting', label:'Best Easting', editable:true, num:true, digits:0},
+  {key:'northing', label:'Best Northing', editable:true, num:true, digits:0},
+  {key:'rl', label:'Best RL', editable:true, num:true, digits:2},
+  {key:'site_inspection', label:'Site Inspection', editable:true, extra:true},
+  {key:'pre_disturb_photo', label:'Pre Disturb Photo', editable:true, extra:true},
+  {key:'si_comments', label:'SI Comments', editable:true, extra:true},
+  {key:'fsc', label:'FSC', editable:true, extra:true},
+  {key:'fsc_date', label:'FSC Date', editable:true, extra:true},
+  {key:'fsc_report', label:'FSC Report', editable:true, extra:true},
+  {key:'prepped', label:'Prepped', editable:true, extra:true},
+  {key:'prep_date', label:'Prep Date', editable:true, extra:true},
+  {key:'start_date', label:'Start Date', editable:true, extra:true},
+  {key:'end_date', label:'End Date', editable:true, extra:true},
+  {key:'drilled', label:'Drilled', editable:true, extra:true},
+  {key:'cemented', label:'Cemented', editable:true, extra:true},
+  {key:'cemented_date', label:'Cemented Date', editable:true, extra:true},
+  {key:'delivered_volume', label:'Dellivred Volume', editable:true, num:true, extra:true, digits:2},
+  {key:'volume_m2', label:'Volume (m2)', editable:true, num:true, extra:true, digits:2},
+  {key:'cement_link', label:'Cement Link', editable:true, extra:true},
+  {key:'rehabbed', label:'Rehabbed', editable:true, extra:true},
+  {key:'rehab_date', label:'Rehab Date', editable:true, extra:true},
+  {key:'r_photo', label:'R Photo', editable:true, extra:true},
+  {key:'rehab_inspection_comments', label:'Rehab Inspection Comments', editable:true, extra:true},
+  {key:'inspection_date', label:'Inspection Date', editable:true, extra:true}
 ];
+
+const BOREHOLE_DB_DETAIL_FIELDS = new Set([
+  'site_id','status','notes','bh_type','easting','northing','rl'
+]);
+
+function boreholeDetailsExtraKey() {
+  return 'drillops_borehole_details_extra_'+activeContractor;
+}
+
+function getBoreholeDetailsExtras() {
+  try { return JSON.parse(localStorage.getItem(boreholeDetailsExtraKey())||'{}')||{}; }
+  catch(e) { return {}; }
+}
+
+function setBoreholeDetailsExtra(holeId, col, val) {
+  const extras = getBoreholeDetailsExtras();
+  if(!extras[holeId]) extras[holeId] = {};
+  extras[holeId][col] = val;
+  localStorage.setItem(boreholeDetailsExtraKey(), JSON.stringify(extras));
+}
 
 async function loadBoreholeDetails() {
   if(!bhData.length) await loadBoreholes();
@@ -4116,11 +4161,7 @@ function syncBoreholeDetailsProjectFilter(rows) {
 }
 
 function detailsCellValue(b, col) {
-  if(col.key==='variance') {
-    const actual = parseFloat(b.actual_total)||parseFloat(b.eos_cost)||0;
-    const budget = parseFloat(b.budget_total)||0;
-    return budget || actual ? actual-budget : '';
-  }
+  if(col.extra) return (getBoreholeDetailsExtras()[b.hole_id]||{})[col.key] ?? '';
   return b[col.key];
 }
 
@@ -4171,21 +4212,21 @@ function renderBoreholeDetails() {
         }).join('');
         return '<td><select onchange="saveBoreholeDetailCell(&apos;'+esc(b.hole_id)+'&apos;,&apos;status&apos;,this.value,false)" style="font-size:11px;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+opts+'</select></td>';
       }
-      const attrs = col.editable ? 'contenteditable="true" data-col="'+col.key+'" '+(col.num?'data-num="true" ':'') : '';
+      const attrs = col.editable ? 'contenteditable="true" data-col="'+col.key+'" '+(col.num?'data-num="true" ':'')+(col.extra?'data-extra="true" ':'') : '';
       const cls = col.editable ? '' : ' class="readonly-cell"';
       const style = col.key==='hole_id' ? ' style="font-weight:700;color:var(--accent);"' : (col.key==='notes' ? ' style="min-width:220px;white-space:normal;"' : '');
       return '<td'+cls+' '+attrs+style+'>'+formatDetailValue(value,col)+'</td>';
     }).join('') + '</tr>';
   }).join('') || '<tr><td colspan="'+BOREHOLE_DETAIL_COLUMNS.length+'"><div class="empty-state">No boreholes match the selected filters</div></td></tr>';
-  const totalBudget = rows.reduce(function(sum,b){return sum+(parseFloat(b.budget_total)||0);},0);
-  const totalDepth = rows.reduce(function(sum,b){return sum+(parseFloat(b.eoh_depth||b.chip_depth)||0);},0);
+  const totalArea = rows.reduce(function(sum,b){return sum+(parseFloat(detailsCellValue(b,{key:'area_m2',extra:true}))||0);},0);
+  const inspected = rows.filter(function(b){return detailsCellValue(b,{key:'site_inspection',extra:true});}).length;
   const projects = Array.from(new Set(rows.map(function(b){return b.project||'Unassigned';})));
   const complete = rows.filter(function(b){return b.status==='Complete';}).length;
   document.getElementById('details-count').textContent = rows.length;
   document.getElementById('details-kpi-rows').textContent = rows.length;
   document.getElementById('details-kpi-projects').textContent = projects.length;
-  document.getElementById('details-kpi-depth').textContent = totalDepth ? Math.round(totalDepth).toLocaleString('en-AU')+' m' : '—';
-  document.getElementById('details-kpi-budget').textContent = totalBudget ? '$'+Math.round(totalBudget).toLocaleString('en-AU') : '—';
+  document.getElementById('details-kpi-depth').textContent = totalArea ? totalArea.toLocaleString('en-AU', {maximumFractionDigits:1})+' m2' : '—';
+  document.getElementById('details-kpi-budget').textContent = inspected;
   document.getElementById('details-kpi-complete').textContent = complete;
   body.querySelectorAll('[contenteditable]').forEach(function(cell) {
     cell.addEventListener('blur', function() {
@@ -4193,18 +4234,24 @@ function renderBoreholeDetails() {
       const holeId = row.dataset.hole;
       const col = cell.dataset.col;
       let val = cell.textContent.trim().replace(/[$,]/g,'');
-      saveBoreholeDetailCell(holeId, col, val, !!cell.dataset.num);
+      saveBoreholeDetailCell(holeId, col, val, !!cell.dataset.num, !!cell.dataset.extra);
     });
   });
   makeTableSortable('details-table');
 }
 
-async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric) {
+async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
   const bh = bhData.find(function(b){return b.hole_id===holeId;});
   if(!bh) return;
   const oldHoleId = holeId;
   let val = rawVal;
   if(isNumeric) val = val==='' ? null : parseFloat(val);
+  if(isExtra || !BOREHOLE_DB_DETAIL_FIELDS.has(col)) {
+    setBoreholeDetailsExtra(oldHoleId, col, val);
+    toast('Saved');
+    renderBoreholeDetails();
+    return;
+  }
   bh[col] = val;
   if((col==='easting'||col==='northing')&&bh.easting&&bh.northing) {
     const wgs = mgaToWgs84(bh.easting, bh.northing);
@@ -4233,6 +4280,26 @@ async function loadDrillingSchedule() {
   else renderDrillingSchedule();
 }
 
+async function updateDrillingSchedule() {
+  const btn = document.getElementById('schedule-update-btn');
+  if(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
+  }
+  try {
+    await loadBoreholes();
+    renderDrillingSchedule();
+    toast('Schedule updated');
+  } catch(e) {
+    toast('Schedule update failed: '+((e&&e.message)||'could not update'),'err');
+  } finally {
+    if(btn) {
+      btn.disabled = false;
+      btn.textContent = 'Update Schedule';
+    }
+  }
+}
+
 function syncScheduleProjectFilter(rows) {
   const sel = document.getElementById('schedule-project-filter');
   if(!sel) return;
@@ -4253,10 +4320,34 @@ function scheduleStatusClass(status) {
   return ['planned','in-progress','complete','cancelled'].includes(s) ? s : 'planned';
 }
 
+function parseScheduleDate(value) {
+  if(!value) return null;
+  const s = String(value).trim();
+  let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if(m) {
+    const year = parseInt(m[3].length===2 ? '20'+m[3] : m[3],10);
+    const d = new Date(year, parseInt(m[2],10)-1, parseInt(m[1],10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m) {
+    const d = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function scheduleDayDiff(a,b) {
+  return Math.round((b.setHours(0,0,0,0)-a.setHours(0,0,0,0))/86400000);
+}
+
 function renderDrillingSchedule() {
   const grid = document.getElementById('schedule-grid');
   if(!grid) return;
   const rows = (bhData||[]).slice().sort(function(a,b) {
+    const companyCompare = String(a.contractor||activeContractor||'Drilling Company').localeCompare(String(b.contractor||activeContractor||'Drilling Company'));
+    if(companyCompare) return companyCompare;
     const projectCompare = String(a.project||'Unassigned').localeCompare(String(b.project||'Unassigned'));
     if(projectCompare) return projectCompare;
     return (parseFloat(a.drill_order)||9999) - (parseFloat(b.drill_order)||9999);
@@ -4273,12 +4364,33 @@ function renderDrillingSchedule() {
   const totalDays = filtered.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
   const complete = filtered.filter(function(b){return b.status==='Complete';}).length;
   const projects = Array.from(new Set(filtered.map(function(b){return b.project||'Unassigned';})));
+  const extras = getBoreholeDetailsExtras();
+  const datePlans = {};
+  const validStarts = [];
+  filtered.forEach(function(b) {
+    const extra = extras[b.hole_id]||{};
+    const startDate = parseScheduleDate(extra.start_date);
+    const endDate = parseScheduleDate(extra.end_date);
+    if(startDate) validStarts.push(startDate);
+    datePlans[b.hole_id] = {startDate:startDate, endDate:endDate};
+  });
+  const timelineStart = validStarts.length ? new Date(Math.min.apply(null, validStarts.map(function(d){return d.getTime();}))) : null;
   const projectDurations = {};
   filtered.forEach(function(b) {
-    const project = b.project||'Unassigned';
-    projectDurations[project] = (projectDurations[project]||0) + (parseFloat(b.days_budgeted||b.days)||1);
+    const companyProject = (b.contractor||activeContractor||'Drilling Company')+' / '+(b.project||'Unassigned');
+    projectDurations[companyProject] = (projectDurations[companyProject]||0) + (parseFloat(b.days_budgeted||b.days)||1);
   });
-  const dayCount = Math.max(14, Math.ceil(Math.max.apply(null, Object.values(projectDurations).concat([0])))+2);
+  let dateDayCount = 0;
+  if(timelineStart) {
+    filtered.forEach(function(b) {
+      const plan = datePlans[b.hole_id]||{};
+      if(plan.startDate) {
+        const endDate = plan.endDate && plan.endDate >= plan.startDate ? plan.endDate : plan.startDate;
+        dateDayCount = Math.max(dateDayCount, scheduleDayDiff(new Date(timelineStart), new Date(endDate))+1);
+      }
+    });
+  }
+  const dayCount = Math.max(14, Math.ceil(Math.max.apply(null, Object.values(projectDurations).concat([dateDayCount,0])))+2);
   grid.style.setProperty('--schedule-days', dayCount);
   const holesEl = document.getElementById('schedule-kpi-holes');
   const projectsEl = document.getElementById('schedule-kpi-projects');
@@ -4295,28 +4407,38 @@ function renderDrillingSchedule() {
   const dayHeaders = Array.from({length:dayCount}, function(_,i) {
     return '<div class="schedule-day">D'+(i+1)+'</div>';
   }).join('');
-  let html = '<div class="schedule-header"><div class="schedule-left">Project / Hole</div><div class="schedule-head-scale">'+dayHeaders+'</div></div>';
+  let html = '<div class="schedule-header"><div class="schedule-left">Drill Company / Project / Hole</div><div class="schedule-head-scale">'+dayHeaders+'</div></div>';
   const grouped = {};
   filtered.forEach(function(b) {
+    const company = b.contractor||activeContractor||'Drilling Company';
     const project = b.project||'Unassigned';
-    if(!grouped[project]) grouped[project] = [];
-    grouped[project].push(b);
+    if(!grouped[company]) grouped[company] = {};
+    if(!grouped[company][project]) grouped[company][project] = [];
+    grouped[company][project].push(b);
   });
-  Object.keys(grouped).sort().forEach(function(project) {
-    const group = grouped[project];
-    const projectDays = group.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
-    html += '<div class="schedule-row schedule-project"><div class="schedule-left">'+esc(project)+'</div><div class="schedule-track"><div style="grid-column:1 / -1;padding:10px 12px;font-size:12px;color:var(--muted);">'+group.length+' holes · '+projectDays.toFixed(1)+' days</div></div></div>';
-    let projectDay = 1;
-    group.forEach(function(b) {
-      const days = Math.max(1, Math.ceil(parseFloat(b.days_budgeted||b.days)||1));
-      const start = Math.min(projectDay, dayCount);
-      const end = Math.min(dayCount+1, start+days);
-      const label = esc((b.hole_id||'Hole')+' · '+(b.status||'Planned'));
-      html += '<div class="schedule-row">'
-        +'<div class="schedule-left"><div class="schedule-hole-meta"><div class="schedule-hole-title">'+esc(b.hole_id||'Untitled hole')+'</div><div class="schedule-hole-sub">'+esc((b.bh_type||b.type||'')+' '+(b.bit_type||'')+' · '+(b.purpose||''))+'</div></div></div>'
-        +'<div class="schedule-track"><div class="schedule-bar '+scheduleStatusClass(b.status)+'" title="'+label+'" style="grid-column:'+start+' / '+end+';">'+label+'</div></div>'
-        +'</div>';
-      projectDay += days;
+  Object.keys(grouped).sort().forEach(function(company) {
+    const companyRows = Object.values(grouped[company]).flat();
+    const companyDays = companyRows.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
+    html += '<div class="schedule-row schedule-company"><div class="schedule-left">'+esc(company)+'</div><div class="schedule-track"><div style="grid-column:1 / -1;padding:7px 10px;font-size:11px;font-weight:700;color:#174d72;">'+companyRows.length+' holes &middot; '+companyDays.toFixed(1)+' days</div></div></div>';
+    Object.keys(grouped[company]).sort().forEach(function(project) {
+      const group = grouped[company][project];
+      const projectDays = group.reduce(function(sum,b){return sum+(parseFloat(b.days_budgeted||b.days)||1);},0);
+      html += '<div class="schedule-row schedule-project"><div class="schedule-left">'+esc(project)+'</div><div class="schedule-track"><div style="grid-column:1 / -1;padding:5px 10px;font-size:11px;color:var(--muted);">'+group.length+' holes &middot; '+projectDays.toFixed(1)+' days</div></div></div>';
+      let projectDay = 1;
+      group.forEach(function(b) {
+        const plan = datePlans[b.hole_id]||{};
+        const dateDuration = plan.startDate ? scheduleDayDiff(new Date(plan.startDate), new Date(plan.endDate && plan.endDate >= plan.startDate ? plan.endDate : plan.startDate))+1 : null;
+        const days = Math.max(1, Math.ceil(dateDuration || parseFloat(b.days_budgeted||b.days)||1));
+        const start = Math.min(plan.startDate && timelineStart ? scheduleDayDiff(new Date(timelineStart), new Date(plan.startDate))+1 : projectDay, dayCount);
+        const end = Math.min(dayCount+1, start+days);
+        const hole = b.hole_id||'Hole';
+        const label = esc(hole+' &middot; '+(b.status||'Planned'));
+        html += '<div class="schedule-row">'
+          +'<div class="schedule-left"><div class="schedule-hole-meta"><div class="schedule-hole-title">'+esc(hole)+'</div><div class="schedule-hole-sub">'+esc((b.bh_type||b.type||'')+' '+(b.bit_type||''))+'</div></div></div>'
+          +'<div class="schedule-track"><div class="schedule-bar '+scheduleStatusClass(b.status)+'" title="'+label+'" style="grid-column:'+start+' / '+end+';">'+esc(hole)+'</div></div>'
+          +'</div>';
+        projectDay += days;
+      });
     });
   });
   grid.innerHTML = html;
