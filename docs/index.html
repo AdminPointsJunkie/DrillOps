@@ -247,6 +247,14 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .schedule-bar.complete{background:#16a34a;}
 .schedule-bar.cancelled{background:#dc2626;}
 .schedule-empty{padding:46px 20px;text-align:center;color:var(--muted);font-size:13px;}
+.details-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.details-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.details-controls label{font-size:12px;font-weight:600;color:var(--muted);}
+.details-controls select,.details-controls input{background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;}
+.details-table .tbl-scroll{max-height:calc(100vh - 245px);}
+.details-table th{font-size:10px;vertical-align:bottom;}
+.details-table td{font-size:12px;}
+.details-table td.readonly-cell{background:#fafbfc;color:var(--muted);}
 
 /* Hole selector */
 .hole-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
@@ -1318,6 +1326,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
+        <button class="drawer-nav-item" data-page="borehole-details" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Details</span><span class="drawer-nav-meta">Full register</span></button>
         <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Drilling Schedule</span><span class="drawer-nav-meta">Project Gantt</span></button>
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
@@ -1767,6 +1776,50 @@ tbody td[contenteditable=true]:focus {
               <th>Version</th><th>PDF</th><th></th>
             </tr></thead>
             <tbody id="inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Borehole Details -->
+    <section class="page" id="page-borehole-details">
+      <div class="details-toolbar">
+        <div>
+          <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Details</h2>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Detailed borehole register. Editable cells save back to the borehole database.</div>
+        </div>
+        <div class="details-controls">
+          <label for="details-project-filter">Project</label>
+          <select id="details-project-filter" onchange="renderBoreholeDetails()"><option value="">All Projects</option></select>
+          <label for="details-status-filter">Status</label>
+          <select id="details-status-filter" onchange="renderBoreholeDetails()">
+            <option value="">All Status</option>
+            <option value="Planned">Planned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <input id="details-search" placeholder="Search hole, site, purpose..." oninput="renderBoreholeDetails()"/>
+          <button class="btn-ghost" onclick="loadBoreholes()">Refresh</button>
+          <button class="btn-csv" onclick="downloadCSV('borehole_details')">Export CSV</button>
+        </div>
+      </div>
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Rows</div><div class="kpi-value" id="details-kpi-rows">—</div></div>
+        <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="details-kpi-projects">—</div></div>
+        <div class="kpi"><div class="kpi-label">Planned Metres</div><div class="kpi-value" id="details-kpi-depth">—</div></div>
+        <div class="kpi"><div class="kpi-label">Budget</div><div class="kpi-value" id="details-kpi-budget">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="details-kpi-complete">—</div></div>
+      </div>
+      <div class="table-wrap details-table">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="details-count">—</span> boreholes</div>
+          <div style="font-size:11px;color:var(--muted);">Click editable cells to update values</div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="details-table">
+            <thead><tr id="details-head"></tr></thead>
+            <tbody id="details-body"></tbody>
           </table>
         </div>
       </div>
@@ -2331,6 +2384,7 @@ function triggerPageLoad(page){
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
+  if(page==='borehole-details') loadBoreholeDetails();
   if(page==='drilling-schedule') loadDrillingSchedule();
   if(page==='activities')   loadActivities();
   if(page==='consumables')  loadConsumables();
@@ -3342,7 +3396,7 @@ function downloadCSV(type){
     costing_holes:[costingHolesData,'costing_holes.csv'],costing_dates:[costingDatesData,'costing_dates.csv'],
     costing_lines:[costingLinesData,'costing_lines.csv'],pos:[posData,'purchase_orders.csv'],
     invoices:[invoicesData,'invoices.csv'],discrepancies:[discrepanciesData,'reconciliation_discrepancies.csv'],
-    boreholes:[boreholesCsvData,'boreholes_2026.csv'],tenements:[tenementsData,'tenements.csv']};
+    boreholes:[boreholesCsvData,'boreholes_2026.csv'],borehole_details:[boreholeDetailsCsvData,'borehole_details.csv'],tenements:[tenementsData,'tenements.csv']};
   const [rows,filename]=map[type]||[null,null];
   if(!rows||!rows.length)return;
   const keys=Object.keys(rows[0]);
@@ -3947,6 +4001,7 @@ let bhData = [];
 let bhMap = null;
 let bhMarkers = [];
 let boreholesCsvData = [];
+let boreholeDetailsCsvData = [];
 
 function mgaToWgs84(easting, northing) {
   const a=6378137.0,f=1/298.257222101,b=a*(1-f),e2=1-(b*b)/(a*a);
@@ -4008,7 +4063,169 @@ async function loadBoreholes() {
   renderBhTable(bhData);
   if(isPageActive('boreholes')) setTimeout(initBhMap, 100);
   await fetchProjects();
+  if(isPageActive('borehole-details')) renderBoreholeDetails();
   if(isPageActive('drilling-schedule')) renderDrillingSchedule();
+}
+
+const BOREHOLE_DETAIL_COLUMNS = [
+  {key:'drill_order', label:'Order', editable:true, num:true},
+  {key:'project', label:'Project', editable:true},
+  {key:'planned_year', label:'Year', editable:true},
+  {key:'site_id', label:'Site ID', editable:true},
+  {key:'hole_id', label:'Hole ID', editable:false},
+  {key:'status', label:'Status', editable:true, type:'status'},
+  {key:'bh_type', label:'BH Type', editable:true},
+  {key:'bit_type', label:'Bit Type', editable:true},
+  {key:'purpose', label:'Purpose', editable:true},
+  {key:'easting', label:'Easting', editable:true, num:true, digits:0},
+  {key:'northing', label:'Northing', editable:true, num:true, digits:0},
+  {key:'rl', label:'RL', editable:true, num:true, digits:2},
+  {key:'chip_depth', label:'Chip Depth', editable:true, num:true, digits:2},
+  {key:'eoh_depth', label:'EOH Depth', editable:true, num:true, digits:2},
+  {key:'total_core', label:'Total Core', editable:true, num:true, digits:2},
+  {key:'seam_tk', label:'Seam Tk', editable:true, num:true, digits:2},
+  {key:'days_budgeted', label:'Budget Days', editable:true, num:true, digits:1},
+  {key:'budget_total', label:'Budget $', editable:true, num:true, money:true},
+  {key:'eos_metres', label:'EOS Metres', editable:false, num:true, digits:2},
+  {key:'eos_cost', label:'EOS $', editable:false, num:true, money:true},
+  {key:'actual_total', label:'Actual $', editable:true, num:true, money:true},
+  {key:'variance', label:'Variance $', editable:false, money:true},
+  {key:'lat', label:'Latitude', editable:false, num:true, digits:6},
+  {key:'lng', label:'Longitude', editable:false, num:true, digits:6},
+  {key:'notes', label:'Notes', editable:true}
+];
+
+async function loadBoreholeDetails() {
+  if(!bhData.length) await loadBoreholes();
+  else renderBoreholeDetails();
+}
+
+function syncBoreholeDetailsProjectFilter(rows) {
+  const sel = document.getElementById('details-project-filter');
+  if(!sel) return;
+  const current = sel.value;
+  const projects = Array.from(new Set(rows.map(function(b){return b.project||'Unassigned';}))).sort();
+  sel.innerHTML = '<option value="">All Projects</option>';
+  projects.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  if(projects.includes(current)) sel.value = current;
+}
+
+function detailsCellValue(b, col) {
+  if(col.key==='variance') {
+    const actual = parseFloat(b.actual_total)||parseFloat(b.eos_cost)||0;
+    const budget = parseFloat(b.budget_total)||0;
+    return budget || actual ? actual-budget : '';
+  }
+  return b[col.key];
+}
+
+function formatDetailValue(value, col) {
+  if(value==null || value==='') return '';
+  const n = parseFloat(value);
+  if(col.money) return isNaN(n) ? '' : '$'+Math.round(n).toLocaleString('en-AU');
+  if(col.num) return isNaN(n) ? '' : n.toLocaleString('en-AU', {minimumFractionDigits:col.digits||0, maximumFractionDigits:col.digits||0});
+  return esc(value);
+}
+
+function renderBoreholeDetails() {
+  const head = document.getElementById('details-head');
+  const body = document.getElementById('details-body');
+  if(!head || !body) return;
+  const allRows = (bhData||[]).slice().sort(function(a,b) {
+    const projectCompare = String(a.project||'Unassigned').localeCompare(String(b.project||'Unassigned'));
+    if(projectCompare) return projectCompare;
+    return (parseFloat(a.drill_order)||9999) - (parseFloat(b.drill_order)||9999);
+  });
+  syncBoreholeDetailsProjectFilter(allRows);
+  const projectFilter = document.getElementById('details-project-filter')?.value || '';
+  const statusFilter = document.getElementById('details-status-filter')?.value || '';
+  const search = (document.getElementById('details-search')?.value || '').trim().toLowerCase();
+  const rows = allRows.filter(function(b) {
+    const project = b.project||'Unassigned';
+    if(projectFilter && project!==projectFilter) return false;
+    if(statusFilter && (b.status||'Planned')!==statusFilter) return false;
+    if(search) {
+      const haystack = [b.project,b.site_id,b.hole_id,b.status,b.bh_type,b.bit_type,b.purpose,b.notes].join(' ').toLowerCase();
+      if(!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+  boreholeDetailsCsvData = rows.map(function(b) {
+    const out = {};
+    BOREHOLE_DETAIL_COLUMNS.forEach(function(col){ out[col.label] = detailsCellValue(b,col); });
+    return out;
+  });
+  head.innerHTML = BOREHOLE_DETAIL_COLUMNS.map(function(col){return '<th>'+esc(col.label)+'</th>';}).join('');
+  body.innerHTML = rows.map(function(b) {
+    return '<tr data-hole="'+esc(b.hole_id)+'">' + BOREHOLE_DETAIL_COLUMNS.map(function(col) {
+      const value = detailsCellValue(b,col);
+      if(col.type==='status') {
+        const status = b.status||'Planned';
+        const opts = ['Planned','In Progress','Complete','Cancelled'].map(function(s) {
+          return '<option value="'+s+'"'+(s===status?' selected':'')+'>'+s+'</option>';
+        }).join('');
+        return '<td><select onchange="saveBoreholeDetailCell(&apos;'+esc(b.hole_id)+'&apos;,&apos;status&apos;,this.value,false)" style="font-size:11px;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+opts+'</select></td>';
+      }
+      const attrs = col.editable ? 'contenteditable="true" data-col="'+col.key+'" '+(col.num?'data-num="true" ':'') : '';
+      const cls = col.editable ? '' : ' class="readonly-cell"';
+      const style = col.key==='hole_id' ? ' style="font-weight:700;color:var(--accent);"' : (col.key==='notes' ? ' style="min-width:220px;white-space:normal;"' : '');
+      return '<td'+cls+' '+attrs+style+'>'+formatDetailValue(value,col)+'</td>';
+    }).join('') + '</tr>';
+  }).join('') || '<tr><td colspan="'+BOREHOLE_DETAIL_COLUMNS.length+'"><div class="empty-state">No boreholes match the selected filters</div></td></tr>';
+  const totalBudget = rows.reduce(function(sum,b){return sum+(parseFloat(b.budget_total)||0);},0);
+  const totalDepth = rows.reduce(function(sum,b){return sum+(parseFloat(b.eoh_depth||b.chip_depth)||0);},0);
+  const projects = Array.from(new Set(rows.map(function(b){return b.project||'Unassigned';})));
+  const complete = rows.filter(function(b){return b.status==='Complete';}).length;
+  document.getElementById('details-count').textContent = rows.length;
+  document.getElementById('details-kpi-rows').textContent = rows.length;
+  document.getElementById('details-kpi-projects').textContent = projects.length;
+  document.getElementById('details-kpi-depth').textContent = totalDepth ? Math.round(totalDepth).toLocaleString('en-AU')+' m' : '—';
+  document.getElementById('details-kpi-budget').textContent = totalBudget ? '$'+Math.round(totalBudget).toLocaleString('en-AU') : '—';
+  document.getElementById('details-kpi-complete').textContent = complete;
+  body.querySelectorAll('[contenteditable]').forEach(function(cell) {
+    cell.addEventListener('blur', function() {
+      const row = cell.closest('tr');
+      const holeId = row.dataset.hole;
+      const col = cell.dataset.col;
+      let val = cell.textContent.trim().replace(/[$,]/g,'');
+      saveBoreholeDetailCell(holeId, col, val, !!cell.dataset.num);
+    });
+  });
+  makeTableSortable('details-table');
+}
+
+async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric) {
+  const bh = bhData.find(function(b){return b.hole_id===holeId;});
+  if(!bh) return;
+  const oldHoleId = holeId;
+  let val = rawVal;
+  if(isNumeric) val = val==='' ? null : parseFloat(val);
+  bh[col] = val;
+  if((col==='easting'||col==='northing')&&bh.easting&&bh.northing) {
+    const wgs = mgaToWgs84(bh.easting, bh.northing);
+    bh.lat = wgs.lat; bh.lng = wgs.lng;
+  }
+  try {
+    const res = await fetch(API+'/boreholes/'+encodeURIComponent(oldHoleId), {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor,[col]:val})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    toast('Saved');
+  } catch(e) {
+    toast('Save failed: '+((e&&e.message)||'change was not saved'),'err');
+  }
+  renderBoreholeDetails();
+  updateBhKPIs();
+  if(isPageActive('boreholes')) {
+    renderBhTable(bhData);
+    if(col==='easting'||col==='northing') renderBhMap();
+  }
 }
 
 async function loadDrillingSchedule() {
