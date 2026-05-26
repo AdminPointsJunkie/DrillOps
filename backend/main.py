@@ -36,6 +36,7 @@ CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
     ("MCC Earthworks",     "MCC"),
+    ("King Konstruct",     "KK"),
     ("Weatherfords",       "WFD"),
     ("Epiroc",             "EPI"),
     ("Fortem",             "FOR"),
@@ -1015,25 +1016,17 @@ def root():
 
 @app.get("/contractors")
 def get_contractors():
-    """Return contractors from DB, falling back to defaults if empty."""
+    """Return contractors from DB, ensuring shipped defaults exist."""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            for name, code in CONTRACTORS:
+                cur.execute("""
+                    INSERT INTO contractors (name, short_code)
+                    VALUES (%s, %s) ON CONFLICT (name) DO NOTHING
+                """, (name, code))
             cur.execute("SELECT * FROM contractors ORDER BY name")
             rows = [dict(r) for r in cur.fetchall()]
-    if not rows:
-        # Seed defaults on first call
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                for name, code in CONTRACTORS:
-                    cur.execute("""
-                        INSERT INTO contractors (name, short_code)
-                        VALUES (%s, %s) ON CONFLICT (name) DO NOTHING
-                    """, (name, code))
-            conn.commit()
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM contractors ORDER BY name")
-                rows = [dict(r) for r in cur.fetchall()]
+        conn.commit()
     return rows
 
 
@@ -1787,6 +1780,13 @@ INV_CATEGORY_MAP = [
     ("watercart",       "equipment"),
     ("water cart",      "equipment"),
     ("backhoe",         "equipment"),
+    ("grader",          "equipment"),
+    ("vac truck",       "equipment"),
+    ("water truck",     "equipment"),
+    ("light vehicle",   "equipment"),
+    ("lv - light",      "equipment"),
+    ("trade labour",    "labour"),
+    ("labour",          "labour"),
     # Consumables
     ("AMC",             "consumable"),
     ("cement",          "consumable"),
@@ -1817,10 +1817,98 @@ def categorise_invoice_line(description: str) -> str:
     return "other"
 
 
+def parse_king_konstruct_invoice_pdf(text: str, filename: str) -> dict:
+    """Parse King Konstruct tax invoices."""
+
+    def find(pattern, default=""):
+        m = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+        return m.group(1).strip() if m else default
+
+    def amount(pattern):
+        raw = find(pattern)
+        if not raw:
+            return 0.0
+        try:
+            return float(raw.replace(",", ""))
+        except ValueError:
+            return 0.0
+
+    invoice_number = find(r"INVOICE\s+(\d{5})") or find(r"Invoice_(\d{5})", filename)
+    invoice_date = find(r"\bDATE\s+(\d{1,2}/\d{1,2}/\d{4})")
+    due_date = find(r"DUE DATE\s+(\d{1,2}/\d{1,2}/\d{4})")
+    po_reference = find(r"PURCHASE ORDER\s*\n?\s*(C\d+)")
+    client = find(r"(Fitzroy Coal Management Pty Ltd)")
+    abn = find(r"ABN\s+([\d\s]{10,})")
+
+    subtotal = amount(r"^SUBTOTAL\s+([\d,]+\.\d{2})")
+    gst = amount(r"^GST TOTAL\s+([\d,]+\.\d{2})")
+    total_aud = amount(r"^TOTAL\s+([\d,]+\.\d{2})")
+    amount_due = amount(r"A\$([\d,]+\.\d{2})\s+BALANCE DUE")
+    if not amount_due:
+        amount_due = total_aud
+
+    lines = []
+    source_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    try:
+        start = next(i for i, line in enumerate(source_lines) if "ACTIVITY QTY RATE AMOUNT" in line) + 1
+    except StopIteration:
+        start = len(source_lines)
+    end = next((i for i, line in enumerate(source_lines[start:], start) if line.startswith("SUBTOTAL")), len(source_lines))
+
+    line_re = re.compile(r"^(.+?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$")
+    for line in source_lines[start:end]:
+        m = line_re.match(line)
+        if not m:
+            continue
+        description = m.group(1).strip()
+        try:
+            quantity = float(m.group(2).replace(",", ""))
+            unit_price = float(m.group(3).replace(",", ""))
+            line_amount = float(m.group(4).replace(",", ""))
+        except ValueError:
+            continue
+        lines.append({
+            "description": description,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "gst_rate": "10%",
+            "amount": line_amount,
+            "category": categorise_invoice_line(description),
+        })
+
+    if subtotal == 0 and lines:
+        subtotal = round(sum(l["amount"] for l in lines), 2)
+    if gst == 0 and subtotal:
+        gst = round(subtotal * 0.1, 2)
+    if total_aud == 0 and subtotal:
+        total_aud = round(subtotal + gst, 2)
+    if amount_due == 0:
+        amount_due = total_aud
+
+    return {
+        "invoice_number": invoice_number,
+        "invoice_date": invoice_date,
+        "due_date": due_date,
+        "po_reference": po_reference,
+        "client": client,
+        "abn": abn,
+        "subtotal": subtotal,
+        "gst": gst,
+        "total_aud": total_aud,
+        "amount_paid": 0.0,
+        "amount_due": amount_due,
+        "status": "Unpaid" if amount_due else "Paid",
+        "lines": lines,
+    }
+
+
 def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     """Parse an Allianz-style tax invoice PDF.
     Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
     """
+
+    if "KING KONSTRUCT" in text.upper() or re.search(r"Invoice_\d{5}_from_KING_KONSTRUCT", filename, re.IGNORECASE):
+        return parse_king_konstruct_invoice_pdf(text, filename)
 
     def find(pattern, default=""):
         m = re.search(pattern, text, re.IGNORECASE)
