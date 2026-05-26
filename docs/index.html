@@ -2068,7 +2068,8 @@ const API = window.location.hostname==='localhost'||window.location.hostname==='
 // Contractors — loaded from backend, stored locally
 let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || 'null') ||
   [{name:'Allianz Drilling',short_code:'ALZ'},{name:'Mitchells Drilling',short_code:'MIT'},
-   {name:'MCC Earthworks',short_code:'MCC'},{name:'Weatherfords',short_code:'WFD'},
+   {name:'MCC Earthworks',short_code:'MCC'},{name:'King Konstruct',short_code:'KK'},
+   {name:'Weatherfords',short_code:'WFD'},
    {name:'Epiroc',short_code:'EPI'},{name:'Fortem',short_code:'FOR'}];
 
 async function fetchContractors(){
