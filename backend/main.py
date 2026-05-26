@@ -1668,8 +1668,8 @@ def get_pos(contractor: Optional[str] = Query(None)):
                     cur.execute("""
                         SELECT COALESCE(SUM(total_aud),0) AS spent
                         FROM invoices
-                        WHERE po_reference LIKE %s
-                    """, (f"%{po['po_number']}%",))
+                        WHERE po_reference LIKE %s AND contractor=%s
+                    """, (f"%{po['po_number']}%", po["contractor"]))
                     spent = float(cur.fetchone()["spent"] or 0)
                     po["spent_to_date"] = spent
                     po["remaining"] = (po["po_value"] or 0) - spent
