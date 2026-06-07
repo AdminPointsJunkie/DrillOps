@@ -32,6 +32,7 @@ button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
 thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
 tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
+.group-row td{background:#f8fafc;color:#647285;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;}
 .code{font-family:var(--mono);font-weight:800;color:#174d72;}
 .status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;}
 .approved{background:#ecfdf3;color:#147a39;}
@@ -118,10 +119,12 @@ function groupReports(rows){
 }
 function statusFor(report){const rec=approvalRecord(report.date,report.hole,report.source);return rec?.status||'pending';}
 function reportName(report,index){return report.source?report.source.replace(/\.[^.]+$/,''):'DR-'+String(index+1).padStart(4,'0');}
+function codeGroup(code){return /standby/i.test(String(code||''))?'Standby codes':'Other codes';}
 function codeSummary(rows){
   const map={};
   rows.forEach(r=>{const code=r.code||'No code';if(!map[code])map[code]={code,count:0,hours:0,cost:0,metres:0};map[code].count++;map[code].hours+=parseHours(r.total_time);map[code].cost+=parseFloat(r.line_cost)||0;map[code].metres+=parseFloat(r.total_metres)||0;});
-  return Object.values(map).sort((a,b)=>b.count-a.count||a.code.localeCompare(b.code));
+  const rank={'Standby codes':0,'Other codes':1};
+  return Object.values(map).sort((a,b)=>rank[codeGroup(a.code)]-rank[codeGroup(b.code)]||b.count-a.count||a.code.localeCompare(b.code));
 }
 function issueSummaries(reports){
   return reports.map((r,i)=>{
@@ -162,7 +165,8 @@ async function loadRangeReport(){
     chart('daily-cost-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].cost.toFixed(2)),'Cost','#1f5f8b');
     chart('daily-metres-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].metres.toFixed(2)),'Metres','#27ae60');
     document.getElementById('daily-body').innerHTML=reports.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(reportName(r,i))+'</td><td><span class="status '+statusFor(r)+'">'+esc(statusFor(r))+'</span></td><td>'+esc(r.hole)+'</td><td>'+esc(r.rig)+'</td><td>'+r.rows.length+'</td><td>'+r.metres.toFixed(2)+'</td><td>'+r.hours.toFixed(2)+'</td><td>'+cur(r.cost)+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">No daily reports found.</td></tr>';
-    document.getElementById('code-body').innerHTML=codes.map(c=>'<tr><td class="code">'+esc(c.code)+'</td><td>'+c.count+'</td><td>'+c.hours.toFixed(2)+'</td><td>'+cur(c.cost)+'</td><td>'+c.metres.toFixed(2)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No activity codes found.</td></tr>';
+    let lastGroup='';
+    document.getElementById('code-body').innerHTML=codes.map(c=>{const group=codeGroup(c.code);const header=group!==lastGroup?'<tr class="group-row"><td colspan="5">'+esc(group)+'</td></tr>':'';lastGroup=group;return header+'<tr><td class="code">'+esc(c.code)+'</td><td>'+c.count+'</td><td>'+c.hours.toFixed(2)+'</td><td>'+cur(c.cost)+'</td><td>'+c.metres.toFixed(2)+'</td></tr>';}).join('')||'<tr><td colspan="5" class="empty">No activity codes found.</td></tr>';
     document.getElementById('approval-log').innerHTML=issues.map(l=>{const st=l.status;const when=l.at?new Date(l.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';return '<div class="log-item"><div class="status '+st+'">'+(st==='query'?'?':'✕')+'</div><div><strong>'+esc(l.report)+'</strong><br><span style="color:var(--muted);">'+esc(l.date)+' · '+esc(l.hole||'')+' · '+l.hours.toFixed(2)+' h · '+cur(l.cost)+'</span></div><div class="log-time">'+esc(when)+'</div>'+(l.reason?'<div class="log-note">'+esc(l.reason)+'</div>':'')+'</div>';}).join('')||'<div class="empty">No rejected or queried reports in this date range.</div>';
   }catch(e){
     document.getElementById('daily-body').innerHTML='<tr><td colspan="9" class="empty">Could not load range report: '+esc(e.message)+'</td></tr>';
