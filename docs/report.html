@@ -124,7 +124,7 @@ async function loadReport(){
   }
 }
 function renderReport(rows,consumables,crew){
-  rows=rows||[];
+  rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const cost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
   const metres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
   const hours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
