@@ -248,8 +248,6 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .timeline-track{position:relative;min-width:720px;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 59px,#edf1f5 60px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
 .timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:750;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
 .report-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;margin-bottom:16px;}
-.report-chart-box{border:1px solid var(--border);border-radius:7px;padding:12px;background:#fff;min-height:220px;}
-.report-chart-box canvas{max-height:210px;}
 .report-notes{border:1px solid var(--border);border-radius:7px;padding:12px;background:#fbfcfd;line-height:1.45;color:var(--text2);font-size:12.5px;max-height:220px;overflow:auto;}
 .report-subtitle{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
 .report-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
@@ -1573,16 +1571,6 @@ tbody td[contenteditable=true]:focus {
           </div>
           <div class="report-subtitle">Shift Timeline</div>
           <div class="report-timeline" id="report-timeline"></div>
-          <div class="report-detail-grid">
-            <div class="report-chart-box">
-              <div class="chart-title">Activity Hours</div>
-              <canvas id="report-activity-chart"></canvas>
-            </div>
-            <div class="report-chart-box">
-              <div class="chart-title">Cost Breakdown</div>
-              <canvas id="report-cost-chart"></canvas>
-            </div>
-          </div>
           <div class="report-subtitle">Report Notes</div>
           <div class="report-notes" id="report-detail-notes"></div>
           <div class="report-subtitle">Activities</div>
@@ -2825,8 +2813,6 @@ function closeDailyReportDetail(){
   const detail=document.getElementById('report-detail');
   if(detail)detail.classList.remove('open');
   document.querySelectorAll('.report-row').forEach(function(row){row.classList.remove('active');});
-  destroyChart('report_activity');
-  destroyChart('report_cost');
 }
 
 function openSelectedReportPdf(){
@@ -2851,7 +2837,6 @@ function renderDailyReportDetail(report){
   document.getElementById('report-kpi-activities').textContent=report.rows.length;
   document.getElementById('report-detail-notes').innerHTML=report.notes.length?report.notes.map(function(n){return '<p style="margin-bottom:8px;">'+esc(n)+'</p>';}).join(''):'No notes recorded.';
   renderDailyReportTimeline(report);
-  renderDailyReportCharts(report);
   renderDailyReportTables(report);
   detail.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -2886,33 +2871,6 @@ function renderDailyReportTimeline(report){
     return '<div class="timeline-block" title="'+esc(cat+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(cat)+'</div>';
   }).join('');
   target.innerHTML=scale+'<div class="timeline-track">'+blocks+'</div>';
-}
-
-function renderDailyReportCharts(report){
-  destroyChart('report_activity');
-  destroyChart('report_cost');
-  if(typeof Chart==='undefined')return;
-  const labels=Object.keys(report.categories).filter(function(k){return report.categories[k]>0;});
-  const colors=labels.map(function(k){return CAT_COLORS[k]||'#555e6b';});
-  const activityCanvas=document.getElementById('report-activity-chart');
-  if(activityCanvas&&labels.length){
-    charts.report_activity=new Chart(activityCanvas.getContext('2d'),{
-      type:'bar',
-      data:{labels:labels,datasets:[{label:'Hours',data:labels.map(function(k){return +report.categories[k].toFixed(2);}),backgroundColor:colors,borderWidth:0}]},
-      options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6b7280'},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}
-    });
-  }
-  const costByCat={};
-  report.rows.forEach(function(r){const cat=activityCategory(r);costByCat[cat]=(costByCat[cat]||0)+(parseFloat(r.line_cost)||0);});
-  const costLabels=Object.keys(costByCat).filter(function(k){return costByCat[k]>0;});
-  const costCanvas=document.getElementById('report-cost-chart');
-  if(costCanvas&&costLabels.length){
-    charts.report_cost=new Chart(costCanvas.getContext('2d'),{
-      type:'doughnut',
-      data:{labels:costLabels,datasets:[{data:costLabels.map(function(k){return costByCat[k];}),backgroundColor:costLabels.map(function(k){return CAT_COLORS[k]||'#555e6b';}),borderColor:'#fff',borderWidth:2}]},
-      options:{plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:10}}}},responsive:true,maintainAspectRatio:true}
-    });
-  }
 }
 
 function renderDailyReportTables(report){
