@@ -26,10 +26,17 @@ textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .kpi .label,.subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
 .kpi .value{font-size:18px;font-weight:800;margin-top:5px;}
 .subtitle{margin:16px 0 8px;}
-.timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow-x:auto;}
-.timeline-scale{position:relative;min-width:720px;height:26px;border-bottom:1px solid var(--border);margin-bottom:8px;}
+.timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow:hidden;}
+.timeline-tools{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;}
+.timeline-tools button{padding:5px 9px;font-size:11px;}
+.timeline-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:7px;scrollbar-color:#87909c #e8edf3;scrollbar-width:thin;}
+.timeline-scroll::-webkit-scrollbar{height:10px;}
+.timeline-scroll::-webkit-scrollbar-track{background:#e8edf3;border-radius:999px;}
+.timeline-scroll::-webkit-scrollbar-thumb{background:#87909c;border-radius:999px;}
+.timeline-inner{min-width:1200px;}
+.timeline-scale{position:relative;height:26px;border-bottom:1px solid var(--border);margin-bottom:8px;}
 .timeline-tick{position:absolute;top:0;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--muted);}
-.timeline-track{position:relative;min-width:720px;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 59px,#edf1f5 60px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
+.timeline-track{position:relative;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 79px,#edf1f5 80px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
 .timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
 .notes{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;line-height:1.5;max-height:190px;overflow:auto;}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;}
@@ -268,10 +275,17 @@ function renderTimeline(rows,totalHours){
   let min=Math.min(...starts),max=Math.max(...ends);
   if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
   const span=Math.max(60,max-min);
+  const timelineWidth=Math.max(1400,Math.ceil(span/60)*170);
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
   const blocks=sorted.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
-  target.innerHTML=scale+'<div class="timeline-track">'+blocks+'</div>';
+  target.innerHTML='<div class="timeline-tools"><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div>'
+    +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
+    +scale+'<div class="timeline-track">'+blocks+'</div></div></div>';
+}
+function scrollTimelineBy(amount){
+  const el=document.getElementById('timeline-scroll');
+  if(el)el.scrollBy({left:amount,behavior:'smooth'});
 }
 loadReport();
 </script>
