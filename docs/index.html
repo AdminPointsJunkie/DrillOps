@@ -253,6 +253,10 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .report-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 .flag-pill{border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:3px 8px;font-size:10px;font-weight:750;}
 .compact-table tbody td{white-space:normal;max-width:360px;}
+.collapsible-table.collapsed .tbl-scroll{display:none;}
+.collapse-btn{display:inline-flex;align-items:center;gap:6px;}
+.collapse-arrow{font-size:10px;transition:transform 0.15s;}
+.collapsible-table:not(.collapsed) .collapse-arrow{transform:rotate(90deg);}
 
 /* Drilling schedule */
 .schedule-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
@@ -1598,10 +1602,13 @@ tbody td[contenteditable=true]:focus {
           </div>
         </div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap collapsible-table collapsed" id="activity-log-panel">
         <div class="table-toolbar">
-          <div class="table-count">Showing <span id="act-count">—</span> rows</div>
-          <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
+          <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
+          </div>
         </div>
         <div class="tbl-scroll">
           <table id="act-table">
@@ -2671,6 +2678,14 @@ function resetFilters(){
   ['f-dates','f-holes','f-sites','f-codes'].forEach(id=>selectAll(id));
   document.getElementById('f-search').value='';
   loadActivities();
+}
+
+function toggleActivityLog(){
+  const panel=document.getElementById('activity-log-panel');
+  const label=document.getElementById('activity-log-toggle-label');
+  if(!panel)return;
+  panel.classList.toggle('collapsed');
+  if(label)label.textContent=panel.classList.contains('collapsed')?'Show rows':'Hide rows';
 }
 
 async function loadActivities(){
