@@ -1553,7 +1553,33 @@ tbody td[contenteditable=true]:focus {
           </table>
         </div>
       </div>
-      <div class="report-detail" id="report-detail">
+      <div class="table-wrap collapsible-table collapsed" id="activity-log-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="act-table">
+            <thead><tr>
+              <th>Date</th><th>Hole #</th><th>Site</th>
+              <th>Time From</th><th>Time To</th><th>Duration</th>
+              <th>Bit Type</th><th>Ø</th>
+              <th>From m</th><th>To m</th><th>Metres</th>
+              <th>Code</th><th>Notes</th>
+              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
+            </tr></thead>
+            <tbody id="act-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily Report Detail -->
+    <section class="page" id="page-report-detail">
+      <div class="report-detail open" id="report-detail">
         <div class="report-detail-head">
           <div>
             <div class="report-detail-title" id="report-detail-title">Daily report</div>
@@ -1562,7 +1588,7 @@ tbody td[contenteditable=true]:focus {
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
             <button class="btn-ghost" id="report-source-btn" onclick="openSelectedReportPdf()">PDF</button>
-            <button class="btn-ghost" onclick="closeDailyReportDetail()">Close</button>
+            <button class="btn-ghost" onclick="backToDailyReports()">Back to reports</button>
           </div>
         </div>
         <div class="report-detail-body">
@@ -1600,28 +1626,6 @@ tbody td[contenteditable=true]:focus {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="table-wrap collapsible-table collapsed" id="activity-log-panel">
-        <div class="table-toolbar">
-          <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
-            <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
-          </div>
-        </div>
-        <div class="tbl-scroll">
-          <table id="act-table">
-            <thead><tr>
-              <th>Date</th><th>Hole #</th><th>Site</th>
-              <th>Time From</th><th>Time To</th><th>Duration</th>
-              <th>Bit Type</th><th>Ø</th>
-              <th>From m</th><th>To m</th><th>Metres</th>
-              <th>Code</th><th>Notes</th>
-              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
-            </tr></thead>
-            <tbody id="act-body"></tbody>
-          </table>
         </div>
       </div>
     </section>
@@ -2821,13 +2825,32 @@ function openDailyReportDetailByKey(key){
   if(!report)return;
   document.querySelectorAll('.report-row').forEach(function(row){row.classList.toggle('active',row.dataset.reportKey===key);});
   renderDailyReportDetail(report);
+  showReportDetailPage();
 }
 
 function closeDailyReportDetail(){
   selectedDailyReportKey=null;
-  const detail=document.getElementById('report-detail');
-  if(detail)detail.classList.remove('open');
   document.querySelectorAll('.report-row').forEach(function(row){row.classList.remove('active');});
+}
+
+function showReportDetailPage(){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.drawer-nav-item').forEach(function(b){b.classList.remove('active');});
+  const page=document.getElementById('page-report-detail');
+  if(page)page.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function backToDailyReports(){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.drawer-nav-item').forEach(function(b){b.classList.remove('active');});
+  const page=document.getElementById('page-activities');
+  if(page)page.classList.add('active');
+  document.querySelectorAll('[data-page="activities"]').forEach(function(b){b.classList.add('active');});
+  renderDailyReportSummary(activitiesData);
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function openSelectedReportPdf(){
@@ -2838,7 +2861,6 @@ function openSelectedReportPdf(){
 function renderDailyReportDetail(report){
   const detail=document.getElementById('report-detail');
   if(!detail)return;
-  detail.classList.add('open');
   document.getElementById('report-detail-title').textContent=report.id;
   document.getElementById('report-detail-meta').innerHTML=[
     report.date,report.hole?'Hole '+report.hole:'No hole',report.rig?'Rig '+report.rig:'No rig',report.shift||'',report.driller||''
@@ -2853,7 +2875,6 @@ function renderDailyReportDetail(report){
   document.getElementById('report-detail-notes').innerHTML=report.notes.length?report.notes.map(function(n){return '<p style="margin-bottom:8px;">'+esc(n)+'</p>';}).join(''):'No notes recorded.';
   renderDailyReportTimeline(report);
   renderDailyReportTables(report);
-  detail.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function renderDailyReportTimeline(report){
