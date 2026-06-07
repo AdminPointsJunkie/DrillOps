@@ -54,6 +54,7 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
 .approval-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800;margin-left:8px;}
 .approval-status.approved{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .approval-status.rejected{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
+.approval-status.query{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
 .log-list{display:flex;flex-direction:column;gap:10px;margin-top:10px;max-height:170px;overflow:auto;}
 .log-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;color:#334155;}
 .log-icon{font-size:13px;line-height:1.3;}
@@ -88,12 +89,13 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
             <select id="approval-select">
               <option value="">Select decision</option>
               <option value="approved">Approve report</option>
+              <option value="query">Query report</option>
               <option value="rejected">Reject report</option>
             </select>
           </div>
           <div class="approval-reason" id="approval-reason-wrap">
             <div class="subtitle" style="margin:0 0 7px;">Reason</div>
-            <textarea id="approval-reason" placeholder="Enter why this report was approved or rejected"></textarea>
+            <textarea id="approval-reason" placeholder="Enter the rejection reason or query"></textarea>
           </div>
           <button type="button" id="approval-save" style="margin-top:18px;">Save</button>
         </div>
@@ -182,11 +184,12 @@ function initApprovalControls(){
   const record=getApprovalRecord();
   select.value=record.status||'';
   reason.value=record.reason||'';
-  reasonWrap.classList.toggle('open',!!select.value);
+  reasonWrap.classList.toggle('open',select.value==='rejected'||select.value==='query');
   select.addEventListener('change',function(){
-    reasonWrap.classList.toggle('open',!!select.value);
-    reason.placeholder=select.value==='approved'?'Enter why this report is approved':'Enter why this report is rejected';
-    if(select.value)reason.focus();
+    const needsReason=select.value==='rejected'||select.value==='query';
+    reasonWrap.classList.toggle('open',needsReason);
+    reason.placeholder=select.value==='query'?'Enter the query':'Enter why this report is rejected';
+    if(needsReason)reason.focus();
   });
   save.addEventListener('click',saveApprovalDecision);
   renderApprovalStatus(record);
@@ -197,10 +200,10 @@ function saveApprovalDecision(){
   const reason=document.getElementById('approval-reason');
   const status=select.value;
   const why=reason.value.trim();
-  if(!status){alert('Select approve or reject first.');return;}
-  if(!why){alert('Enter a reason before saving.');reason.focus();return;}
+  if(!status){alert('Select approve, query, or reject first.');return;}
+  if((status==='rejected'||status==='query')&&!why){alert('Enter a reason or query before saving.');reason.focus();return;}
   const record=getApprovalRecord();
-  const label=status==='approved'?'Approved':'Rejected';
+  const label=status==='approved'?'Approved':status==='query'?'Queried':'Rejected';
   const entry={status:status,reason:why,at:new Date().toISOString(),by:'Client'};
   record.status=status;
   record.reason=why;
@@ -209,14 +212,14 @@ function saveApprovalDecision(){
   renderApprovalStatus(record);
   renderApprovalLog(record);
   reason.value='';
-  reason.placeholder=label+' reason saved. Add another note if needed.';
+  reason.placeholder=status==='approved'?'Approved. Select reject or query if this changes.':label+' reason saved. Add another note if needed.';
 }
 function renderApprovalStatus(record){
   const badge=document.getElementById('approval-status');
   if(!record.status){badge.style.display='none';badge.textContent='';badge.className='approval-status';return;}
   badge.style.display='inline-flex';
   badge.className='approval-status '+record.status;
-  badge.textContent=record.status==='approved'?'Approved':'Rejected';
+  badge.textContent=record.status==='approved'?'Approved':record.status==='query'?'Query':'Rejected';
   document.getElementById('approval-select').value=record.status;
 }
 function renderApprovalLog(record){
@@ -225,14 +228,15 @@ function renderApprovalLog(record){
   if(!items.length){log.innerHTML='<div class="empty" style="padding:8px 0;">No approval decisions recorded.</div>';return;}
   log.innerHTML=items.map(function(item){
     const approved=item.status==='approved';
-    const icon=approved?'✓':'✕';
-    const action=approved?'Approved':'Rejected';
+    const queried=item.status==='query';
+    const icon=approved?'✓':queried?'?':'✕';
+    const action=approved?'Approved':queried?'Queried':'Rejected';
     const when=new Date(item.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     return '<div class="log-item">'
-      +'<div class="log-icon" style="color:'+(approved?'#147a39':'#b42335')+'">'+icon+'</div>'
+      +'<div class="log-icon" style="color:'+(approved?'#147a39':queried?'#a05a00':'#b42335')+'">'+icon+'</div>'
       +'<div><strong>'+esc(item.by||'Client')+'</strong> '+action.toLowerCase()+' the report.</div>'
       +'<div class="log-time">'+esc(when)+'</div>'
-      +'<div class="log-note">'+esc(item.reason||'')+'</div>'
+      +(item.reason?'<div class="log-note">'+esc(item.reason||'')+'</div>':'')
       +'</div>';
   }).join('');
 }

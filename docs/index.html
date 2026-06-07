@@ -252,6 +252,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .status-select{height:36px;border:1px solid #bcd0f7;border-radius:6px;background:#eef5ff;color:#0b48c0;font-family:var(--font);font-size:13px;font-weight:650;padding:0 28px 0 9px;max-width:210px;}
 .status-select.approved{background:#ecfdf3;border-color:#caeed6;color:#087032;}
 .status-select.rejected{background:#fff1f2;border-color:#ffc7cd;color:#b42335;}
+.status-select.query{background:#fff7e6;border-color:#f4d39b;color:#a05a00;}
 .shift-pill{display:inline-flex;align-items:center;gap:5px;border-radius:7px;background:#fff7df;color:#7a4a00;padding:7px 11px;font-size:13px;font-weight:650;}
 .shift-pill::before{content:'☼';font-size:12px;}
 .notes-preview{display:block;max-width:min(760px,42vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#00122c;}
@@ -2449,6 +2450,7 @@ function reportStatus(group){
   const saved=getStoredReportApproval(group.date,group.hole,group.sourceFile);
   if(saved&&saved.status==='approved')return {label:'Approved',cls:'status-ok'};
   if(saved&&saved.status==='rejected')return {label:'Rejected',cls:'status-warn'};
+  if(saved&&saved.status==='query')return {label:'Query',cls:'status-warn'};
   if(group.flags.length)return {label:'Needs Review',cls:'status-warn'};
   if(group.cost>0)return {label:'Priced',cls:'status-ok'};
   return {label:'Imported',cls:'status-info'};
@@ -2851,10 +2853,11 @@ function renderDailyReportSummary(rows){
 
 function renderReportStatusSelect(report){
   const status=(getStoredReportApproval(report.date,report.hole,report.sourceFile)||{}).status||'pending';
-  const cls=status==='approved'?'approved':status==='rejected'?'rejected':'';
+  const cls=status==='approved'?'approved':status==='rejected'?'rejected':status==='query'?'query':'';
   return '<select class="status-select '+cls+'" data-report-key="'+attr(report.key)+'" onclick="event.stopPropagation()" onchange="changeReportApprovalFromList(this)">'
     +'<option value="pending" '+(status==='pending'?'selected':'')+'>ⓘ Client Approval Pending</option>'
     +'<option value="approved" '+(status==='approved'?'selected':'')+'>✓ Client Approved</option>'
+    +'<option value="query" '+(status==='query'?'selected':'')+'>? Client Query</option>'
     +'<option value="rejected" '+(status==='rejected'?'selected':'')+'>✕ Client Rejected</option>'
     +'</select>';
 }
@@ -2868,8 +2871,11 @@ function changeReportApprovalFromList(select){
     renderDailyReportSummary(activitiesData);
     return;
   }
-  const reason=prompt(status==='approved'?'Why is this report approved?':'Why is this report rejected?');
-  if(!reason||!reason.trim()){
+  let reason='';
+  if(status==='rejected'||status==='query'){
+    reason=prompt(status==='query'?'What is the query?':'Why is this report rejected?')||'';
+  }
+  if((status==='rejected'||status==='query')&&!reason.trim()){
     renderDailyReportSummary(activitiesData);
     return;
   }
