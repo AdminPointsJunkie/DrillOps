@@ -1403,8 +1403,6 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Drilling Schedule</span><span class="drawer-nav-meta">Project Gantt</span></button>
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
-        <button class="drawer-nav-item" data-page="consumables" onclick="drawerNav(this)"><span class="drawer-nav-label">Consumables</span><span class="drawer-nav-meta">Materials</span></button>
-        <button class="drawer-nav-item" data-page="crew" onclick="drawerNav(this)"><span class="drawer-nav-label">Crew</span><span class="drawer-nav-meta">Labour</span></button>
         <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span class="drawer-nav-label">Costing</span><span class="drawer-nav-meta">Actuals</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
@@ -1600,45 +1598,27 @@ tbody td[contenteditable=true]:focus {
           </table>
         </div>
       </div>
-    </section>
-
-    <!-- Consumables -->
-    <section class="page" id="page-consumables">
-      <h2 class="section-title">Consumables</h2>
-      <div class="filter-bar">
-        <button class="filter-toggle" id="con-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
-        <div class="filter-body" id="con-filter-body">
-          <div class="filter-group"><label>Date</label><select id="f-con-dates" multiple></select></div>
-          <div class="filter-actions">
-            <button class="btn-primary" onclick="loadConsumables()">Apply</button>
-            <button class="btn-ghost" onclick="selectAll('f-con-dates');loadConsumables()">Reset</button>
+      <div class="table-wrap collapsible-table collapsed" id="consumables-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Consumables · <span id="con-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="togglePanel('consumables-panel','consumables-toggle-label')"><span class="collapse-arrow">▶</span><span id="consumables-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('consumables')">⬇ CSV</button>
           </div>
         </div>
-      </div>
-      <div class="table-wrap">
-        <div class="table-toolbar"><div class="table-count"><span id="con-count">—</span> rows</div><button class="btn-csv" onclick="downloadCSV('consumables')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="con-table">
           <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Line Cost</th></tr></thead>
           <tbody id="con-body"></tbody>
         </table></div>
       </div>
-    </section>
-
-    <!-- Crew -->
-    <section class="page" id="page-crew">
-      <h2 class="section-title">Crew — People on Board</h2>
-      <div class="filter-bar">
-        <button class="filter-toggle" id="crew-filter-toggle">🔍 &nbsp;Filters <span class="arrow">▼</span></button>
-        <div class="filter-body" id="crew-filter-body">
-          <div class="filter-group"><label>Date</label><select id="f-crew-dates" multiple></select></div>
-          <div class="filter-actions">
-            <button class="btn-primary" onclick="loadCrew()">Apply</button>
-            <button class="btn-ghost" onclick="selectAll('f-crew-dates');loadCrew()">Reset</button>
+      <div class="table-wrap collapsible-table collapsed" id="crew-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Crew · <span id="crew-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="togglePanel('crew-panel','crew-toggle-label')"><span class="collapse-arrow">▶</span><span id="crew-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('crew')">⬇ CSV</button>
           </div>
         </div>
-      </div>
-      <div class="table-wrap">
-        <div class="table-toolbar"><div class="table-count"><span id="crew-count">—</span> rows</div><button class="btn-csv" onclick="downloadCSV('crew')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="crew-table">
           <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
           <tbody id="crew-body"></tbody>
@@ -2586,8 +2566,6 @@ function triggerPageLoad(page){
   if(page==='borehole-details') loadBoreholeDetails();
   if(page==='drilling-schedule') loadDrillingSchedule();
   if(page==='activities')   loadActivities();
-  if(page==='consumables')  loadConsumables();
-  if(page==='crew')         loadCrew();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='costing')      loadCosting();
   if(page==='purchase-orders') loadPOs();
@@ -2682,8 +2660,12 @@ function toggleActFilters(){
 }
 
 function toggleActivityLog(){
-  const panel=document.getElementById('activity-log-panel');
-  const label=document.getElementById('activity-log-toggle-label');
+  togglePanel('activity-log-panel','activity-log-toggle-label');
+}
+
+function togglePanel(panelId,labelId){
+  const panel=document.getElementById(panelId);
+  const label=document.getElementById(labelId);
   if(!panel)return;
   panel.classList.toggle('collapsed');
   if(label)label.textContent=panel.classList.contains('collapsed')?'Show rows':'Hide rows';
@@ -2720,6 +2702,8 @@ async function loadDailyReportRelatedData(dates){
     ]);
     consumablesData=results[0]||[];
     crewData=results[1]||[];
+    renderConsumablesTable();
+    renderCrewTable();
   }catch(e){
     console.warn('Daily report related data unavailable',e);
   }
@@ -2906,63 +2890,74 @@ function downloadDailyReportsCSV(){
 
 // ── Consumables ───────────────────────────────────────────────────────────────
 async function loadConsumables(){
-  var dates=getSelVals('f-con-dates').filter(function(d){return d;}).join(',');
+  var dates=(getSelVals('f-con-dates').length?getSelVals('f-con-dates'):getSelVals('f-dates')).filter(function(d){return d;}).join(',');
   var url=API+'/consumables?contractor='+encodeURIComponent(activeContractor);
   if(dates) url+='&dates='+dates;
   try{
     consumablesData=await fetch(url).then(function(r){return r.json();});
-    document.getElementById('con-count').textContent=consumablesData.length;
-    document.getElementById('con-body').innerHTML=consumablesData.map(function(r){
-      var up = parseFloat(r.unit_price)||0;
-      var lc = parseFloat(r.line_cost)||0;
-      return '<tr data-con-id="'+r.id+'">'
-        +'<td contenteditable="true" data-col="date">'+esc(r.date)+'</td>'
-        +'<td contenteditable="true" data-col="hole_num">'+esc(r.hole_num)+'</td>'
-        +'<td contenteditable="true" data-col="site_name">'+esc(r.site_name)+'</td>'
-        +'<td contenteditable="true" data-col="consumable" style="font-weight:600;">'+esc(r.consumable)+'</td>'
-        +'<td contenteditable="true" data-col="type">'+esc(r.type)+'</td>'
-        +'<td contenteditable="true" data-col="quantity" data-num="true">'+esc(r.quantity)+'</td>'
-        +'<td contenteditable="true" data-col="unit">'+esc(r.unit)+'</td>'
-        +'<td contenteditable="true" data-col="unit_price" data-num="true" style="color:var(--accent);">'+(up>0?up.toFixed(2):'')+'</td>'
-        +'<td style="font-weight:600;color:'+(lc>0?'var(--accent)':'var(--muted)')+';">'+(lc>0?'$'+lc.toFixed(2):'\u2014')+'</td>'
-        +'</tr>';
-    }).join('')||'<tr><td colspan="9"><div class="empty-state">No data</div></td></tr>';
-
-    // Wire up inline edits
-    document.getElementById('con-body').querySelectorAll('[contenteditable]').forEach(function(cell){
-      cell.addEventListener('blur', async function(){
-        var row = cell.closest('tr');
-        var rid = row.dataset.conId;
-        var col = cell.dataset.col;
-        var val = cell.textContent.trim().replace(/[$,]/g,'');
-        if(cell.dataset.num) val = val===''?null:parseFloat(val);
-        try {
-          var body = {};
-          body[col] = val;
-          await fetch(API+'/consumables/'+rid, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-          toast('\u2713 Saved');
-          // If price or qty changed, reload to get updated line_cost
-          if(col === 'unit_price' || col === 'quantity') loadConsumables();
-        } catch(e) { toast('Save failed','err'); }
-      });
-    });
-    makeTableSortable('con-table');
+    renderConsumablesTable();
   }catch(e){ console.error('loadConsumables error:', e); document.getElementById('con-body').innerHTML='<tr><td colspan="9" style="color:var(--red);padding:16px;">Error loading: '+e.message+'</td></tr>'; }
+}
+
+function renderConsumablesTable(){
+  const count=document.getElementById('con-count');
+  const body=document.getElementById('con-body');
+  if(!body)return;
+  if(count)count.textContent=consumablesData.length;
+  body.innerHTML=consumablesData.map(function(r){
+    var up = parseFloat(r.unit_price)||0;
+    var lc = parseFloat(r.line_cost)||0;
+    return '<tr data-con-id="'+r.id+'">'
+      +'<td contenteditable="true" data-col="date">'+esc(r.date)+'</td>'
+      +'<td contenteditable="true" data-col="hole_num">'+esc(r.hole_num)+'</td>'
+      +'<td contenteditable="true" data-col="site_name">'+esc(r.site_name)+'</td>'
+      +'<td contenteditable="true" data-col="consumable" style="font-weight:600;">'+esc(r.consumable)+'</td>'
+      +'<td contenteditable="true" data-col="type">'+esc(r.type)+'</td>'
+      +'<td contenteditable="true" data-col="quantity" data-num="true">'+esc(r.quantity)+'</td>'
+      +'<td contenteditable="true" data-col="unit">'+esc(r.unit)+'</td>'
+      +'<td contenteditable="true" data-col="unit_price" data-num="true" style="color:var(--accent);">'+(up>0?up.toFixed(2):'')+'</td>'
+      +'<td style="font-weight:600;color:'+(lc>0?'var(--accent)':'var(--muted)')+';">'+(lc>0?'$'+lc.toFixed(2):'\u2014')+'</td>'
+      +'</tr>';
+  }).join('')||'<tr><td colspan="9"><div class="empty-state">No data</div></td></tr>';
+  body.querySelectorAll('[contenteditable]').forEach(function(cell){
+    cell.addEventListener('blur', async function(){
+      var row = cell.closest('tr');
+      var rid = row.dataset.conId;
+      var col = cell.dataset.col;
+      var val = cell.textContent.trim().replace(/[$,]/g,'');
+      if(cell.dataset.num) val = val===''?null:parseFloat(val);
+      try {
+        var payload = {};
+        payload[col] = val;
+        await fetch(API+'/consumables/'+rid, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        toast('\u2713 Saved');
+        if(col === 'unit_price' || col === 'quantity') loadConsumables();
+      } catch(e) { toast('Save failed','err'); }
+    });
+  });
+  makeTableSortable('con-table');
 }
 
 // ── Crew ──────────────────────────────────────────────────────────────────────
 async function loadCrew(){
-  var dates=getSelVals('f-crew-dates').filter(function(d){return d;}).join(',');
+  var dates=(getSelVals('f-crew-dates').length?getSelVals('f-crew-dates'):getSelVals('f-dates')).filter(function(d){return d;}).join(',');
   var url=API+'/crew?contractor='+encodeURIComponent(activeContractor);
   if(dates) url+='&dates='+dates;
   try{
     crewData=await fetch(url).then(function(r){return r.json();});
-    document.getElementById('crew-count').textContent=crewData.length;
-    document.getElementById('crew-body').innerHTML=crewData.map(r=>
-      `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.hours)}</td></tr>`
-    ).join('')||'<tr><td colspan="6"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
-    makeTableSortable('crew-table');
+    renderCrewTable();
   }catch(e){}
+}
+
+function renderCrewTable(){
+  const count=document.getElementById('crew-count');
+  const body=document.getElementById('crew-body');
+  if(!body)return;
+  if(count)count.textContent=crewData.length;
+  body.innerHTML=crewData.map(r=>
+    `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.hours)}</td></tr>`
+  ).join('')||'<tr><td colspan="6"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
+  makeTableSortable('crew-table');
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
