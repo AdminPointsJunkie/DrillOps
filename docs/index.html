@@ -219,6 +219,43 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .chart-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;}
 .chart-card canvas{max-height:240px;}
 
+/* Daily report summary */
+.report-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.report-mini{background:#fff;border:1px solid var(--border);border-radius:7px;padding:12px 14px;box-shadow:var(--shadow);}
+.report-mini-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
+.report-mini-value{font-size:18px;font-weight:750;color:var(--text);line-height:1.1;}
+.report-row{cursor:pointer;}
+.report-row.active{background:#eff6ff;}
+.report-id-btn{border:none;background:transparent;color:var(--accent);font-weight:750;font-family:var(--font);font-size:12.5px;cursor:pointer;padding:0;text-align:left;}
+.report-id-btn:hover{text-decoration:underline;}
+.status-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:750;white-space:nowrap;}
+.status-ok{background:#ecfdf3;color:#147a39;}
+.status-warn{background:#fff7e6;color:#a05a00;}
+.status-info{background:#eef4ff;color:#174d72;}
+.report-detail{display:none;background:#fff;border:1px solid var(--border);border-radius:7px;margin-bottom:16px;box-shadow:var(--shadow);overflow:hidden;}
+.report-detail.open{display:block;}
+.report-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:15px 16px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.report-detail-title{font-size:16px;font-weight:780;color:var(--text);margin-bottom:5px;}
+.report-detail-meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;}
+.report-detail-body{padding:16px;}
+.report-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+.report-kpi{border:1px solid var(--border);border-radius:7px;padding:11px 12px;background:#fff;}
+.report-kpi .label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
+.report-kpi .value{font-size:18px;font-weight:780;color:var(--text);}
+.report-timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow-x:auto;}
+.timeline-scale{position:relative;min-width:720px;height:26px;border-bottom:1px solid var(--border);margin-bottom:8px;}
+.timeline-tick{position:absolute;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.timeline-track{position:relative;min-width:720px;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 59px,#edf1f5 60px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
+.timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:750;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
+.report-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;margin-bottom:16px;}
+.report-chart-box{border:1px solid var(--border);border-radius:7px;padding:12px;background:#fff;min-height:220px;}
+.report-chart-box canvas{max-height:210px;}
+.report-notes{border:1px solid var(--border);border-radius:7px;padding:12px;background:#fbfcfd;line-height:1.45;color:var(--text2);font-size:12.5px;max-height:220px;overflow:auto;}
+.report-subtitle{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
+.report-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.flag-pill{border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:3px 8px;font-size:10px;font-weight:750;}
+.compact-table tbody td{white-space:normal;max-width:360px;}
+
 /* Drilling schedule */
 .schedule-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
 .schedule-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -578,6 +615,9 @@ tbody td[contenteditable=true]:focus {
 @media (max-width:1100px) {
   main { padding:18px; }
   .kpi-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .report-summary-grid,
+  .report-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .report-detail-grid { grid-template-columns:1fr; }
   .charts-grid { grid-template-columns:1fr; }
   .filter-body.open { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -598,6 +638,8 @@ tbody td[contenteditable=true]:focus {
     width:min(92vw,400px);
   }
   .kpi-row,
+  .report-summary-grid,
+  .report-kpis,
   .filter-body.open {
     grid-template-columns:1fr;
   }
@@ -1487,6 +1529,87 @@ tbody td[contenteditable=true]:focus {
           </div>
         </div>
       </div>
+      <div class="report-summary-grid">
+        <div class="report-mini"><div class="report-mini-label">Daily Reports</div><div class="report-mini-value" id="report-total">--</div></div>
+        <div class="report-mini"><div class="report-mini-label">Total Cost</div><div class="report-mini-value" id="report-cost">--</div></div>
+        <div class="report-mini"><div class="report-mini-label">Metres</div><div class="report-mini-value" id="report-metres">--</div></div>
+        <div class="report-mini"><div class="report-mini-label">Hours</div><div class="report-mini-value" id="report-hours">--</div></div>
+        <div class="report-mini"><div class="report-mini-label">Needs Review</div><div class="report-mini-value" id="report-review">--</div></div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Daily report summaries <span id="report-count">--</span></div>
+          <button class="btn-csv" onclick="downloadDailyReportsCSV()">CSV</button>
+        </div>
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table id="report-table">
+            <thead><tr>
+              <th>Report</th><th>Status</th><th>Date</th><th>Shift</th><th>Rig</th><th>Hole</th><th>Driller</th>
+              <th>Depth (m)</th><th>Duration (h)</th><th>Cost</th><th>Notes</th>
+            </tr></thead>
+            <tbody id="report-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="report-detail" id="report-detail">
+        <div class="report-detail-head">
+          <div>
+            <div class="report-detail-title" id="report-detail-title">Daily report</div>
+            <div class="report-detail-meta" id="report-detail-meta"></div>
+            <div class="report-flags" id="report-detail-flags"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn-ghost" id="report-source-btn" onclick="openSelectedReportPdf()">PDF</button>
+            <button class="btn-ghost" onclick="closeDailyReportDetail()">Close</button>
+          </div>
+        </div>
+        <div class="report-detail-body">
+          <div class="report-kpis">
+            <div class="report-kpi"><div class="label">Depth</div><div class="value" id="report-kpi-depth">--</div></div>
+            <div class="report-kpi"><div class="label">Duration</div><div class="value" id="report-kpi-duration">--</div></div>
+            <div class="report-kpi"><div class="label">Cost</div><div class="value" id="report-kpi-cost">--</div></div>
+            <div class="report-kpi"><div class="label">Cost / m</div><div class="value" id="report-kpi-costm">--</div></div>
+            <div class="report-kpi"><div class="label">Activities</div><div class="value" id="report-kpi-activities">--</div></div>
+          </div>
+          <div class="report-subtitle">Shift Timeline</div>
+          <div class="report-timeline" id="report-timeline"></div>
+          <div class="report-detail-grid">
+            <div class="report-chart-box">
+              <div class="chart-title">Activity Hours</div>
+              <canvas id="report-activity-chart"></canvas>
+            </div>
+            <div class="report-chart-box">
+              <div class="chart-title">Cost Breakdown</div>
+              <canvas id="report-cost-chart"></canvas>
+            </div>
+          </div>
+          <div class="report-subtitle">Report Notes</div>
+          <div class="report-notes" id="report-detail-notes"></div>
+          <div class="report-subtitle">Activities</div>
+          <div class="table-wrap" style="box-shadow:none;margin-bottom:12px;">
+            <div class="tbl-scroll" style="max-height:320px;">
+              <table class="compact-table">
+                <thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Cost</th></tr></thead>
+                <tbody id="report-activity-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="report-detail-grid">
+            <div>
+              <div class="report-subtitle">Consumables</div>
+              <div class="table-wrap" style="box-shadow:none;">
+                <table class="compact-table"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody id="report-consumables-body"></tbody></table>
+              </div>
+            </div>
+            <div>
+              <div class="report-subtitle">Personnel</div>
+              <div class="table-wrap" style="box-shadow:none;">
+                <table class="compact-table"><thead><tr><th>Name</th><th>Role</th><th>Hours</th></tr></thead><tbody id="report-crew-body"></tbody></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="table-wrap">
         <div class="table-toolbar">
           <div class="table-count">Showing <span id="act-count">—</span> rows</div>
@@ -2269,6 +2392,7 @@ let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
+let dailyReportsData=[], selectedDailyReportKey=null;
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
 let drillingRatesData=[], hourlyRatesData=[];
 let posData=[];
@@ -2314,6 +2438,94 @@ function codeBadge(code){
 }
 function dateSortKey(d){
   try{const[dy,mn,yr]=String(d).split('/');return parseInt(yr)*10000+parseInt(mn)*100+parseInt(dy);}catch{return 0;}
+}
+
+function parseDurationHours(value){
+  if(value==null||value==='')return 0;
+  const s=String(value).trim();
+  if(!s)return 0;
+  if(s.includes(':')){
+    const parts=s.split(':').map(function(p){return parseFloat(p)||0;});
+    return (parts[0]||0)+((parts[1]||0)/60);
+  }
+  const n=parseFloat(s);
+  return isNaN(n)?0:n;
+}
+function parseClockMinutes(value){
+  if(!value)return null;
+  let s=String(value).trim().replace(/\./g,':');
+  if(/^\d{3,4}$/.test(s)){
+    s=s.padStart(4,'0');
+    return parseInt(s.slice(0,2))*60+parseInt(s.slice(2));
+  }
+  const m=s.match(/^(\d{1,2}):(\d{2})/);
+  if(!m)return null;
+  return parseInt(m[1])*60+parseInt(m[2]);
+}
+function clockLabel(mins){
+  mins=((mins%1440)+1440)%1440;
+  const h=Math.floor(mins/60),m=mins%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+function reportDateSortKey(d){
+  const base=dateSortKey(d);
+  if(base)return base;
+  const parsed=Date.parse(String(d||''));
+  return isNaN(parsed)?0:parsed;
+}
+function activityCategory(row){
+  const text=((row.code||'')+' '+(row.notes||'')).toLowerCase();
+  if(text.includes('drill')||text.includes('core')||text.includes('chip'))return 'Productive Drilling';
+  if(text.includes('trip')||text.includes('rod'))return 'Tripping Rods';
+  if(text.includes('flush')||text.includes('circul')||text.includes('water')||text.includes('lost'))return 'Circulation';
+  if(text.includes('repair')||text.includes('breakdown'))return 'Repairs';
+  if(text.includes('standby')||text.includes('fatigue')||text.includes('wait')||text.includes('delay')||text.includes('no access'))return 'Standby / Delays';
+  if(text.includes('travel'))return 'Travel';
+  if(text.includes('safety')||text.includes('prestart')||text.includes('meeting')||text.includes('admin'))return 'Safety & Admin';
+  return 'Other';
+}
+function reportKeyFor(row){
+  return [row.date||'No date',row.hole_num||'No hole',row.source_file||'Manual entry'].join('|');
+}
+function reportIdFor(group,index){
+  const file=group.sourceFile||'';
+  if(file)return file.replace(/\.[^.]+$/,'').slice(0,34);
+  return 'DR-'+String(index+1).padStart(4,'0');
+}
+function reportStatus(group){
+  if(group.flags.length)return {label:'Needs Review',cls:'status-warn'};
+  if(group.cost>0)return {label:'Priced',cls:'status-ok'};
+  return {label:'Imported',cls:'status-info'};
+}
+function groupDailyReports(rows){
+  const map=new Map();
+  rows.forEach(function(r){
+    const key=reportKeyFor(r);
+    if(!map.has(key)){
+      map.set(key,{key:key,date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+    }
+    const g=map.get(key);
+    g.rows.push(r);
+    g.cost+=parseFloat(r.line_cost)||0;
+    g.metres+=parseFloat(r.total_metres)||0;
+    const hrs=parseDurationHours(r.total_time);
+    g.hours+=hrs;
+    const cat=activityCategory(r);
+    g.categories[cat]=(g.categories[cat]||0)+hrs;
+    if(r.notes&&g.notes.indexOf(r.notes)===-1)g.notes.push(r.notes);
+    if(!g.rig&&r.drill_rig)g.rig=r.drill_rig;
+    if(!g.shift&&r.shift)g.shift=r.shift;
+  });
+  const groups=[...map.values()];
+  groups.forEach(function(g,i){
+    g.id=reportIdFor(g,i);
+    g.driller=crewData.filter(function(c){return c.date===g.date&&c.hole_num===g.hole&&String(c.role||'').toLowerCase().includes('drill');}).map(function(c){return c.name;})[0]||'';
+    if(g.metres===0&&g.cost>0)g.flags.push('Cost with zero metres');
+    if(g.notes.join(' ').toLowerCase().match(/lost|fatigue|no access|breakdown|repair|standby/))g.flags.push('Operational note');
+    if(g.hours>=12)g.flags.push('Long shift');
+    g.status=reportStatus(g);
+  });
+  return groups.sort(function(a,b){return reportDateSortKey(b.date)-reportDateSortKey(a.date)||a.hole.localeCompare(b.hole);});
 }
 
 // ── Contractor switcher ───────────────────────────────────────────────────────
@@ -2487,16 +2699,33 @@ async function loadActivities(){
   if(search)p.set('search',search);
   try{
     activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
+    await loadDailyReportRelatedData(dates);
     renderActivities(activitiesData);
   }catch(e){
-    document.getElementById('act-body').innerHTML='<tr><td colspan="17" style="color:var(--red);padding:20px">API offline</td></tr>';
+    renderDailyReportSummary([]);
+    document.getElementById('act-body').innerHTML='<tr><td colspan="18" style="color:var(--red);padding:20px">API offline</td></tr>';
+  }
+}
+
+async function loadDailyReportRelatedData(dates){
+  const suffix='contractor='+encodeURIComponent(activeContractor)+(dates?'&dates='+encodeURIComponent(dates):'');
+  try{
+    const results=await Promise.all([
+      fetch(API+'/consumables?'+suffix).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/crew?'+suffix).then(function(r){return r.ok?r.json():[];})
+    ]);
+    consumablesData=results[0]||[];
+    crewData=results[1]||[];
+  }catch(e){
+    console.warn('Daily report related data unavailable',e);
   }
 }
 
 function renderActivities(rows){
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
+  renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="17"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="18"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`
     <tr data-id="${r.id}">
       <td contenteditable="true" data-col="date">${esc(r.date)}</td>
@@ -2542,6 +2771,174 @@ function renderActivities(rows){
     });
   });
   makeTableSortable('act-table');
+}
+
+function renderDailyReportSummary(rows){
+  dailyReportsData=groupDailyReports(rows||[]);
+  const totalCost=dailyReportsData.reduce(function(s,r){return s+r.cost;},0);
+  const totalMetres=dailyReportsData.reduce(function(s,r){return s+r.metres;},0);
+  const totalHours=dailyReportsData.reduce(function(s,r){return s+r.hours;},0);
+  const reviewCount=dailyReportsData.filter(function(r){return r.flags.length;}).length;
+  const setText=function(id,value){const el=document.getElementById(id);if(el)el.textContent=value;};
+  setText('report-total',dailyReportsData.length.toLocaleString());
+  setText('report-count',dailyReportsData.length.toLocaleString());
+  setText('report-cost',cur(totalCost));
+  setText('report-metres',totalMetres.toFixed(1));
+  setText('report-hours',totalHours.toFixed(1));
+  setText('report-review',reviewCount.toLocaleString());
+  const tbody=document.getElementById('report-body');
+  if(!tbody)return;
+  if(!dailyReportsData.length){
+    tbody.innerHTML='<tr><td colspan="11"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    closeDailyReportDetail();
+    return;
+  }
+  tbody.innerHTML=dailyReportsData.map(function(r){
+    const note=r.notes.join(' ').slice(0,180);
+    return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+esc(r.key)+'" onclick="openDailyReportDetailByKey(this.dataset.reportKey)">'
+      +'<td><button class="report-id-btn" type="button">'+esc(r.id)+'</button></td>'
+      +'<td><span class="status-pill '+r.status.cls+'">'+esc(r.status.label)+'</span></td>'
+      +'<td>'+esc(r.date)+'</td>'
+      +'<td>'+esc(r.shift||'--')+'</td>'
+      +'<td>'+esc(r.rig||'--')+'</td>'
+      +'<td>'+esc(r.hole||'--')+'</td>'
+      +'<td>'+esc(r.driller||'--')+'</td>'
+      +'<td>'+r.metres.toFixed(2)+'</td>'
+      +'<td>'+r.hours.toFixed(2)+'</td>'
+      +'<td style="font-weight:700;color:var(--text);">'+cur(r.cost)+'</td>'
+      +'<td class="multiline-cell">'+esc(note||'--')+'</td>'
+      +'</tr>';
+  }).join('');
+  if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
+}
+
+function openDailyReportDetailByKey(key){
+  selectedDailyReportKey=key;
+  const report=dailyReportsData.find(function(r){return r.key===key;});
+  if(!report)return;
+  document.querySelectorAll('.report-row').forEach(function(row){row.classList.toggle('active',row.dataset.reportKey===key);});
+  renderDailyReportDetail(report);
+}
+
+function closeDailyReportDetail(){
+  selectedDailyReportKey=null;
+  const detail=document.getElementById('report-detail');
+  if(detail)detail.classList.remove('open');
+  document.querySelectorAll('.report-row').forEach(function(row){row.classList.remove('active');});
+  destroyChart('report_activity');
+  destroyChart('report_cost');
+}
+
+function openSelectedReportPdf(){
+  const report=dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;});
+  if(report&&report.sourceFile)viewSourcePdf(report.sourceFile);
+}
+
+function renderDailyReportDetail(report){
+  const detail=document.getElementById('report-detail');
+  if(!detail)return;
+  detail.classList.add('open');
+  document.getElementById('report-detail-title').textContent=report.id;
+  document.getElementById('report-detail-meta').innerHTML=[
+    report.date,report.hole?'Hole '+report.hole:'No hole',report.rig?'Rig '+report.rig:'No rig',report.shift||'',report.driller||''
+  ].filter(Boolean).map(function(v){return '<span>'+esc(v)+'</span>';}).join('');
+  document.getElementById('report-detail-flags').innerHTML=report.flags.map(function(f){return '<span class="flag-pill">'+esc(f)+'</span>';}).join('');
+  document.getElementById('report-source-btn').style.display=report.sourceFile?'inline-flex':'none';
+  document.getElementById('report-kpi-depth').textContent=report.metres.toFixed(2)+' m';
+  document.getElementById('report-kpi-duration').textContent=report.hours.toFixed(2)+' h';
+  document.getElementById('report-kpi-cost').textContent=cur(report.cost);
+  document.getElementById('report-kpi-costm').textContent=report.metres>0?cur(report.cost/report.metres):'--';
+  document.getElementById('report-kpi-activities').textContent=report.rows.length;
+  document.getElementById('report-detail-notes').innerHTML=report.notes.length?report.notes.map(function(n){return '<p style="margin-bottom:8px;">'+esc(n)+'</p>';}).join(''):'No notes recorded.';
+  renderDailyReportTimeline(report);
+  renderDailyReportCharts(report);
+  renderDailyReportTables(report);
+  detail.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderDailyReportTimeline(report){
+  const target=document.getElementById('report-timeline');
+  const rows=report.rows.slice().sort(function(a,b){return (parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0);});
+  const starts=rows.map(function(r){return parseClockMinutes(r.time_from);}).filter(function(v){return v!=null;});
+  const ends=rows.map(function(r){
+    const explicit=parseClockMinutes(r.time_to);
+    if(explicit!=null)return explicit;
+    const start=parseClockMinutes(r.time_from);
+    return start==null?null:start+Math.round(parseDurationHours(r.total_time)*60);
+  }).filter(function(v){return v!=null;});
+  if(!starts.length||!ends.length){target.innerHTML='<div style="color:var(--muted);font-size:12px;">No time data recorded for this report.</div>';return;}
+  let min=Math.min.apply(null,starts),max=Math.max.apply(null,ends);
+  if(max<=min)max=min+Math.max(60,Math.round(report.hours*60));
+  const span=Math.max(60,max-min);
+  const ticks=[];
+  for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
+  const scale='<div class="timeline-scale">'+ticks.map(function(t){return '<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>';}).join('')+'</div>';
+  const blocks=rows.map(function(r){
+    const start=parseClockMinutes(r.time_from);
+    if(start==null)return '';
+    const end=parseClockMinutes(r.time_to);
+    const duration=parseDurationHours(r.total_time)*60;
+    const finish=end!=null?end:start+Math.max(10,duration||30);
+    const left=Math.max(0,((start-min)/span)*100);
+    const width=Math.max(2,((finish-start)/span)*100);
+    const cat=activityCategory(r);
+    const color=(typeof CAT_COLORS!=='undefined'&&CAT_COLORS[cat])?CAT_COLORS[cat]:'#555e6b';
+    return '<div class="timeline-block" title="'+esc(cat+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(cat)+'</div>';
+  }).join('');
+  target.innerHTML=scale+'<div class="timeline-track">'+blocks+'</div>';
+}
+
+function renderDailyReportCharts(report){
+  destroyChart('report_activity');
+  destroyChart('report_cost');
+  if(typeof Chart==='undefined')return;
+  const labels=Object.keys(report.categories).filter(function(k){return report.categories[k]>0;});
+  const colors=labels.map(function(k){return CAT_COLORS[k]||'#555e6b';});
+  const activityCanvas=document.getElementById('report-activity-chart');
+  if(activityCanvas&&labels.length){
+    charts.report_activity=new Chart(activityCanvas.getContext('2d'),{
+      type:'bar',
+      data:{labels:labels,datasets:[{label:'Hours',data:labels.map(function(k){return +report.categories[k].toFixed(2);}),backgroundColor:colors,borderWidth:0}]},
+      options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6b7280'},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}
+    });
+  }
+  const costByCat={};
+  report.rows.forEach(function(r){const cat=activityCategory(r);costByCat[cat]=(costByCat[cat]||0)+(parseFloat(r.line_cost)||0);});
+  const costLabels=Object.keys(costByCat).filter(function(k){return costByCat[k]>0;});
+  const costCanvas=document.getElementById('report-cost-chart');
+  if(costCanvas&&costLabels.length){
+    charts.report_cost=new Chart(costCanvas.getContext('2d'),{
+      type:'doughnut',
+      data:{labels:costLabels,datasets:[{data:costLabels.map(function(k){return costByCat[k];}),backgroundColor:costLabels.map(function(k){return CAT_COLORS[k]||'#555e6b';}),borderColor:'#fff',borderWidth:2}]},
+      options:{plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:10}}}},responsive:true,maintainAspectRatio:true}
+    });
+  }
+}
+
+function renderDailyReportTables(report){
+  document.getElementById('report-activity-body').innerHTML=report.rows.map(function(r){
+    const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
+    return '<tr><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+codeBadge(r.code)+'</td><td>'+esc(r.total_time||'')+'</td><td>'+depth+'</td><td>'+esc(r.notes||'')+'</td><td>'+cur(r.line_cost)+'</td></tr>';
+  }).join('');
+  const relatedConsumables=consumablesData.filter(function(c){return c.date===report.date&&(!report.hole||c.hole_num===report.hole);});
+  document.getElementById('report-consumables-body').innerHTML=relatedConsumables.map(function(c){
+    return '<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>';
+  }).join('')||'<tr><td colspan="4" style="color:var(--muted);">No consumables recorded</td></tr>';
+  const relatedCrew=crewData.filter(function(c){return c.date===report.date&&(!report.hole||c.hole_num===report.hole);});
+  document.getElementById('report-crew-body').innerHTML=relatedCrew.map(function(c){
+    return '<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>';
+  }).join('')||'<tr><td colspan="3" style="color:var(--muted);">No personnel recorded</td></tr>';
+}
+
+function downloadDailyReportsCSV(){
+  if(!dailyReportsData.length){toast('No daily reports to export','warn');return;}
+  const rows=dailyReportsData.map(function(r){return {report:r.id,status:r.status.label,date:r.date,shift:r.shift,rig:r.rig,hole:r.hole,driller:r.driller,metres:r.metres.toFixed(2),hours:r.hours.toFixed(2),cost:r.cost.toFixed(2),notes:r.notes.join(' | ')};});
+  const headers=Object.keys(rows[0]);
+  const csv=[headers.join(',')].concat(rows.map(function(r){return headers.map(function(h){return '"'+String(r[h]??'').replace(/"/g,'""')+'"';}).join(',');})).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='daily-report-summaries.csv';
+  a.click();
 }
 
 // ── Consumables ───────────────────────────────────────────────────────────────
