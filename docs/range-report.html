@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Graphical Daily Report | DrillOps</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#1f5f8b;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
+main{max-width:1540px;margin:0 auto;padding:18px;}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;}
+h1{font-size:22px;margin:0 0 6px;font-weight:800;}
+.meta{color:var(--muted);display:flex;gap:9px;flex-wrap:wrap;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;}
+button,.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;cursor:pointer;}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.kpi,.panel{background:var(--panel);border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);}
+.kpi{padding:13px 14px;}
+.label,.subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
+.value{font-size:21px;font-weight:800;margin-top:5px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.panel{padding:14px;overflow:hidden;}
+.panel canvas{max-height:310px;}
+.subtitle{margin:0 0 10px;}
+.table-panel{padding:0;}
+.table-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.scroll{overflow:auto;max-height:420px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
+.code{font-family:var(--mono);font-weight:800;color:#174d72;}
+.status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;}
+.approved{background:#ecfdf3;color:#147a39;}
+.rejected{background:#fff1f2;color:#b42335;}
+.query{background:#fff7e6;color:#a05a00;}
+.pending{background:#eef4ff;color:#174d72;}
+.empty{padding:18px;color:var(--muted);}
+.log-list{display:flex;flex-direction:column;gap:10px;}
+.log-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;border-bottom:1px solid #edf0f3;padding-bottom:10px;}
+.log-note{grid-column:2 / -1;border:1px solid #d8e0ea;border-radius:6px;background:#fff;padding:8px 10px;color:#526273;}
+.log-time{font-size:11px;color:var(--muted);white-space:nowrap;}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
+@media print{body{background:#fff}main{max-width:none;padding:0}.actions{display:none}.panel,.kpi{box-shadow:none}.scroll{max-height:none;overflow:visible}}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <div>
+      <h1>Graphical Daily Report</h1>
+      <div class="meta" id="report-meta"></div>
+    </div>
+    <div class="actions">
+      <button type="button" onclick="window.print()">Print / PDF</button>
+      <a class="btn" href="index.html">Reports list</a>
+    </div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="label">Daily Reports</div><div class="value" id="kpi-reports">--</div></div>
+    <div class="kpi"><div class="label">Total Activities</div><div class="value" id="kpi-activities">--</div></div>
+    <div class="kpi"><div class="label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
+    <div class="kpi"><div class="label">Metres</div><div class="value" id="kpi-metres">--</div></div>
+    <div class="kpi"><div class="label">Hours</div><div class="value" id="kpi-hours">--</div></div>
+    <div class="kpi"><div class="label">Queried / Rejected</div><div class="value" id="kpi-issues">--</div></div>
+  </div>
+  <div class="grid">
+    <div class="panel"><div class="subtitle">Daily Cost</div><canvas id="daily-cost-chart"></canvas></div>
+    <div class="panel"><div class="subtitle">Daily Metres</div><canvas id="daily-metres-chart"></canvas></div>
+  </div>
+  <div class="grid">
+    <div class="panel"><div class="subtitle">Code Occurrences</div><canvas id="code-count-chart"></canvas></div>
+    <div class="panel"><div class="subtitle">Approval Status</div><canvas id="approval-chart"></canvas></div>
+  </div>
+  <div class="panel table-panel" style="margin-bottom:14px;">
+    <div class="table-head"><div class="subtitle" style="margin:0;">Daily Reports</div></div>
+    <div class="scroll"><table><thead><tr><th>Date</th><th>Report</th><th>Status</th><th>Hole</th><th>Rig</th><th>Activities</th><th>Metres</th><th>Hours</th><th>Cost</th></tr></thead><tbody id="daily-body"></tbody></table></div>
+  </div>
+  <div class="panel table-panel" style="margin-bottom:14px;">
+    <div class="table-head"><div class="subtitle" style="margin:0;">Approval / Rejection / Query Log</div></div>
+    <div class="scroll"><div class="log-list" id="approval-log"></div></div>
+  </div>
+  <div class="panel table-panel">
+    <div class="table-head"><div class="subtitle" style="margin:0;">Code Occurrence Count</div></div>
+    <div class="scroll"><table><thead><tr><th>Code</th><th>Occurrences</th><th>Total Hours</th><th>Total Cost</th><th>Total Metres</th></tr></thead><tbody id="code-body"></tbody></table></div>
+  </div>
+</main>
+<script>
+const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
+const params=new URLSearchParams(window.location.search);
+const contractor=params.get('contractor')||'Allianz Drilling';
+const from=params.get('from')||'';
+const to=params.get('to')||'';
+const CAT_COLORS=['#1f5f8b','#27ae60','#f39c12','#9b59b6','#3498db','#e74c3c','#1abc9c','#555e6b','#a05a00','#64748b'];
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function parseHours(v){if(v==null||v==='')return 0;const s=String(v).trim();if(s.includes(':')){const p=s.split(':').map(x=>parseFloat(x)||0);return (p[0]||0)+(p[1]||0)/60;}const n=parseFloat(s);return isNaN(n)?0:n;}
+function isoDate(value){
+  if(!value)return '';
+  const s=String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const dm=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return dm[3]+'-'+String(dm[2]).padStart(2,'0')+'-'+String(dm[1]).padStart(2,'0');
+  const named=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if(named){const months={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12};const m=months[named[2].toLowerCase()];if(m)return named[3]+'-'+String(m).padStart(2,'0')+'-'+String(named[1]).padStart(2,'0');}
+  const parsed=new Date(s);return isNaN(parsed)?'':parsed.toISOString().slice(0,10);
+}
+function displayDate(iso){if(!iso)return '';const p=iso.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
+function reportKey(date,hole,source){return ['drillops-report-approval',contractor||'',date||'',hole||'',source||''].join('|');}
+function approvalRecord(date,hole,source){try{return JSON.parse(localStorage.getItem(reportKey(date,hole,source))||'null');}catch(e){return null;}}
+function groupReports(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const key=[r.date||'',r.hole_num||'',r.source_file||'Manual entry'].join('|');
+    if(!map.has(key))map.set(key,{date:r.date||'',hole:r.hole_num||'',source:r.source_file||'',rig:r.drill_rig||'',shift:r.shift||'',rows:[],cost:0,metres:0,hours:0});
+    const g=map.get(key);g.rows.push(r);g.cost+=parseFloat(r.line_cost)||0;g.metres+=parseFloat(r.total_metres)||0;g.hours+=parseHours(r.total_time);if(!g.rig&&r.drill_rig)g.rig=r.drill_rig;
+  });
+  return [...map.values()].sort((a,b)=>isoDate(a.date).localeCompare(isoDate(b.date)));
+}
+function statusFor(report){const rec=approvalRecord(report.date,report.hole,report.source);return rec?.status||'pending';}
+function reportName(report,index){return report.source?report.source.replace(/\.[^.]+$/,''):'DR-'+String(index+1).padStart(4,'0');}
+function codeSummary(rows){
+  const map={};
+  rows.forEach(r=>{const code=r.code||'No code';if(!map[code])map[code]={code,count:0,hours:0,cost:0,metres:0};map[code].count++;map[code].hours+=parseHours(r.total_time);map[code].cost+=parseFloat(r.line_cost)||0;map[code].metres+=parseFloat(r.total_metres)||0;});
+  return Object.values(map).sort((a,b)=>b.count-a.count||a.code.localeCompare(b.code));
+}
+function approvalLogs(reports){
+  const logs=[];
+  reports.forEach((r,i)=>{const rec=approvalRecord(r.date,r.hole,r.source);(rec?.log||[]).forEach(entry=>logs.push({...entry,report:reportName(r,i),date:r.date,hole:r.hole,source:r.source}));});
+  return logs.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+}
+function chart(id,type,labels,data,label,colors){
+  const el=document.getElementById(id);
+  if(!el||typeof Chart==='undefined')return;
+  new Chart(el.getContext('2d'),{type,data:{labels,datasets:[{label,data,backgroundColor:colors||'#1f5f8b',borderColor:'#1f5f8b',borderWidth:1}]},options:{plugins:{legend:{display:type==='doughnut'}},scales:type==='doughnut'?{}:{x:{ticks:{color:'#687789',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#687789'},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}});
+}
+async function loadRangeReport(){
+  document.getElementById('report-meta').innerHTML='<span>'+esc(contractor)+'</span><span>'+esc(displayDate(from))+' to '+esc(displayDate(to))+'</span>';
+  try{
+    const all=await fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor));
+    const rows=all.filter(r=>{const d=isoDate(r.date);return d&&(!from||d>=from)&&(!to||d<=to);});
+    const reports=groupReports(rows);
+    const codes=codeSummary(rows);
+    const logs=approvalLogs(reports);
+    const totalCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+    const totalMetres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
+    const totalHours=rows.reduce((s,r)=>s+parseHours(r.total_time),0);
+    const statusCounts=reports.reduce((acc,r)=>{const st=statusFor(r);acc[st]=(acc[st]||0)+1;return acc;},{});
+    document.getElementById('kpi-reports').textContent=reports.length;
+    document.getElementById('kpi-activities').textContent=rows.length;
+    document.getElementById('kpi-cost').textContent=cur(totalCost);
+    document.getElementById('kpi-metres').textContent=totalMetres.toFixed(1);
+    document.getElementById('kpi-hours').textContent=totalHours.toFixed(1);
+    document.getElementById('kpi-issues').textContent=(statusCounts.query||0)+' / '+(statusCounts.rejected||0);
+    const byDate={};
+    reports.forEach(r=>{const d=isoDate(r.date);if(!byDate[d])byDate[d]={cost:0,metres:0};byDate[d].cost+=r.cost;byDate[d].metres+=r.metres;});
+    const dates=Object.keys(byDate).sort();
+    chart('daily-cost-chart','bar',dates.map(displayDate),dates.map(d=>+byDate[d].cost.toFixed(2)),'Cost','#1f5f8b');
+    chart('daily-metres-chart','bar',dates.map(displayDate),dates.map(d=>+byDate[d].metres.toFixed(2)),'Metres','#27ae60');
+    chart('code-count-chart','bar',codes.slice(0,14).map(c=>c.code),codes.slice(0,14).map(c=>c.count),'Occurrences',codes.slice(0,14).map((_,i)=>CAT_COLORS[i%CAT_COLORS.length]));
+    chart('approval-chart','doughnut',['Pending','Approved','Query','Rejected'],[statusCounts.pending||0,statusCounts.approved||0,statusCounts.query||0,statusCounts.rejected||0],'Reports',['#eef4ff','#16a34a','#f39c12','#dc2626']);
+    document.getElementById('daily-body').innerHTML=reports.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(reportName(r,i))+'</td><td><span class="status '+statusFor(r)+'">'+esc(statusFor(r))+'</span></td><td>'+esc(r.hole)+'</td><td>'+esc(r.rig)+'</td><td>'+r.rows.length+'</td><td>'+r.metres.toFixed(2)+'</td><td>'+r.hours.toFixed(2)+'</td><td>'+cur(r.cost)+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">No daily reports found.</td></tr>';
+    document.getElementById('code-body').innerHTML=codes.map(c=>'<tr><td class="code">'+esc(c.code)+'</td><td>'+c.count+'</td><td>'+c.hours.toFixed(2)+'</td><td>'+cur(c.cost)+'</td><td>'+c.metres.toFixed(2)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No activity codes found.</td></tr>';
+    document.getElementById('approval-log').innerHTML=logs.map(l=>{const st=l.status||'pending';const when=l.at?new Date(l.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';return '<div class="log-item"><div class="status '+st+'">'+(st==='approved'?'✓':st==='query'?'?':'✕')+'</div><div><strong>'+esc(l.report)+'</strong> '+esc(st)+' by '+esc(l.by||'Client')+'<br><span style="color:var(--muted);">'+esc(l.date)+' · '+esc(l.hole||'')+'</span></div><div class="log-time">'+esc(when)+'</div>'+(l.reason?'<div class="log-note">'+esc(l.reason)+'</div>':'')+'</div>';}).join('')||'<div class="empty">No approval, rejection, or query log entries in this date range.</div>';
+  }catch(e){
+    document.getElementById('daily-body').innerHTML='<tr><td colspan="9" class="empty">Could not load range report: '+esc(e.message)+'</td></tr>';
+  }
+}
+loadRangeReport();
+</script>
+</body>
+</html>
