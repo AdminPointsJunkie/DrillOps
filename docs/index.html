@@ -232,6 +232,29 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .status-ok{background:#ecfdf3;color:#147a39;}
 .status-warn{background:#fff7e6;color:#a05a00;}
 .status-info{background:#eef4ff;color:#174d72;}
+.report-register-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.report-search{width:250px;max-width:100%;height:34px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 11px;font-family:var(--font);font-size:13px;color:#344151;}
+.filter-chip{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 13px;border:1px dashed #cfd7e1;border-radius:7px;background:#fff;color:#111827;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;}
+.filter-chip::before{content:'+';display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border:1.5px solid currentColor;border-radius:50%;font-size:12px;line-height:1;}
+.report-register .table-toolbar{display:none;}
+.report-register .tbl-scroll{max-height:calc(100vh - 210px)!important;}
+.report-register table{font-size:13px;}
+.report-register thead th{background:#fff;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#49627d;padding:10px 8px;}
+.report-register tbody td{padding:11px 8px;color:#001b3f;vertical-align:middle;}
+.select-cell{width:28px;max-width:28px;}
+.row-check{width:16px;height:16px;accent-color:#174d72;}
+.plod-cell{display:flex;align-items:center;gap:7px;min-width:140px;}
+.plod-link{border:none;background:transparent;color:#073f9e;font-weight:700;font-family:var(--font);font-size:13px;padding:0;cursor:pointer;}
+.plod-link:hover{text-decoration:underline;}
+.attach-icon{color:#8b98aa;font-size:14px;}
+.status-select{height:34px;border:1px solid #bcd0f7;border-radius:6px;background:#eef5ff;color:#0b48c0;font-family:var(--font);font-size:12px;font-weight:650;padding:0 28px 0 9px;max-width:190px;}
+.status-select.approved{background:#ecfdf3;border-color:#caeed6;color:#087032;}
+.status-select.rejected{background:#fff1f2;border-color:#ffc7cd;color:#b42335;}
+.shift-pill{display:inline-flex;align-items:center;gap:5px;border-radius:7px;background:#fff7df;color:#7a4a00;padding:6px 10px;font-size:12px;font-weight:650;}
+.shift-pill::before{content:'☼';font-size:12px;}
+.notes-preview{display:block;max-width:540px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#00122c;}
+.row-actions{border:none;background:transparent;font-size:18px;line-height:1;color:#111827;cursor:pointer;padding:2px 6px;}
+.date-sort{color:#6b7890;font-size:12px;margin-left:3px;}
 .report-detail{display:none;background:#fff;border:1px solid var(--border);border-radius:7px;margin-bottom:16px;box-shadow:var(--shadow);overflow:hidden;}
 .report-detail.open{display:block;}
 .report-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:15px 16px;border-bottom:1px solid var(--border);background:#f8fafc;}
@@ -1510,14 +1533,17 @@ tbody td[contenteditable=true]:focus {
 
     <!-- Activities -->
     <section class="page" id="page-activities">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Activity Log</h2>
-        <div style="display:flex;gap:8px;">
-          
-          <button class="btn-ghost" onclick="loadActivities()">↻ Refresh</button>
-        </div>
+      <div class="report-register-filters">
+        <input class="report-search" id="report-search" type="text" placeholder="Search by plod name or driller" oninput="filterDailyReportRows()"/>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Status</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Shift</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Rig</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
+        <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
       </div>
-      <div class="filter-bar">
+      <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
         <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
         <div class="filter-body" id="act-filter-body">
           <div class="filter-group"><label>Date</label><select id="f-dates" multiple></select></div>
@@ -1531,14 +1557,10 @@ tbody td[contenteditable=true]:focus {
           </div>
         </div>
       </div>
-      <div class="report-summary-grid">
-        <div class="report-mini"><div class="report-mini-label">Daily Reports</div><div class="report-mini-value" id="report-total">--</div></div>
-        <div class="report-mini"><div class="report-mini-label">Total Cost</div><div class="report-mini-value" id="report-cost">--</div></div>
-        <div class="report-mini"><div class="report-mini-label">Metres</div><div class="report-mini-value" id="report-metres">--</div></div>
-        <div class="report-mini"><div class="report-mini-label">Hours</div><div class="report-mini-value" id="report-hours">--</div></div>
-        <div class="report-mini"><div class="report-mini-label">Needs Review</div><div class="report-mini-value" id="report-review">--</div></div>
+      <div style="display:none;">
+        <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap report-register">
         <div class="table-toolbar">
           <div class="table-count">Daily report summaries <span id="report-count">--</span></div>
           <button class="btn-csv" onclick="downloadDailyReportsCSV()">CSV</button>
@@ -1546,8 +1568,9 @@ tbody td[contenteditable=true]:focus {
         <div class="tbl-scroll" style="max-height:360px;">
           <table id="report-table">
             <thead><tr>
-              <th>Report</th><th>Status</th><th>Date</th><th>Shift</th><th>Rig</th><th>Hole</th><th>Driller</th>
-              <th>Depth (m)</th><th>Duration (h)</th><th>Cost</th><th>Notes</th>
+              <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
+              <th>Plod</th><th>Status</th><th>Plod date <span class="date-sort">↕</span></th><th></th><th>Rig</th><th>Hole</th><th>Driller</th>
+              <th>Depth (m)</th><th>Duration (h)</th><th>Cost</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
           </table>
@@ -2356,6 +2379,7 @@ function toast(msg,type='ok'){
   setTimeout(()=>el.classList.remove('show'),3000);
 }
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function attr(s){return esc(s).replace(/"/g,'&quot;');}
 function fmt(v,d=2){if(v==null||v==='')return'';const n=parseFloat(v);return isNaN(n)?'':n.toFixed(d);}
 function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
@@ -2638,7 +2662,21 @@ importBtn.addEventListener('click',async()=>{
 function resetFilters(){
   ['f-dates','f-holes','f-sites','f-codes'].forEach(id=>selectAll(id));
   document.getElementById('f-search').value='';
+  const reportSearch=document.getElementById('report-search');
+  if(reportSearch)reportSearch.value='';
   loadActivities();
+}
+
+function toggleActFilters(){
+  const panel=document.getElementById('activity-advanced-filters');
+  const body=document.getElementById('act-filter-body');
+  const toggle=document.getElementById('act-filter-toggle');
+  if(!panel)return;
+  panel.style.display=panel.style.display==='none'?'block':'none';
+  if(panel.style.display==='block'){
+    body?.classList.add('open');
+    toggle?.classList.add('open');
+  }
 }
 
 function toggleActivityLog(){
@@ -2753,27 +2791,75 @@ function renderDailyReportSummary(rows){
   const tbody=document.getElementById('report-body');
   if(!tbody)return;
   if(!dailyReportsData.length){
-    tbody.innerHTML='<tr><td colspan="11"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="13"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
     closeDailyReportDetail();
     return;
   }
   tbody.innerHTML=dailyReportsData.map(function(r){
     const note=r.notes.join(' ').slice(0,180);
-    return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+esc(r.key)+'" onclick="openDailyReportDetailByKey(this.dataset.reportKey)">'
-      +'<td><button class="report-id-btn" type="button">'+esc(r.id)+'</button></td>'
-      +'<td><span class="status-pill '+r.status.cls+'">'+esc(r.status.label)+'</span></td>'
+    return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+attr(r.key)+'" data-search="'+attr((r.id+' '+r.date+' '+r.hole+' '+r.rig+' '+r.driller+' '+note).toLowerCase())+'">'
+      +'<td class="select-cell"><input class="row-check" type="checkbox"/></td>'
+      +'<td><div class="plod-cell"><button class="plod-link" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">'+esc(r.id)+'</button>'+(r.sourceFile?'<span class="attach-icon">↗</span>':'')+'</div></td>'
+      +'<td>'+renderReportStatusSelect(r)+'</td>'
       +'<td>'+esc(r.date)+'</td>'
-      +'<td>'+esc(r.shift||'--')+'</td>'
+      +'<td>'+(r.shift?'<span class="shift-pill">'+esc(r.shift)+'</span>':'')+'</td>'
       +'<td>'+esc(r.rig||'--')+'</td>'
       +'<td>'+esc(r.hole||'--')+'</td>'
       +'<td>'+esc(r.driller||'--')+'</td>'
       +'<td>'+r.metres.toFixed(2)+'</td>'
       +'<td>'+r.hours.toFixed(2)+'</td>'
       +'<td style="font-weight:700;color:var(--text);">'+cur(r.cost)+'</td>'
-      +'<td class="multiline-cell">'+esc(note||'--')+'</td>'
+      +'<td><span class="notes-preview">'+esc(note||'--')+'</span></td>'
+      +'<td><button class="row-actions" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">...</button></td>'
       +'</tr>';
   }).join('');
+  filterDailyReportRows();
   if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
+}
+
+function renderReportStatusSelect(report){
+  const status=(getStoredReportApproval(report.date,report.hole,report.sourceFile)||{}).status||'pending';
+  const cls=status==='approved'?'approved':status==='rejected'?'rejected':'';
+  return '<select class="status-select '+cls+'" data-report-key="'+attr(report.key)+'" onclick="event.stopPropagation()" onchange="changeReportApprovalFromList(this)">'
+    +'<option value="pending" '+(status==='pending'?'selected':'')+'>ⓘ Client Approval Pending</option>'
+    +'<option value="approved" '+(status==='approved'?'selected':'')+'>✓ Client Approved</option>'
+    +'<option value="rejected" '+(status==='rejected'?'selected':'')+'>✕ Client Rejected</option>'
+    +'</select>';
+}
+
+function changeReportApprovalFromList(select){
+  const report=dailyReportsData.find(function(r){return r.key===select.dataset.reportKey;});
+  if(!report)return;
+  const status=select.value;
+  if(status==='pending'){
+    localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile));
+    renderDailyReportSummary(activitiesData);
+    return;
+  }
+  const reason=prompt(status==='approved'?'Why is this report approved?':'Why is this report rejected?');
+  if(!reason||!reason.trim()){
+    renderDailyReportSummary(activitiesData);
+    return;
+  }
+  const entry={status:status,reason:reason.trim(),at:new Date().toISOString(),by:'Client'};
+  const record={status:status,reason:reason.trim(),log:[entry]};
+  try{
+    const existing=JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile))||'null');
+    if(existing&&Array.isArray(existing.log))record.log=record.log.concat(existing.log);
+  }catch(e){}
+  localStorage.setItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile),JSON.stringify(record));
+  renderDailyReportSummary(activitiesData);
+}
+
+function filterDailyReportRows(){
+  const q=(document.getElementById('report-search')?.value||'').trim().toLowerCase();
+  document.querySelectorAll('#report-body tr.report-row').forEach(function(row){
+    row.style.display=!q||row.dataset.search.includes(q)?'':'none';
+  });
+}
+
+function toggleAllReportRows(box){
+  document.querySelectorAll('#report-body .row-check').forEach(function(cb){cb.checked=box.checked;});
 }
 
 function openDailyReportDetailByKey(key){
