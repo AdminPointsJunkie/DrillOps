@@ -1577,59 +1577,6 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
-    <!-- Daily Report Detail -->
-    <section class="page" id="page-report-detail">
-      <div class="report-detail open" id="report-detail">
-        <div class="report-detail-head">
-          <div>
-            <div class="report-detail-title" id="report-detail-title">Daily report</div>
-            <div class="report-detail-meta" id="report-detail-meta"></div>
-            <div class="report-flags" id="report-detail-flags"></div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-            <button class="btn-ghost" id="report-source-btn" onclick="openSelectedReportPdf()">PDF</button>
-            <button class="btn-ghost" onclick="backToDailyReports()">Back to reports</button>
-          </div>
-        </div>
-        <div class="report-detail-body">
-          <div class="report-kpis">
-            <div class="report-kpi"><div class="label">Depth</div><div class="value" id="report-kpi-depth">--</div></div>
-            <div class="report-kpi"><div class="label">Duration</div><div class="value" id="report-kpi-duration">--</div></div>
-            <div class="report-kpi"><div class="label">Cost</div><div class="value" id="report-kpi-cost">--</div></div>
-            <div class="report-kpi"><div class="label">Cost / m</div><div class="value" id="report-kpi-costm">--</div></div>
-            <div class="report-kpi"><div class="label">Activities</div><div class="value" id="report-kpi-activities">--</div></div>
-          </div>
-          <div class="report-subtitle">Shift Timeline</div>
-          <div class="report-timeline" id="report-timeline"></div>
-          <div class="report-subtitle">Report Notes</div>
-          <div class="report-notes" id="report-detail-notes"></div>
-          <div class="report-subtitle">Activities</div>
-          <div class="table-wrap" style="box-shadow:none;margin-bottom:12px;">
-            <div class="tbl-scroll" style="max-height:320px;">
-              <table class="compact-table">
-                <thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Cost</th></tr></thead>
-                <tbody id="report-activity-body"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="report-detail-grid">
-            <div>
-              <div class="report-subtitle">Consumables</div>
-              <div class="table-wrap" style="box-shadow:none;">
-                <table class="compact-table"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody id="report-consumables-body"></tbody></table>
-              </div>
-            </div>
-            <div>
-              <div class="report-subtitle">Personnel</div>
-              <div class="table-wrap" style="box-shadow:none;">
-                <table class="compact-table"><thead><tr><th>Name</th><th>Role</th><th>Hours</th></tr></thead><tbody id="report-crew-body"></tbody></table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Consumables -->
     <section class="page" id="page-consumables">
       <h2 class="section-title">Consumables</h2>
@@ -2824,8 +2771,7 @@ function openDailyReportDetailByKey(key){
   const report=dailyReportsData.find(function(r){return r.key===key;});
   if(!report)return;
   document.querySelectorAll('.report-row').forEach(function(row){row.classList.toggle('active',row.dataset.reportKey===key);});
-  renderDailyReportDetail(report);
-  showReportDetailPage();
+  window.open(dailyReportUrl(report), '_blank', 'noopener');
 }
 
 function closeDailyReportDetail(){
@@ -2833,96 +2779,20 @@ function closeDailyReportDetail(){
   document.querySelectorAll('.report-row').forEach(function(row){row.classList.remove('active');});
 }
 
-function showReportDetailPage(){
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
-  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
-  document.querySelectorAll('.drawer-nav-item').forEach(function(b){b.classList.remove('active');});
-  const page=document.getElementById('page-report-detail');
-  if(page)page.classList.add('active');
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function backToDailyReports(){
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
-  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
-  document.querySelectorAll('.drawer-nav-item').forEach(function(b){b.classList.remove('active');});
-  const page=document.getElementById('page-activities');
-  if(page)page.classList.add('active');
-  document.querySelectorAll('[data-page="activities"]').forEach(function(b){b.classList.add('active');});
-  renderDailyReportSummary(activitiesData);
-  window.scrollTo({top:0,behavior:'smooth'});
+function dailyReportUrl(report){
+  const params=new URLSearchParams({
+    contractor:activeContractor,
+    date:report.date||'',
+    hole:report.hole||'',
+    source:report.sourceFile||'',
+    title:report.id||'Daily report'
+  });
+  return 'report.html?'+params.toString();
 }
 
 function openSelectedReportPdf(){
   const report=dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;});
   if(report&&report.sourceFile)viewSourcePdf(report.sourceFile);
-}
-
-function renderDailyReportDetail(report){
-  const detail=document.getElementById('report-detail');
-  if(!detail)return;
-  document.getElementById('report-detail-title').textContent=report.id;
-  document.getElementById('report-detail-meta').innerHTML=[
-    report.date,report.hole?'Hole '+report.hole:'No hole',report.rig?'Rig '+report.rig:'No rig',report.shift||'',report.driller||''
-  ].filter(Boolean).map(function(v){return '<span>'+esc(v)+'</span>';}).join('');
-  document.getElementById('report-detail-flags').innerHTML=report.flags.map(function(f){return '<span class="flag-pill">'+esc(f)+'</span>';}).join('');
-  document.getElementById('report-source-btn').style.display=report.sourceFile?'inline-flex':'none';
-  document.getElementById('report-kpi-depth').textContent=report.metres.toFixed(2)+' m';
-  document.getElementById('report-kpi-duration').textContent=report.hours.toFixed(2)+' h';
-  document.getElementById('report-kpi-cost').textContent=cur(report.cost);
-  document.getElementById('report-kpi-costm').textContent=report.metres>0?cur(report.cost/report.metres):'--';
-  document.getElementById('report-kpi-activities').textContent=report.rows.length;
-  document.getElementById('report-detail-notes').innerHTML=report.notes.length?report.notes.map(function(n){return '<p style="margin-bottom:8px;">'+esc(n)+'</p>';}).join(''):'No notes recorded.';
-  renderDailyReportTimeline(report);
-  renderDailyReportTables(report);
-}
-
-function renderDailyReportTimeline(report){
-  const target=document.getElementById('report-timeline');
-  const rows=report.rows.slice().sort(function(a,b){return (parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0);});
-  const starts=rows.map(function(r){return parseClockMinutes(r.time_from);}).filter(function(v){return v!=null;});
-  const ends=rows.map(function(r){
-    const explicit=parseClockMinutes(r.time_to);
-    if(explicit!=null)return explicit;
-    const start=parseClockMinutes(r.time_from);
-    return start==null?null:start+Math.round(parseDurationHours(r.total_time)*60);
-  }).filter(function(v){return v!=null;});
-  if(!starts.length||!ends.length){target.innerHTML='<div style="color:var(--muted);font-size:12px;">No time data recorded for this report.</div>';return;}
-  let min=Math.min.apply(null,starts),max=Math.max.apply(null,ends);
-  if(max<=min)max=min+Math.max(60,Math.round(report.hours*60));
-  const span=Math.max(60,max-min);
-  const ticks=[];
-  for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
-  const scale='<div class="timeline-scale">'+ticks.map(function(t){return '<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>';}).join('')+'</div>';
-  const blocks=rows.map(function(r){
-    const start=parseClockMinutes(r.time_from);
-    if(start==null)return '';
-    const end=parseClockMinutes(r.time_to);
-    const duration=parseDurationHours(r.total_time)*60;
-    const finish=end!=null?end:start+Math.max(10,duration||30);
-    const left=Math.max(0,((start-min)/span)*100);
-    const width=Math.max(2,((finish-start)/span)*100);
-    const cat=activityCategory(r);
-    const color=(typeof CAT_COLORS!=='undefined'&&CAT_COLORS[cat])?CAT_COLORS[cat]:'#555e6b';
-    const label=r.code||'No code';
-    return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';
-  }).join('');
-  target.innerHTML=scale+'<div class="timeline-track">'+blocks+'</div>';
-}
-
-function renderDailyReportTables(report){
-  document.getElementById('report-activity-body').innerHTML=report.rows.map(function(r){
-    const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
-    return '<tr><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+codeBadge(r.code)+'</td><td>'+esc(r.total_time||'')+'</td><td>'+depth+'</td><td>'+esc(r.notes||'')+'</td><td>'+cur(r.line_cost)+'</td></tr>';
-  }).join('');
-  const relatedConsumables=consumablesData.filter(function(c){return c.date===report.date&&(!report.hole||c.hole_num===report.hole);});
-  document.getElementById('report-consumables-body').innerHTML=relatedConsumables.map(function(c){
-    return '<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>';
-  }).join('')||'<tr><td colspan="4" style="color:var(--muted);">No consumables recorded</td></tr>';
-  const relatedCrew=crewData.filter(function(c){return c.date===report.date&&(!report.hole||c.hole_num===report.hole);});
-  document.getElementById('report-crew-body').innerHTML=relatedCrew.map(function(c){
-    return '<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>';
-  }).join('')||'<tr><td colspan="3" style="color:var(--muted);">No personnel recorded</td></tr>';
 }
 
 function downloadDailyReportsCSV(){
