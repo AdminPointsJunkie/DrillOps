@@ -2439,9 +2439,19 @@ function reportIdFor(group,index){
   return 'DR-'+String(index+1).padStart(4,'0');
 }
 function reportStatus(group){
+  const saved=getStoredReportApproval(group.date,group.hole,group.sourceFile);
+  if(saved&&saved.status==='approved')return {label:'Approved',cls:'status-ok'};
+  if(saved&&saved.status==='rejected')return {label:'Rejected',cls:'status-warn'};
   if(group.flags.length)return {label:'Needs Review',cls:'status-warn'};
   if(group.cost>0)return {label:'Priced',cls:'status-ok'};
   return {label:'Imported',cls:'status-info'};
+}
+function reportApprovalStorageKey(contractor,date,hole,source){
+  return ['drillops-report-approval',contractor||'',date||'',hole||'',source||''].join('|');
+}
+function getStoredReportApproval(date,hole,source){
+  try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,date,hole,source))||'null');}
+  catch(e){return null;}
 }
 function groupDailyReports(rows){
   const map=new Map();
