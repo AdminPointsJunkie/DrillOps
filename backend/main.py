@@ -1293,6 +1293,33 @@ def get_activities(
             return [dict(r) for r in cur.fetchall()]
 
 
+@app.post("/activities")
+async def create_activity(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor")
+    if not contractor:
+        raise HTTPException(400, "contractor is required")
+    safe = {"source_file","contractor","date","hole_num","site_name","location","drill_rig","client","contract","shift",
+            "time_from","time_to","total_time","bit_type","diameter",
+            "metres_from","metres_to","total_metres","code","notes",
+            "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
+    row = {k: v for k, v in payload.items() if k in safe}
+    row.setdefault("source_file", "Manual entry")
+    cols = list(row.keys())
+    placeholders = ",".join(f"%({c})s" for c in cols)
+    col_names = ",".join(cols)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                INSERT INTO activities ({col_names})
+                VALUES ({placeholders})
+                RETURNING *
+            """, row)
+            created = dict(cur.fetchone())
+        conn.commit()
+    return created
+
+
 @app.patch("/activities/{row_id}")
 async def update_activity(row_id: int, request: Request):
     payload = await request.json()

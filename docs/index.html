@@ -1581,6 +1581,7 @@ tbody td[contenteditable=true]:focus {
           <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="addActivityRow()">+ Add row</button>
             <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
           </div>
         </div>
@@ -2690,6 +2691,51 @@ async function loadActivities(){
   }catch(e){
     renderDailyReportSummary([]);
     document.getElementById('act-body').innerHTML='<tr><td colspan="18" style="color:var(--red);padding:20px">API offline</td></tr>';
+  }
+}
+
+async function addActivityRow(){
+  const dates=getSelVals('f-dates').filter(Boolean);
+  const holes=getSelVals('f-holes').filter(Boolean);
+  const sites=getSelVals('f-sites').filter(Boolean);
+  const row={
+    contractor:activeContractor,
+    source_file:'Manual entry',
+    date:dates[0]||'',
+    hole_num:holes[0]||'',
+    site_name:sites[0]||'',
+    shift:'Day',
+    time_from:'',
+    time_to:'',
+    total_time:'',
+    bit_type:'',
+    diameter:'',
+    metres_from:null,
+    metres_to:null,
+    total_metres:null,
+    code:'',
+    notes:'',
+    unit_rate:null,
+    quantity:null,
+    line_cost:null,
+    rate_basis:'manual'
+  };
+  try{
+    const res=await fetch(API+'/activities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)});
+    if(!res.ok)throw new Error(await res.text());
+    const created=await res.json();
+    const panel=document.getElementById('activity-log-panel');
+    if(panel&&panel.classList.contains('collapsed'))toggleActivityLog();
+    await loadActivities();
+    const tr=document.querySelector('#act-body tr[data-id="'+created.id+'"]');
+    if(tr){
+      tr.scrollIntoView({behavior:'smooth',block:'center'});
+      const firstCell=tr.querySelector('[contenteditable]');
+      if(firstCell)firstCell.focus();
+    }
+    toast('Activity row added');
+  }catch(e){
+    toast('Add row failed: '+(e.message||e),'err');
   }
 }
 
