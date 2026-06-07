@@ -2868,7 +2868,8 @@ function renderDailyReportTimeline(report){
     const width=Math.max(2,((finish-start)/span)*100);
     const cat=activityCategory(r);
     const color=(typeof CAT_COLORS!=='undefined'&&CAT_COLORS[cat])?CAT_COLORS[cat]:'#555e6b';
-    return '<div class="timeline-block" title="'+esc(cat+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(cat)+'</div>';
+    const label=r.code||'No code';
+    return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';
   }).join('');
   target.innerHTML=scale+'<div class="timeline-track">'+blocks+'</div>';
 }
