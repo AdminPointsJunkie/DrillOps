@@ -109,6 +109,12 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
         <div class="kpi"><div class="label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
         <div class="kpi"><div class="label">Activities</div><div class="value" id="kpi-activities">--</div></div>
       </div>
+      <div class="subtitle">Metres Drilled</div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="scroll">
+          <table><thead><tr><th>Item</th><th>Unit Rate</th><th>Metres</th><th>GST</th><th>Total</th></tr></thead><tbody id="metres-drilled-body"></tbody></table>
+        </div>
+      </div>
       <div class="subtitle">Shift Timeline</div>
       <div class="timeline" id="timeline"></div>
       <div class="subtitle">Report Notes</div>
@@ -145,10 +151,24 @@ const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Cir
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmt(v,d=2){if(v==null||v==='')return'';const n=parseFloat(v);return isNaN(n)?'':n.toFixed(d);}
 function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function num(v){const n=parseFloat(v);return isNaN(n)?0:n;}
 function parseDurationHours(value){if(value==null||value==='')return 0;const s=String(value).trim();if(!s)return 0;if(s.includes(':')){const p=s.split(':').map(x=>parseFloat(x)||0);return (p[0]||0)+((p[1]||0)/60);}const n=parseFloat(s);return isNaN(n)?0:n;}
 function parseClockMinutes(value){if(!value)return null;let s=String(value).trim().replace(/\./g,':');if(/^\d{3,4}$/.test(s)){s=s.padStart(4,'0');return parseInt(s.slice(0,2))*60+parseInt(s.slice(2));}const m=s.match(/^(\d{1,2}):(\d{2})/);if(!m)return null;return parseInt(m[1])*60+parseInt(m[2]);}
 function clockLabel(mins){mins=((mins%1440)+1440)%1440;const h=Math.floor(mins/60),m=mins%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 function activityCategory(row){const text=((row.code||'')+' '+(row.notes||'')).toLowerCase();if(text.includes('drill')||text.includes('core')||text.includes('chip'))return 'Productive Drilling';if(text.includes('trip')||text.includes('rod'))return 'Tripping Rods';if(text.includes('flush')||text.includes('circul')||text.includes('water')||text.includes('lost'))return 'Circulation';if(text.includes('repair')||text.includes('breakdown'))return 'Repairs';if(text.includes('standby')||text.includes('fatigue')||text.includes('wait')||text.includes('delay')||text.includes('no access'))return 'Standby / Delays';if(text.includes('travel'))return 'Travel';if(text.includes('safety')||text.includes('prestart')||text.includes('meeting')||text.includes('admin'))return 'Safety & Admin';return 'Other';}
+function isDrilledMetresRow(row){const code=String(row.code||'');return num(row.total_metres)>0&&(code==='Drill_Core'||code==='Drill_Chip_or_Open_hole'||/drill|core|chip/i.test(code));}
+function diameterLabel(row){const raw=String(row.diameter||'').trim();if(!raw)return '';const n=parseFloat(raw);return isNaN(n)?raw:(n+'mm');}
+function depthBandLabel(from,to){const f=num(from),t=num(to);if(!t&&!f)return '';const start=Math.floor(f/100)*100;const end=Math.max(start+100,Math.ceil(t/100)*100);return '('+start+'-'+end+'m)';}
+function drillItemLabel(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia,depthBandLabel(row.metres_from,row.metres_to)].filter(Boolean).join(' ');}
+function metresDrilledSummary(rows){
+  const map={};
+  rows.filter(isDrilledMetresRow).forEach(r=>{
+    const item=drillItemLabel(r),rate=num(r.unit_rate),key=item+'|'+rate.toFixed(2);
+    if(!map[key])map[key]={item,rate,metres:0,cost:0,count:0};
+    map[key].count++;map[key].metres+=num(r.total_metres);map[key].cost+=num(r.line_cost);
+  });
+  return Object.values(map).sort((a,b)=>a.item.localeCompare(b.item)||a.rate-b.rate);
+}
 async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
 async function loadReport(){
   document.getElementById('title').textContent=title;
@@ -260,6 +280,8 @@ function renderReport(rows,consumables,crew){
   document.getElementById('kpi-costm').textContent=metres>0?cur(cost/metres):'--';
   document.getElementById('kpi-activities').textContent=rows.length;
   document.getElementById('notes').innerHTML=notes.length?notes.map(n=>'<p>'+esc(n)+'</p>').join(''):'No notes recorded.';
+  const drilled=metresDrilledSummary(rows);
+  document.getElementById('metres-drilled-body').innerHTML=drilled.map(d=>'<tr><td>'+esc(d.item)+'</td><td>'+cur(d.rate)+'</td><td>'+d.metres.toFixed(2)+'</td><td>10%</td><td>'+cur(d.cost)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No drilled metres recorded.</td></tr>';
   renderTimeline(rows,hours);
   document.getElementById('activity-body').innerHTML=rows.map(r=>{const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);return '<tr><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td class="code">'+esc(r.code||'')+'</td><td>'+esc(r.total_time||'')+'</td><td>'+depth+'</td><td>'+esc(r.notes||'')+'</td><td>'+cur(r.line_cost)+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">No activities found</td></tr>';
   const relatedConsumables=consumables.filter(c=>!hole||c.hole_num===hole);
