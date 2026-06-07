@@ -76,7 +76,7 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
     <div class="scroll"><table><thead><tr><th>Date</th><th>Report</th><th>Status</th><th>Hole</th><th>Rig</th><th>Activities</th><th>Metres</th><th>Hours</th><th>Cost</th></tr></thead><tbody id="daily-body"></tbody></table></div>
   </div>
   <div class="panel table-panel" style="margin-bottom:14px;">
-    <div class="table-head"><div class="subtitle" style="margin:0;">Approval / Rejection / Query Log</div></div>
+    <div class="table-head"><div class="subtitle" style="margin:0;">Rejected / Queried Reports</div></div>
     <div class="scroll"><div class="log-list" id="approval-log"></div></div>
   </div>
   <div class="panel table-panel">
@@ -123,10 +123,14 @@ function codeSummary(rows){
   rows.forEach(r=>{const code=r.code||'No code';if(!map[code])map[code]={code,count:0,hours:0,cost:0,metres:0};map[code].count++;map[code].hours+=parseHours(r.total_time);map[code].cost+=parseFloat(r.line_cost)||0;map[code].metres+=parseFloat(r.total_metres)||0;});
   return Object.values(map).sort((a,b)=>b.count-a.count||a.code.localeCompare(b.code));
 }
-function approvalLogs(reports){
-  const logs=[];
-  reports.forEach((r,i)=>{const rec=approvalRecord(r.date,r.hole,r.source);(rec?.log||[]).forEach(entry=>logs.push({...entry,report:reportName(r,i),date:r.date,hole:r.hole,source:r.source}));});
-  return logs.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+function issueSummaries(reports){
+  return reports.map((r,i)=>{
+    const rec=approvalRecord(r.date,r.hole,r.source);
+    const status=rec?.status||'pending';
+    if(status!=='query'&&status!=='rejected')return null;
+    const matching=(rec?.log||[]).filter(entry=>entry.status===status).sort((a,b)=>String(b.at).localeCompare(String(a.at)))[0]||{};
+    return {...matching,status,report:reportName(r,i),date:r.date,hole:r.hole,source:r.source,cost:r.cost,hours:r.hours,metres:r.metres};
+  }).filter(Boolean).sort((a,b)=>isoDate(a.date).localeCompare(isoDate(b.date))||String(a.report).localeCompare(String(b.report)));
 }
 function chart(id,type,labels,data,label,colors){
   const el=document.getElementById(id);
@@ -141,7 +145,7 @@ async function loadRangeReport(){
     const rows=all.filter(r=>{const d=isoDate(r.date);return d&&(!from||d>=from)&&(!to||d<=to);});
     const reports=groupReports(rows);
     const codes=codeSummary(rows);
-    const logs=approvalLogs(reports);
+    const issues=issueSummaries(reports);
     const totalCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
     const totalMetres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
     const totalHours=rows.reduce((s,r)=>s+parseHours(r.total_time),0);
@@ -159,7 +163,7 @@ async function loadRangeReport(){
     chart('daily-metres-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].metres.toFixed(2)),'Metres','#27ae60');
     document.getElementById('daily-body').innerHTML=reports.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(reportName(r,i))+'</td><td><span class="status '+statusFor(r)+'">'+esc(statusFor(r))+'</span></td><td>'+esc(r.hole)+'</td><td>'+esc(r.rig)+'</td><td>'+r.rows.length+'</td><td>'+r.metres.toFixed(2)+'</td><td>'+r.hours.toFixed(2)+'</td><td>'+cur(r.cost)+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">No daily reports found.</td></tr>';
     document.getElementById('code-body').innerHTML=codes.map(c=>'<tr><td class="code">'+esc(c.code)+'</td><td>'+c.count+'</td><td>'+c.hours.toFixed(2)+'</td><td>'+cur(c.cost)+'</td><td>'+c.metres.toFixed(2)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No activity codes found.</td></tr>';
-    document.getElementById('approval-log').innerHTML=logs.map(l=>{const st=l.status||'pending';const when=l.at?new Date(l.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';return '<div class="log-item"><div class="status '+st+'">'+(st==='approved'?'✓':st==='query'?'?':'✕')+'</div><div><strong>'+esc(l.report)+'</strong> '+esc(st)+' by '+esc(l.by||'Client')+'<br><span style="color:var(--muted);">'+esc(l.date)+' · '+esc(l.hole||'')+'</span></div><div class="log-time">'+esc(when)+'</div>'+(l.reason?'<div class="log-note">'+esc(l.reason)+'</div>':'')+'</div>';}).join('')||'<div class="empty">No approval, rejection, or query log entries in this date range.</div>';
+    document.getElementById('approval-log').innerHTML=issues.map(l=>{const st=l.status;const when=l.at?new Date(l.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';return '<div class="log-item"><div class="status '+st+'">'+(st==='query'?'?':'✕')+'</div><div><strong>'+esc(l.report)+'</strong><br><span style="color:var(--muted);">'+esc(l.date)+' · '+esc(l.hole||'')+' · '+l.hours.toFixed(2)+' h · '+cur(l.cost)+'</span></div><div class="log-time">'+esc(when)+'</div>'+(l.reason?'<div class="log-note">'+esc(l.reason)+'</div>':'')+'</div>';}).join('')||'<div class="empty">No rejected or queried reports in this date range.</div>';
   }catch(e){
     document.getElementById('daily-body').innerHTML='<tr><td colspan="9" class="empty">Could not load range report: '+esc(e.message)+'</td></tr>';
   }
