@@ -2875,7 +2875,11 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
-                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=%s
+                        LEFT JOIN activities a ON a.contractor=%s
+                            AND (
+                                a.hole_num=b.hole_id
+                                OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                            )
                         WHERE b.contractor IN (%s, 'Company')
                         GROUP BY b.id ORDER BY b.drill_order
                     """, (contractor, contractor))
@@ -2885,19 +2889,39 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
-                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
+                        LEFT JOIN activities a ON a.contractor=b.contractor
+                            AND (
+                                a.hole_num=b.hole_id
+                                OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                            )
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 rows = [dict(r) for r in cur.fetchall()]
                 if contractor:
                     deduped = {}
+                    fallback_fields = {
+                        "project","planned_year","site_id","drill_order","days_budgeted",
+                        "bh_type","bit_type","purpose","easting","northing","rl",
+                        "chip_depth","eoh_depth","total_core","seam_tk","lat","lng",
+                        "budget_total","actual_total"
+                    }
                     for row in rows:
                         key = row.get("hole_id")
                         if not key:
                             continue
                         current = deduped.get(key)
-                        if not current or (current.get("contractor") == "Company" and row.get("contractor") == contractor):
+                        if not current:
                             deduped[key] = row
+                        elif current.get("contractor") == "Company" and row.get("contractor") == contractor:
+                            merged = {**current, **row}
+                            for field in fallback_fields:
+                                if merged.get(field) in (None, "", 0) and current.get(field) not in (None, "", 0):
+                                    merged[field] = current.get(field)
+                            deduped[key] = merged
+                        elif row.get("contractor") == "Company":
+                            for field in fallback_fields:
+                                if current.get(field) in (None, "", 0) and row.get(field) not in (None, "", 0):
+                                    current[field] = row.get(field)
                     rows = sorted(deduped.values(), key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
                 return rows
     except Exception as e:

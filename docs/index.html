@@ -4913,7 +4913,7 @@ function updateBhKPIs() {
   document.getElementById('bh-kpi-days').textContent = totalDays>0 ? totalDays.toFixed(1)+' days' : '—';
   document.getElementById('bh-kpi-actual').textContent = totalEos>0 ? '$'+Math.round(totalEos).toLocaleString('en-AU') : '—';
   const vEl = document.getElementById('bh-kpi-variance');
-  if(vEl && totalBudget>0 && totalEos>0) {
+  if(vEl && totalBudget>0) {
     vEl.textContent = (variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
     vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
@@ -5042,7 +5042,7 @@ function renderBhTable(rows) {
   document.getElementById('bh-body').innerHTML = rows.map(function(b) {
     const eos = parseFloat(b.eos_cost)||0;
     const bgt = parseFloat(b.budget_total)||0;
-    const variance = (bgt>0&&eos>0) ? eos-bgt : null;
+    const variance = bgt>0 ? eos-bgt : null;
     const sc = STATUS_CLR[b.status]||'#6b7280';
     const t = b.type||b.bh_type||'Core';
     const statusOpts = ['Planned','In Progress','Complete','Cancelled'].map(function(s) {
