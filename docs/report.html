@@ -345,8 +345,8 @@ function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const activityCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
-  const drillingCost=rows.filter(isDrilledMetresRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
   const supportCost=rows.filter(isSupportCostRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const drillingCost=activityCost-supportCost;
   const consumableCost=relatedConsumables.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
   const cost=activityCost+consumableCost;
   const metres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
