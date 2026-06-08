@@ -194,13 +194,15 @@ function activityRowPatch(col,value){
     return {time_from:(parts[0]||'').trim(),time_to:(parts[1]||'').trim()};
   }
   if(col==='depth'){
+    const raw=String(value||'').trim();
+    if(!raw)return {metres_from:null,metres_to:null,total_metres:null};
     const parts=String(value||'').split(/\s*-\s*/);
     if(parts.length>1){
       const from=optionalNumber(parts[0]),to=optionalNumber(parts[1]);
       const metres=from!=null&&to!=null&&to>=from?Number((to-from).toFixed(2)):null;
       return {metres_from:from,metres_to:to,total_metres:metres};
     }
-    return {total_metres:optionalNumber(value)};
+    return {metres_from:null,metres_to:null,total_metres:optionalNumber(value)};
   }
   if(col==='line_cost')return {line_cost:optionalNumber(value)};
   return {[col]:String(value||'').trim()};
