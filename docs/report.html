@@ -21,7 +21,7 @@ select,textarea{border:1px solid #c9d3df;background:#fff;color:#324256;border-ra
 select{padding:8px 10px;font-weight:650;}
 textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .body{padding:16px;}
-.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
 .kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
 .kpi .label,.subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
 .kpi .value{font-size:18px;font-weight:800;margin-top:5px;}
@@ -109,7 +109,10 @@ tr.saving td{background:#fff7e6;}
       <div class="kpis">
         <div class="kpi"><div class="label">Depth</div><div class="value" id="kpi-depth">--</div></div>
         <div class="kpi"><div class="label">Duration</div><div class="value" id="kpi-duration">--</div></div>
-        <div class="kpi"><div class="label">Cost</div><div class="value" id="kpi-cost">--</div></div>
+        <div class="kpi"><div class="label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
+        <div class="kpi"><div class="label">Drilling Cost</div><div class="value" id="kpi-drilling-cost">--</div></div>
+        <div class="kpi"><div class="label">Support Cost</div><div class="value" id="kpi-support-cost">--</div></div>
+        <div class="kpi"><div class="label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
         <div class="kpi"><div class="label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
         <div class="kpi"><div class="label">Activities</div><div class="value" id="kpi-activities">--</div></div>
       </div>
@@ -164,6 +167,7 @@ function parseClockMinutes(value){if(!value)return null;let s=String(value).trim
 function clockLabel(mins){mins=((mins%1440)+1440)%1440;const h=Math.floor(mins/60),m=mins%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 function activityCategory(row){const text=((row.code||'')+' '+(row.notes||'')).toLowerCase();if(text.includes('drill')||text.includes('core')||text.includes('chip'))return 'Productive Drilling';if(text.includes('trip')||text.includes('rod'))return 'Tripping Rods';if(text.includes('flush')||text.includes('circul')||text.includes('water')||text.includes('lost'))return 'Circulation';if(text.includes('repair')||text.includes('breakdown'))return 'Repairs';if(text.includes('standby')||text.includes('fatigue')||text.includes('wait')||text.includes('delay')||text.includes('no access'))return 'Standby / Delays';if(text.includes('travel'))return 'Travel';if(text.includes('safety')||text.includes('prestart')||text.includes('meeting')||text.includes('admin'))return 'Safety & Admin';return 'Other';}
 function isDrilledMetresRow(row){const code=String(row.code||'');return num(row.total_metres)>0&&(code==='Drill_Core'||code==='Drill_Chip_or_Open_hole'||/drill|core|chip/i.test(code));}
+function isSupportCostRow(row){return /^D_(Backhoe|Water)/i.test(String(row.code||''));}
 function diameterLabel(row){const raw=String(row.diameter||'').trim();if(!raw)return '';const n=parseFloat(raw);return isNaN(n)?raw:(n+'mm');}
 function depthBandLabel(from,to){const f=num(from),t=num(to);if(!t&&!f)return '';const start=Math.floor(f/100)*100;const end=Math.max(start+100,Math.ceil(t/100)*100);return '('+start+'-'+end+'m)';}
 function drillItemLabel(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia,depthBandLabel(row.metres_from,row.metres_to)].filter(Boolean).join(' ');}
@@ -339,7 +343,12 @@ function renderApprovalLog(record){
 }
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
-  const cost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
+  const activityCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const drillingCost=rows.filter(isDrilledMetresRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const supportCost=rows.filter(isSupportCostRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const consumableCost=relatedConsumables.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const cost=activityCost+consumableCost;
   const metres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
   const hours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
   const first=rows[0]||{};
@@ -355,6 +364,9 @@ function renderReport(rows,consumables,crew){
   document.getElementById('kpi-depth').textContent=metres.toFixed(2)+' m';
   document.getElementById('kpi-duration').textContent=hours.toFixed(2)+' h';
   document.getElementById('kpi-cost').textContent=cur(cost);
+  document.getElementById('kpi-drilling-cost').textContent=cur(drillingCost);
+  document.getElementById('kpi-support-cost').textContent=cur(supportCost);
+  document.getElementById('kpi-consumable-cost').textContent=cur(consumableCost);
   document.getElementById('kpi-costm').textContent=metres>0?cur(cost/metres):'--';
   document.getElementById('kpi-activities').textContent=rows.length;
   document.getElementById('notes').innerHTML=notes.length?notes.map(n=>'<p>'+esc(n)+'</p>').join(''):'No notes recorded.';
@@ -379,7 +391,6 @@ function renderReport(rows,consumables,crew){
       if(e.key==='Enter'){e.preventDefault();cell.blur();}
     });
   });
-  const relatedConsumables=consumables.filter(belongsToThisReport);
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
