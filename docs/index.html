@@ -212,6 +212,18 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .severity-warning{background:#ffedd5;color:#ea580c;}
 .severity-caution{background:#fef3c7;color:#d97706;}
 .severity-info{background:#dbeafe;color:#2563eb;}
+.match-exact{background:#dcfce7;color:#166534;}
+.match-close{background:#e0f2fe;color:#075985;}
+.match-missing{background:#fee2e2;color:#991b1b;}
+.match-over{background:#ffedd5;color:#9a3412;}
+.match-under{background:#ede9fe;color:#5b21b6;}
+.match-pending{background:#f3f4f6;color:#4b5563;}
+.invoice-breakdown-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);background:#fff;}
+.invoice-breakdown-card{border:1px solid var(--border);border-radius:7px;padding:10px 12px;background:var(--bg3);}
+.invoice-breakdown-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
+.invoice-breakdown-value{font-size:17px;font-weight:750;color:var(--text);margin-top:4px;}
+.invoice-line-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:750;white-space:nowrap;text-transform:capitalize;}
+#inv-body tr.active{background:#eff6ff;}
 
 /* Charts */
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
@@ -1462,6 +1474,7 @@ tbody td[contenteditable=true]:focus {
           <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import EOS Reports</button>
           <button id="audit-imports-btn" type="button" onclick="auditExistingImports()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit Existing EOS Rates</button>
           <button id="fix-imports-btn" type="button" onclick="fixExistingImportRates()" style="width:100%;margin-top:8px;padding:9px;background:#fff7e6;color:#a05a00;border:1.5px solid #f4d39b;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Fix EOS Rates</button>
+          <button id="cleanup-imports-btn" type="button" onclick="cleanupCorePlanDoubleups()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--red);border:1.5px solid var(--red);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Remove CorePlan Double-ups</button>
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
         <!-- Handwritten OCR -->
@@ -1802,6 +1815,8 @@ tbody td[contenteditable=true]:focus {
         <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
           <input id="new-year-input" type="text" placeholder="e.g. 2026" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;outline:none;"/>
           <button class="btn-primary" onclick="copyRatesYear()">Copy year →</button>
+          <button class="btn-ghost" id="sync-contract-rates-btn" onclick="syncAllianzContractRates()">Sync Allianz contract</button>
+          <button class="btn-primary" id="recalc-db-btn" onclick="recalculateDatabaseFromRates()">Recalculate database</button>
         </div>
       </div>
       <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Drilling Rates — $/m by bit type &amp; depth</h3>
@@ -1872,9 +1887,39 @@ tbody td[contenteditable=true]:focus {
               <th>Invoice #</th><th>Contractor</th><th>Project</th><th>Invoice Date</th><th>Invoice Month</th>
               <th>PO Number</th><th>Subtotal</th><th>GST</th><th>Total AUD</th>
               <th>Amount Paid</th><th>Amount Due</th><th>Status</th><th>Query Notes</th>
-              <th>Version</th><th>PDF</th><th></th>
+              <th>Version</th><th>Actions</th><th></th>
             </tr></thead>
             <tbody id="inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="invoice-breakdown-panel">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="invoice-breakdown-title">Invoice breakdown</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Imported company task lines matched back to EOS activities by date and code.</div>
+          </div>
+          <button class="btn-csv" onclick="downloadInvoiceBreakdownCSV()">CSV</button>
+        </div>
+        <div class="invoice-breakdown-summary">
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Lines</div><div class="invoice-breakdown-value" id="invbd-lines">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Accounted For</div><div class="invoice-breakdown-value" id="invbd-accounted">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">No EOS Data</div><div class="invoice-breakdown-value" id="invbd-missing">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoiced</div><div class="invoice-breakdown-value" id="invbd-invoiced">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Matched EOS</div><div class="invoice-breakdown-value" id="invbd-eos">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Variance</div><div class="invoice-breakdown-value" id="invbd-variance">—</div></div>
+        </div>
+        <div class="tbl-scroll" style="max-height:390px;">
+          <table id="invoice-breakdown-table">
+            <thead><tr>
+              <th>Date</th><th>Site / Hole</th><th>Code</th><th>Qty</th><th>Unit</th>
+              <th>Invoiced</th><th>Matched EOS</th><th>Variance</th><th>Status</th>
+              <th>Chargeable</th><th>Category</th><th>Description</th>
+            </tr></thead>
+            <tbody id="invoice-breakdown-body">
+              <tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">Select an invoice breakdown to inspect matched and unmatched task lines.</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -2775,6 +2820,34 @@ async function fixExistingImportRates(){
   }finally{
     btn.disabled=false;
     btn.textContent='AI Fix EOS Rates';
+  }
+}
+
+async function cleanupCorePlanDoubleups(){
+  const btn=document.getElementById('cleanup-imports-btn');
+  const log=document.getElementById('import-log');
+  if(!btn||!log)return;
+  if(!confirm('Remove CorePlan total adjustment rows and make minimum shift charges cost-only for '+activeContractor+'?'))return;
+  btn.disabled=true;
+  btn.textContent='Cleaning double-ups...';
+  log.innerHTML='<div class="skip">Removing CorePlan adjustment rows and zeroing minimum-shift duration double-ups...</div>';
+  try{
+    const res=await fetch(`${API}/imports/cleanup-coreplan-doubleups`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor})
+    });
+    const d=await res.json();
+    if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
+    log.innerHTML='<div class="ok">Cleaned '+d.deleted_adjustments+' adjustment row(s) and '+d.zeroed_minimum_shift_rows+' minimum-shift duration row(s).</div>';
+    toast('CorePlan double-ups removed');
+    await loadActivities();
+  }catch(e){
+    log.innerHTML='<div class="err">Cleanup failed: '+esc(e.message||e)+'</div>';
+    toast('Cleanup failed','err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Remove CorePlan Double-ups';
   }
 }
 
@@ -3863,6 +3936,67 @@ async function addConsumableRate(){
   loadRates(year);toast('New consumable added');
 }
 
+async function syncAllianzContractRates(){
+  const year=activeRateYear||'2025';
+  const btn=document.getElementById('sync-contract-rates-btn');
+  if(activeContractor!=='Allianz Drilling'){toast('Contract sync is only for Allianz Drilling','err');return;}
+  if(!confirm('Replace Allianz Drilling drilling/hourly rates for '+year+' with the signed FCM contract Schedule 2 rates?'))return;
+  btn.disabled=true;
+  btn.textContent='Syncing contract...';
+  try{
+    const res=await fetch(`${API}/rates/allianz-contract-sync`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor,year:year})
+    });
+    const d=await res.json();
+    if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
+    toast('Contract rates synced: '+d.drilling_rates+' drilling, '+d.hourly_rates+' hourly');
+    await loadRates(year);
+  }catch(e){
+    toast('Contract sync failed: '+(e.message||e),'err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Sync Allianz contract';
+  }
+}
+
+async function recalculateDatabaseFromRates(){
+  const btn=document.getElementById('recalc-db-btn');
+  if(!confirm('Recalculate all EOS activity costs, consumables, and invoice matching for '+activeContractor+' using the current schedule of rates?'))return;
+  btn.disabled=true;
+  btn.textContent='Recalculating...';
+  try{
+    const res=await fetch(`${API}/rates/recalculate-database`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor})
+    });
+    const d=await res.json();
+    if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
+    const cleanup=d.cleanup||{};
+    const reprice=d.reprice||{};
+    const match=d.invoice_match_summary||{};
+    toast('Recalculated '+(reprice.priced||0)+' activities, '+(reprice.consumables_priced||0)+' consumables, '+(d.invoices_rematched||0)+' invoices');
+    alert(
+      'Database recalculated for '+activeContractor+'\\n\\n'
+      +'Activities repriced: '+(reprice.priced||0)+' / '+(reprice.total||0)+'\\n'
+      +'Consumables repriced: '+(reprice.consumables_priced||0)+' / '+(reprice.consumables_total||0)+'\\n'
+      +'CorePlan adjustment rows removed: '+(cleanup.deleted_adjustments||0)+'\\n'
+      +'Minimum shift duration rows zeroed: '+(cleanup.zeroed_minimum_shift_rows||0)+'\\n'
+      +'Invoices rematched: '+(d.invoices_rematched||0)+'\\n'
+      +'Invoice lines accounted for: '+(match.accounted_lines||0)+' / '+(match.line_count||0)+'\\n'
+      +'Invoice variance: '+cur(match.variance||0)
+    );
+    await Promise.allSettled([loadRates(activeRateYear||'2025'),loadActivities(),loadInvoices()]);
+  }catch(e){
+    toast('Recalculation failed: '+(e.message||e),'err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Recalculate database';
+  }
+}
+
 async function copyRatesYear(){
   const ny=document.getElementById('new-year-input').value.trim();
   if(!ny||!/^\d{4}$/.test(ny)){toast('Enter valid 4-digit year','err');return;}
@@ -4010,7 +4144,7 @@ invSidebarBtn.addEventListener('click', async()=>{
     try{
       const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
       if(d.status==='imported')
-        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — $${(d.total_aud||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`;
+        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — $${(d.total_aud||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}${invoiceMatchImportText(d.match_summary)}</div>`;
       else
         log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} already imported</div>`;
     }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
@@ -4085,6 +4219,30 @@ if(ocrImportBtn) {
 // ── Invoices ──────────────────────────────────────────────────────────────────
 let invoicesData = [], discrepanciesData = [];
 let invPendingFiles = [];
+let invoiceBreakdownLines = [];
+let selectedInvoiceBreakdownId = null;
+
+function invoiceMatchImportText(summary) {
+  if(!summary || !summary.total) return '';
+  var accounted = (parseInt(summary.exact || 0) || 0) + (parseInt(summary.close || 0) || 0);
+  var missing = parseInt(summary.no_eos || 0) || 0;
+  var variance = parseFloat(summary.variance || 0) || 0;
+  return ' · matched '+accounted+'/'+summary.total+' · no EOS '+missing+' · variance '+cur(variance);
+}
+
+function invoiceMatchClass(status) {
+  status = status || 'pending';
+  if(status === 'exact_match') return 'match-exact';
+  if(status === 'close_match') return 'match-close';
+  if(status === 'no_eos_data') return 'match-missing';
+  if(status.indexOf('over') >= 0) return 'match-over';
+  if(status.indexOf('under') >= 0) return 'match-under';
+  return 'match-pending';
+}
+
+function invoiceMatchLabel(status) {
+  return (status || 'pending').replace(/_/g,' ');
+}
 
 // Invoice import controls are optional; the current UI uses the sidebar uploader.
 const invImportToggle = document.getElementById('inv-import-toggle');
@@ -4127,7 +4285,7 @@ if(invFileInput && invImportBtn && invDropZone) {
         const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
         if(log) {
           if(d.status==='imported')
-            log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} - ${cur(d.total_aud)} (${d.line_count} lines)</div>`;
+            log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} - ${cur(d.total_aud)} (${d.line_count} lines)${invoiceMatchImportText(d.match_summary)}</div>`;
           else
             log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} (already imported)</div>`;
         }
@@ -4197,7 +4355,9 @@ function renderInvoices(rows){
       var label = m || '— Select —';
       return '<option value="'+m+'"'+(m===(r.billing_month||'')?' selected':'')+'>'+label+'</option>';
     }).join('');
-    return '<tr data-inv-id="'+r.id+'">'
+    var accounted = (parseInt(r.exact_matches || 0) || 0) + (parseInt(r.close_matches || 0) || 0);
+    var lineSummary = r.line_count ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+accounted+'/'+r.line_count+' accounted</div>' : '';
+    return '<tr data-inv-id="'+r.id+'"'+(Number(r.id)===Number(selectedInvoiceBreakdownId)?' class="active"':'')+'>'
       +'<td contenteditable="true" data-col="invoice_number" style="color:var(--accent);font-weight:700;">'+esc(r.invoice_number||'')+'</td>'
       +'<td contenteditable="true" data-col="contractor" style="font-size:12px;">'+esc(r.contractor||'')+'</td>'
       +'<td contenteditable="true" data-col="project" style="font-size:12px;">'+esc(r.project||'')+'</td>'
@@ -4212,8 +4372,10 @@ function renderInvoices(rows){
       +'<td><select onchange="saveInvField('+r.id+',&apos;status&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 8px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
       +'<td contenteditable="true" data-col="query_notes" class="multiline-cell" style="font-size:11px;color:var(--muted);">'+esc(r.query_notes||'')+'</td>'
       +'<td style="font-size:11px;color:var(--muted);text-align:center;">v'+(r.version||1)+'</td>'
-      +'<td style="display:flex;gap:4px;">'
+      +'<td style="display:flex;gap:4px;align-items:center;">'
         +(r.id?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
+        +(r.id?'<button onclick="loadInvoiceBreakdown('+r.id+')" style="background:transparent;border:1.5px solid var(--border);color:var(--text2);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">Breakdown</button>':'')
+        +lineSummary
         +'<button onclick="deleteInvoice('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;">\u2715</button>'
       +'</td></tr>';
   }).join('') || '<tr><td colspan="16" style="padding:20px;color:var(--muted);text-align:center;">No invoices — import via the Import Data tab</td></tr>';
@@ -4277,6 +4439,77 @@ async function deleteInvoice(id){
 
 function viewInvoicePdf(invoiceId) {
   window.open(API+'/invoices/'+invoiceId+'/pdf', '_blank');
+}
+
+async function loadInvoiceBreakdown(invoiceId) {
+  selectedInvoiceBreakdownId = invoiceId;
+  var invoice = invoicesData.find(function(r){ return Number(r.id) === Number(invoiceId); }) || {};
+  document.getElementById('invoice-breakdown-title').textContent = (invoice.invoice_number || 'Invoice') + ' breakdown';
+  document.getElementById('invoice-breakdown-body').innerHTML = '<tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">Loading breakdown...</td></tr>';
+  try {
+    var res = await fetch(API+'/invoices/'+encodeURIComponent(invoiceId)+'/lines');
+    if(!res.ok) throw new Error(await res.text());
+    invoiceBreakdownLines = await res.json();
+    if(!Array.isArray(invoiceBreakdownLines)) invoiceBreakdownLines = [];
+    renderInvoiceBreakdown(invoice, invoiceBreakdownLines);
+    document.querySelectorAll('#inv-body tr').forEach(function(row){
+      row.classList.toggle('active', Number(row.dataset.invId) === Number(invoiceId));
+    });
+  } catch(e) {
+    invoiceBreakdownLines = [];
+    document.getElementById('invoice-breakdown-body').innerHTML = '<tr><td colspan="12" style="padding:20px;color:var(--red);text-align:center;">Could not load invoice breakdown.</td></tr>';
+  }
+}
+
+function renderInvoiceBreakdown(invoice, lines) {
+  lines = Array.isArray(lines) ? lines : [];
+  var exact = lines.filter(function(r){ return r.match_status === 'exact_match'; }).length;
+  var close = lines.filter(function(r){ return r.match_status === 'close_match'; }).length;
+  var missing = lines.filter(function(r){ return r.match_status === 'no_eos_data'; }).length;
+  var invoiced = lines.reduce(function(s,r){ return s + (parseFloat(r.amount) || 0); }, 0);
+  var eos = lines.reduce(function(s,r){ return s + (parseFloat(r.matched_eos_cost) || 0); }, 0);
+  var variance = lines.reduce(function(s,r){ return s + (parseFloat(r.variance) || 0); }, 0);
+  document.getElementById('invbd-lines').textContent = lines.length;
+  document.getElementById('invbd-accounted').textContent = (exact + close) + ' / ' + lines.length;
+  document.getElementById('invbd-missing').textContent = missing;
+  document.getElementById('invbd-invoiced').textContent = cur(invoiced);
+  document.getElementById('invbd-eos').textContent = cur(eos);
+  document.getElementById('invbd-variance').textContent = cur(variance);
+  document.getElementById('invbd-variance').style.color = Math.abs(variance) <= 1 ? 'var(--green)' : (variance > 0 ? 'var(--red)' : 'var(--accent)');
+
+  document.getElementById('invoice-breakdown-body').innerHTML = lines.map(function(r){
+    var status = r.match_status || 'pending';
+    var siteHole = [r.site_name, r.hole_num].filter(Boolean).join(' / ');
+    return '<tr>'
+      +'<td>'+esc(r.line_date || '')+'</td>'
+      +'<td>'+esc(siteHole || '')+'</td>'
+      +'<td style="font-family:var(--font-mono);font-weight:700;color:var(--accent);">'+esc(r.activity_code || r.category || '')+'</td>'
+      +'<td style="text-align:right;">'+((parseFloat(r.quantity)||0).toLocaleString('en-AU',{maximumFractionDigits:2}))+'</td>'
+      +'<td>'+esc(r.unit || '')+'</td>'
+      +'<td style="font-weight:700;color:var(--text);">'+cur(r.amount)+'</td>'
+      +'<td>'+cur(r.matched_eos_cost)+'</td>'
+      +'<td style="color:'+((parseFloat(r.variance)||0)>1?'var(--red)':((parseFloat(r.variance)||0)<-1?'var(--accent)':'var(--green)'))+';">'+cur(r.variance)+'</td>'
+      +'<td><span class="invoice-line-status '+invoiceMatchClass(status)+'">'+esc(invoiceMatchLabel(status))+'</span></td>'
+      +'<td>'+esc(r.chargeable || '')+'</td>'
+      +'<td>'+esc(r.source_category || r.category || '')+'</td>'
+      +'<td class="multiline-cell">'+esc(r.description || '')+'</td>'
+      +'</tr>';
+  }).join('') || '<tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">No invoice lines found for this invoice.</td></tr>';
+  makeTableSortable('invoice-breakdown-table');
+}
+
+function downloadInvoiceBreakdownCSV() {
+  if(!invoiceBreakdownLines.length) return;
+  var invoice = invoicesData.find(function(r){ return Number(r.id) === Number(selectedInvoiceBreakdownId); }) || {};
+  var keys = ['line_date','site_name','hole_num','activity_code','quantity','unit','amount','matched_eos_cost','variance','match_status','chargeable','source_category','description'];
+  var csv = [keys.join(','), ...invoiceBreakdownLines.map(function(r){
+    return keys.map(function(k){ return '"'+String(r[k] ?? '').replace(/"/g,'""')+'"'; }).join(',');
+  })].join('\n');
+  var name = (invoice.invoice_number || 'invoice_breakdown').replace(/[^\w.-]+/g,'_') + '_breakdown.csv';
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=name;
+  a.click();
 }
 
 function viewSourcePdf(filename) {

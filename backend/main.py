@@ -49,6 +49,117 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
+ALLIANZ_CONTRACT_DRILLING_RATES = [
+    ("BLADE_S", 0, 100, 31.50),
+    ("BLADE_M", 0, 100, 39.75),
+    ("BLADE_L", 0, 100, 62.88),
+    ("PCD_S", 0, 100, 33.22), ("PCD_S", 100, 200, 35.17),
+    ("PCD_S", 200, 300, 39.87), ("PCD_S", 300, 400, 42.70),
+    ("PCD_S", 400, 500, 49.52), ("PCD_S", 500, 600, 77.02),
+    ("PCD_S", 600, 700, 99.04),
+    ("PCD_M", 0, 100, 40.17), ("PCD_M", 100, 200, 46.97),
+    ("PCD_M", 200, 300, 54.48), ("PCD_M", 300, 400, 84.72),
+    ("PCD_M", 400, 500, 108.94), ("PCD_M", 500, 600, 119.83),
+    ("PCD_M", 600, 700, 137.80),
+    ("PCD_L", 0, 100, 69.76), ("PCD_L", 100, 200, 77.34),
+    ("PCD_L", 200, 300, 85.08), ("PCD_L", 300, 400, 93.59),
+    ("PCD_L", 400, 500, 102.95), ("PCD_L", 500, 600, 113.24),
+    ("PCD_L", 600, 700, 124.57),
+    ("HAMMER_S", 0, 100, 43.11), ("HAMMER_S", 100, 200, 48.36),
+    ("HAMMER_S", 200, 300, 61.23), ("HAMMER_S", 300, 400, 70.41),
+    ("HAMMER_S", 400, 500, 80.97),
+    ("HAMMER_M", 0, 100, 46.15), ("HAMMER_M", 100, 200, 61.03),
+    ("HAMMER_M", 200, 300, 70.18), ("HAMMER_M", 300, 400, 80.71),
+    ("HAMMER_M", 400, 500, 92.82),
+    ("HAMMER_L", 0, 100, 64.99), ("HAMMER_L", 100, 200, 71.49),
+    ("HAMMER_L", 200, 300, 82.21), ("HAMMER_L", 300, 400, 94.52),
+    ("HAMMER_L", 400, 500, 108.70),
+    ("HQ_HQ3", 0, 100, 198.79), ("HQ_HQ3", 100, 200, 239.18),
+    ("HQ_HQ3", 200, 300, 228.84), ("HQ_HQ3", 300, 400, 297.23),
+    ("HQ_HQ3", 400, 500, 312.87), ("HQ_HQ3", 500, 600, 322.87),
+    ("PQ_PQ3", 0, 100, 213.99), ("PQ_PQ3", 100, 200, 275.10),
+    ("PQ_PQ3", 200, 300, 290.00), ("PQ_PQ3", 300, 400, 319.00),
+    ("PQ_PQ3", 400, 500, 350.90), ("PQ_PQ3", 500, 600, 385.99),
+]
+
+
+ALLIANZ_CONTRACT_HOURLY_RATES = [
+    ("MOB", "Mobilisation: Initial mobilisation of standard drilling rig and ancillary equipment", 16750.00, "event"),
+    ("DEMOB", "Demobilisation: Demobilisation of standard drilling rig and ancillary equipment from site", 16750.00, "event"),
+    ("Mob_Demob_site_to_site", "Mobilisation or demobilisation of standard drilling rig and ancillary equipment between sites", 681.50, "hour"),
+    ("H_Inspections", "Company initiated inspections of contractor plant and machinery", 681.50, "hour"),
+    ("H_Training", "Training on site including personnel inductions and authorisations", 681.50, "hour"),
+    ("H_Con_Collect_Plan", "Planned time spent picking up consumables from local stockpile before day starts", 681.50, "hour"),
+    ("H_Con_Collect_Unplan", "Unplanned time spent picking up consumables from local stockpile", 0.00, "hour"),
+    ("H_Water_Collect", "Time spent collecting water for operations", 681.50, "hour"),
+    ("H_Truck_Vacuum", "Vacuum truck for desilting and dewatering drilling pits", 681.50, "hour"),
+    ("H_Crew_Travel_On", "Crew travel time whilst on Company lease from site gate to drilling location", 681.50, "hour"),
+    ("H_Crew_Travel_Off", "Crew travel time whilst off Company lease", 0.00, "hour"),
+    ("H_Safety_Contractor", "Contractor initiated safety work charged in 15 minute increments", 681.50, "hour"),
+    ("H_Safety_Company", "Company toolbox talks charged in 15 minute increments", 681.50, "hour"),
+    ("H_Safety_Permits", "Company risk assessments, permits, SLAMs, JSAs and safety audits", 681.50, "hour"),
+    ("H_Safety_Prestart", "Pre-start inspections of plant and equipment", 681.50, "hour"),
+    ("H_Safety_Gas", "Standby due to gas detected from hole", 681.50, "hour"),
+    ("H_Drilling", "Time spent drilling; covered under metreage charges and non chargeable", 0.00, "hour"),
+    ("H_Water_Boring", "Rig operating rate for water bores", 814.25, "hour"),
+    ("H_Tripping_Rods", "Tripping drilling rods in and out of a borehole", 814.25, "hour"),
+    ("H_Surface_Setup", "Surface setup, T-piece, blooey line and blowout prevention setup", 814.25, "hour"),
+    ("H_Casing_Install", "Installing casing", 814.25, "hour"),
+    ("H_Casing_Retrieval", "Extracting casing from borehole", 814.25, "hour"),
+    ("H_Change_Drill_Mthd", "Changing drilling method or bit types due to geological conditions", 814.25, "hour"),
+    ("H_Reaming", "Reaming", 814.25, "hour"),
+    ("H_Cleanouts", "Cleaning out boreholes for logging or blocked holes", 814.25, "hour"),
+    ("H_Circulation_Flush", "Flushing borehole and attaining circulation to commence drilling", 814.25, "hour"),
+    ("H_Circulation_Lost", "Regaining fluid circulation where circulation has been lost", 814.25, "hour"),
+    ("H_Water_Flow_Measure", "Measuring and sampling water", 814.25, "hour"),
+    ("H_Mud_Mixing", "Mixing drilling fluids while plant is not operating", 681.50, "hour"),
+    ("H_Fishing_Equipment", "Fishing or retrieving equipment out of a borehole", 814.25, "hour"),
+    ("H_Fishing_Equipment_NC", "Fishing or retrieving equipment, non chargeable", 0.00, "hour"),
+    ("H_Rig_Cementing", "Cementing boreholes using a drilling rig", 814.25, "hour"),
+    ("H_Setup_Packup_Site", "Setting up or packing up on a drill site", 814.25, "hour"),
+    ("H_Rig_Move", "Moving between drill sites including areas on a specific hub", 681.50, "hour"),
+    ("H_Standby_AAC", "Standby due to Company instruction to stop work", 681.50, "hour"),
+    ("H_Standby_Contractor", "Standby due to Contractor instruction to stop work", 681.50, "hour"),
+    ("H_Standby_Cement_Set", "Standby waiting for grout to set", 681.50, "hour"),
+    ("H_Standby_NoGasMon", "Standby due to gas monitor failure or unavailability", 0.00, "hour"),
+    ("H_Standby_Grout", "Standby whilst grouting unit operating", 681.50, "hour"),
+    ("H_Standby_Grouter", "Standby waiting for grouting unit", 681.50, "hour"),
+    ("H_Standby_Water", "Standby waiting on water delivery", 681.50, "hour"),
+    ("H_Standby_Blasting", "Standby for mine production blasting", 681.50, "hour"),
+    ("H_Standby_Fatigue", "Standby for fatigue management including heat breaks and lunch breaks", 681.50, "hour"),
+    ("H_Standby_Incidents", "Standby for incidents, investigations and ICAMS", 681.50, "hour"),
+    ("H_Standby_Logger", "Standby waiting for geophysical logger to arrive", 681.50, "hour"),
+    ("H_Standby_Logging", "Standby while geophysical logging is occurring", 681.50, "hour"),
+    ("H_Standby_Mine_Shut", "Standby for mine shutdowns", 681.50, "hour"),
+    ("H_Standby_Without_Crew", "Standby without crew", 366.25, "hour"),
+    ("H_Standby_Site_Insp", "Contractor work area inspection standby, non chargeable", 0.00, "hour"),
+    ("H_Standby_Wet_Weath", "Standby for adverse weather with crew", 681.50, "hour"),
+    ("H_Standby_Vac", "Standby waiting on vacuum truck to remove waste from sumps", 681.50, "hour"),
+    ("H_Standby_Sumps", "Standby waiting on sumps to be delivered or dug deeper", 681.50, "hour"),
+    ("H_Travel_Pitless", "Travel time for pitless system to and from site", 681.50, "hour"),
+    ("H_Repairs", "Unplanned repairs of plant and equipment, non chargeable", 0.00, "hour"),
+    ("H_Maintenance", "Scheduled maintenance of plant and equipment, non chargeable", 0.00, "hour"),
+    ("H_Cement_Cart_Wait", "Cementing subcontractor waiting for drill", 681.50, "hour"),
+    ("H_Cementing_Top_Up", "Grouting unit top ups", 681.50, "hour"),
+    ("H_Rig_Testing", "Downhole testing for permeability while rig running", 814.25, "hour"),
+    ("H_Standby_Testing", "Shutdown rig standby during permeability testing or piezometer installs", 681.50, "hour"),
+    ("D_Accommodation", "Accommodation charge per person supplied by Company", 0.00, "day"),
+    ("D_BOP", "Blow out prevention equipment hire to be discussed", 0.00, "day"),
+    ("D_Pitless_System", "Pitless system to be discussed", 0.00, "day"),
+    ("D_Supervisor", "Daily rate supervisor, non chargeable", 0.00, "day"),
+]
+
+
+def contract_drilling_rows(contractor: str, year: str):
+    return [(contractor, year, bit, depth_from, depth_to, rate)
+            for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES]
+
+
+def contract_hourly_rows(contractor: str, year: str):
+    return [(contractor, year, code, desc, rate, unit)
+            for code, desc, rate, unit in ALLIANZ_CONTRACT_HOURLY_RATES]
+
+
 # ── Schema ────────────────────────────────────────────────────────────────────
 def init_db():
     with get_conn() as conn:
@@ -343,6 +454,19 @@ def init_db():
                     match_status    TEXT DEFAULT 'unmatched'
                 )
             """)
+            for col, typedef in [
+                ("line_date", "TEXT"),
+                ("site_name", "TEXT"),
+                ("hole_num", "TEXT"),
+                ("activity_code", "TEXT"),
+                ("unit", "TEXT"),
+                ("chargeable", "TEXT"),
+                ("source_category", "TEXT"),
+            ]:
+                try:
+                    cur.execute(f"ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoice_imports (
@@ -368,82 +492,15 @@ def seed_2025_rates():
                 return
             YEAR = "2025"
             CON  = "Allianz Drilling"
-            drilling = [
-                (CON, YEAR, "HQ_HQ3",    0,   100,  46.00),
-                (CON, YEAR, "HQ_HQ3",  100,   200,  51.00),
-                (CON, YEAR, "HQ_HQ3",  200,   300,  59.00),
-                (CON, YEAR, "HQ_HQ3",  300,   400,  66.00),
-                (CON, YEAR, "HQ_HQ3",  400,   500,  70.00),
-                (CON, YEAR, "PCD_S",     0,   200,  51.00),
-                (CON, YEAR, "PCD_S",   200,   300,  61.00),
-                (CON, YEAR, "PCD_S",   400,   500,  90.00),
-                (CON, YEAR, "PCD_M",     0,   200,  60.00),
-                (CON, YEAR, "PCD_M",   200,   300,  73.00),
-                (CON, YEAR, "PCD_M",   400,   500, 103.00),
-                (CON, YEAR, "PCD_L",     0,   200,  76.00),
-                (CON, YEAR, "PCD_L",   200,   300,  86.00),
-                (CON, YEAR, "HAMMER_S",  0,   100, 196.00),
-                (CON, YEAR, "HAMMER_S",100,   200, 239.00),
-                (CON, YEAR, "HAMMER_S",200,   300, 278.00),
-                (CON, YEAR, "HAMMER_S",300,   400, 324.00),
-                (CON, YEAR, "HAMMER_S",400,   500, 367.00),
-                (CON, YEAR, "HAMMER_S",500,   600, 422.00),
-                (CON, YEAR, "HAMMER_M",  0,   100, 227.00),
-                (CON, YEAR, "HAMMER_M",100,   200, 273.00),
-                (CON, YEAR, "HAMMER_M",200,   300, 327.00),
-                (CON, YEAR, "HAMMER_M",300,   400, 374.00),
-            ]
             psycopg2.extras.execute_batch(cur, """
                 INSERT INTO drilling_rates (contractor,year,bit_type,depth_from,depth_to,rate)
                 VALUES (%s,%s,%s,%s,%s,%s)
-            """, drilling)
+            """, contract_drilling_rows(CON, YEAR))
 
-            hourly = [
-                # Active rates (charged at active $/hr)
-                (CON, YEAR, "H_Active",              "Active drilling rate (per hour)",                       745.00, "hour"),
-                (CON, YEAR, "H_Change_Drill_Mthd",   "Changing drilling method (e.g. air to mud)",            745.00, "hour"),
-                (CON, YEAR, "H_Tripping_Rods",       "Tripping drilling rods in and out of borehole",        745.00, "hour"),
-                (CON, YEAR, "H_Circulation_Flush",    "Flushing borehole and attaining circulation",          745.00, "hour"),
-                (CON, YEAR, "H_Circulation_Lost",     "Lost circulation time",                                745.00, "hour"),
-                (CON, YEAR, "H_Reaming",              "Reaming time",                                         745.00, "hour"),
-                (CON, YEAR, "H_Casing_Install",       "Installing casing",                                    745.00, "hour"),
-                (CON, YEAR, "H_Rig_Cementing",        "Cementing boreholes using a drilling rig",             745.00, "hour"),
-                # Inactive rates (charged at inactive $/hr)
-                (CON, YEAR, "H_Inactive",             "Inactive / standby rate (per hour)",                   675.00, "hour"),
-                (CON, YEAR, "H_Crew_Travel_On",       "Crew travel on company lease gate to drill location",  675.00, "hour"),
-                (CON, YEAR, "H_Crew_Travel_Off",      "Crew travel off site",                                 675.00, "hour"),
-                (CON, YEAR, "H_Rig_Move",             "Time spent moving between drill sites",                675.00, "hour"),
-                (CON, YEAR, "H_Setup_Packup_Site",    "Moving between drill sites within a hub",              675.00, "hour"),
-                (CON, YEAR, "H_Safety_Contractor",    "Contractor safety work",                               675.00, "hour"),
-                (CON, YEAR, "H_Safety_Prestart",      "Pre-start safety (toolbox/shift-start talks)",         675.00, "hour"),
-                (CON, YEAR, "H_Con_Collect_Plan",     "Collecting consumables from local stockpile",          675.00, "hour"),
-                (CON, YEAR, "H_Standby_Sumps",        "Standby waiting on sumps",                             675.00, "hour"),
-                (CON, YEAR, "H_Standby_AAC",          "Standby due to company instruction to stop work",      675.00, "hour"),
-                (CON, YEAR, "H_Standby_Logger",       "Standby waiting for geophysical logger",               675.00, "hour"),
-                (CON, YEAR, "H_Standby_Grout",        "Standby whilst grouting unit operating",               675.00, "hour"),
-                (CON, YEAR, "H_Standby_Cement_Set",   "Standby waiting for cement to set",                    675.00, "hour"),
-                (CON, YEAR, "H_Mud_Mixing",           "Mixing drilling fluids while plant not operating",     675.00, "hour"),
-                (CON, YEAR, "H_Surface_Setup",        "Surface setup / moving between areas on hub",          675.00, "hour"),
-                (CON, YEAR, "H_Training",             "Training, site inductions and authorisations",         675.00, "hour"),
-                (CON, YEAR, "H_Water_Flow_Measure",   "Water flow measurement",                               675.00, "hour"),
-                # Not chargeable
-                (CON, YEAR, "H_Repairs",              "Repairs (not chargeable)",                              0.00, "hour"),
-                (CON, YEAR, "Crew_Travel",            "Crew travel (not chargeable)",                          0.00, "hour"),
-                # Day rates
-                (CON, YEAR, "D_Backhoe",              "Backhoe in use on site",                              1850.00, "day"),
-                (CON, YEAR, "D_Backhoe_Standby",      "Backhoe standby",                                     620.00, "day"),
-                (CON, YEAR, "D_Water_Cart",           "Water cart in use on site (20,000L)",                 1650.00, "day"),
-                (CON, YEAR, "D_Water_Cart_Standby",   "Water cart standby",                                   550.00, "day"),
-                # Other rates
-                (CON, YEAR, "H_Standby_NoCrew",       "Standby without crew (per day)",                     4470.00, "day"),
-                (CON, YEAR, "H_Min_Shift",            "Minimum shift rate (per shift)",                     8940.00, "shift"),
-                (CON, YEAR, "MOB",                    "Mobilisation to site",                              38760.00, "event"),
-                (CON, YEAR, "DEMOB",                  "Demobilisation from site",                          38760.00, "event"),
-            ]
             psycopg2.extras.execute_batch(cur, """
                 INSERT INTO hourly_rates (contractor,year,code,description,rate,unit)
                 VALUES (%s,%s,%s,%s,%s,%s)
-            """, hourly)
+            """, contract_hourly_rows(CON, YEAR))
 
             # Consumable rates
             consumables = [
@@ -506,7 +563,34 @@ DAY_RATE_CODES = {
     "D_Water Cart - Standby Rate":("D_Water_Cart_Standby", "day"),
     "D_Water_Cart_Standby":       ("D_Water_Cart_Standby", "day"),
 }
-BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S"}
+BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PQ":"PQ_PQ3","PQ_PQ3":"PQ_PQ3","PCD":"PCD_S"}
+
+
+def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
+    text = f"{bit_type or ''} {code or ''} {notes or ''}".upper().replace(" ", "_")
+    if "PQ" in text:
+        return "PQ_PQ3"
+    if "HQ" in text or "NQ" in text:
+        return "HQ_HQ3"
+    if "HAMMER" in text:
+        if "175" in text or "_L" in text:
+            return "HAMMER_L"
+        if "125" in text or "_M" in text:
+            return "HAMMER_M"
+        return "HAMMER_S"
+    if "BLADE" in text:
+        if "175" in text or "_L" in text:
+            return "BLADE_L"
+        if "125" in text or "_M" in text:
+            return "BLADE_M"
+        return "BLADE_S"
+    if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
+        if "175" in text or "_L" in text:
+            return "PCD_L"
+        if "125" in text or "_M" in text:
+            return "PCD_M"
+        return "PCD_S"
+    return "PCD_S" if "CHIP" in text else "HQ_HQ3"
 
 
 def time_str_to_hours(t):
@@ -559,9 +643,9 @@ def price_activity(cur, row, contractor):
         return None
 
     if code in ("Drill_Core","Drill_Chip_or_Open_hole") and total_metres and total_metres > 0:
-        bk = BIT_TYPE_MAP.get(bit_type.upper().replace(" ","_"), "PCD_S" if "Chip" in code else "HQ_HQ3")
+        bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
         r = get_dr(bk, metres_to or 0)
-        if r:
+        if r is not None:
             unit_rate  = r
             quantity   = total_metres
             line_cost  = round(r * total_metres, 2)
@@ -570,29 +654,35 @@ def price_activity(cur, row, contractor):
         matched = next((v for k,v in DAY_RATE_CODES.items() if k in code or code in k), None)
         if matched:
             r = get_hr(matched[0])
-            if r:
+            if r is not None:
                 unit_rate  = r; quantity = 1; line_cost = r
                 rate_basis = f"${r:,.2f}/{matched[1]}"
     elif code in NOT_CHARGEABLE:
         unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
         line_cost = 0; rate_basis = "not chargeable"
     elif code in STANDBY_CODES or "Standby" in code:
-        r = get_hr(code) or get_hr("H_Inactive")
-        if r:
+        r = get_hr(code)
+        if r is None:
+            r = get_hr("H_Inactive")
+        if r is not None:
             qty = round(hours, 2) if hours > 0 else 1
             unit_rate  = r; quantity = qty
             line_cost  = round(r * qty, 2)
             rate_basis = f"inactive ${r:,.2f}/hr x {qty}h"
     elif code in INACTIVE_CODES:
-        r = get_hr(code) or get_hr("H_Inactive")
-        if r:
+        r = get_hr(code)
+        if r is None:
+            r = get_hr("H_Inactive")
+        if r is not None:
             qty = round(hours, 2) if hours > 0 else 1
             unit_rate  = r; quantity = qty
             line_cost  = round(r * qty, 2)
             rate_basis = f"inactive ${r:,.2f}/hr x {qty}h"
     elif hours > 0 and (code in ACTIVE_CODES or "H_" in code):
-        r = get_hr(code) or get_hr("H_Active")
-        if r:
+        r = get_hr(code)
+        if r is None:
+            r = get_hr("H_Active")
+        if r is not None:
             unit_rate  = r; quantity = round(hours,2)
             line_cost  = round(r * hours, 2); rate_basis = f"active ${r:,.2f}/hr x {hours:.2f}h"
 
@@ -600,7 +690,7 @@ def price_activity(cur, row, contractor):
     if line_cost is None and hours > 0 and code:
         # Check if we have a specific rate for this code
         r = get_hr(code)
-        if r and r > 0:
+        if r is not None:
             unit_rate = r; quantity = round(hours, 2)
             line_cost = round(r * hours, 2); rate_basis = f"${r:,.2f}/hr x {hours:.2f}h (code match)"
         else:
@@ -612,7 +702,7 @@ def price_activity(cur, row, contractor):
     # Fallback 2: code present but no hours and no match above
     if line_cost is None and code and not hours:
         r = get_hr(code)
-        if r and r > 0:
+        if r is not None:
             unit_rate = r; quantity = 1
             line_cost = r; rate_basis = f"${r:,.2f} (1 unit, code match)"
         elif "PVC" in code or "Casing" in code or "Cement" in code:
@@ -1088,9 +1178,9 @@ def coreplan_bit_type(row):
     if "NQ" in text:
         return "NQ"
     if "PQ" in text:
-        return "PQ"
+        return "PQ_PQ3"
     if "PCD" in text:
-        return "PCD"
+        return normalise_drilling_bit_key("PCD", notes=text)
     return ""
 
 
@@ -1247,7 +1337,7 @@ def parse_coreplan_plod_csv(content, filename, contractor):
         line_cost = coreplan_money(row.get("cost"))
         rig_type = row.get("rig_type") or "Rig"
         acts.append(base_activity(
-            row, "H_Min_Shift", f"{rig_type} minimum shift charge", duration,
+            row, "H_Min_Shift", f"{rig_type} minimum shift charge", 0,
             line_cost=line_cost, unit_rate=unit_rate,
             quantity=coreplan_float(duration),
             rate_basis=(f"CorePlan minimum ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan minimum drilling cost")
@@ -1265,20 +1355,6 @@ def parse_coreplan_plod_csv(content, filename, contractor):
             row, code, row.get("notes") or name, 0,
             line_cost=line_cost, unit_rate=unit_rate, quantity=qty,
             rate_basis="CorePlan miscellaneous charge"
-        ))
-
-    activity_total = sum(float(a.get("line_cost") or 0) for a in acts)
-    if total_cost and abs(total_cost - activity_total) > 0.01:
-        adjustment = round(total_cost - activity_total, 2)
-        acts.append(base_activity(
-            {"hole_name": default_hole},
-            "H_Min_Shift",
-            "CorePlan report total adjustment",
-            0,
-            line_cost=adjustment,
-            unit_rate=adjustment,
-            quantity=1,
-            rate_basis=f"CorePlan report total {total_cost:,.2f} less imported line costs {activity_total:,.2f}"
         ))
 
     cons = []
@@ -1444,9 +1520,7 @@ def find_hourly_schedule_rate(code, year, rate_context):
 
 
 def drilling_schedule_key(row):
-    bit = (row.get("bit_type") or "").replace(" ", "_").upper()
-    bit_map = {"HQ_HQ3": "HQ_HQ3", "HQ": "HQ_HQ3", "NQ": "HQ_HQ3", "PCD": "PCD_S", "PQ": "HQ_HQ3"}
-    return bit_map.get(bit, "PCD_S" if "Chip" in (row.get("code") or "") or "PCD" in bit else "HQ_HQ3")
+    return normalise_drilling_bit_key(row.get("bit_type"), row.get("code"), row.get("notes"))
 
 
 def find_drilling_schedule_rate(row, rate_context):
@@ -1679,9 +1753,7 @@ def local_import_qa(acts, cons, crew, rate_context=None):
         return rate_context["hourly_any"].get(code)
 
     def _drilling_key(row):
-        bit = (row.get("bit_type") or "").replace(" ", "_").upper()
-        bit_map = {"HQ_HQ3": "HQ_HQ3", "HQ": "HQ_HQ3", "NQ": "HQ_HQ3", "PCD": "PCD_S", "PQ": "HQ_HQ3"}
-        return bit_map.get(bit, "PCD_S" if "Chip" in (row.get("code") or "") or "PCD" in bit else "HQ_HQ3")
+        return normalise_drilling_bit_key(row.get("bit_type"), row.get("code"), row.get("notes"))
 
     def _drilling_rate(row):
         if not rate_context:
@@ -1990,12 +2062,9 @@ async def import_pdf(
 
             # Drilling metres
             if metres > 0 and bit_type and depth is not None:
-                bk = bit_type.replace(" ","_").upper()
-                # Map common bit types to rate card keys
-                bit_map = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S","PQ":"HQ_HQ3"}
-                bk = bit_map.get(bk, "PCD_S" if "Chip" in code or "PCD" in bk else "HQ_HQ3")
+                bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
                 r = _get_dr(bk, depth, year)
-                if r:
+                if r is not None:
                     ur = r; qty = round(metres,2); lc = round(r*metres,2); rb = f"${r:.2f}/m x {metres:.2f}m"
 
             # Day rates
@@ -2003,7 +2072,7 @@ async def import_pdf(
                 for dk, (dk_code, dk_unit) in DAY_RATE_CODES.items():
                     if dk in code or code in dk:
                         r = _get_hr(dk_code, year)
-                        if r: ur = r; qty = 1; lc = r; rb = f"${r:,.2f}/{dk_unit}"
+                        if r is not None: ur = r; qty = 1; lc = r; rb = f"${r:,.2f}/{dk_unit}"
                         break
 
             # Not chargeable
@@ -2012,21 +2081,27 @@ async def import_pdf(
 
             # Standby/inactive
             if lc is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):
-                r = _get_hr(code, year) or _get_hr("H_Inactive", year)
-                if r:
+                r = _get_hr(code, year)
+                if r is None:
+                    r = _get_hr("H_Inactive", year)
+                if r is not None:
                     q = round(hours,2) if hours > 0 else 1
                     ur = r; qty = q; lc = round(r*q,2); rb = f"inactive ${r:,.2f}/hr x {q}"
 
             # Active
             if lc is None and hours > 0 and (code in ACTIVE_CODES or code.startswith("H_")):
-                r = _get_hr(code, year) or _get_hr("H_Active", year)
-                if r:
+                r = _get_hr(code, year)
+                if r is None:
+                    r = _get_hr("H_Active", year)
+                if r is not None:
                     ur = r; qty = round(hours,2); lc = round(r*hours,2); rb = f"active ${r:,.2f}/hr x {hours:.2f}h"
 
             # Fallback
             if lc is None and hours > 0 and code:
-                r = _get_hr("H_Active", year)
-                if r:
+                r = _get_hr(code, year)
+                if r is None:
+                    r = _get_hr("H_Active", year)
+                if r is not None:
                     ur = r; qty = round(hours,2); lc = round(r*hours,2); rb = f"fallback ${r:,.2f}/hr x {hours:.2f}h"
 
             row["rate_year"] = year; row["unit_rate"] = ur; row["quantity"] = qty
@@ -2328,6 +2403,40 @@ async def ai_fix_import_rates(request: Request):
     }
 
 
+def cleanup_coreplan_doubleups_for_contractor(contractor: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM activities
+                WHERE contractor=%s
+                  AND notes='CorePlan report total adjustment'
+            """, (contractor,))
+            deleted_adjustments = cur.rowcount
+
+            cur.execute("""
+                UPDATE activities
+                SET total_time='0:00', time_from='', time_to=''
+                WHERE contractor=%s
+                  AND code='H_Min_Shift'
+                  AND COALESCE(notes,'') ILIKE '%%minimum shift charge%%'
+                  AND COALESCE(total_time,'') NOT IN ('', '0', '0:00', '00:00')
+            """, (contractor,))
+            zeroed_minimum_shift_rows = cur.rowcount
+        conn.commit()
+    return {
+        "deleted_adjustments": deleted_adjustments,
+        "zeroed_minimum_shift_rows": zeroed_minimum_shift_rows,
+    }
+
+
+@app.post("/imports/cleanup-coreplan-doubleups")
+async def cleanup_coreplan_doubleups(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    result = cleanup_coreplan_doubleups_for_contractor(contractor)
+    return {"status": "cleaned", "contractor": contractor, **result}
+
+
 @app.get("/activities")
 def get_activities(
     contractor: str = Query(...),
@@ -2622,6 +2731,42 @@ def get_hourly_rates(contractor: str = Query(...), year: Optional[str]=Query(Non
             cur.execute(q,p); return [dict(r) for r in cur.fetchall()]
 
 
+@app.post("/rates/allianz-contract-sync")
+async def sync_allianz_contract_rates(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    year = str(payload.get("year") or "2025")
+    if contractor != "Allianz Drilling":
+        raise HTTPException(400, "The signed contract rates supplied here are only for Allianz Drilling.")
+    if not re.match(r"^\d{4}$", year):
+        raise HTTPException(400, "Year must be a four digit value.")
+
+    drilling_rows = contract_drilling_rows(contractor, year)
+    hourly_rows = contract_hourly_rows(contractor, year)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM drilling_rates WHERE contractor=%s AND year=%s", (contractor, year))
+            cur.execute("DELETE FROM hourly_rates WHERE contractor=%s AND year=%s", (contractor, year))
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO drilling_rates (contractor,year,bit_type,depth_from,depth_to,rate)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, drilling_rows)
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO hourly_rates (contractor,year,code,description,rate,unit)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, hourly_rows)
+        conn.commit()
+    return {
+        "status": "synced",
+        "contractor": contractor,
+        "year": year,
+        "drilling_rates": len(drilling_rows),
+        "hourly_rates": len(hourly_rows),
+        "source": "2022 05 Signed Contract FCM and Allianz Drilling.pdf, Schedule 2",
+    }
+
+
+@app.put("/rates/drilling/{rid}")
 @app.patch("/rates/drilling/{rid}")
 def update_drilling_rate(rid: int, payload: dict):
     safe = {"year","bit_type","depth_from","depth_to","rate"}
@@ -2635,6 +2780,7 @@ def update_drilling_rate(rid: int, payload: dict):
     return {"status":"updated"}
 
 
+@app.put("/rates/hourly/{rid}")
 @app.patch("/rates/hourly/{rid}")
 def update_hourly_rate(rid: int, payload: dict):
     safe = {"year","code","description","rate","unit"}
@@ -2912,6 +3058,187 @@ def categorise_invoice_line(description: str) -> str:
     return "other"
 
 
+def parse_invoice_breakdown_date(value: str) -> str:
+    months = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+        "may": "05", "jun": "06", "jul": "07", "aug": "08",
+        "sep": "09", "oct": "10", "nov": "11", "dec": "12",
+    }
+    m = re.match(r"(\d{1,2})-([A-Za-z]{3})-(\d{4})", str(value or "").strip())
+    if not m:
+        return value or ""
+    return f"{int(m.group(1)):02d}/{months.get(m.group(2).lower(), '01')}/{m.group(3)}"
+
+
+def parse_invoice_breakdown_money(value: str) -> float:
+    try:
+        return float(str(value or "0").replace("$", "").replace(",", "").strip())
+    except Exception:
+        return 0.0
+
+
+def parse_invoice_breakdown_hours(value: str) -> float:
+    s = str(value or "").strip()
+    if ":" in s:
+        h, m = s.split(":", 1)
+        try:
+            return int(h) + int(m) / 60.0
+        except Exception:
+            return 0.0
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
+def invoice_breakdown_activity_match(prefix: str):
+    pattern = re.compile(
+        r"\b(Drill_Core|Drill_Chip_or_Open_hole|Crew_Travel|MOB|DEMOB|D_[A-Za-z0-9_]+|H_[A-Za-z0-9_]+|HQ/HQ3\s+.*?\)|PCD\s+.*?\))\b"
+    )
+    match = pattern.search(prefix)
+    if not match:
+        return None
+    return match
+
+
+def invoice_breakdown_location_fields(left: str):
+    left = re.sub(r"\s+", " ", left or "").strip()
+    site = ""
+    hole = ""
+    location = left
+    site_matches = list(re.finditer(r"CD-\d{2}-\d{3}(?:\s*/\s*\d+)?", left))
+    if site_matches:
+        site_match = site_matches[-1]
+        site = site_match.group(0).strip()
+        before = left[:site_match.start()].strip()
+        after = left[site_match.end():].strip()
+        ddr = re.search(r"\b([A-Z]{1,4}\d{3,5}[A-Z]?)\b", after)
+        if ddr:
+            hole = ddr.group(1)
+        elif before:
+            parts = before.split()
+            if len(parts) > 2:
+                location = " ".join(parts[:2]) if parts[0].upper() == "CDM" else parts[0]
+                hole = " ".join(parts[2:]) if parts[0].upper() == "CDM" else " ".join(parts[1:])
+            else:
+                location = before
+        if not hole:
+            hole = site
+    return location, site, hole
+
+
+def invoice_breakdown_match_key(line: dict) -> str:
+    code = line.get("activity_code") or ""
+    source_cat = line.get("source_category") or line.get("category") or ""
+    if source_cat.lower() == "drilling" and not code.startswith("Drill_"):
+        return "DRILLING_METRES"
+    return code or categorise_invoice_line(line.get("description") or "")
+
+
+def parse_monthly_breakdown_invoice_pdf(text: str, filename: str) -> dict:
+    rows = []
+    row_re = re.compile(r"(?=(\d{1,2}-[A-Za-z]{3}-\d{4})\s+\d+\s+)")
+    starts = [m.start() for m in row_re.finditer(text)]
+    starts.append(len(text))
+    for i in range(len(starts) - 1):
+        raw = " ".join(text[starts[i]:starts[i+1]].split())
+        suffix = re.search(r"\s+([\d:]+(?:\.\d+)?)\s+(hrs|m)\s+\$([\d,]+\.\d{2})\s+(Yes|No)\s+(.+)$", raw)
+        if not suffix:
+            continue
+        head = raw[:suffix.start()].strip()
+        quantity_raw, unit, amount_raw, chargeable, source_category = suffix.groups()
+        dm = re.match(r"(\d{1,2}-[A-Za-z]{3}-\d{4})\s+(\d+)\s+(.+)$", head)
+        if not dm:
+            continue
+        line_date_raw, day, rest = dm.groups()
+        activity_match = invoice_breakdown_activity_match(rest)
+        if not activity_match:
+            continue
+        left = rest[:activity_match.start()].strip()
+        activity_code = activity_match.group(1).strip()
+        description = rest[activity_match.end():].strip()
+        location, site, hole = invoice_breakdown_location_fields(left)
+        amount = parse_invoice_breakdown_money(amount_raw)
+        quantity = parse_invoice_breakdown_hours(quantity_raw) if unit == "hrs" else coreplan_float(quantity_raw) or 0
+        unit_price = round(amount / quantity, 2) if quantity else amount
+        rows.append({
+            "line_date": parse_invoice_breakdown_date(line_date_raw),
+            "site_name": site,
+            "hole_num": hole,
+            "activity_code": activity_code,
+            "description": f"{activity_code} - {description}",
+            "quantity": quantity,
+            "unit": unit,
+            "unit_price": unit_price,
+            "gst_rate": "10%",
+            "amount": amount,
+            "chargeable": chargeable,
+            "source_category": source_category,
+            "category": categorise_invoice_line(activity_code + " " + description + " " + source_category),
+        })
+    subtotal = round(sum(r["amount"] for r in rows), 2)
+    return {
+        "invoice_number": os.path.splitext(filename)[0],
+        "invoice_date": "31/05/2026" if "May" in filename else "",
+        "due_date": "",
+        "po_reference": "",
+        "client": "Fitzroy Coal",
+        "abn": "",
+        "subtotal": subtotal,
+        "gst": 0.0,
+        "total_aud": subtotal,
+        "amount_paid": 0.0,
+        "amount_due": subtotal,
+        "status": "Unpaid",
+        "lines": rows,
+        "breakdown_type": "monthly_task",
+    }
+
+
+def parse_daily_breakdown_invoice_pdf(text: str, filename: str) -> dict:
+    rows = []
+    line_re = re.compile(
+        r"^(\d{1,2}-[A-Za-z]{3}-\d{4})\s+(\d+)\s+(.+?)\s+(\d{1,2}:\d{2})\s+\$([\d,]+\.\d{2})\s+([\d.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})$",
+        re.MULTILINE
+    )
+    for m in line_re.finditer(text):
+        line_date_raw, day, left, total_hours, hourly_cost, drilling_qty, drilling_cost, daily_total = m.groups()
+        location, site, hole = invoice_breakdown_location_fields(left)
+        amount = parse_invoice_breakdown_money(daily_total)
+        rows.append({
+            "line_date": parse_invoice_breakdown_date(line_date_raw),
+            "site_name": site,
+            "hole_num": hole,
+            "activity_code": "DAILY_TOTAL",
+            "description": f"Daily total - hourly {hourly_cost}, drilling {drilling_qty}m / {drilling_cost}",
+            "quantity": 1,
+            "unit": "day",
+            "unit_price": amount,
+            "gst_rate": "10%",
+            "amount": amount,
+            "chargeable": "Yes",
+            "source_category": "Daily Summary",
+            "category": "daily_summary",
+        })
+    subtotal = round(sum(r["amount"] for r in rows), 2)
+    return {
+        "invoice_number": os.path.splitext(filename)[0],
+        "invoice_date": "31/05/2026" if "May" in filename else "",
+        "due_date": "",
+        "po_reference": "",
+        "client": "Fitzroy Coal",
+        "abn": "",
+        "subtotal": subtotal,
+        "gst": 0.0,
+        "total_aud": subtotal,
+        "amount_paid": 0.0,
+        "amount_due": subtotal,
+        "status": "Unpaid",
+        "lines": rows,
+        "breakdown_type": "daily_summary",
+    }
+
+
 def parse_king_konstruct_invoice_pdf(text: str, filename: str) -> dict:
     """Parse King Konstruct tax invoices."""
 
@@ -3001,6 +3328,12 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     """Parse an Allianz-style tax invoice PDF.
     Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
     """
+
+    if "Daily Total" in text and "Hourly Cost" in text and "Drilling Qty" in text:
+        return parse_daily_breakdown_invoice_pdf(text, filename)
+
+    if "Activity Code" in text and "Chargeable Category" in text:
+        return parse_monthly_breakdown_invoice_pdf(text, filename)
 
     if "KING KONSTRUCT" in text.upper() or re.search(r"Invoice_\d{5}_from_KING_KONSTRUCT", filename, re.IGNORECASE):
         return parse_king_konstruct_invoice_pdf(text, filename)
@@ -3121,7 +3454,69 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
     Compare invoice line totals by category against EOS activity costs.
     Updates match_status and variance on each invoice line.
     """
-    # Get EOS cost totals by category for this contractor
+    cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s", (invoice_id,))
+    inv_lines = [dict(r) for r in cur.fetchall()]
+    if not inv_lines:
+        return
+
+    if any(line.get("line_date") or line.get("activity_code") for line in inv_lines):
+        groups = {}
+        for line in inv_lines:
+            key = (line.get("line_date") or "", invoice_breakdown_match_key(line))
+            groups.setdefault(key, []).append(line)
+
+        eos_by_key = {}
+        for key in groups:
+            line_date, match_key = key
+            params = [contractor]
+            where = ["contractor=%s", "line_cost IS NOT NULL"]
+            if line_date:
+                iso = line_date
+                m = re.match(r"(\d{2})/(\d{2})/(\d{4})", line_date)
+                if m:
+                    iso = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+                where.append("(date=%s OR date=%s)")
+                params.extend([line_date, iso])
+            if match_key == "DRILLING_METRES":
+                where.append("COALESCE(total_metres,0)>0")
+            elif match_key == "DAILY_TOTAL":
+                pass
+            elif match_key:
+                where.append("code=%s")
+                params.append(match_key)
+            cur.execute(f"""
+                SELECT COALESCE(SUM(line_cost),0) AS eos_total
+                FROM activities
+                WHERE {' AND '.join(where)}
+            """, tuple(params))
+            eos_by_key[key] = float((cur.fetchone() or {}).get("eos_total") or 0)
+
+        for key, lines in groups.items():
+            eos_total = eos_by_key.get(key, 0)
+            inv_total = sum(float(line.get("amount") or 0) for line in lines)
+            for line in lines:
+                amount = float(line.get("amount") or 0)
+                matched_eos = round(eos_total * (amount / inv_total), 2) if inv_total else (round(eos_total / len(lines), 2) if lines else 0)
+                variance = round(amount - matched_eos, 2)
+                if eos_total == 0 and amount == 0:
+                    match_status = "exact_match"
+                elif eos_total == 0:
+                    match_status = "no_eos_data"
+                elif abs(variance) <= 1:
+                    match_status = "exact_match"
+                elif amount and abs(variance) / abs(amount) <= 0.05:
+                    match_status = "close_match"
+                elif variance > 0:
+                    match_status = "invoice_over_eos"
+                else:
+                    match_status = "invoice_under_eos"
+                cur.execute("""
+                    UPDATE invoice_lines
+                    SET matched_eos_cost=%s, variance=%s, match_status=%s
+                    WHERE id=%s
+                """, (matched_eos, variance, match_status, line["id"]))
+        return
+
     cur.execute("""
         SELECT
             CASE
@@ -3141,18 +3536,12 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
     """, (contractor,))
     eos_by_cat = {r["category"]: float(r["eos_total"] or 0) for r in cur.fetchall()}
 
-    # Get invoice lines
-    cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s", (invoice_id,))
-    inv_lines = cur.fetchall()
-
-    # Group invoice lines by category
     inv_by_cat = {}
     for line in inv_lines:
         cat = line["category"]
         inv_by_cat.setdefault(cat, 0)
         inv_by_cat[cat] += float(line["amount"] or 0)
 
-    # Update each line with match info
     for line in inv_lines:
         cat = line["category"]
         eos_total = eos_by_cat.get(cat, 0)
@@ -3243,6 +3632,7 @@ async def import_invoice(
 
     lines = inv.pop("lines", [])
 
+    match_summary = {}
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -3264,17 +3654,36 @@ async def import_invoice(
                 if lines:
                     psycopg2.extras.execute_batch(cur, """
                         INSERT INTO invoice_lines
-                        (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category,
+                         line_date,site_name,hole_num,activity_code,unit,chargeable,source_category)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """, [(invoice_id, contractor, inv.get("invoice_number",""),
                            l["description"], l["quantity"], l["unit_price"],
-                           l["gst_rate"], l["amount"], l["category"]) for l in lines])
+                           l["gst_rate"], l["amount"], l["category"],
+                           l.get("line_date"), l.get("site_name"), l.get("hole_num"),
+                           l.get("activity_code"), l.get("unit"), l.get("chargeable"),
+                           l.get("source_category")) for l in lines])
 
                 # Run matching — don't let this crash the import
                 try:
                     match_invoice_to_eos(cur, invoice_id, contractor, inv.get("po_reference",""))
                 except Exception:
                     pass
+
+                cur.execute("""
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact,
+                        SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close,
+                        SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS no_eos,
+                        SUM(CASE WHEN match_status='invoice_over_eos' THEN 1 ELSE 0 END) AS over,
+                        SUM(CASE WHEN match_status='invoice_under_eos' THEN 1 ELSE 0 END) AS under,
+                        SUM(COALESCE(amount,0)) AS invoiced,
+                        SUM(COALESCE(matched_eos_cost,0)) AS matched_eos,
+                        SUM(COALESCE(variance,0)) AS variance
+                    FROM invoice_lines WHERE invoice_id=%s
+                """, (invoice_id,))
+                match_summary = dict(cur.fetchone() or {})
 
                 # Record import — use INSERT OR IGNORE equivalent
                 try:
@@ -3292,6 +3701,7 @@ async def import_invoice(
         "invoice_number": inv.get("invoice_number", filename),
         "total_aud": inv.get("total_aud", 0),
         "line_count": len(lines),
+        "match_summary": match_summary,
     }
 
 
@@ -3316,6 +3726,7 @@ def get_invoices(contractor: str = Query(...)):
                         cur.execute("""
                             SELECT COUNT(*) AS line_count,
                                    SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
+                                   SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close_matches,
                                    SUM(CASE WHEN match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
                                    SUM(CASE WHEN match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
                                    SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
@@ -3325,9 +3736,9 @@ def get_invoices(contractor: str = Query(...)):
                         if row:
                             inv.update(dict(row))
                         else:
-                            inv.update({"line_count":0,"exact_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                            inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
                     except Exception:
-                        inv.update({"line_count":0,"exact_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                        inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
 
                 return invoices
     except Exception as e:
@@ -3338,7 +3749,7 @@ def get_invoices(contractor: str = Query(...)):
 def get_invoice_lines(invoice_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY id", (invoice_id,))
+            cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY line_date NULLS LAST, id", (invoice_id,))
             return [dict(r) for r in cur.fetchall()]
 
 
@@ -3799,12 +4210,10 @@ def reprice_activities(contractor: str = Query(...)):
 
             # Drilling metres
             if metres > 0 and bit_type:
-                bk = bit_type.replace(" ","_").upper()
-                bit_map = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","PCD":"PCD_S","PQ":"HQ_HQ3"}
-                bk = bit_map.get(bk, "PCD_S" if "Chip" in code or "PCD" in bk else "HQ_HQ3")
+                bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
                 if depth is not None:
                     r = get_dr_mem(bk, depth, year)
-                    if r:
+                    if r is not None:
                         unit_rate = r; quantity = round(metres,2)
                         line_cost = round(r * metres, 2); rate_basis = f"${r:.2f}/m x {metres:.2f}m"
 
@@ -3813,7 +4222,7 @@ def reprice_activities(contractor: str = Query(...)):
                 for dk, (dk_code, dk_unit) in DAY_RATE_CODES.items():
                     if dk in code or code in dk:
                         r = get_hr_mem(dk_code, year)
-                        if r:
+                        if r is not None:
                             unit_rate = r; quantity = 1; line_cost = r; rate_basis = f"${r:,.2f}/{dk_unit}"
                         break
 
@@ -3824,23 +4233,29 @@ def reprice_activities(contractor: str = Query(...)):
 
             # Standby / inactive
             if line_cost is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):
-                r = get_hr_mem(code, year) or get_hr_mem("H_Inactive", year)
-                if r:
+                r = get_hr_mem(code, year)
+                if r is None:
+                    r = get_hr_mem("H_Inactive", year)
+                if r is not None:
                     qty = round(hours,2) if hours > 0 else 1
                     unit_rate = r; quantity = qty; line_cost = round(r * qty, 2)
                     rate_basis = f"inactive ${r:,.2f}/hr x {qty}"
 
             # Active codes
             if line_cost is None and hours > 0 and (code in ACTIVE_CODES or code.startswith("H_")):
-                r = get_hr_mem(code, year) or get_hr_mem("H_Active", year)
-                if r:
+                r = get_hr_mem(code, year)
+                if r is None:
+                    r = get_hr_mem("H_Active", year)
+                if r is not None:
                     unit_rate = r; quantity = round(hours,2)
                     line_cost = round(r * hours, 2); rate_basis = f"active ${r:,.2f}/hr x {hours:.2f}h"
 
             # Fallback: hours but no match
             if line_cost is None and hours > 0 and code:
-                r = get_hr_mem("H_Active", year)
-                if r:
+                r = get_hr_mem(code, year)
+                if r is None:
+                    r = get_hr_mem("H_Active", year)
+                if r is not None:
                     unit_rate = r; quantity = round(hours,2)
                     line_cost = round(r * hours, 2); rate_basis = f"fallback ${r:,.2f}/hr x {hours:.2f}h"
 
@@ -3926,6 +4341,45 @@ def reprice_activities(contractor: str = Query(...)):
         "drilling_rate_years": dr_years,
         "hourly_rate_years": hr_years,
         "skipped_codes": skipped_codes,
+    }
+
+
+@app.post("/rates/recalculate-database")
+async def recalculate_database_from_rates(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+
+    cleanup = cleanup_coreplan_doubleups_for_contractor(contractor)
+    reprice = reprice_activities(contractor)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, po_reference FROM invoices WHERE contractor=%s", (contractor,))
+            invoices = [dict(r) for r in cur.fetchall()]
+            for inv in invoices:
+                match_invoice_to_eos(cur, inv["id"], contractor, inv.get("po_reference") or "")
+
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS line_count,
+                    SUM(CASE WHEN match_status IN ('exact_match','close_match') THEN 1 ELSE 0 END) AS accounted_lines,
+                    SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS no_eos_lines,
+                    SUM(COALESCE(amount,0)) AS invoice_total,
+                    SUM(COALESCE(matched_eos_cost,0)) AS matched_eos_total,
+                    SUM(COALESCE(variance,0)) AS variance
+                FROM invoice_lines
+                WHERE contractor=%s
+            """, (contractor,))
+            invoice_match_summary = dict(cur.fetchone() or {})
+        conn.commit()
+
+    return {
+        "status": "recalculated",
+        "contractor": contractor,
+        "cleanup": cleanup,
+        "reprice": reprice,
+        "invoices_rematched": len(invoices),
+        "invoice_match_summary": invoice_match_summary,
     }
 
 
