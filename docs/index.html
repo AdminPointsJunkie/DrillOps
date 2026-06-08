@@ -2451,6 +2451,7 @@ let tenementsData=[];
 let userAccountsData=[];
 let charts={};
 let activeRateYear=null;
+const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toast(msg,type='ok'){
@@ -2473,6 +2474,17 @@ function refreshCostingIfActive(delay=250){
   clearTimeout(costingRefreshTimer);
   costingRefreshTimer=setTimeout(()=>loadCosting(),delay);
 }
+function handleExternalActivityUpdate(msg){
+  if(!msg||msg.contractor!==activeContractor)return;
+  if(isPageActive('activities'))loadActivities();
+  else if(activitiesData.length)renderDailyReportSummary(activitiesData);
+  refreshCostingIfActive();
+}
+if(activityBroadcast)activityBroadcast.addEventListener('message',function(e){handleExternalActivityUpdate(e.data);});
+window.addEventListener('storage',function(e){
+  if(e.key!=='drillops-activity-updated'||!e.newValue)return;
+  try{handleExternalActivityUpdate(JSON.parse(e.newValue));}catch(err){}
+});
 function fillSelect(id,vals,allSel=true){
   const s=document.getElementById(id); if(!s)return;
   s.innerHTML='';
