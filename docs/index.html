@@ -2537,7 +2537,7 @@ function activityCategory(row){
   return 'Other';
 }
 function reportKeyFor(row){
-  return [row.date||'No date',row.hole_num||'No hole',row.source_file||'Manual entry'].join('|');
+  return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.hole_num||'No hole',row.source_file||'Manual entry'].join('|');
 }
 function reportIdFor(group,index){
   const file=group.sourceFile||'';
@@ -2565,7 +2565,7 @@ function groupDailyReports(rows){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
@@ -2582,7 +2582,13 @@ function groupDailyReports(rows){
   const groups=[...map.values()];
   groups.forEach(function(g,i){
     g.id=reportIdFor(g,i);
-    g.driller=crewData.filter(function(c){return c.date===g.date&&c.hole_num===g.hole&&String(c.role||'').toLowerCase().includes('drill');}).map(function(c){return c.name;})[0]||'';
+    g.driller=crewData.filter(function(c){
+      return (!c.contractor||c.contractor===g.contractor)
+        && c.date===g.date
+        && c.hole_num===g.hole
+        && (!g.sourceFile||!c.source_file||c.source_file===g.sourceFile)
+        && String(c.role||'').toLowerCase().includes('drill');
+    }).map(function(c){return c.name;})[0]||'';
     if(g.metres===0&&g.cost>0)g.flags.push('Cost with zero metres');
     if(g.notes.join(' ').toLowerCase().match(/lost|fatigue|no access|breakdown|repair|standby/))g.flags.push('Operational note');
     if(g.hours>=12)g.flags.push('Long shift');

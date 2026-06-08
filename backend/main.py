@@ -3471,12 +3471,17 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
     if any(line.get("line_date") or line.get("activity_code") for line in inv_lines):
         groups = {}
         for line in inv_lines:
-            key = (line.get("line_date") or "", invoice_breakdown_match_key(line))
+            key = (
+                line.get("line_date") or "",
+                line.get("site_name") or "",
+                line.get("hole_num") or "",
+                invoice_breakdown_match_key(line),
+            )
             groups.setdefault(key, []).append(line)
 
         eos_by_key = {}
         for key in groups:
-            line_date, match_key = key
+            line_date, site_name, hole_num, match_key = key
             params = [contractor]
             where = ["contractor=%s", "line_cost IS NOT NULL"]
             if line_date:
@@ -3486,6 +3491,15 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
                     iso = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
                 where.append("(date=%s OR date=%s)")
                 params.extend([line_date, iso])
+            if hole_num and hole_num != site_name:
+                where.append("(hole_num=%s OR drill_rig=%s)")
+                params.extend([hole_num, hole_num])
+            elif site_name:
+                where.append("site_name=%s")
+                params.append(site_name)
+            elif hole_num:
+                where.append("hole_num=%s")
+                params.append(hole_num)
             if match_key == "DRILLING_METRES":
                 where.append("COALESCE(total_metres,0)>0")
             elif match_key == "DAILY_TOTAL":
