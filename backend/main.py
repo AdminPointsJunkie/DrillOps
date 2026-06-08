@@ -2875,7 +2875,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
-                        LEFT JOIN activities a ON a.hole_num=b.hole_id
+                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
                         WHERE b.contractor=%s
                         GROUP BY b.id ORDER BY b.drill_order
                     """, (contractor,))
@@ -2885,7 +2885,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
-                        LEFT JOIN activities a ON a.hole_num=b.hole_id
+                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 rows = [dict(r) for r in cur.fetchall()]
@@ -2912,7 +2912,7 @@ async def import_budget(request: Request):
                 (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
                  bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
                  seam_tk,lat,lng,status,budget_total)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Planned',%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (contractor,hole_id) DO UPDATE SET
                     project=EXCLUDED.project, planned_year=EXCLUDED.planned_year,
                     site_id=EXCLUDED.site_id, drill_order=EXCLUDED.drill_order,
@@ -2931,6 +2931,7 @@ async def import_budget(request: Request):
                    b.get("easting"), b.get("northing"), b.get("rl"),
                    b.get("chip_depth"), b.get("eoh_depth"), b.get("total_core"),
                    b.get("seam_tk"), b.get("lat"), b.get("lng"),
+                   b.get("status", "Planned"),
                    b.get("budget_total")) for b in boreholes])
         conn.commit()
     return {"status": "imported", "count": len(boreholes)}
@@ -2951,6 +2952,8 @@ async def update_borehole(hole_id: str, request: Request):
                 f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in u if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
                 u
             )
+            if cur.rowcount == 0:
+                raise HTTPException(404, f"Borehole {hole_id} not found for contractor {contractor}")
         conn.commit()
     return {"status": "updated"}
 

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Borehole Details | DrillOps</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#1f5f8b;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
+main{max-width:1540px;margin:0 auto;padding:18px;}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;}
+h1{font-size:22px;margin:0 0 6px;font-weight:800;}
+.meta{color:var(--muted);display:flex;gap:9px;flex-wrap:wrap;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;}
+button,.btn,select{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;}
+button{cursor:pointer}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.kpi,.panel{background:var(--panel);border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);}
+.kpi{padding:13px 14px;}
+.label,.subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
+.value{font-size:21px;font-weight:800;margin-top:5px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.panel{padding:14px;margin-bottom:14px;overflow:hidden;}
+.table-panel{padding:0;}
+.table-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.scroll{overflow:auto;max-height:470px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
+.code{font-family:var(--mono);font-weight:800;color:#174d72;}
+.status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;}
+.Planned{background:#f1f5f9;color:#475569}.InProgress{background:#fff7e6;color:#a05a00}.Complete{background:#ecfdf3;color:#147a39}.Cancelled{background:#fff1f2;color:#b42335}
+.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.detail{border:1px solid #edf0f3;border-radius:6px;padding:9px 10px;background:#fbfcfd;}
+.detail strong{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px;}
+.empty{padding:18px;color:var(--muted);}
+@media(max-width:1000px){.kpis,.grid,.detail-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){.kpis,.grid,.detail-grid{grid-template-columns:1fr}.head{flex-direction:column}}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <div>
+      <h1 id="title">Borehole Details</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="actions">
+      <select id="status-select">
+        <option>Planned</option>
+        <option>In Progress</option>
+        <option>Complete</option>
+        <option>Cancelled</option>
+      </select>
+      <button type="button" id="save-status">Save Status</button>
+      <button type="button" onclick="window.print()">Print / PDF</button>
+      <a class="btn" href="index.html">Borehole planning</a>
+    </div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="label">Status</div><div class="value" id="kpi-status">--</div></div>
+    <div class="kpi"><div class="label">Actual Metres</div><div class="value" id="kpi-metres">--</div></div>
+    <div class="kpi"><div class="label">First Activity</div><div class="value" id="kpi-first">--</div></div>
+    <div class="kpi"><div class="label">Last Activity</div><div class="value" id="kpi-last">--</div></div>
+    <div class="kpi"><div class="label">Actual Cost</div><div class="value" id="kpi-cost">--</div></div>
+    <div class="kpi"><div class="label">Activity Rows</div><div class="value" id="kpi-rows">--</div></div>
+  </div>
+  <div class="grid">
+    <div class="panel">
+      <div class="subtitle">Planned Borehole</div>
+      <div class="detail-grid" id="planned-details"></div>
+    </div>
+    <div class="panel">
+      <div class="subtitle">Imported Activity Sheet Summary</div>
+      <div class="detail-grid" id="actual-details"></div>
+    </div>
+  </div>
+  <div class="panel table-panel">
+    <div class="table-head"><div class="subtitle" style="margin:0;">Drilled Intervals From Imported Activity Sheets</div></div>
+    <div class="scroll">
+      <table><thead><tr><th>Date</th><th>Report</th><th>Time</th><th>Code</th><th>Bit</th><th>Diameter</th><th>From</th><th>To</th><th>Metres</th><th>Cost</th><th>Notes</th></tr></thead><tbody id="interval-body"></tbody></table>
+    </div>
+  </div>
+  <div class="panel table-panel">
+    <div class="table-head"><div class="subtitle" style="margin:0;">All Imported Activity Rows For This Borehole / Site</div></div>
+    <div class="scroll">
+      <table><thead><tr><th>Date</th><th>Hole</th><th>Site</th><th>Time</th><th>Code</th><th>Duration</th><th>Metres</th><th>Cost</th><th>Notes</th></tr></thead><tbody id="activity-body"></tbody></table>
+    </div>
+  </div>
+</main>
+<script>
+const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
+const params=new URLSearchParams(window.location.search);
+const contractor=params.get('contractor')||'Allianz Drilling';
+const hole=params.get('hole')||'';
+const site=params.get('site')||'';
+let currentBorehole=null;
+let currentActivities=[];
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function num(v){const n=parseFloat(v);return isNaN(n)?0:n;}
+function fmt(v,d=2){return v==null||v===''?'':num(v).toFixed(d);}
+function parseDateValue(value){const s=String(value||'');const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):s;}
+function detail(label,value){return '<div class="detail"><strong>'+esc(label)+'</strong>'+esc(value??'')+'</div>';}
+async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error(await res.text());return res.json();}
+function statusClass(status){return String(status||'Planned').replace(/\s+/g,'');}
+async function loadBorehole(){
+  document.getElementById('meta').innerHTML=[contractor,site?'Site '+site:'',hole?'Hole '+hole:''].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
+  const boreholes=await fetchJson(API+'/boreholes?contractor='+encodeURIComponent(contractor));
+  currentBorehole=boreholes.find(b=>(hole&&b.hole_id===hole)||(site&&b.site_id===site))||null;
+  if(currentBorehole){
+    document.getElementById('title').textContent=(currentBorehole.site_id||site||currentBorehole.hole_id)+' Borehole Details';
+    document.getElementById('status-select').value=currentBorehole.status||'Planned';
+  }
+  const requests=[];
+  if(hole)requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor)+'&holes='+encodeURIComponent(hole)).catch(()=>[]));
+  if(site)requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor)+'&sites='+encodeURIComponent(site)).catch(()=>[]));
+  const results=await Promise.all(requests.length?requests:[Promise.resolve([])]);
+  const seen=new Set();
+  const activities=results.flat().filter(r=>{const key=r.id||[r.date,r.hole_num,r.site_name,r.time_from,r.code,r.notes].join('|');if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>parseDateValue(a.date).localeCompare(parseDateValue(b.date))||String(a.time_from||'').localeCompare(String(b.time_from||'')));
+  currentActivities=activities;
+  renderBorehole(currentBorehole,activities);
+}
+function renderBorehole(bh,activities){
+  const drilled=activities.filter(r=>num(r.total_metres)>0||num(r.metres_to)>0||num(r.metres_from)>0);
+  const totalMetres=drilled.reduce((s,r)=>s+num(r.total_metres),0);
+  const totalCost=activities.reduce((s,r)=>s+num(r.line_cost),0);
+  const dates=activities.map(r=>r.date).filter(Boolean).sort((a,b)=>parseDateValue(a).localeCompare(parseDateValue(b)));
+  const status=bh?.status||'Planned';
+  document.getElementById('kpi-status').innerHTML='<span class="status '+statusClass(status)+'">'+esc(status)+'</span>';
+  document.getElementById('kpi-metres').textContent=totalMetres.toFixed(2)+' m';
+  document.getElementById('kpi-first').textContent=dates[0]||'--';
+  document.getElementById('kpi-last').textContent=dates[dates.length-1]||'--';
+  document.getElementById('kpi-cost').textContent=cur(totalCost);
+  document.getElementById('kpi-rows').textContent=activities.length;
+  document.getElementById('planned-details').innerHTML=bh?[
+    detail('Project',bh.project),detail('Year',bh.planned_year),detail('Site ID',bh.site_id),detail('Hole ID',bh.hole_id),
+    detail('Type',bh.bh_type||bh.type),detail('Bit',bh.bit_type),detail('Purpose',bh.purpose),detail('Easting',fmt(bh.easting,0)),
+    detail('Northing',fmt(bh.northing,0)),detail('RL',fmt(bh.rl,2)),detail('Chip Depth',fmt(bh.chip_depth,2)+' m'),detail('EOH Depth',fmt(bh.eoh_depth,2)+' m'),
+    detail('Total Core',fmt(bh.total_core,2)+' m'),detail('Seam Tk',fmt(bh.seam_tk,2)+' m'),detail('Budget',cur(bh.budget_total)),detail('Notes',bh.notes)
+  ].join(''):'<div class="empty">No planned borehole row found for this site/hole.</div>';
+  document.getElementById('actual-details').innerHTML=[
+    detail('Imported Rows',activities.length),detail('Drilled Interval Rows',drilled.length),detail('Actual Metres',totalMetres.toFixed(2)+' m'),
+    detail('Actual Cost',cur(totalCost)),detail('First Activity',dates[0]||''),detail('Last Activity',dates[dates.length-1]||''),
+    detail('Source Reports',new Set(activities.map(r=>r.source_file).filter(Boolean)).size),detail('Drill Codes',new Set(drilled.map(r=>r.code).filter(Boolean)).size)
+  ].join('');
+  document.getElementById('interval-body').innerHTML=drilled.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.source_file||'')+'</td><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td class="code">'+esc(r.code||'')+'</td><td>'+esc(r.bit_type||'')+'</td><td>'+esc(r.diameter||'')+'</td><td>'+fmt(r.metres_from)+'</td><td>'+fmt(r.metres_to)+'</td><td>'+fmt(r.total_metres)+'</td><td>'+cur(r.line_cost)+'</td><td>'+esc(r.notes||'')+'</td></tr>').join('')||'<tr><td colspan="11" class="empty">No drilled interval rows found in imported activity sheets.</td></tr>';
+  document.getElementById('activity-body').innerHTML=activities.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.hole_num||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td class="code">'+esc(r.code||'')+'</td><td>'+esc(r.total_time||'')+'</td><td>'+fmt(r.total_metres)+'</td><td>'+cur(r.line_cost)+'</td><td>'+esc(r.notes||'')+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">No imported activity rows found for this borehole or site.</td></tr>';
+}
+async function saveStatus(){
+  if(!currentBorehole?.hole_id){alert('No borehole row found to save.');return;}
+  const status=document.getElementById('status-select').value;
+  const res=await fetch(API+'/boreholes/'+encodeURIComponent(currentBorehole.hole_id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor,status})});
+  if(!res.ok){alert('Status save failed: '+await res.text());return;}
+  currentBorehole.status=status;
+  renderBorehole(currentBorehole,currentActivities);
+}
+document.getElementById('save-status').addEventListener('click',saveStatus);
+loadBorehole().catch(e=>{document.getElementById('planned-details').innerHTML='<div class="empty">Could not load borehole: '+esc(e.message)+'</div>';});
+</script>
+</body>
+</html>

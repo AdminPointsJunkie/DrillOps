@@ -4481,7 +4481,7 @@ function getBhColor(bh) {
 async function loadBoreholes() {
   let dbData = [];
   try {
-    const res = await fetch(API+'/boreholes');
+    const res = await fetch(API+'/boreholes?contractor='+encodeURIComponent(activeContractor));
     if(res.ok) dbData = await res.json();
   } catch(e) {}
 
@@ -4601,6 +4601,15 @@ function syncBoreholeDetailsProjectFilter(rows) {
   if(projects.includes(current)) sel.value = current;
 }
 
+function boreholeDetailUrl(b) {
+  const p = new URLSearchParams({
+    contractor: activeContractor,
+    hole: b.hole_id || '',
+    site: b.site_id || ''
+  });
+  return 'borehole.html?' + p.toString();
+}
+
 function detailsCellValue(b, col) {
   if(col.extra) return (getBoreholeDetailsExtras()[b.hole_id]||{})[col.key] ?? '';
   return b[col.key];
@@ -4652,6 +4661,9 @@ function renderBoreholeDetails() {
           return '<option value="'+s+'"'+(s===status?' selected':'')+'>'+s+'</option>';
         }).join('');
         return '<td><select onchange="saveBoreholeDetailCell(&apos;'+esc(b.hole_id)+'&apos;,&apos;status&apos;,this.value,false)" style="font-size:11px;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+opts+'</select></td>';
+      }
+      if(col.key==='site_id') {
+        return '<td><a href="'+boreholeDetailUrl(b)+'" target="_blank" style="font-weight:700;color:var(--accent);text-decoration:none;">'+esc(value||'Open')+'</a></td>';
       }
       const attrs = col.editable ? 'contenteditable="true" data-col="'+col.key+'" '+(col.num?'data-num="true" ':'')+(col.extra?'data-extra="true" ':'') : '';
       const cls = col.editable ? '' : ' class="readonly-cell"';
@@ -5040,8 +5052,8 @@ function renderBhTable(rows) {
       +'<td style="color:var(--muted);font-size:11px;">'+(b.drill_order||'')+'</td>'
       +'<td contenteditable="true" data-col="project" style="font-size:12px;">'+ esc(b.project||'')+'</td>'
       +'<td contenteditable="true" data-col="planned_year" style="font-size:12px;">'+ esc(b.planned_year||'')+'</td>'
-      +'<td contenteditable="true" data-col="site_id" style="font-size:12px;">'+ esc(b.site_id||'')+'</td>'
-      +'<td contenteditable="true" data-col="hole_id" style="font-weight:700;color:var(--accent);">'+esc(b.hole_id)+'</td>'
+      +'<td style="font-size:12px;"><a href="'+boreholeDetailUrl(b)+'" target="_blank" onclick="event.stopPropagation()" style="font-weight:700;color:var(--accent);text-decoration:none;">'+ esc(b.site_id||'Open')+'</a></td>'
+      +'<td><a href="'+boreholeDetailUrl(b)+'" target="_blank" onclick="event.stopPropagation()" style="font-weight:700;color:var(--accent);text-decoration:none;">'+esc(b.hole_id)+'</a></td>'
       +'<td contenteditable="true" data-col="bh_type"><span class="badge '+(t==='Core'?'badge-drill':'badge-standby')+'">'+esc(t)+'</span></td>'
       +'<td contenteditable="true" data-col="bit_type" style="font-family:var(--font-mono);font-size:11px;">'+esc(b.bit_type||'')+'</td>'
       +'<td contenteditable="true" data-col="purpose" style="font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;">'+esc(b.purpose||'')+'</td>'
@@ -5132,7 +5144,7 @@ async function addBorehole() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:'Company', boreholes:[newBh]})
+      body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
     bhData.push(newBh);
@@ -5150,7 +5162,7 @@ async function addBorehole() {
 async function deleteBorehole(holeId) {
   if(!confirm('Delete borehole '+holeId+'? This cannot be undone.')) return;
   try {
-    await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {method:'DELETE'});
+    await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(activeContractor), {method:'DELETE'});
     bhData = bhData.filter(function(b){return b.hole_id!==holeId;});
     toast(holeId+' deleted','warn');
     renderBhTable(bhData);
@@ -5211,7 +5223,7 @@ function importBhCSV(input) {
     try {
       const res = await fetch(API+'/boreholes/import_budget', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contractor:'Company', boreholes:boreholes})
+        body:JSON.stringify({contractor:activeContractor, boreholes:boreholes})
       });
       if(!res.ok) { toast('Import failed','err'); return; }
       const d = await res.json();
@@ -5255,7 +5267,7 @@ async function importBudgetToDb() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:'Company', boreholes:bhData})
+      body:JSON.stringify({contractor:activeContractor, boreholes:bhData})
     });
     if(!res.ok) { toast('Failed to save','err'); return; }
     const d = await res.json();
