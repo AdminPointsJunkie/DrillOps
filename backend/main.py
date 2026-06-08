@@ -530,9 +530,9 @@ seed_2025_rates()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
+DRILLING_METRE_CODES = {"Drill_Core", "Drill_Chip_or_Open_hole"}
 # Codes charged at Active rate ($/hr)
 ACTIVE_CODES = {
-    "Drill_Core","Drill_Chip_or_Open_hole",
     "H_Tripping_Rods","H_Circulation_Flush","H_Circulation_Lost",
     "H_Reaming","H_Change_Drill_Mthd",
     "H_Casing_Install","H_Rig_Cementing",
@@ -642,7 +642,7 @@ def price_activity(cur, row, contractor):
             if r: return float(r["rate"])
         return None
 
-    if code in ("Drill_Core","Drill_Chip_or_Open_hole") and total_metres and total_metres > 0:
+    if code in DRILLING_METRE_CODES and total_metres and total_metres > 0:
         bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
         r = get_dr(bk, metres_to or 0)
         if r is not None:
@@ -650,6 +650,11 @@ def price_activity(cur, row, contractor):
             quantity   = total_metres
             line_cost  = round(r * total_metres, 2)
             rate_basis = f"$/m @ {(metres_to or 0):.0f}m ({bk})"
+    elif code in DRILLING_METRE_CODES:
+        unit_rate = 0
+        quantity = 0
+        line_cost = 0
+        rate_basis = "drilling time covered by metreage; no metres recorded"
     elif any(k in code for k in DAY_RATE_CODES) or any(code in k for k in DAY_RATE_CODES):
         matched = next((v for k,v in DAY_RATE_CODES.items() if k in code or code in k), None)
         if matched:
@@ -1564,6 +1569,15 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
             "rate_basis": f"schedule ${rate:,.2f}/m x {metres:.2f}m ({drilling_schedule_key({**row, 'code': code})})",
         })
         reason = "Repriced drilled metres from drilling schedule."
+    elif code in DRILLING_METRE_CODES:
+        updates.update({
+            "rate_year": year,
+            "unit_rate": 0,
+            "quantity": 0,
+            "line_cost": 0,
+            "rate_basis": "drilling time covered by metreage; no metres recorded",
+        })
+        reason = "Kept drilling time non-chargeable because drilling is billed by metres."
     elif code in NOT_CHARGEABLE:
         qty = round(hours, 2) if hours > 0 else 1
         updates.update({"rate_year": year, "unit_rate": 0, "quantity": qty, "line_cost": 0, "rate_basis": "not chargeable"})
@@ -2066,6 +2080,8 @@ async def import_pdf(
                 r = _get_dr(bk, depth, year)
                 if r is not None:
                     ur = r; qty = round(metres,2); lc = round(r*metres,2); rb = f"${r:.2f}/m x {metres:.2f}m"
+            elif code in DRILLING_METRE_CODES:
+                ur = 0; qty = 0; lc = 0; rb = "drilling time covered by metreage; no metres recorded"
 
             # Day rates
             if lc is None:
@@ -4216,6 +4232,9 @@ def reprice_activities(contractor: str = Query(...)):
                     if r is not None:
                         unit_rate = r; quantity = round(metres,2)
                         line_cost = round(r * metres, 2); rate_basis = f"${r:.2f}/m x {metres:.2f}m"
+            elif code in DRILLING_METRE_CODES:
+                unit_rate = 0; quantity = 0; line_cost = 0
+                rate_basis = "drilling time covered by metreage; no metres recorded"
 
             # Day rates
             if line_cost is None:
