@@ -2875,10 +2875,10 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
-                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=b.contractor
-                        WHERE b.contractor=%s
+                        LEFT JOIN activities a ON a.hole_num=b.hole_id AND a.contractor=%s
+                        WHERE b.contractor IN (%s, 'Company')
                         GROUP BY b.id ORDER BY b.drill_order
-                    """, (contractor,))
+                    """, (contractor, contractor))
                 else:
                     cur.execute("""
                         SELECT b.*,
@@ -2889,6 +2889,16 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 rows = [dict(r) for r in cur.fetchall()]
+                if contractor:
+                    deduped = {}
+                    for row in rows:
+                        key = row.get("hole_id")
+                        if not key:
+                            continue
+                        current = deduped.get(key)
+                        if not current or (current.get("contractor") == "Company" and row.get("contractor") == contractor):
+                            deduped[key] = row
+                    rows = sorted(deduped.values(), key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
                 return rows
     except Exception as e:
         raise HTTPException(500, f"Boreholes error: {str(e)}")
@@ -2952,6 +2962,12 @@ async def update_borehole(hole_id: str, request: Request):
                 f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in u if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
                 u
             )
+            if cur.rowcount == 0 and contractor != "Company":
+                legacy = {**u, "contractor": "Company"}
+                cur.execute(
+                    f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in legacy if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
+                    legacy
+                )
             if cur.rowcount == 0:
                 raise HTTPException(404, f"Borehole {hole_id} not found for contractor {contractor}")
         conn.commit()
@@ -2964,6 +2980,8 @@ def delete_borehole(hole_id: str, contractor: Optional[str] = Query(None)):
         with conn.cursor() as cur:
             if contractor:
                 cur.execute("DELETE FROM boreholes WHERE hole_id=%s AND contractor=%s", (hole_id, contractor))
+                if cur.rowcount == 0 and contractor != "Company":
+                    cur.execute("DELETE FROM boreholes WHERE hole_id=%s AND contractor='Company'", (hole_id,))
             else:
                 cur.execute("DELETE FROM boreholes WHERE hole_id=%s", (hole_id,))
         conn.commit()
