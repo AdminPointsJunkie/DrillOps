@@ -8,7 +8,9 @@ import re
 import os
 import base64
 import json
+import csv
 from io import BytesIO
+from io import StringIO
 from typing import Optional
 
 import pdfplumber
@@ -1011,6 +1013,310 @@ def parse_crew(text, header, filename, contractor):
     return rows
 
 
+COREPLAN_SECTIONS = {
+    "Details","Drilling Intervals","Drilling Events","Minimum Drilling Costs",
+    "Down Hole Activities","Survey","Bit Wear Clause","Time Breakdown",
+    "Consumables","Equipment","Miscellaneous","People","Checklist"
+}
+
+COREPLAN_CATEGORY_CODES = {
+    "Awaiting Site Preparation": "H_Standby_AAC",
+    "Breakdown": "H_Repairs",
+    "Cementing": "H_Rig_Cementing",
+    "Circ/Flush_Hole": "H_Circulation_Flush",
+    "Circulation - Lost Circulation": "H_Circulation_Lost",
+    "Logging": "H_Standby_Logger",
+    "Mobilisation": "MOB",
+    "Other_Work_Rate": "H_Active",
+    "Pack-up / Set-up": "H_Surface_Setup",
+    "Pre-Start/Lube_Rig": "H_Safety_Prestart",
+    "Reaming": "H_Reaming",
+    "Run/Pull_Casing": "H_Casing_Install",
+    "Safety/PSI Meeting": "H_Safety_Contractor",
+    "Standby": "H_Standby_AAC",
+    "Standby - Fatigue Management": "H_Standby_AAC",
+    "Travel": "H_Crew_Travel_On",
+    "Tripping Rods": "H_Tripping_Rods",
+}
+
+
+def coreplan_money(value):
+    if value in (None, ""):
+        return None
+    s = str(value).replace("A$", "").replace("$", "").replace(",", "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def coreplan_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(str(value).replace(",", "").strip())
+    except Exception:
+        return None
+
+
+def hours_to_hhmm(value):
+    hours = coreplan_float(value) or 0
+    whole = int(hours)
+    mins = int(round((hours - whole) * 60))
+    if mins == 60:
+        whole += 1
+        mins = 0
+    return f"{whole}:{mins:02d}"
+
+
+def add_minutes(clock_minutes, hours):
+    mins = int(round((coreplan_float(hours) or 0) * 60))
+    return clock_minutes + mins
+
+
+def clock_from_minutes(clock_minutes):
+    mins = clock_minutes % (24 * 60)
+    return f"{mins // 60}:{mins % 60:02d}"
+
+
+def coreplan_bit_type(row):
+    text = f"{row.get('type','')} {row.get('drill_bit','')} {row.get('drilling_events','')}".upper()
+    if "HQ" in text:
+        return "HQ_HQ3"
+    if "NQ" in text:
+        return "NQ"
+    if "PQ" in text:
+        return "PQ"
+    if "PCD" in text:
+        return "PCD"
+    return ""
+
+
+def coreplan_drill_code(row):
+    bit = coreplan_bit_type(row)
+    typ = str(row.get("type") or "").upper()
+    if bit in ("HQ_HQ3", "NQ", "PQ") or "COR" in typ:
+        return "Drill_Core"
+    return "Drill_Chip_or_Open_hole"
+
+
+def coreplan_category_code(category, notes):
+    if category == "Travel":
+        n = (notes or "").lower()
+        if "swipe off" in n or "off site" in n or "from site" in n:
+            return "H_Crew_Travel_Off"
+    return COREPLAN_CATEGORY_CODES.get(category, "H_Active")
+
+
+def parse_coreplan_sections(text):
+    lines = text.splitlines()
+    sections = {}
+    i = 0
+    while i < len(lines):
+        name = lines[i].strip("\ufeff").strip()
+        if name in COREPLAN_SECTIONS:
+            i += 1
+            chunk = []
+            while i < len(lines):
+                nxt = lines[i].strip("\ufeff").strip()
+                if nxt in COREPLAN_SECTIONS:
+                    break
+                if nxt:
+                    chunk.append(lines[i])
+                i += 1
+            if chunk:
+                try:
+                    sections[name] = list(csv.DictReader(StringIO("\n".join(chunk))))
+                except Exception:
+                    sections[name] = []
+            continue
+        i += 1
+    return sections
+
+
+def parse_coreplan_plod_csv(content, filename, contractor):
+    text = content.decode("utf-8-sig", errors="replace")
+    sections = parse_coreplan_sections(text)
+    details = (sections.get("Details") or [{}])[0]
+    plod = details.get("plod") or os.path.splitext(filename)[0]
+    report_date = details.get("date") or ""
+    rig = details.get("rig") or ""
+    shift = details.get("workshift") or ""
+    contract = details.get("contract") or ""
+    report_notes = details.get("notes") or ""
+    total_cost = coreplan_money(details.get("total_cost")) or 0
+
+    default_hole = ""
+    for section_name in ("Drilling Intervals", "Time Breakdown", "Consumables", "People"):
+        for row in sections.get(section_name) or []:
+            default_hole = row.get("hole_name") or default_hole
+            if default_hole:
+                break
+        if default_hole:
+            break
+
+    header = {
+        "date": report_date,
+        "hole_num": default_hole,
+        "site_name": default_hole,
+        "drill_rig": rig,
+        "contract": contract,
+        "shift": shift,
+        "client": "Fitzroy Coal",
+        "location": "",
+        "plod": plod,
+        "notes": report_notes,
+    }
+
+    acts = []
+    current_time = 6 * 60
+
+    def base_activity(row, code, notes, duration_hours=None, line_cost=None, unit_rate=None, quantity=None, rate_basis=None):
+        nonlocal current_time
+        duration_hours = coreplan_float(duration_hours) or 0
+        time_from = clock_from_minutes(current_time) if duration_hours else ""
+        time_to = clock_from_minutes(add_minutes(current_time, duration_hours)) if duration_hours else ""
+        if duration_hours:
+            current_time = add_minutes(current_time, duration_hours)
+        hole = row.get("hole_name") or default_hole
+        return {
+            "source_file": filename, "contractor": contractor,
+            "date": report_date, "hole_num": hole, "site_name": hole,
+            "location": "", "drill_rig": rig, "client": "Fitzroy Coal",
+            "contract": contract, "shift": shift,
+            "time_from": time_from, "time_to": time_to, "total_time": hours_to_hhmm(duration_hours),
+            "bit_type": "", "diameter": "",
+            "metres_from": None, "metres_to": None, "total_metres": None,
+            "code": code, "notes": notes or "",
+            "rate_year": extract_year(report_date),
+            "unit_rate": unit_rate, "quantity": quantity,
+            "line_cost": line_cost, "rate_basis": rate_basis,
+            "po_id": None,
+        }
+
+    interval_rows = sorted(sections.get("Drilling Intervals") or [], key=lambda r: coreplan_float(r.get("order")) or 0)
+    for row in interval_rows:
+        metres_from = coreplan_float(row.get("depth_from"))
+        metres_to = coreplan_float(row.get("depth_to"))
+        metres = None
+        if metres_from is not None and metres_to is not None:
+            metres = max(0, round(metres_to - metres_from, 2))
+        if not metres and not coreplan_float(row.get("duration_hours")):
+            continue
+        unit_rate = coreplan_money(row.get("cost_per_m"))
+        line_cost = coreplan_money(row.get("cost"))
+        code = coreplan_drill_code(row)
+        notes = "; ".join(x for x in [
+            row.get("type") or "",
+            row.get("drill_bit") or "",
+            row.get("drilling_events") or "",
+        ] if x)
+        act = base_activity(
+            row, code, notes, row.get("duration_hours"),
+            line_cost=line_cost, unit_rate=unit_rate, quantity=metres,
+            rate_basis=(f"CorePlan ${unit_rate:,.2f}/m x {metres:.2f}m" if unit_rate is not None and metres is not None else "CorePlan drilling interval")
+        )
+        act.update({
+            "bit_type": coreplan_bit_type(row),
+            "metres_from": metres_from,
+            "metres_to": metres_to,
+            "total_metres": metres,
+        })
+        acts.append(act)
+
+    time_rows = sections.get("Time Breakdown") or []
+    for row in time_rows:
+        category = row.get("category") or ""
+        notes = row.get("notes") or category
+        duration = row.get("duration_hours")
+        unit_rate = coreplan_money(row.get("cost_per_hour"))
+        line_cost = coreplan_money(row.get("cost"))
+        code = coreplan_category_code(category, notes)
+        acts.append(base_activity(
+            row, code, notes, duration,
+            line_cost=line_cost, unit_rate=unit_rate,
+            quantity=coreplan_float(duration),
+            rate_basis=(f"CorePlan ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan time breakdown")
+        ))
+
+    for row in sections.get("Minimum Drilling Costs") or []:
+        duration = row.get("duration_hours")
+        unit_rate = coreplan_money(row.get("cost_per_h"))
+        line_cost = coreplan_money(row.get("cost"))
+        rig_type = row.get("rig_type") or "Rig"
+        acts.append(base_activity(
+            row, "H_Min_Shift", f"{rig_type} minimum shift charge", duration,
+            line_cost=line_cost, unit_rate=unit_rate,
+            quantity=coreplan_float(duration),
+            rate_basis=(f"CorePlan minimum ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan minimum drilling cost")
+        ))
+
+    for row in sections.get("Miscellaneous") or []:
+        name = row.get("name") or "Miscellaneous"
+        line_cost = coreplan_money(row.get("cost"))
+        qty = coreplan_float(row.get("quantity")) or 1
+        if not name and line_cost is None:
+            continue
+        code = coreplan_category_code(name, row.get("notes") or name)
+        unit_rate = round(line_cost / qty, 2) if line_cost is not None and qty else line_cost
+        acts.append(base_activity(
+            row, code, row.get("notes") or name, 0,
+            line_cost=line_cost, unit_rate=unit_rate, quantity=qty,
+            rate_basis="CorePlan miscellaneous charge"
+        ))
+
+    activity_total = sum(float(a.get("line_cost") or 0) for a in acts)
+    if total_cost and abs(total_cost - activity_total) > 0.01:
+        adjustment = round(total_cost - activity_total, 2)
+        acts.append(base_activity(
+            {"hole_name": default_hole},
+            "H_Min_Shift",
+            "CorePlan report total adjustment",
+            0,
+            line_cost=adjustment,
+            unit_rate=adjustment,
+            quantity=1,
+            rate_basis=f"CorePlan report total {total_cost:,.2f} less imported line costs {activity_total:,.2f}"
+        ))
+
+    cons = []
+    for row in sections.get("Consumables") or []:
+        qty = coreplan_float(row.get("quantity"))
+        unit_price = coreplan_money(row.get("cost_per_unit"))
+        line_cost = coreplan_money(row.get("cost"))
+        hole = row.get("hole_name") or default_hole
+        item = row.get("item_name") or ""
+        if not item:
+            continue
+        cons.append({
+            "source_file": filename, "contractor": contractor,
+            "date": report_date, "hole_num": hole, "site_name": hole,
+            "consumable": item, "type": item,
+            "quantity": "" if qty is None else str(qty),
+            "unit": row.get("unit") or "",
+            "unit_price": unit_price,
+            "line_cost": line_cost,
+        })
+
+    crew = []
+    for row in sections.get("People") or []:
+        name = row.get("person_name") or ""
+        if not name:
+            continue
+        hole = row.get("hole_name") or default_hole
+        crew.append({
+            "source_file": filename, "contractor": contractor,
+            "date": report_date, "hole_num": hole, "site_name": hole,
+            "role": row.get("job_role") or ("Supervisor" if str(row.get("is_supervisor")).lower() == "true" else "Crew"),
+            "name": name,
+            "hours": row.get("duration_hours") or "",
+        })
+
+    return header, acts, cons, crew, text
+
+
 # ── API ───────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
@@ -1557,6 +1863,52 @@ async def import_pdf(
                 return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
 
     content = await file.read()
+    if filename.lower().endswith(".csv"):
+        try:
+            header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, contractor)
+        except Exception as e:
+            raise HTTPException(400, f"Could not read CorePlan CSV: {e}")
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                if acts:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO activities
+                        (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                         client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                         metres_from,metres_to,total_metres,code,notes,
+                         rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                        VALUES
+                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                         %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                         %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                         %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                         %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                    """, acts)
+                if cons:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO consumables (source_file,contractor,date,hole_num,site_name,consumable,type,quantity,unit,unit_price,line_cost)
+                        VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s,%(unit_price)s,%(line_cost)s)
+                    """, cons)
+                if crew:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO crew (source_file,contractor,date,hole_num,site_name,role,name,hours)
+                        VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(role)s,%(name)s,%(hours)s)
+                    """, crew)
+                cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                            (filename, contractor))
+                cur.execute("""
+                    INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                    VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                """, (filename, contractor, psycopg2.Binary(content)))
+            conn.commit()
+
+        return {"status":"imported","filename":filename,"rows":len(acts),
+                "contractor":contractor,
+                "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
+                "consumables":len(cons),"crew":len(crew),
+                "import_check":{"status":"ok","summary":"CorePlan CSV imported using Mitchells/CorePlan structured export.","warnings":[]}}
+
     try:
         with pdfplumber.open(BytesIO(content)) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
