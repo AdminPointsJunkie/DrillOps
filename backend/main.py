@@ -220,6 +220,9 @@ def init_db():
                 ("site_id", "TEXT"),
                 ("eoh_depth", "FLOAT"),
                 ("total_core", "FLOAT"),
+                ("assigned_rig", "TEXT"),
+                ("scheduled_start", "TEXT"),
+                ("scheduled_end", "TEXT"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE boreholes ADD COLUMN IF NOT EXISTS {col} {typedef}")
@@ -3616,7 +3619,8 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         "project","planned_year","site_id","drill_order","days_budgeted",
                         "bh_type","bit_type","purpose","easting","northing","rl",
                         "chip_depth","eoh_depth","total_core","seam_tk","lat","lng",
-                        "budget_total","actual_total"
+                        "budget_total","actual_total","assigned_rig","scheduled_start",
+                        "scheduled_end"
                     }
                     for row in rows:
                         key = row.get("hole_id")
@@ -3688,7 +3692,7 @@ async def import_budget(request: Request):
 async def update_borehole(hole_id: str, request: Request):
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
-    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","hole_id"}
+    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","assigned_rig","scheduled_start","scheduled_end","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
     u["hole_id"] = hole_id
