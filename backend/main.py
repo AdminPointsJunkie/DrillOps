@@ -1065,12 +1065,94 @@ def remove_contractor(name: str):
     return {"status": "deleted"}
 
 
-def local_import_qa(acts, cons, crew):
+def build_rate_context(hourly_rates=None, drilling_rates=None, consumable_rates=None):
+    hourly = {}
+    hourly_any = {}
+    for r in hourly_rates or []:
+        year = str(r.get("year") or "")
+        code = r.get("code") or ""
+        if not code:
+            continue
+        hourly[(year, code)] = float(r.get("rate") or 0)
+        hourly_any.setdefault(code, float(r.get("rate") or 0))
+    drilling = []
+    for r in drilling_rates or []:
+        drilling.append({
+            "year": str(r.get("year") or ""),
+            "bit_type": r.get("bit_type") or "",
+            "depth_from": float(r.get("depth_from") or 0),
+            "depth_to": float(r.get("depth_to") or 0),
+            "rate": float(r.get("rate") or 0),
+        })
+    consumables = {}
+    for r in consumable_rates or []:
+        product = (r.get("product") or "").strip().upper()
+        if product:
+            consumables[product] = float(r.get("unit_price") or 0)
+            consumables[product.replace(" ", "")] = float(r.get("unit_price") or 0)
+    return {"hourly": hourly, "hourly_any": hourly_any, "drilling": drilling, "consumables": consumables}
+
+
+def local_import_qa(acts, cons, crew, rate_context=None):
     def _num(value):
         try:
             return float(value or 0)
         except Exception:
             return 0.0
+
+    def _hours(value):
+        s = str(value or "").strip()
+        if not s:
+            return 0.0
+        mt = re.match(r"^(\d+):(\d+)", s)
+        if mt:
+            return int(mt.group(1)) + int(mt.group(2)) / 60.0
+        return _num(s)
+
+    def _year(row):
+        for part in str(row.get("date") or "").replace("-", "/").split("/"):
+            if len(part) == 4 and part.isdigit():
+                return part
+        return "2026"
+
+    def _hourly_rate(code, year):
+        if not rate_context:
+            return None
+        for ty in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025", "2026"]:
+            val = rate_context["hourly"].get((ty, code))
+            if val is not None:
+                return val
+        return rate_context["hourly_any"].get(code)
+
+    def _drilling_key(row):
+        bit = (row.get("bit_type") or "").replace(" ", "_").upper()
+        bit_map = {"HQ_HQ3": "HQ_HQ3", "HQ": "HQ_HQ3", "NQ": "HQ_HQ3", "PCD": "PCD_S", "PQ": "HQ_HQ3"}
+        return bit_map.get(bit, "PCD_S" if "Chip" in (row.get("code") or "") or "PCD" in bit else "HQ_HQ3")
+
+    def _drilling_rate(row):
+        if not rate_context:
+            return None
+        mf, mt = row.get("metres_from"), row.get("metres_to")
+        if mf is None or mt is None:
+            return None
+        depth = (_num(mf) + _num(mt)) / 2
+        bit = _drilling_key(row)
+        year = _year(row)
+        years = [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025", "2026"]
+        for ty in years:
+            for rate in rate_context["drilling"]:
+                if rate["year"] == ty and rate["bit_type"] == bit and rate["depth_from"] <= depth < rate["depth_to"]:
+                    return rate["rate"]
+        return None
+
+    def _cost_mismatch(row, expected, basis):
+        actual = row.get("line_cost")
+        if actual is None or expected is None:
+            return None
+        delta = abs(_num(actual) - expected)
+        if delta > 1.0:
+            return f"Line cost {basis} mismatch: imported ${_num(actual):,.2f}, expected ${expected:,.2f}"
+        return None
 
     warnings = []
     for i, row in enumerate(acts or [], 1):
@@ -1092,18 +1174,50 @@ def local_import_qa(acts, cons, crew):
                 warnings.append({"severity": "critical", "row": i, "code": code, "issue": f"Metres interval mismatch: from/to gives {interval:.2f}m but total is {metres:.2f}m", "recommendation": "Check metres from, metres to, and total metres."})
             if not row.get("bit_type"):
                 warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Drilled metres row has no bit type", "recommendation": "Check the drilling line and rate card mapping."})
+            if rate_context:
+                schedule_rate = _drilling_rate(row)
+                if schedule_rate is None:
+                    warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": f"No drilling schedule rate found for {row.get('bit_type') or 'blank bit'} at {row.get('metres_from')} - {row.get('metres_to')} m", "recommendation": "Check the bit type/depth band against the drilling schedule of rates."})
+                else:
+                    unit_rate = row.get("unit_rate")
+                    if unit_rate is None or abs(_num(unit_rate) - schedule_rate) > 0.01:
+                        warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": f"Drilling unit rate does not match schedule: imported {unit_rate}, schedule ${schedule_rate:,.2f}/m", "recommendation": "Check the drilling rate band and imported bit type."})
+                    mismatch = _cost_mismatch(row, schedule_rate * metres, f"against {metres:.2f}m x ${schedule_rate:,.2f}/m")
+                    if mismatch:
+                        warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": mismatch, "recommendation": "Recalculate the drilling charge from the schedule of rates."})
         if code.startswith("H_") and row.get("total_time") and line_cost is None:
             warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Chargeable hourly-looking activity has no calculated cost", "recommendation": "Check the code against the hourly rate schedule."})
+        if rate_context and metres <= 0 and code and code not in NOT_CHARGEABLE:
+            hours = _hours(row.get("total_time"))
+            schedule_rate = _hourly_rate(code, _year(row))
+            if schedule_rate is None and (code.startswith("H_") or line_cost is not None):
+                warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": "Activity code is not found in the hourly schedule of rates", "recommendation": "Check whether the imported code is wrong or add the code to the rate schedule."})
+            elif schedule_rate is not None:
+                unit_rate = row.get("unit_rate")
+                if unit_rate is None or abs(_num(unit_rate) - schedule_rate) > 0.01:
+                    warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": f"Hourly unit rate does not match schedule: imported {unit_rate}, schedule ${schedule_rate:,.2f}", "recommendation": "Check the activity code and schedule year."})
+                quantity = _num(row.get("quantity")) or hours or 1
+                mismatch = _cost_mismatch(row, schedule_rate * quantity, f"against quantity {quantity:.2f} x ${schedule_rate:,.2f}")
+                if mismatch:
+                    warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": mismatch, "recommendation": "Recalculate the activity charge from the schedule of rates."})
         if metres > 300:
             warnings.append({"severity": "warning", "row": i, "code": code, "issue": f"Very large drilled metres value: {metres:.2f}m", "recommendation": "Check whether a depth was imported as metres drilled."})
     for i, row in enumerate(cons or [], 1):
         if (row.get("consumable") or row.get("type")) and row.get("line_cost") is None:
             warnings.append({"severity": "info", "section": "consumables", "row": i, "issue": "Consumable imported but not priced", "recommendation": "Check consumable rate setup or product name spelling."})
+        if rate_context:
+            product = (row.get("consumable") or row.get("type") or "").strip().upper()
+            if product:
+                schedule_rate = rate_context["consumables"].get(product) or rate_context["consumables"].get(product.replace(" ", ""))
+                if schedule_rate is None:
+                    warnings.append({"severity": "warning", "section": "rates", "row": i, "issue": f"Consumable '{product}' is not found in the consumable schedule of rates", "recommendation": "Check product spelling or add a consumable rate."})
+                elif row.get("unit_price") is None or abs(_num(row.get("unit_price")) - schedule_rate) > 0.01:
+                    warnings.append({"severity": "critical", "section": "rates", "row": i, "issue": f"Consumable unit price does not match schedule: imported {row.get('unit_price')}, schedule ${schedule_rate:,.2f}", "recommendation": "Check the consumable rate schedule."})
     return warnings
 
 
-async def gemini_import_qa(filename, contractor, header, source_text, acts, cons, crew):
-    local_warnings = local_import_qa(acts, cons, crew)
+async def gemini_import_qa(filename, contractor, header, source_text, acts, cons, crew, rate_context=None):
+    local_warnings = local_import_qa(acts, cons, crew, rate_context)
     if not os.environ.get("GEMINI_API_KEY"):
         return {"status": "unavailable", "summary": "Gemini import QA not run because GEMINI_API_KEY is not configured.", "warnings": local_warnings}
 
@@ -1125,9 +1239,10 @@ Look for extraction/parsing/rating errors in the parsed data. Focus on:
 - missing or wrong date, hole, site, rig, or shift
 - time rows out of sequence, impossible durations, duplicate rows
 - metres_from/metres_to/total_metres mismatches
-- drilled metres rows with missing bit type, diameter, rate, or cost
-- standby/day-rate/consumable rows that look misclassified
-- line_cost that looks inconsistent with quantity, metres, hours, or unit_rate
+- activity codes that do not appear to match a schedule-of-rates code
+- drilled metres rows where bit type/depth band/rate/cost do not match the schedule of rates
+- standby/day-rate/consumable rows where the charge does not match the schedule of rates
+- line_cost that looks inconsistent with quantity, metres, hours, unit_rate, or rate_basis
 - notes that suggest a code should be different
 
 Return ONLY valid JSON:
@@ -1232,6 +1347,7 @@ async def import_pdf(
         for r in all_cr:
             cr_lookup[r["product"].strip().upper()] = float(r["unit_price"])
             cr_lookup[r["product"].strip().upper().replace(" ","")] = float(r["unit_price"])
+        rate_context = build_rate_context(all_hr, all_dr, all_cr)
 
         def _get_hr(code, year):
             for ty in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
@@ -1339,7 +1455,7 @@ async def import_pdf(
                 c["line_cost"] = None
 
         if contractor == "Allianz Drilling":
-            import_check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew)
+            import_check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)
 
         with conn.cursor() as cur:
             if acts:
@@ -1378,6 +1494,86 @@ async def import_pdf(
             "contractor":contractor,
             "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
             "import_check":import_check}
+
+
+@app.post("/imports/qa-existing")
+async def qa_existing_imports(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    limit = int(payload.get("limit") or 25)
+    use_gemini = bool(payload.get("use_gemini", True))
+    if limit < 1:
+        limit = 1
+    if limit > 500:
+        limit = 500
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+            all_hr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+            all_dr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+            all_cr = [dict(r) for r in cur.fetchall()]
+            rate_context = build_rate_context(all_hr, all_dr, all_cr)
+
+            cur.execute("""
+                SELECT source_file, MAX(date) AS report_date, COUNT(*) AS rows
+                FROM activities
+                WHERE contractor=%s AND COALESCE(source_file,'') <> ''
+                GROUP BY source_file
+                ORDER BY MAX(date) DESC NULLS LAST, source_file
+                LIMIT %s
+            """, (contractor, limit))
+            files = [dict(r) for r in cur.fetchall()]
+
+            results = []
+            for item in files:
+                filename = item["source_file"]
+                cur.execute("SELECT * FROM activities WHERE contractor=%s AND source_file=%s ORDER BY date,time_from,id", (contractor, filename))
+                acts = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM consumables WHERE contractor=%s AND source_file=%s ORDER BY id", (contractor, filename))
+                cons = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM crew WHERE contractor=%s AND source_file=%s ORDER BY id", (contractor, filename))
+                crew = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT pdf_data FROM source_files WHERE contractor=%s AND filename=%s", (contractor, filename))
+                source = cur.fetchone()
+
+                text = ""
+                if source and source.get("pdf_data"):
+                    try:
+                        with pdfplumber.open(BytesIO(bytes(source["pdf_data"]))) as pdf:
+                            text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+                    except Exception:
+                        text = ""
+
+                header = parse_header(text) if text else {
+                    "date": acts[0].get("date") if acts else "",
+                    "hole_num": acts[0].get("hole_num") if acts else "",
+                    "site_name": acts[0].get("site_name") if acts else "",
+                }
+                check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context) if use_gemini else {
+                    "status": "local",
+                    "summary": "Local schedule-of-rates checks only.",
+                    "warnings": local_import_qa(acts, cons, crew, rate_context),
+                }
+                results.append({
+                    "filename": filename,
+                    "date": item.get("report_date"),
+                    "rows": item.get("rows"),
+                    "check": check,
+                })
+
+    issue_count = sum(len((r.get("check") or {}).get("warnings") or []) for r in results)
+    review_count = sum(1 for r in results if ((r.get("check") or {}).get("warnings") or []))
+    return {
+        "status": "ok",
+        "contractor": contractor,
+        "checked": len(results),
+        "needs_review": review_count,
+        "issues": issue_count,
+        "results": results,
+    }
 
 
 @app.get("/activities")

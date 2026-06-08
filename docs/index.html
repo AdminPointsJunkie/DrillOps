@@ -1447,6 +1447,7 @@ tbody td[contenteditable=true]:focus {
             <p>Drop EOS PDFs or click</p>
           </div>
           <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import EOS Reports</button>
+          <button id="audit-imports-btn" type="button" onclick="auditExistingImports()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit Existing EOS Rates</button>
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
         <!-- Handwritten OCR -->
@@ -2657,6 +2658,39 @@ function renderImportCheck(check){
   }).join('');
   const more=warnings.length>5?'<div style="margin-left:10px;">… '+(warnings.length-5)+' more issue(s)</div>':'';
   return '<div class="'+cls+'" style="margin-left:10px;">'+label+': '+esc(check.summary||warnings.length+' warning(s)')+'</div>'+shown+more;
+}
+
+async function auditExistingImports(){
+  const btn=document.getElementById('audit-imports-btn');
+  const log=document.getElementById('import-log');
+  if(!btn||!log)return;
+  btn.disabled=true;
+  btn.textContent='Auditing existing EOS...';
+  log.innerHTML='<div class="skip">Checking imported EOS rows against the schedule of rates...</div>';
+  try{
+    const res=await fetch(`${API}/imports/qa-existing`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor,limit:500,use_gemini:false})
+    });
+    const d=await res.json();
+    if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
+    log.innerHTML='<div class="'+(d.issues?'err':'ok')+'">Checked '+d.checked+' imported report(s). '+d.needs_review+' need review. '+d.issues+' issue(s).</div>';
+    (d.results||[]).forEach(function(r){
+      const check=r.check||{};
+      const warnings=check.warnings||[];
+      if(!warnings.length)return;
+      log.innerHTML+='<div style="margin-top:8px;font-weight:700;color:var(--text);">'+esc(r.filename)+' · '+esc(r.date||'')+'</div>'+renderImportCheck(check);
+    });
+    if(!d.issues)log.innerHTML+='<div class="ok">No schedule-of-rates mismatches found in the scanned reports.</div>';
+    toast('EOS rate audit complete');
+  }catch(e){
+    log.innerHTML='<div class="err">Audit failed: '+esc(e.message||e)+'</div>';
+    toast('EOS rate audit failed','err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Audit Existing EOS Rates';
+  }
 }
 
 // ── Activities ────────────────────────────────────────────────────────────────
