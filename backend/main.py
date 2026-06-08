@@ -1065,6 +1065,121 @@ def remove_contractor(name: str):
     return {"status": "deleted"}
 
 
+def local_import_qa(acts, cons, crew):
+    def _num(value):
+        try:
+            return float(value or 0)
+        except Exception:
+            return 0.0
+
+    warnings = []
+    for i, row in enumerate(acts or [], 1):
+        code = row.get("code") or ""
+        metres = _num(row.get("total_metres"))
+        mf = row.get("metres_from")
+        mt = row.get("metres_to")
+        line_cost = row.get("line_cost")
+        if not row.get("date"):
+            warnings.append({"severity": "critical", "row": i, "code": code, "issue": "Missing activity date", "recommendation": "Check the report header/date extraction."})
+        if not row.get("hole_num") and not row.get("site_name"):
+            warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Missing both hole and site", "recommendation": "Confirm the hole/site mapping before relying on borehole summaries."})
+        if metres > 0:
+            try:
+                interval = abs(_num(mt) - _num(mf)) if mf is not None and mt is not None else None
+            except Exception:
+                interval = None
+            if interval is not None and abs(interval - metres) > 0.05:
+                warnings.append({"severity": "critical", "row": i, "code": code, "issue": f"Metres interval mismatch: from/to gives {interval:.2f}m but total is {metres:.2f}m", "recommendation": "Check metres from, metres to, and total metres."})
+            if not row.get("bit_type"):
+                warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Drilled metres row has no bit type", "recommendation": "Check the drilling line and rate card mapping."})
+        if code.startswith("H_") and row.get("total_time") and line_cost is None:
+            warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Chargeable hourly-looking activity has no calculated cost", "recommendation": "Check the code against the hourly rate schedule."})
+        if metres > 300:
+            warnings.append({"severity": "warning", "row": i, "code": code, "issue": f"Very large drilled metres value: {metres:.2f}m", "recommendation": "Check whether a depth was imported as metres drilled."})
+    for i, row in enumerate(cons or [], 1):
+        if (row.get("consumable") or row.get("type")) and row.get("line_cost") is None:
+            warnings.append({"severity": "info", "section": "consumables", "row": i, "issue": "Consumable imported but not priced", "recommendation": "Check consumable rate setup or product name spelling."})
+    return warnings
+
+
+async def gemini_import_qa(filename, contractor, header, source_text, acts, cons, crew):
+    local_warnings = local_import_qa(acts, cons, crew)
+    if not os.environ.get("GEMINI_API_KEY"):
+        return {"status": "unavailable", "summary": "Gemini import QA not run because GEMINI_API_KEY is not configured.", "warnings": local_warnings}
+
+    compact_acts = [
+        {k: r.get(k) for k in ["date","hole_num","site_name","time_from","time_to","total_time","bit_type","diameter","metres_from","metres_to","total_metres","code","notes","unit_rate","quantity","line_cost","rate_basis"]}
+        for r in (acts or [])[:90]
+    ]
+    compact_cons = [
+        {k: r.get(k) for k in ["date","hole_num","site_name","consumable","type","quantity","unit","unit_price","line_cost"]}
+        for r in (cons or [])[:40]
+    ]
+    compact_crew = [
+        {k: r.get(k) for k in ["date","hole_num","site_name","role","name","hours"]}
+        for r in (crew or [])[:30]
+    ]
+    prompt = f"""You are checking an Allianz drilling EOS PDF import before it is trusted in DrillOps.
+
+Look for extraction/parsing/rating errors in the parsed data. Focus on:
+- missing or wrong date, hole, site, rig, or shift
+- time rows out of sequence, impossible durations, duplicate rows
+- metres_from/metres_to/total_metres mismatches
+- drilled metres rows with missing bit type, diameter, rate, or cost
+- standby/day-rate/consumable rows that look misclassified
+- line_cost that looks inconsistent with quantity, metres, hours, or unit_rate
+- notes that suggest a code should be different
+
+Return ONLY valid JSON:
+{{
+  "status": "ok or needs_review",
+  "summary": "short summary",
+  "warnings": [
+    {{"severity":"critical|warning|info","section":"activities|consumables|crew|header","row":1,"code":"optional","issue":"what looks wrong","recommendation":"what the user should check"}}
+  ]
+}}
+
+FILENAME: {filename}
+CONTRACTOR: {contractor}
+HEADER:
+{json.dumps(header, default=str)}
+
+PDF TEXT EXCERPT:
+{source_text[:5000]}
+
+PARSED ACTIVITIES:
+{json.dumps(compact_acts, indent=2, default=str)}
+
+PARSED CONSUMABLES:
+{json.dumps(compact_cons, indent=2, default=str)}
+
+PARSED CREW:
+{json.dumps(compact_crew, indent=2, default=str)}
+"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+            return {"status": "partial", "summary": f"Gemini import QA failed: HTTP {resp.status_code}", "warnings": local_warnings}
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+        result = json.loads(text)
+        result["warnings"] = (result.get("warnings") or []) + local_warnings
+        if result.get("warnings") and result.get("status") == "ok":
+            result["status"] = "needs_review"
+        return result
+    except Exception as e:
+        return {"status": "partial", "summary": f"Gemini import QA could not parse a result: {str(e)}", "warnings": local_warnings}
+
+
 @app.post("/import")
 async def import_pdf(
     file: UploadFile = File(...),
@@ -1093,6 +1208,7 @@ async def import_pdf(
         acts = parse_activities(text, header, filename, contractor)
     cons   = parse_consumables(text, header, filename, contractor)
     crew   = parse_crew(text, header, filename, contractor)
+    import_check = None
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -1222,6 +1338,9 @@ async def import_pdf(
                 c["unit_price"] = None
                 c["line_cost"] = None
 
+        if contractor == "Allianz Drilling":
+            import_check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew)
+
         with conn.cursor() as cur:
             if acts:
                 psycopg2.extras.execute_batch(cur, """
@@ -1257,7 +1376,8 @@ async def import_pdf(
 
     return {"status":"imported","filename":filename,"rows":len(acts),
             "contractor":contractor,
-            "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2)}
+            "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
+            "import_check":import_check}
 
 
 @app.get("/activities")

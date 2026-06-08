@@ -2635,7 +2635,7 @@ importBtn.addEventListener('click',async()=>{
     const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
     try{
       const d=await fetch(`${API}/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported'){log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`;total+=d.rows;}
+      if(d.status==='imported'){log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`+renderImportCheck(d.import_check);total+=d.rows;}
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
     }catch(e){log.innerHTML+=`<div class="err">✗ ${file.name}</div>`;}
   }
@@ -2644,6 +2644,20 @@ importBtn.addEventListener('click',async()=>{
   await updateDbCount();
   if(total>0){toast(`✓ Imported ${total} rows for ${activeContractor}`);loadActivities();}
 });
+
+function renderImportCheck(check){
+  if(!check)return '';
+  const warnings=check.warnings||[];
+  const cls=check.status==='needs_review'||warnings.some(w=>w.severity==='critical')?'err':check.status==='ok'?'ok':'skip';
+  const label=check.status==='ok'?'Gemini check passed':check.status==='unavailable'?'Import QA checks':'Gemini check needs review';
+  const shown=warnings.slice(0,5).map(function(w){
+    const row=w.row?' row '+esc(w.row):'';
+    const code=w.code?' '+esc(w.code):'';
+    return '<div style="margin-left:10px;">• '+esc(w.severity||'info')+row+code+': '+esc(w.issue||'')+'</div>';
+  }).join('');
+  const more=warnings.length>5?'<div style="margin-left:10px;">… '+(warnings.length-5)+' more issue(s)</div>':'';
+  return '<div class="'+cls+'" style="margin-left:10px;">'+label+': '+esc(check.summary||warnings.length+' warning(s)')+'</div>'+shown+more;
+}
 
 // ── Activities ────────────────────────────────────────────────────────────────
 function resetFilters(){
