@@ -2524,6 +2524,37 @@ async def update_activity(row_id: int, request: Request):
     return {"status":"updated"}
 
 
+@app.post("/activities/{row_id}/reprice")
+def reprice_activity_row(row_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM activities WHERE id=%s", (row_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(404, "Activity not found")
+            priced = price_activity(cur, dict(row), row["contractor"])
+            updates = {
+                "rate_year": priced.get("rate_year"),
+                "unit_rate": priced.get("unit_rate"),
+                "quantity": priced.get("quantity"),
+                "line_cost": priced.get("line_cost"),
+                "rate_basis": priced.get("rate_basis"),
+            }
+            cur.execute("""
+                UPDATE activities
+                SET rate_year=%(rate_year)s,
+                    unit_rate=%(unit_rate)s,
+                    quantity=%(quantity)s,
+                    line_cost=%(line_cost)s,
+                    rate_basis=%(rate_basis)s
+                WHERE id=%(id)s
+                RETURNING *
+            """, {**updates, "id": row_id})
+            updated = dict(cur.fetchone())
+        conn.commit()
+    return updated
+
+
 @app.get("/consumables")
 def get_consumables(contractor: str = Query(...), dates: Optional[str] = Query(None)):
     q = "SELECT * FROM consumables WHERE contractor=%(contractor)s"

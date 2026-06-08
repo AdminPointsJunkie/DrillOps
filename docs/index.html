@@ -3000,12 +3000,41 @@ function renderActivities(rows){
       <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':''}</td>
     </tr>`).join('');
 
+  function setCellValue(row,col,value){
+    const target=row.querySelector('[data-col="'+col+'"]');
+    if(!target)return;
+    if(target.dataset.numeric)target.textContent=value==null?'':fmt(value);
+    else target.textContent=value==null?'':String(value);
+  }
+  function updateActivityRowCache(id,updates){
+    const item=activitiesData.find(function(r){return Number(r.id)===Number(id);});
+    if(item)Object.assign(item,updates);
+  }
+  function optionalNumber(text){
+    const raw=String(text||'').trim();
+    if(!raw)return null;
+    const n=parseFloat(raw);
+    return Number.isFinite(n)?n:null;
+  }
+  async function repriceRenderedActivityRow(row){
+    const id=row.dataset.id;
+    const res=await fetch(`${API}/activities/${id}/reprice`,{method:'POST'});
+    if(!res.ok)throw new Error(await res.text());
+    const updated=await res.json();
+    ['rate_year','unit_rate','quantity','line_cost','rate_basis'].forEach(function(col){setCellValue(row,col,updated[col]);});
+    updateActivityRowCache(id,updated);
+    renderDailyReportSummary(activitiesData);
+    refreshCostingIfActive(150);
+    return updated;
+  }
+  const scheduleRepriceCols=new Set(['date','time_from','time_to','total_time','bit_type','diameter','metres_from','metres_to','total_metres','code','notes']);
+
   tbody.querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',async()=>{
       const row=cell.closest('tr');const id=row.dataset.id;const col=cell.dataset.col;
       let val=cell.textContent.trim();
       if(cell.dataset.numeric)val=val===''?null:parseFloat(val);
-      if(cell.dataset.costTrigger){
+      if(col==='unit_rate'||col==='quantity'){
         const ur=parseFloat(row.querySelector('[data-col="unit_rate"]').textContent)||0;
         const qty=parseFloat(row.querySelector('[data-col="quantity"]').textContent)||0;
         const lc=row.querySelector('[data-col="line_cost"]');
@@ -3014,6 +3043,17 @@ function renderActivities(rows){
       }
       try{
         await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
+        updateActivityRowCache(id,{[col]:val});
+        if(scheduleRepriceCols.has(col)){
+          await repriceRenderedActivityRow(row);
+        }else if(col==='unit_rate'||col==='quantity'||col==='line_cost'){
+          updateActivityRowCache(id,{
+            unit_rate:optionalNumber(row.querySelector('[data-col="unit_rate"]').textContent),
+            quantity:optionalNumber(row.querySelector('[data-col="quantity"]').textContent),
+            line_cost:optionalNumber(row.querySelector('[data-col="line_cost"]').textContent)
+          });
+          renderDailyReportSummary(activitiesData);
+        }
         toast('✓ Saved');
         refreshCostingIfActive();
       }catch(e){toast('Save failed','err');}
