@@ -1448,6 +1448,7 @@ tbody td[contenteditable=true]:focus {
           </div>
           <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import EOS Reports</button>
           <button id="audit-imports-btn" type="button" onclick="auditExistingImports()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit Existing EOS Rates</button>
+          <button id="fix-imports-btn" type="button" onclick="fixExistingImportRates()" style="width:100%;margin-top:8px;padding:9px;background:#fff7e6;color:#a05a00;border:1.5px solid #f4d39b;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Fix EOS Rates</button>
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
         <!-- Handwritten OCR -->
@@ -2690,6 +2691,43 @@ async function auditExistingImports(){
   }finally{
     btn.disabled=false;
     btn.textContent='Audit Existing EOS Rates';
+  }
+}
+
+async function fixExistingImportRates(){
+  const btn=document.getElementById('fix-imports-btn');
+  const log=document.getElementById('import-log');
+  if(!btn||!log)return;
+  if(!confirm('Apply AI/schedule rate fixes to existing EOS rows for '+activeContractor+'?'))return;
+  btn.disabled=true;
+  btn.textContent='Fixing EOS rates...';
+  log.innerHTML='<div class="skip">Matching imported EOS rows to the schedule of rates and applying corrections...</div>';
+  try{
+    const res=await fetch(`${API}/imports/ai-fix-rates`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor:activeContractor,limit:1000,apply:true})
+    });
+    const d=await res.json();
+    if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
+    log.innerHTML='<div class="ok">Updated '+d.activities_changed+' activity row(s), '+d.consumables_changed+' consumable row(s), and added '+d.consumable_rates_added+' consumable rate item(s).</div>';
+    (d.activity_changes||[]).slice(0,8).forEach(function(c){
+      log.innerHTML+='<div style="margin-left:10px;">• Activity '+esc(c.id)+' '+esc(c.old_code||'')+': '+esc(c.reason||'updated')+'</div>';
+    });
+    (d.consumable_changes||[]).slice(0,8).forEach(function(c){
+      log.innerHTML+='<div style="margin-left:10px;">• Consumable '+esc(c.id)+' '+esc(c.old_consumable||'')+': '+esc(c.reason||'updated')+'</div>';
+    });
+    (d.new_consumable_rates||[]).slice(0,8).forEach(function(c){
+      log.innerHTML+='<div style="margin-left:10px;">• Added consumable rate: '+esc(c.product)+' ('+esc(c.unit||'')+', '+cur(c.unit_price||0)+')</div>';
+    });
+    toast('EOS rate fixes applied');
+    await loadActivities();
+  }catch(e){
+    log.innerHTML='<div class="err">Fix failed: '+esc(e.message||e)+'</div>';
+    toast('EOS rate fix failed','err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='AI Fix EOS Rates';
   }
 }
 

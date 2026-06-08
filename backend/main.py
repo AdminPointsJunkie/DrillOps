@@ -1093,6 +1093,251 @@ def build_rate_context(hourly_rates=None, drilling_rates=None, consumable_rates=
     return {"hourly": hourly, "hourly_any": hourly_any, "drilling": drilling, "consumables": consumables}
 
 
+def rate_year_for_row(row):
+    for part in str(row.get("date") or "").replace("-", "/").split("/"):
+        if len(part) == 4 and part.isdigit():
+            return part
+    return "2026"
+
+
+def parse_row_hours(value):
+    s = str(value or "").strip()
+    if not s:
+        return 0.0
+    mt = re.match(r"^(\d+):(\d+)", s)
+    if mt:
+        return int(mt.group(1)) + int(mt.group(2)) / 60.0
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
+def row_num(value):
+    try:
+        return float(value or 0)
+    except Exception:
+        return 0.0
+
+
+def find_hourly_schedule_rate(code, year, rate_context):
+    if not rate_context or not code:
+        return None
+    years = [year]
+    if year.isdigit():
+        years += [str(int(year) - 1), str(int(year) + 1)]
+    years += ["2026", "2025"]
+    for ty in years:
+        val = rate_context["hourly"].get((ty, code))
+        if val is not None:
+            return val
+    return rate_context["hourly_any"].get(code)
+
+
+def drilling_schedule_key(row):
+    bit = (row.get("bit_type") or "").replace(" ", "_").upper()
+    bit_map = {"HQ_HQ3": "HQ_HQ3", "HQ": "HQ_HQ3", "NQ": "HQ_HQ3", "PCD": "PCD_S", "PQ": "HQ_HQ3"}
+    return bit_map.get(bit, "PCD_S" if "Chip" in (row.get("code") or "") or "PCD" in bit else "HQ_HQ3")
+
+
+def find_drilling_schedule_rate(row, rate_context):
+    if not rate_context:
+        return None
+    mf, mt = row.get("metres_from"), row.get("metres_to")
+    if mf is None or mt is None:
+        return None
+    depth = (row_num(mf) + row_num(mt)) / 2
+    bit = drilling_schedule_key(row)
+    year = rate_year_for_row(row)
+    years = [year]
+    if year.isdigit():
+        years += [str(int(year) - 1), str(int(year) + 1)]
+    years += ["2026", "2025"]
+    for ty in years:
+        for rate in rate_context["drilling"]:
+            if rate["year"] == ty and rate["bit_type"] == bit and rate["depth_from"] <= depth < rate["depth_to"]:
+                return rate["rate"]
+    return None
+
+
+def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
+    code = suggested_code or row.get("code") or ""
+    original_code = row.get("code") or ""
+    year = rate_year_for_row(row)
+    metres = row_num(row.get("total_metres"))
+    hours = parse_row_hours(row.get("total_time"))
+    updates = {}
+    reason = ""
+
+    if metres > 0:
+        rate = find_drilling_schedule_rate({**row, "code": code}, rate_context)
+        if rate is None:
+            return None
+        updates.update({
+            "rate_year": year,
+            "unit_rate": rate,
+            "quantity": round(metres, 2),
+            "line_cost": round(rate * metres, 2),
+            "rate_basis": f"schedule ${rate:,.2f}/m x {metres:.2f}m ({drilling_schedule_key({**row, 'code': code})})",
+        })
+        reason = "Repriced drilled metres from drilling schedule."
+    elif code in NOT_CHARGEABLE:
+        qty = round(hours, 2) if hours > 0 else 1
+        updates.update({"rate_year": year, "unit_rate": 0, "quantity": qty, "line_cost": 0, "rate_basis": "not chargeable"})
+        reason = "Applied not-chargeable schedule code."
+    elif code:
+        rate = find_hourly_schedule_rate(code, year, rate_context)
+        if rate is None:
+            return None
+        qty = round(hours, 2) if hours > 0 else 1
+        updates.update({
+            "rate_year": year,
+            "unit_rate": rate,
+            "quantity": qty,
+            "line_cost": round(rate * qty, 2),
+            "rate_basis": f"schedule ${rate:,.2f}/hr x {qty:.2f}",
+        })
+        reason = "Repriced activity from hourly schedule."
+
+    if suggested_code and suggested_code != original_code:
+        updates["code"] = suggested_code
+        reason = f"Gemini matched code '{original_code}' to schedule code '{suggested_code}'. " + reason
+
+    if not updates:
+        return None
+
+    changed = {}
+    for key, new_val in updates.items():
+        old_val = row.get(key)
+        if isinstance(new_val, float):
+            if abs(row_num(old_val) - new_val) > 0.01:
+                changed[key] = new_val
+        elif old_val != new_val:
+            changed[key] = new_val
+    if not changed:
+        return None
+    return {"updates": changed, "reason": reason.strip()}
+
+
+async def gemini_suggest_schedule_codes(contractor, rows, hourly_rates):
+    if not os.environ.get("GEMINI_API_KEY") or not rows:
+        return {}
+    schedule = [
+        {"code": r.get("code"), "description": r.get("description"), "rate": r.get("rate"), "unit": r.get("unit")}
+        for r in hourly_rates[:160]
+    ]
+    compact_rows = [
+        {
+            "id": r.get("id"),
+            "current_code": r.get("code"),
+            "notes": r.get("notes"),
+            "time": r.get("total_time"),
+            "metres": r.get("total_metres"),
+            "rate_basis": r.get("rate_basis"),
+            "line_cost": r.get("line_cost"),
+        }
+        for r in rows[:120]
+    ]
+    prompt = f"""You are correcting imported Allianz drilling EOS activity codes against a schedule of rates.
+
+For each row, choose the most reasonable schedule code from the provided schedule. Only suggest a replacement when the current code is missing from the schedule or the notes clearly indicate a better schedule code. Do not invent codes.
+
+Return ONLY valid JSON:
+{{"suggestions":[{{"id":123,"suggested_code":"H_Example","confidence":0.0,"reason":"short reason"}}]}}
+
+CONTRACTOR: {contractor}
+SCHEDULE:
+{json.dumps(schedule, indent=2, default=str)}
+
+ROWS:
+{json.dumps(compact_rows, indent=2, default=str)}
+"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+            return {}
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+        parsed = json.loads(text)
+        valid_codes = {r.get("code") for r in hourly_rates}
+        out = {}
+        for item in parsed.get("suggestions", []):
+            code = item.get("suggested_code")
+            rid = item.get("id")
+            if code in valid_codes and rid is not None and float(item.get("confidence") or 0) >= 0.55:
+                out[int(rid)] = {"code": code, "reason": item.get("reason", "")}
+        return out
+    except Exception:
+        return {}
+
+
+async def gemini_suggest_consumable_matches(contractor, rows, consumable_rates):
+    if not os.environ.get("GEMINI_API_KEY") or not rows:
+        return {}
+    schedule = [
+        {"product": r.get("product"), "description": r.get("description"), "unit_price": r.get("unit_price"), "unit": r.get("unit")}
+        for r in consumable_rates[:180]
+    ]
+    compact_rows = [
+        {"id": r.get("id"), "item": r.get("consumable") or r.get("type"), "type": r.get("type"), "quantity": r.get("quantity"), "unit": r.get("unit")}
+        for r in rows[:120]
+    ]
+    prompt = f"""You are matching imported Allianz EOS consumables to a consumable schedule of rates.
+
+For each imported consumable, choose an existing schedule product only when it is reasonably the same product despite spelling/casing/unit wording differences. If there is no reasonable match, return null for suggested_product so it can be added as a new consumable schedule item. Do not invent product names except by using the imported item itself when no match exists.
+
+Return ONLY valid JSON:
+{{"suggestions":[{{"id":123,"suggested_product":"Existing Product or null","confidence":0.0,"reason":"short reason"}}]}}
+
+CONTRACTOR: {contractor}
+CONSUMABLE SCHEDULE:
+{json.dumps(schedule, indent=2, default=str)}
+
+IMPORTED CONSUMABLES:
+{json.dumps(compact_rows, indent=2, default=str)}
+"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+            return {}
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+        parsed = json.loads(text)
+        products = {(r.get("product") or "").strip().upper(): r for r in consumable_rates}
+        out = {}
+        for item in parsed.get("suggestions", []):
+            rid = item.get("id")
+            if rid is None:
+                continue
+            product = item.get("suggested_product")
+            confidence = float(item.get("confidence") or 0)
+            if product and product.strip().upper() in products and confidence >= 0.55:
+                out[int(rid)] = {"product": products[product.strip().upper()], "reason": item.get("reason", "")}
+            elif product is None or confidence < 0.55:
+                out[int(rid)] = {"product": None, "reason": item.get("reason", "")}
+        return out
+    except Exception:
+        return {}
+
+
 def local_import_qa(acts, cons, crew, rate_context=None):
     def _num(value):
         try:
@@ -1573,6 +1818,158 @@ async def qa_existing_imports(request: Request):
         "needs_review": review_count,
         "issues": issue_count,
         "results": results,
+    }
+
+
+@app.post("/imports/ai-fix-rates")
+async def ai_fix_import_rates(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    limit = int(payload.get("limit") or 500)
+    apply_changes = bool(payload.get("apply", True))
+    if limit < 1:
+        limit = 1
+    if limit > 1000:
+        limit = 1000
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+            all_hr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+            all_dr = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+            all_cr = [dict(r) for r in cur.fetchall()]
+            rate_context = build_rate_context(all_hr, all_dr, all_cr)
+
+            cur.execute("""
+                SELECT * FROM activities
+                WHERE contractor=%s
+                ORDER BY date DESC NULLS LAST, source_file, time_from, id
+                LIMIT %s
+            """, (contractor, limit))
+            activities = [dict(r) for r in cur.fetchall()]
+
+            hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE)
+            fuzzy_activity_rows = [
+                r for r in activities
+                if row_num(r.get("total_metres")) <= 0
+                and (r.get("code") or "")
+                and (r.get("code") or "") not in hourly_codes
+                and ((r.get("line_cost") is not None) or (r.get("notes") or ""))
+            ]
+            code_suggestions = await gemini_suggest_schedule_codes(contractor, fuzzy_activity_rows, all_hr)
+
+            activity_changes = []
+            for row in activities:
+                suggestion = code_suggestions.get(int(row["id"]))
+                suggested_code = suggestion["code"] if suggestion else None
+                fix = calculate_activity_rate_fix(row, rate_context, suggested_code)
+                if not fix:
+                    continue
+                if suggested_code and suggestion and suggestion.get("reason"):
+                    fix["reason"] = fix["reason"] + " " + suggestion["reason"]
+                activity_changes.append({"id": row["id"], "source_file": row.get("source_file"), "date": row.get("date"), "old_code": row.get("code"), "updates": fix["updates"], "reason": fix["reason"]})
+
+            cur.execute("""
+                SELECT * FROM consumables
+                WHERE contractor=%s
+                ORDER BY date DESC NULLS LAST, source_file, id
+                LIMIT %s
+            """, (contractor, limit))
+            consumables = [dict(r) for r in cur.fetchall()]
+
+            product_lookup = {}
+            for r in all_cr:
+                key = (r.get("product") or "").strip().upper()
+                if key:
+                    product_lookup[key] = r
+                    product_lookup[key.replace(" ", "")] = r
+
+            fuzzy_consumables = []
+            for row in consumables:
+                product = (row.get("consumable") or row.get("type") or "").strip().upper()
+                if product and product not in product_lookup and product.replace(" ", "") not in product_lookup:
+                    fuzzy_consumables.append(row)
+            consumable_matches = await gemini_suggest_consumable_matches(contractor, fuzzy_consumables, all_cr)
+
+            consumable_changes = []
+            new_consumable_rates = []
+            created_products = set(product_lookup.keys())
+
+            for row in consumables:
+                raw_product = (row.get("consumable") or row.get("type") or "").strip()
+                if not raw_product:
+                    continue
+                key = raw_product.upper()
+                rate_row = product_lookup.get(key) or product_lookup.get(key.replace(" ", ""))
+                match = consumable_matches.get(int(row["id"]))
+                reason = "Matched imported consumable to schedule."
+                if match and match.get("product"):
+                    rate_row = match["product"]
+                    reason = "Gemini matched consumable to schedule product. " + (match.get("reason") or "")
+                elif not rate_row:
+                    unit_price = row_num(row.get("unit_price"))
+                    year = rate_year_for_row(row)
+                    new_product = raw_product
+                    product_key = new_product.upper()
+                    if product_key not in created_products:
+                        created_products.add(product_key)
+                        new_consumable_rates.append({
+                            "contractor": contractor,
+                            "year": year,
+                            "product": new_product,
+                            "description": "Added from imported EOS consumable audit",
+                            "unit_price": unit_price,
+                            "unit": row.get("unit") or "each",
+                        })
+                    rate_row = {"product": new_product, "unit_price": unit_price, "unit": row.get("unit") or "each"}
+                    reason = "No reasonable schedule match found; added imported consumable to the consumable rate list for review."
+
+                unit_price = row_num(rate_row.get("unit_price"))
+                qty = row_num(row.get("quantity")) or 1
+                line_cost = round(unit_price * qty, 2)
+                updates = {}
+                if row.get("unit_price") is None or abs(row_num(row.get("unit_price")) - unit_price) > 0.01:
+                    updates["unit_price"] = unit_price
+                if row.get("line_cost") is None or abs(row_num(row.get("line_cost")) - line_cost) > 0.01:
+                    updates["line_cost"] = line_cost
+                if match and match.get("product"):
+                    product_name = rate_row.get("product")
+                    if product_name and product_name != row.get("consumable"):
+                        updates["consumable"] = product_name
+                        updates["type"] = product_name
+                if updates:
+                    consumable_changes.append({"id": row["id"], "source_file": row.get("source_file"), "date": row.get("date"), "old_consumable": raw_product, "updates": updates, "reason": reason})
+
+            if apply_changes:
+                for change in activity_changes:
+                    updates = change["updates"]
+                    set_clause = ", ".join(f"{k}=%s" for k in updates)
+                    vals = list(updates.values()) + [change["id"]]
+                    cur.execute(f"UPDATE activities SET {set_clause} WHERE id=%s", vals)
+                for rate in new_consumable_rates:
+                    cur.execute("""
+                        INSERT INTO consumable_rates (contractor,year,product,description,unit_price,unit)
+                        VALUES (%(contractor)s,%(year)s,%(product)s,%(description)s,%(unit_price)s,%(unit)s)
+                        ON CONFLICT DO NOTHING
+                    """, rate)
+                for change in consumable_changes:
+                    updates = change["updates"]
+                    set_clause = ", ".join(f"{k}=%s" for k in updates)
+                    vals = list(updates.values()) + [change["id"]]
+                    cur.execute(f"UPDATE consumables SET {set_clause} WHERE id=%s", vals)
+                conn.commit()
+
+    return {
+        "status": "updated" if apply_changes else "preview",
+        "contractor": contractor,
+        "activities_changed": len(activity_changes),
+        "consumables_changed": len(consumable_changes),
+        "consumable_rates_added": len(new_consumable_rates),
+        "activity_changes": activity_changes[:100],
+        "consumable_changes": consumable_changes[:100],
+        "new_consumable_rates": new_consumable_rates[:100],
     }
 
 
