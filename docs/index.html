@@ -2103,6 +2103,7 @@ tbody td[contenteditable=true]:focus {
             <input type="file" id="dxf-file-input" accept=".dxf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;" onchange="uploadDXF(this)"/>
             <button class="btn-ghost" style="width:100%;font-size:12px;">Upload DXF Overlay</button>
           </div>
+          <button class="btn-ghost" onclick="loadBundledDxfOverlay('assets/map-overlays/IB001-DXF.dxf','IB001 DXF.dxf')" style="width:100%;font-size:12px;">Load IB001 DXF</button>
           <button class="btn-ghost" onclick="clearDxfOverlay()" id="dxf-clear-btn" style="width:100%;font-size:12px;display:none;">Clear DXF</button>
           <button class="btn-ghost" onclick="importBudgetToDb()" style="width:100%;font-size:12px;">💾 Save All to Database</button>
         </div>
@@ -5914,6 +5915,26 @@ async function uploadDXF(input) {
     toast('DXF failed: '+e.message, 'err');
   }
   input.value = '';
+}
+
+async function loadBundledDxfOverlay(path, filename) {
+  toast('Loading '+filename+'...');
+  try {
+    var asset = await fetch(path);
+    if(!asset.ok) { toast('DXF asset not found: '+asset.status, 'err'); return; }
+    var blob = await asset.blob();
+    var fd = new FormData();
+    fd.append('file', new File([blob], filename, {type:'application/dxf'}));
+    fd.append('epsg', '20355');
+    var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
+    if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
+    var d = await res.json();
+    console.log('Bundled DXF:', filename, d.entity_count+' entities, layers:', d.layers);
+    renderDxfOverlay(d.geojson, d.layers, filename);
+    toast('\u2713 '+filename+' loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
+  } catch(e) {
+    toast('DXF failed: '+e.message, 'err');
+  }
 }
 
 function renderDxfOverlay(geojson, layers, filename) {
