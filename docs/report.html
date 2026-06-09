@@ -155,7 +155,7 @@ const source=params.get('source')||'';
 const title=params.get('title')||'Daily report';
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
-let reportRows=[],reportConsumables=[],reportCrew=[];
+let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[];
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function attr(s){return esc(s).replace(/"/g,'&quot;');}
@@ -170,13 +170,49 @@ function isDrilledMetresRow(row){const code=String(row.code||'');return num(row.
 function isSupportCostRow(row){return /^D_(Backhoe|Water)/i.test(String(row.code||''));}
 function diameterLabel(row){const raw=String(row.diameter||'').trim();if(!raw)return '';const n=parseFloat(raw);return isNaN(n)?raw:(n+'mm');}
 function depthBandLabel(from,to){const f=num(from),t=num(to);if(!t&&!f)return '';const start=Math.floor(f/100)*100;const end=Math.max(start+100,Math.ceil(t/100)*100);return '('+start+'-'+end+'m)';}
-function drillItemLabel(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia,depthBandLabel(row.metres_from,row.metres_to)].filter(Boolean).join(' ');}
+function drillItemBase(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia].filter(Boolean).join(' ');}
+function drillItemLabel(row){return [drillItemBase(row),depthBandLabel(row.metres_from,row.metres_to)].filter(Boolean).join(' ');}
+function reportYear(row){const m=String(row.date||'').match(/\b(20\d{2})\b/);return m?m[1]:'2026';}
+function normaliseReportBit(row){
+  const text=((row.bit_type||'')+' '+(row.code||'')+' '+(row.notes||'')+' '+(row.diameter||'')).toUpperCase();
+  const mm=[...text.matchAll(/(\d+(?:\.\d+)?)\s*MM\b/g)].map(m=>parseFloat(m[1]));
+  for(const m of text.matchAll(/\b(\d+)\s+(\d+)\/(\d+)\b/g)){const d=parseFloat(m[3]);if(d)mm.push((parseFloat(m[1])+parseFloat(m[2])/d)*25.4);}
+  for(const m of text.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:INCH|IN|")\b/g))mm.push(parseFloat(m[1])*25.4);
+  if(text.includes('4C')||text.includes('101.6'))return '4C';
+  if(text.includes('HQ')||text.includes('NQ'))return 'HQ_HQ3';
+  if(text.includes('PCD')||text.includes('CHIP')||text.includes('OPEN_HOLE')){
+    if(mm.some(v=>v>=175))return 'PCD or Blade 175-305mm';
+    if(mm.some(v=>v>=125&&v<175))return 'PCD or Blade 125-175mm';
+    if(mm.some(v=>v>=99&&v<125))return 'PCD or Blade 99-125mm';
+    if(text.includes('175')||text.includes('305'))return 'PCD or Blade 175-305mm';
+    if(text.includes('125')||text.includes('5-7/8'))return 'PCD or Blade 125-175mm';
+    return 'PCD or Blade 99-125mm';
+  }
+  return String(row.bit_type||'');
+}
+function rateYearsFor(row){const y=reportYear(row),ys=[y];if(/^\d{4}$/.test(y)){ys.push(String(parseInt(y)-1),String(parseInt(y)+1));}ys.push('2026','2025');return [...new Set(ys)];}
+function drillSummarySegments(row){
+  const start=num(row.metres_from),end=num(row.metres_to),metres=num(row.total_metres),bit=normaliseReportBit(row);
+  if(!drillingRates.length||!end||end<=start||!bit)return [{item:drillItemLabel(row),rate:num(row.unit_rate),metres,cost:num(row.line_cost)}];
+  for(const year of rateYearsFor(row)){
+    const bands=drillingRates.filter(r=>String(r.year)===year&&normaliseReportBit({bit_type:r.bit_type})===bit).sort((a,b)=>num(a.depth_from)-num(b.depth_from)||num(a.depth_to)-num(b.depth_to));
+    const segs=[];
+    bands.forEach(r=>{
+      const from=Math.max(start,num(r.depth_from)),to=Math.min(end,num(r.depth_to));
+      if(to>from){const m=Number((to-from).toFixed(2)),rate=num(r.rate);segs.push({item:drillItemBase(row)+' ('+num(r.depth_from).toFixed(0)+'-'+num(r.depth_to).toFixed(0)+'m)',rate,metres:m,cost:Number((m*rate).toFixed(2))});}
+    });
+    if(segs.length)return segs;
+  }
+  return [{item:drillItemLabel(row),rate:num(row.unit_rate),metres,cost:num(row.line_cost)}];
+}
 function metresDrilledSummary(rows){
   const map={};
   rows.filter(isDrilledMetresRow).forEach(r=>{
-    const item=drillItemLabel(r),rate=num(r.unit_rate),key=item+'|'+rate.toFixed(2);
-    if(!map[key])map[key]={item,rate,metres:0,cost:0,count:0};
-    map[key].count++;map[key].metres+=num(r.total_metres);map[key].cost+=num(r.line_cost);
+    drillSummarySegments(r).forEach(seg=>{
+      const item=seg.item,rate=num(seg.rate),key=item+'|'+rate.toFixed(2);
+      if(!map[key])map[key]={item,rate,metres:0,cost:0,count:0};
+      map[key].count++;map[key].metres+=num(seg.metres);map[key].cost+=num(seg.cost);
+    });
   });
   return Object.values(map).sort((a,b)=>a.item.localeCompare(b.item)||a.rate-b.rate);
 }
@@ -260,6 +296,7 @@ async function loadReport(){
   try{
     let rows=await fetchJson(API+'/activities?'+actParams.toString());
     rows=rows.filter(belongsToThisReport);
+    drillingRates=await fetchJson(API+'/rates/drilling?contractor='+encodeURIComponent(contractor)).catch(()=>[]);
     const consumables=await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
     const crew=await fetchJson(API+'/crew?'+relatedParams.toString()).catch(()=>[]);
     reportRows=rows;
