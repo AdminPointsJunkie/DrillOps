@@ -153,9 +153,18 @@ ALLIANZ_CONTRACT_HOURLY_RATES = [
 ]
 
 
+MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES = {
+    (PCD_MEDIUM_LABEL, 0, 100): 52.00,
+}
+
+
 def contract_drilling_rows(contractor: str, year: str):
-    return [(contractor, year, bit, depth_from, depth_to, rate)
-            for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES]
+    rows = []
+    for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES:
+        if contractor == "Mitchells Drilling":
+            rate = MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.get((bit, depth_from, depth_to), rate)
+        rows.append((contractor, year, bit, depth_from, depth_to, rate))
+    return rows
 
 
 def contract_hourly_rows(contractor: str, year: str):
@@ -176,6 +185,37 @@ def migrate_legacy_drilling_bit_labels():
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
+def apply_mitchells_contract_exceptions():
+    """Keep known Mitchells contract exceptions aligned for existing data."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for (bit, depth_from, depth_to), rate in MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.items():
+                cur.execute(
+                    """
+                    UPDATE drilling_rates
+                    SET rate=%s
+                    WHERE contractor='Mitchells Drilling'
+                      AND bit_type=%s
+                      AND depth_from=%s
+                      AND depth_to=%s
+                    """,
+                    (rate, bit, depth_from, depth_to),
+                )
+            cur.execute(
+                """
+                UPDATE activities
+                SET code='H_Standby_Fatigue',
+                    unit_rate=0,
+                    line_cost=0,
+                    rate_basis='not chargeable - Mitchells fatigue management'
+                WHERE contractor='Mitchells Drilling'
+                  AND (code='H_Standby_Fatigue' OR code='H_Standby_AAC')
+                  AND COALESCE(notes, '') ILIKE '%fatigue%'
+                """
+            )
+        conn.commit()
+
+
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -558,6 +598,7 @@ def seed_2025_rates():
 
 seed_2025_rates()
 migrate_legacy_drilling_bit_labels()
+apply_mitchells_contract_exceptions()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
@@ -578,9 +619,11 @@ INACTIVE_CODES = {
 }
 # Not chargeable
 NOT_CHARGEABLE = {"H_Repairs","Crew_Travel"}
+MITCHELLS_NOT_CHARGEABLE = {"H_Standby_Fatigue"}
 STANDBY_CODES = {
     "H_Standby_Sumps","H_Standby_AAC","H_Standby_Logger",
     "H_Standby_Grout","H_Standby_Cement_Set","H_Standby_Cement_set",
+    "H_Standby_Fatigue",
 }
 DAY_RATE_CODES = {
     "D_Backhoe":                  ("D_Backhoe",            "day"),
@@ -597,10 +640,25 @@ DAY_RATE_CODES = {
 BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":PCD_SMALL_LABEL}
 
 
+def is_not_chargeable_code(code: str, contractor: str = "") -> bool:
+    if code in NOT_CHARGEABLE:
+        return True
+    return contractor == "Mitchells Drilling" and code in MITCHELLS_NOT_CHARGEABLE
+
+
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
     text = f"{bit_type or ''} {code or ''} {notes or ''}".upper()
     compact = re.sub(r"[\s/-]+", "_", text)
     tokens = set(re.findall(r"[A-Z0-9.]+", text))
+    mm_values = [float(v) for v in re.findall(r"(\d+(?:\.\d+)?)\s*MM\b", text)]
+    inch_values = []
+    for whole, numerator, denominator in re.findall(r"\b(\d+)\s+(\d+)/(\d+)\b", text):
+        if float(denominator):
+            inch_values.append(float(whole) + float(numerator) / float(denominator))
+    for value in re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:INCH|IN|\"|\u2033)\b", text):
+        inch_values.append(float(value))
+    for value in inch_values:
+        mm_values.append(value * 25.4)
     if "4C" in text or "101.6" in text:
         return "4C"
     if "HQ" in text or "NQ" in text:
@@ -618,6 +676,12 @@ def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -
             return "BLADE_M"
         return "BLADE_S"
     if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
+        if any(mm >= 175 for mm in mm_values):
+            return PCD_LARGE_LABEL
+        if any(125 <= mm < 175 for mm in mm_values):
+            return PCD_MEDIUM_LABEL
+        if any(99 <= mm < 125 for mm in mm_values):
+            return PCD_SMALL_LABEL
         if PCD_LARGE_LABEL.upper() in text or "175_305MM" in compact or "7_10_INCH" in compact:
             return PCD_LARGE_LABEL
         if PCD_MEDIUM_LABEL.upper() in text or "125_175MM" in compact or "5_7_INCH" in compact:
@@ -705,7 +769,7 @@ def price_activity(cur, row, contractor):
             if r is not None:
                 unit_rate  = r; quantity = 1; line_cost = r
                 rate_basis = f"${r:,.2f}/{matched[1]}"
-    elif code in NOT_CHARGEABLE:
+    elif is_not_chargeable_code(code, contractor):
         unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
         line_cost = 0; rate_basis = "not chargeable"
     elif code in STANDBY_CODES or "Standby" in code:
@@ -1012,7 +1076,7 @@ def parse_activities(text, header, filename, contractor):
         "D_WaterCart_Day_Rate", "D_Water_Cart", "D_Water_Cart_Day_Rate",
         "D_Water_Cart_Standby", "D_Backhoe", "D_Backhoe_Day_Rate",
         "D_Backhoe_Standby", "H_Standby_Cement_Set", "H_Standby_Cement_set",
-        "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Logger",
+        "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Fatigue", "H_Standby_Logger",
         "H_Standby_Grout", "H_Water_Flow_Measure",
         "Drill_Core", "Drill_Chip_or_Open_hole",
         "H_Tripping_Rods", "H_Circulation_Flush", "H_Circulation_Lost",
@@ -1172,7 +1236,7 @@ COREPLAN_CATEGORY_CODES = {
     "Run/Pull_Casing": "H_Casing_Install",
     "Safety/PSI Meeting": "H_Safety_Contractor",
     "Standby": "H_Standby_AAC",
-    "Standby - Fatigue Management": "H_Standby_AAC",
+    "Standby - Fatigue Management": "H_Standby_Fatigue",
     "Travel": "H_Crew_Travel_On",
     "Tripping Rods": "H_Tripping_Rods",
 }
@@ -1621,7 +1685,7 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
             "rate_basis": "drilling time covered by metreage; no metres recorded",
         })
         reason = "Kept drilling time non-chargeable because drilling is billed by metres."
-    elif code in NOT_CHARGEABLE:
+    elif is_not_chargeable_code(code, row.get("contractor", "")):
         qty = round(hours, 2) if hours > 0 else 1
         updates.update({"rate_year": year, "unit_rate": 0, "quantity": qty, "line_cost": 0, "rate_basis": "not chargeable"})
         reason = "Applied not-chargeable schedule code."
@@ -1870,7 +1934,7 @@ def local_import_qa(acts, cons, crew, rate_context=None):
                         warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": mismatch, "recommendation": "Recalculate the drilling charge from the schedule of rates."})
         if code.startswith("H_") and row.get("total_time") and line_cost is None:
             warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Chargeable hourly-looking activity has no calculated cost", "recommendation": "Check the code against the hourly rate schedule."})
-        if rate_context and metres <= 0 and code and code not in NOT_CHARGEABLE:
+        if rate_context and metres <= 0 and code and not is_not_chargeable_code(code, row.get("contractor", "")):
             hours = _hours(row.get("total_time"))
             schedule_rate = _hourly_rate(code, _year(row))
             if schedule_rate is None and (code.startswith("H_") or line_cost is not None):
@@ -2135,7 +2199,7 @@ async def import_pdf(
                         break
 
             # Not chargeable
-            if lc is None and code in NOT_CHARGEABLE:
+            if lc is None and is_not_chargeable_code(code, contractor):
                 ur = 0; qty = round(hours,2) if hours > 0 else 1; lc = 0; rb = "not chargeable"
 
             # Standby/inactive
@@ -2339,7 +2403,7 @@ async def ai_fix_import_rates(request: Request):
             """, (contractor, limit))
             activities = [dict(r) for r in cur.fetchall()]
 
-            hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE)
+            hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE) | set(MITCHELLS_NOT_CHARGEABLE)
             fuzzy_activity_rows = [
                 r for r in activities
                 if row_num(r.get("total_metres")) <= 0
@@ -4460,7 +4524,7 @@ def reprice_activities(contractor: str = Query(...)):
                         break
 
             # Not chargeable
-            if line_cost is None and code in NOT_CHARGEABLE:
+            if line_cost is None and is_not_chargeable_code(code, contractor):
                 unit_rate = 0; quantity = round(hours,2) if hours > 0 else 1
                 line_cost = 0; rate_basis = "not chargeable"
 
