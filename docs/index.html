@@ -244,7 +244,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .status-ok{background:#ecfdf3;color:#147a39;}
 .status-warn{background:#fff7e6;color:#a05a00;}
 .status-info{background:#eef4ff;color:#174d72;}
-#page-activities{max-width:none;margin:-8px -20px 0;}
+#page-activities,#page-reports{max-width:none;margin:-8px -20px 0;}
 .report-register-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
 .report-search{width:290px;max-width:100%;height:36px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 12px;font-family:var(--font);font-size:14px;color:#344151;}
 .range-date{height:36px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 10px;font-family:var(--font);font-size:13px;color:#344151;}
@@ -1457,7 +1457,8 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="borehole-details" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Details</span><span class="drawer-nav-meta">Full register</span></button>
         <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Rig Scheduler</span><span class="drawer-nav-meta">Rig calendar</span></button>
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
-        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Daily report sheets</span></button>
+        <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
+        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
         <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span class="drawer-nav-label">Costing</span><span class="drawer-nav-meta">Actuals</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
@@ -1589,38 +1590,8 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
-    <!-- Activities -->
-    <section class="page" id="page-activities">
-      <div class="report-register-filters">
-        <input class="report-search" id="report-search" type="text" placeholder="Search by plod name or driller" oninput="filterDailyReportRows()"/>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Status</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Shift</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Rig</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
-        <input class="range-date" id="range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
-        <input class="range-date" id="range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
-        <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
-        <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
-      </div>
-      <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
-        <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
-        <div class="filter-body" id="act-filter-body">
-          <div class="filter-group"><label>Date</label><select id="f-dates" multiple></select></div>
-          <div class="filter-group"><label>Hole #</label><select id="f-holes" multiple></select></div>
-          <div class="filter-group"><label>Site</label><select id="f-sites" multiple></select></div>
-          <div class="filter-group"><label>Code</label><select id="f-codes" multiple></select></div>
-          <div class="filter-group" style="grid-column:1/-1"><label>Keyword (notes/code)</label><input type="text" id="f-search" placeholder="search…"/></div>
-          <div class="filter-actions" style="grid-column:1/-1">
-            <button class="btn-primary" onclick="loadActivities()">Apply</button>
-            <button class="btn-ghost" onclick="resetFilters()">Reset</button>
-          </div>
-        </div>
-      </div>
-      <div style="display:none;">
-        <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
-      </div>
+    <!-- Reports -->
+    <section class="page" id="page-reports">
       <div class="period-report">
         <div class="period-report-head">
           <div>
@@ -1628,8 +1599,10 @@ tbody td[contenteditable=true]:focus {
             <div class="period-report-meta" id="period-report-meta">Select a date range and project to summarise drilling performance.</div>
           </div>
           <div class="period-report-actions">
+            <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
+            <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
             <select id="period-project-select" onchange="renderPeriodReport()"><option value="">All Projects</option></select>
-            <button class="btn-primary" type="button" onclick="renderPeriodReport()">Update report</button>
+            <button class="btn-primary" type="button" onclick="loadReportsPage()">Update report</button>
           </div>
         </div>
         <div class="period-report-body">
@@ -1651,13 +1624,47 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Hole Detail Table</div>
           <div class="tbl-scroll" style="max-height:320px;">
             <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Budget</th><th>Charged</th><th>Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th><th>Notes / Issues</th></tr></thead>
+              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Budget</th><th>Charged</th><th>Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th></tr></thead>
               <tbody id="period-hole-body"></tbody>
             </table>
           </div>
           <div class="period-section-title">Progress / Notes</div>
           <div class="period-issues" id="period-progress-issues">No period report generated yet.</div>
         </div>
+      </div>
+    </section>
+
+    <!-- Activities -->
+    <section class="page" id="page-activities">
+      <div class="report-register-filters">
+        <input class="report-search" id="report-search" type="text" placeholder="Search by plod name or driller" oninput="filterDailyReportRows()"/>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Status</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Shift</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Rig</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
+        <input class="range-date" id="range-from" type="date" title="Report start date"/>
+        <input class="range-date" id="range-to" type="date" title="Report end date"/>
+        <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
+        <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
+      </div>
+      <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
+        <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
+        <div class="filter-body" id="act-filter-body">
+          <div class="filter-group"><label>Date</label><select id="f-dates" multiple></select></div>
+          <div class="filter-group"><label>Hole #</label><select id="f-holes" multiple></select></div>
+          <div class="filter-group"><label>Site</label><select id="f-sites" multiple></select></div>
+          <div class="filter-group"><label>Code</label><select id="f-codes" multiple></select></div>
+          <div class="filter-group" style="grid-column:1/-1"><label>Keyword (notes/code)</label><input type="text" id="f-search" placeholder="search…"/></div>
+          <div class="filter-actions" style="grid-column:1/-1">
+            <button class="btn-primary" onclick="loadActivities()">Apply</button>
+            <button class="btn-ghost" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:none;">
+        <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
       </div>
       <div class="table-wrap report-register">
         <div class="table-toolbar">
@@ -2766,6 +2773,7 @@ function triggerPageLoad(page){
   if(page==='boreholes')    loadBoreholes();
   if(page==='borehole-details') loadBoreholeDetails();
   if(page==='drilling-schedule') loadDrillingSchedule();
+  if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='costing')      loadCosting();
@@ -3259,12 +3267,33 @@ function buildPeriodProjectOptions(){
 }
 
 function selectedPeriod(){
-  let from=document.getElementById('range-from')?.value||'';
-  let to=document.getElementById('range-to')?.value||'';
+  let from=document.getElementById('period-range-from')?.value||'';
+  let to=document.getElementById('period-range-to')?.value||'';
   const dates=(activitiesData||[]).map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
-  if(!from&&dates.length){from=dates[0];document.getElementById('range-from').value=from;}
-  if(!to&&dates.length){to=dates[dates.length-1];document.getElementById('range-to').value=to;}
+  const fromEl=document.getElementById('period-range-from');
+  const toEl=document.getElementById('period-range-to');
+  if(!from&&dates.length){from=dates[0];if(fromEl)fromEl.value=from;}
+  if(!to&&dates.length){to=dates[dates.length-1];if(toEl)toEl.value=to;}
   return {from:from,to:to,project:document.getElementById('period-project-select')?.value||''};
+}
+
+async function loadReportsPage(){
+  const shell=document.getElementById('period-report-meta');
+  if(shell)shell.textContent='Loading report data...';
+  try{
+    const suffix='contractor='+encodeURIComponent(activeContractor);
+    const results=await Promise.all([
+      fetch(API+'/activities?'+suffix).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/consumables?'+suffix).then(function(r){return r.ok?r.json():[];})
+    ]);
+    activitiesData=results[0]||[];
+    consumablesData=results[1]||[];
+    await ensureReportBoreholes();
+    renderPeriodReport();
+  }catch(e){
+    if(shell)shell.textContent='Report data could not be loaded.';
+    toast('Report load failed: '+(e.message||e),'err');
+  }
 }
 
 function periodFilteredRows(){
