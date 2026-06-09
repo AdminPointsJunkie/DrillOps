@@ -1571,6 +1571,7 @@ tbody td[contenteditable=true]:focus {
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
+        <select class="range-date" id="report-project-select" title="Report project" style="min-width:180px;"><option value="">All Projects</option></select>
         <input class="range-date" id="range-from" type="date" title="Report start date"/>
         <input class="range-date" id="range-to" type="date" title="Report end date"/>
         <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
@@ -3257,6 +3258,7 @@ function isoFromReportDate(value){
 function openGraphicalRangeReport(){
   let from=document.getElementById('range-from')?.value||'';
   let to=document.getElementById('range-to')?.value||'';
+  const project=document.getElementById('report-project-select')?.value||'';
   if(!from||!to){
     const dates=dailyReportsData.map(function(r){return isoFromReportDate(r.date);}).filter(Boolean).sort();
     if(!from)from=dates[0]||'';
@@ -3264,6 +3266,7 @@ function openGraphicalRangeReport(){
   }
   if(!from||!to){toast('Select a start and end date first','warn');return;}
   const params=new URLSearchParams({contractor:activeContractor,from:from,to:to});
+  if(project)params.set('project',project);
   window.open('range-report.html?'+params.toString(),'_blank','noopener');
 }
 
@@ -5981,15 +5984,17 @@ async function fetchProjects() {
 
 function buildProjectSelector() {
   var sel = document.getElementById("bh-project-select");
-  if(!sel) return;
-  var current = sel.value;
-  sel.innerHTML = "<option value=\"\">All Projects</option>";
-  projects.forEach(function(p) {
-    var opt = document.createElement("option");
-    opt.value = p.name;
-    opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
-    if(p.name === current) opt.selected = true;
-    sel.appendChild(opt);
+  var reportSel = document.getElementById("report-project-select");
+  [sel, reportSel].filter(Boolean).forEach(function(target) {
+    var current = target.value;
+    target.innerHTML = "<option value=\"\">All Projects</option>";
+    projects.forEach(function(p) {
+      var opt = document.createElement("option");
+      opt.value = p.name;
+      opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
+      if(p.name === current) opt.selected = true;
+      target.appendChild(opt);
+    });
   });
 }
 
