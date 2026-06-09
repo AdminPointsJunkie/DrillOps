@@ -290,6 +290,34 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .report-notes{border:1px solid var(--border);border-radius:7px;padding:12px;background:#fbfcfd;line-height:1.45;color:var(--text2);font-size:12.5px;max-height:220px;overflow:auto;}
 .report-subtitle{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
 .report-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.period-report{background:#fff;border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;}
+.period-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.period-report-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;}
+.period-report-meta{font-size:12px;color:var(--muted);}
+.period-report-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+.period-report-actions select{height:34px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 10px;font-family:var(--font);font-size:12px;color:var(--text);min-width:180px;}
+.period-report-body{padding:16px;}
+.period-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.period-kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
+.period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
+.period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
+.period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.period-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;margin-bottom:14px;}
+#period-report-map{height:360px;width:100%;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:#eef2f7;}
+.period-section-title{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;}
+.period-mini-table{width:100%;border-collapse:collapse;font-size:12px;}
+.period-mini-table th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px;border-bottom:1px solid var(--border);text-align:left;}
+.period-mini-table td{padding:8px;border-bottom:1px solid #eef2f7;color:var(--text2);vertical-align:top;}
+.period-mini-table .num{text-align:right;font-family:var(--font-mono);white-space:nowrap;}
+.period-issues{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text2);min-height:120px;}
+.period-issues ul{margin:0;padding-left:18px;}
+.period-bar-chart{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:10px;}
+.period-bar-row{display:grid;grid-template-columns:64px 1fr 92px;gap:8px;align-items:center;font-size:12px;margin:7px 0;}
+.period-bar-track{height:12px;background:#e5eaf1;border-radius:999px;overflow:hidden;}
+.period-bar-fill{height:100%;background:#1f5f8b;border-radius:999px;}
+.period-bar-fill.actual{background:#dc2626;}
+.variance-pos{color:#16a34a!important;font-weight:800;}
+.variance-neg{color:#dc2626!important;font-weight:800;}
 .flag-pill{border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:3px 8px;font-size:10px;font-weight:750;}
 .compact-table tbody td{white-space:normal;max-width:360px;}
 .collapsible-table.collapsed .tbl-scroll{display:none;}
@@ -670,8 +698,10 @@ tbody td[contenteditable=true]:focus {
   main { padding:18px; }
   .kpi-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .report-summary-grid,
-  .report-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .report-kpis,
+  .period-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .report-detail-grid { grid-template-columns:1fr; }
+  .period-layout { grid-template-columns:1fr; }
   .charts-grid { grid-template-columns:1fr; }
   .filter-body.open { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -1571,8 +1601,8 @@ tbody td[contenteditable=true]:focus {
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
-        <input class="range-date" id="range-from" type="date" title="Report start date"/>
-        <input class="range-date" id="range-to" type="date" title="Report end date"/>
+        <input class="range-date" id="range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
+        <input class="range-date" id="range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
         <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
         <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
       </div>
@@ -1592,6 +1622,48 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div style="display:none;">
         <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
+      </div>
+      <div class="period-report">
+        <div class="period-report-head">
+          <div>
+            <div class="period-report-title">Period Drilling Report</div>
+            <div class="period-report-meta" id="period-report-meta">Select a date range and project to summarise drilling performance.</div>
+          </div>
+          <div class="period-report-actions">
+            <select id="period-project-select" onchange="renderPeriodReport()"><option value="">All Projects</option></select>
+            <button class="btn-primary" type="button" onclick="renderPeriodReport()">Update report</button>
+          </div>
+        </div>
+        <div class="period-report-body">
+          <div class="period-section-title">Headline Figures</div>
+          <div class="period-kpis">
+            <div class="period-kpi"><div class="label">Budgeted Total</div><div class="value" id="period-budget-total">--</div><div class="sub">Active holes in period</div></div>
+            <div class="period-kpi"><div class="label">Actual Spend</div><div class="value" id="period-actual-total">--</div><div class="sub">Charged total</div></div>
+            <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
+            <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
+            <div class="period-kpi"><div class="label">Holes</div><div class="value" id="period-holes">--</div><div class="sub" id="period-holes-sub">Completed vs planned</div></div>
+            <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
+          </div>
+          <div class="period-layout">
+            <div>
+              <div class="period-section-title">Map of Holes Drilled</div>
+              <div id="period-report-map"></div>
+            </div>
+            <div>
+              <div class="period-section-title">Cost Breakdown</div>
+              <div id="period-cost-breakdown"></div>
+            </div>
+          </div>
+          <div class="period-section-title">Hole Detail Table</div>
+          <div class="tbl-scroll" style="max-height:320px;">
+            <table class="period-mini-table">
+              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Budget</th><th>Charged</th><th>Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th><th>Notes / Issues</th></tr></thead>
+              <tbody id="period-hole-body"></tbody>
+            </table>
+          </div>
+          <div class="period-section-title">Progress / Issues</div>
+          <div class="period-issues" id="period-progress-issues">No period report generated yet.</div>
+        </div>
       </div>
       <div class="table-wrap report-register">
         <div class="table-toolbar">
@@ -2099,13 +2171,6 @@ tbody td[contenteditable=true]:focus {
             </div>
           </div>
           <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
-          <div style="position:relative;width:100%;">
-            <input type="file" id="dxf-file-input" accept=".dxf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;" onchange="uploadDXF(this)"/>
-            <button class="btn-ghost" style="width:100%;font-size:12px;">Upload DXF Overlay</button>
-          </div>
-          <button class="btn-ghost" onclick="loadBundledDxfOverlay('assets/map-overlays/IB001-DXF.zip','IB001 DXF.zip')" style="width:100%;font-size:12px;">Load IB001 DXF</button>
-          <button class="btn-ghost" onclick="loadBundledDxfOverlay('assets/map-overlays/CD001.zip','CD001.zip')" style="width:100%;font-size:12px;">Load CD001 DXF</button>
-          <button class="btn-ghost" onclick="clearDxfOverlay()" id="dxf-clear-btn" style="width:100%;font-size:12px;display:none;">Clear DXF</button>
           <button class="btn-ghost" onclick="importBudgetToDb()" style="width:100%;font-size:12px;">💾 Save All to Database</button>
         </div>
       </div>
@@ -2940,6 +3005,7 @@ async function loadActivities(){
     activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
     await loadDailyReportRelatedData(dates);
     await loadReportApprovals(dates);
+    await ensureReportBoreholes();
     renderActivities(activitiesData);
   }catch(e){
     renderDailyReportSummary([]);
@@ -3140,6 +3206,279 @@ function renderDailyReportSummary(rows){
   }).join('');
   filterDailyReportRows();
   if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
+  renderPeriodReport();
+}
+
+let periodReportMap = null;
+let periodReportMarkers = [];
+
+async function ensureReportBoreholes(){
+  if(bhData&&bhData.length)return;
+  try{await loadBoreholes();}catch(e){console.warn('Borehole planning data unavailable for period report',e);}
+}
+
+function numVal(value){
+  const n=parseFloat(value);
+  return Number.isFinite(n)?n:0;
+}
+
+function reportIso(value){
+  return isoFromReportDate(value);
+}
+
+function rowHole(row){
+  return String(row.hole_num||row.hole_id||'').trim();
+}
+
+function holeLookup(){
+  const map=new Map();
+  (bhData||[]).forEach(function(b){
+    const id=String(b.hole_id||b.hole_num||'').trim();
+    if(id)map.set(id,b);
+  });
+  return map;
+}
+
+function activityMethod(row,bh){
+  const text=[row.bit_type,row.code,row.activity_code,row.notes,bh&&bh.bh_type,bh&&bh.type,bh&&bh.bit_type].join(' ').toLowerCase();
+  if(text.match(/core|coring|hq|nq|pq|dd/))return 'Core';
+  if(text.match(/chip|rc|open hole|pcd/))return 'Chipped / RC';
+  return bh&&(bh.bh_type||bh.type)||'Other';
+}
+
+function rowIsStandby(row){
+  return activityCategory(row)==='Standby / Delays'||String(row.code||row.activity_code||'').toLowerCase().includes('standby');
+}
+
+function rowIsExtra(row){
+  const text=[row.code,row.activity_code,row.notes].join(' ').toLowerCase();
+  return rowIsStandby(row)||text.match(/mobil|travel|delay|wait|fatigue|breakdown|repair|extra|non[- ]?drilling/);
+}
+
+function buildPeriodProjectOptions(){
+  const sel=document.getElementById('period-project-select');
+  if(!sel)return;
+  const current=sel.value;
+  const names=Array.from(new Set((bhData||[]).map(function(b){return b.project||'';}).filter(Boolean))).sort();
+  sel.innerHTML='<option value="">All Projects</option>'+names.map(function(name){
+    return '<option value="'+attr(name)+'">'+esc(name)+'</option>';
+  }).join('');
+  if(names.includes(current))sel.value=current;
+}
+
+function selectedPeriod(){
+  let from=document.getElementById('range-from')?.value||'';
+  let to=document.getElementById('range-to')?.value||'';
+  const dates=(activitiesData||[]).map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+  if(!from&&dates.length){from=dates[0];document.getElementById('range-from').value=from;}
+  if(!to&&dates.length){to=dates[dates.length-1];document.getElementById('range-to').value=to;}
+  return {from:from,to:to,project:document.getElementById('period-project-select')?.value||''};
+}
+
+function periodFilteredRows(){
+  const period=selectedPeriod();
+  const holes=holeLookup();
+  return (activitiesData||[]).filter(function(r){
+    const iso=reportIso(r.date);
+    if(period.from&&(!iso||iso<period.from))return false;
+    if(period.to&&(!iso||iso>period.to))return false;
+    if(period.project){
+      const bh=holes.get(rowHole(r));
+      if((bh&&bh.project||'')!==period.project)return false;
+    }
+    return true;
+  });
+}
+
+function periodFilteredConsumables(){
+  const period=selectedPeriod();
+  const holes=holeLookup();
+  return (consumablesData||[]).filter(function(r){
+    const iso=reportIso(r.date);
+    if(period.from&&(!iso||iso<period.from))return false;
+    if(period.to&&(!iso||iso>period.to))return false;
+    if(period.project){
+      const bh=holes.get(rowHole(r));
+      if((bh&&bh.project||'')!==period.project)return false;
+    }
+    return true;
+  });
+}
+
+function renderPeriodReport(){
+  const shell=document.getElementById('period-report-meta');
+  if(!shell)return;
+  buildPeriodProjectOptions();
+  const period=selectedPeriod();
+  const holes=holeLookup();
+  const rows=periodFilteredRows();
+  const consumables=periodFilteredConsumables();
+  const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
+  const activeHoles=activeIds.map(function(id){return holes.get(id)||{hole_id:id};});
+  const projectHoles=(bhData||[]).filter(function(b){return !period.project||b.project===period.project;});
+  const activityCost=rows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+  const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+  const actualTotal=activityCost+consumableCost;
+  const budgetTotal=activeHoles.reduce(function(s,b){return s+numVal(b.budget_total);},0);
+  const variance=budgetTotal-actualTotal;
+  const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
+  let coreMetres=0, chippedMetres=0;
+  rows.forEach(function(r){
+    const method=activityMethod(r,holes.get(rowHole(r)));
+    if(method==='Core')coreMetres+=numVal(r.total_metres);
+    else if(method==='Chipped / RC')chippedMetres+=numVal(r.total_metres);
+  });
+  const completed=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()==='complete';}).length;
+  const planned=projectHoles.length||activeHoles.length;
+  const extrasCost=rows.filter(rowIsExtra).reduce(function(s,r){return s+numVal(r.line_cost);},0);
+  const avgCost=totalMetres>0?actualTotal/totalMetres:0;
+  const projectLabel=period.project||'All Projects';
+  const today=new Date().toLocaleDateString('en-AU');
+  shell.textContent=projectLabel+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
+  setPeriodText('period-budget-total',cur(budgetTotal));
+  setPeriodText('period-actual-total',cur(actualTotal));
+  const varianceEl=document.getElementById('period-variance');
+  if(varianceEl){
+    varianceEl.textContent=cur(Math.abs(variance));
+    varianceEl.className='value '+(variance>=0?'variance-pos':'variance-neg');
+  }
+  setPeriodText('period-variance-sub',variance>=0?'Under budget':'Over budget');
+  setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
+  setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
+  setPeriodText('period-holes',activeIds.length.toLocaleString());
+  setPeriodText('period-holes-sub',completed+' completed / '+planned+' planned');
+  setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
+  setPeriodText('period-extra-costs','Standby/downtime/mob/extra '+cur(extrasCost));
+  renderPeriodHoleTable(rows,consumables,activeHoles,holes);
+  renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal);
+  renderPeriodProgress(rows,activeHoles,projectHoles);
+  renderPeriodMap(activeHoles,rows,holes);
+}
+
+function setPeriodText(id,value){
+  const el=document.getElementById(id);
+  if(el)el.textContent=value;
+}
+
+function renderPeriodHoleTable(rows,consumables,activeHoles,holes){
+  const tbody=document.getElementById('period-hole-body');
+  if(!tbody)return;
+  if(!activeHoles.length){
+    tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No holes active in the selected period.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML=activeHoles.map(function(b){
+    const id=String(b.hole_id||b.hole_num||'').trim();
+    const hr=rows.filter(function(r){return rowHole(r)===id;});
+    const hc=consumables.filter(function(r){return rowHole(r)===id;});
+    const actualMetres=hr.reduce(function(s,r){return s+numVal(r.total_metres);},0);
+    const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+    const budget=numVal(b.budget_total);
+    const plannedMetres=numVal(b.eoh_depth)||numVal(b.chip_depth)||numVal(b.total_core);
+    const variance=budget-charged;
+    const dates=hr.map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+    const issues=Array.from(new Set(hr.map(function(r){return r.notes||'';}).filter(function(n){return n&&String(n).toLowerCase().match(/delay|standby|fatigue|lost|breakdown|repair|access|issue|move|ground/);}))).slice(0,2).join(' | ');
+    return '<tr>'
+      +'<td><b>'+esc(id)+'</b></td>'
+      +'<td class="num">'+(plannedMetres?plannedMetres.toFixed(1):'--')+'</td>'
+      +'<td class="num">'+actualMetres.toFixed(1)+'</td>'
+      +'<td class="num">'+cur(budget)+'</td>'
+      +'<td class="num">'+cur(charged)+'</td>'
+      +'<td class="num '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+'</td>'
+      +'<td>'+esc(b.bh_type||b.type||b.bit_type||'--')+'</td>'
+      +'<td>'+esc(dates[0]||'--')+'</td>'
+      +'<td>'+esc(dates[dates.length-1]||'--')+'</td>'
+      +'<td>'+esc(b.status||'Planned')+'</td>'
+      +'<td>'+esc(issues||b.notes||'')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal){
+  const el=document.getElementById('period-cost-breakdown');
+  if(!el)return;
+  const codeMap=new Map();
+  rows.forEach(function(r){
+    const code=String(r.code||r.activity_code||'Uncoded').trim()||'Uncoded';
+    const standby=rowIsStandby(r);
+    const key=(standby?'Standby':'Charge')+'|'+code;
+    if(!codeMap.has(key))codeMap.set(key,{code:code,group:standby?'Standby':'Chargeable / Other',count:0,value:0});
+    const item=codeMap.get(key);
+    item.count+=1;
+    item.value+=numVal(r.line_cost);
+  });
+  const typeMap=new Map();
+  rows.forEach(function(r){
+    const method=activityMethod(r,holes.get(rowHole(r)));
+    if(!typeMap.has(method))typeMap.set(method,{type:method,metres:0,value:0});
+    const item=typeMap.get(method);
+    item.metres+=numVal(r.total_metres);
+    item.value+=numVal(r.line_cost);
+  });
+  if(consumables.length){
+    typeMap.set('Consumables',{type:'Consumables',metres:0,value:consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0)});
+  }
+  const codes=Array.from(codeMap.values()).sort(function(a,b){return a.group.localeCompare(b.group)||b.value-a.value;});
+  const types=Array.from(typeMap.values()).sort(function(a,b){return b.value-a.value;});
+  const max=Math.max(budgetTotal,actualTotal,1);
+  el.innerHTML='<div class="period-bar-chart">'
+    +'<div class="period-bar-row"><div>Budget</div><div class="period-bar-track"><div class="period-bar-fill" style="width:'+Math.min(100,(budgetTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(budgetTotal)+'</div></div>'
+    +'<div class="period-bar-row"><div>Actual</div><div class="period-bar-track"><div class="period-bar-fill actual" style="width:'+Math.min(100,(actualTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(actualTotal)+'</div></div>'
+    +'</div>'
+    +'<table class="period-mini-table"><thead><tr><th>Type</th><th>Metres</th><th>Value</th></tr></thead><tbody>'
+    +(types.map(function(r){return '<tr><td>'+esc(r.type)+'</td><td class="num">'+(r.metres?r.metres.toFixed(1):'--')+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="3">No costs in period.</td></tr>')
+    +'</tbody></table>'
+    +'<div class="period-section-title">Codes and Recurrences</div>'
+    +'<table class="period-mini-table"><thead><tr><th>Code</th><th>Group</th><th>Occurrences</th><th>Value</th></tr></thead><tbody>'
+    +(codes.map(function(r){return '<tr><td>'+esc(r.code)+'</td><td>'+esc(r.group)+'</td><td class="num">'+r.count+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="4">No activity codes in period.</td></tr>')
+    +'</tbody></table>';
+}
+
+function renderPeriodProgress(rows,activeHoles,projectHoles){
+  const el=document.getElementById('period-progress-issues');
+  if(!el)return;
+  const completed=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()==='complete';}).map(function(b){return b.hole_id;});
+  const carried=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()!=='complete';}).map(function(b){return b.hole_id;});
+  const issueNotes=Array.from(new Set(rows.map(function(r){return r.notes||'';}).filter(function(n){return n&&String(n).toLowerCase().match(/delay|standby|fatigue|lost|breakdown|repair|access|issue|move|ground|approval/);}))).slice(0,8);
+  const flags=dailyReportsData.filter(function(r){return rows.some(function(row){return reportKeyFor(row)===r.key;})&&r.flags.length;}).map(function(r){return r.id+': '+r.flags.join(', ');}).slice(0,6);
+  const items=[
+    'Holes completed this period: '+(completed.length?completed.join(', '):'none'),
+    'Holes carried forward: '+(carried.length?carried.join(', '):'none'),
+    'Planned holes in project filter: '+projectHoles.length
+  ].concat(issueNotes.map(function(n){return 'Issue/note: '+n;})).concat(flags.map(function(f){return 'Review item: '+f;}));
+  el.innerHTML='<ul>'+items.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul>';
+}
+
+function renderPeriodMap(activeHoles,rows,holes){
+  const el=document.getElementById('period-report-map');
+  if(!el||typeof L==='undefined')return;
+  if(!periodReportMap){
+    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
+    const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
+    periodReportMap=L.map('period-report-map',{layers:[sat]});
+    L.control.layers({'Satellite':sat,'Street':osm}).addTo(periodReportMap);
+  }
+  periodReportMarkers.forEach(function(m){try{m.remove();}catch(e){}});
+  periodReportMarkers=[];
+  const bounds=[];
+  activeHoles.forEach(function(b){
+    const lat=parseFloat(b.lat),lng=parseFloat(b.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
+    const id=String(b.hole_id||b.hole_num||'').trim();
+    const hr=rows.filter(function(r){return rowHole(r)===id;});
+    const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+    const variance=numVal(b.budget_total)-charged;
+    const color=variance<0?'#dc2626':String(b.status||'').toLowerCase()==='complete'?'#16a34a':'#2563eb';
+    const marker=L.circleMarker([lat,lng],{radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:0.95})
+      .bindTooltip(id,{permanent:true,direction:'right',offset:[8,0],className:'bh-label'})
+      .bindPopup('<b>'+esc(id)+'</b><br>'+esc(b.project||'')+'<br>Charged '+cur(charged)+'<br>Variance '+(variance>=0?'under ':'over ')+cur(Math.abs(variance)));
+    marker.addTo(periodReportMap);
+    periodReportMarkers.push(marker);
+    bounds.push([lat,lng]);
+  });
+  setTimeout(function(){periodReportMap.invalidateSize();},50);
+  if(bounds.length)periodReportMap.fitBounds(L.latLngBounds(bounds),{padding:[35,35],maxZoom:16});
+  else periodReportMap.setView([-21.9,148.2],10);
 }
 
 function renderReportStatusSelect(report){
@@ -5572,7 +5911,7 @@ function initBhMap() {
   bhMap = L.map('bh-map', {layers:[osm]});
   L.control.layers({'Street':osm,'Satellite':sat}).addTo(bhMap);
   renderBhMap();
-  setTimeout(loadDefaultDxfOverlays, 250);
+  setTimeout(loadDefaultMapOverlays, 250);
 }
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -5899,19 +6238,16 @@ async function importBudgetToDb() {
   } catch(e) { toast('Save failed: '+e.message,'err'); }
 }
 
-// ── DXF Overlay ───────────────────────────────────────────────────────────────
-var dxfLayers = [];
-var dxfAutoLoaded = false;
-var DXF_COLORS = {
+// ── Mine Drawing GeoJSON Overlays ─────────────────────────────────────────────
+var mapOverlayLayers = [];
+var mapOverlaysAutoLoaded = false;
+var OVERLAY_COLORS = {
   1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
   6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
   30:'#ff6600',40:'#ff9900',50:'#cccc00',60:'#00cc66',
   70:'#0099cc',80:'#3366ff',90:'#6633ff',140:'#ff3399',
 };
-function dxfColor(c) { return DXF_COLORS[c] || '#e74c3c'; }
-function selectedDxfEpsg() {
-  return '20355';
-}
+function overlayColor(c) { return OVERLAY_COLORS[c] || '#e74c3c'; }
 
 function fitMapToVisibleContent() {
   if(!bhMap) return;
@@ -5921,7 +6257,7 @@ function fitMapToVisibleContent() {
     return Number.isFinite(lat)&&Number.isFinite(lng);
   }).map(function(b){return [parseFloat(b.lat),parseFloat(b.lng)];});
   if(points.length) bounds = L.latLngBounds(points);
-  dxfLayers.forEach(function(item){
+  mapOverlayLayers.forEach(function(item){
     try {
       var b = item.layer.getBounds();
       if(b&&b.isValid()) bounds = bounds ? bounds.extend(b) : b;
@@ -5930,60 +6266,41 @@ function fitMapToVisibleContent() {
   if(bounds&&bounds.isValid()) bhMap.fitBounds(bounds,{padding:[30,30]});
 }
 
-async function loadDefaultDxfOverlays() {
-  if(dxfAutoLoaded || !bhMap) return;
-  dxfAutoLoaded = true;
-  await loadBundledDxfOverlay('assets/map-overlays/IB001-DXF.zip','IB001 DXF.zip', true);
-  await loadBundledDxfOverlay('assets/map-overlays/CD001.zip','CD001.zip', true);
+async function loadDefaultMapOverlays() {
+  if(mapOverlaysAutoLoaded || !bhMap) return;
+  mapOverlaysAutoLoaded = true;
+  await loadBundledGeojsonOverlay('assets/map-overlays/IB001.geojson','IB001 GeoJSON', true);
+  await loadBundledGeojsonOverlay('assets/map-overlays/CD001.geojson','CD001 GeoJSON', true);
   fitMapToVisibleContent();
 }
 
-async function uploadDXF(input) {
-  var file = input.files[0];
-  if(!file) return;
-  toast('Parsing DXF...');
-  var fd = new FormData();
-  fd.append('file', file);
-  fd.append('epsg', selectedDxfEpsg());
-  try {
-    var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
-    if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
-    var d = await res.json();
-    console.log('DXF:', d.entity_count+' entities, layers:', d.layers);
-    renderDxfOverlay(d.geojson, d.layers, file.name, false);
-    toast('\u2713 DXF loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
-  } catch(e) {
-    toast('DXF failed: '+e.message, 'err');
-  }
-  input.value = '';
-}
-
-async function loadBundledDxfOverlay(path, filename, deferFit) {
+async function loadBundledGeojsonOverlay(path, filename, deferFit) {
   toast('Loading '+filename+'...');
   try {
-    var asset = await fetch(path);
-    if(!asset.ok) { toast('DXF asset not found: '+asset.status, 'err'); return; }
-    var blob = await asset.blob();
-    var fd = new FormData();
-    fd.append('file', new File([blob], filename, {type:'application/dxf'}));
-    fd.append('epsg', selectedDxfEpsg());
-    var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
-    if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
-    var d = await res.json();
-    console.log('Bundled DXF:', filename, d.entity_count+' entities, layers:', d.layers);
-    renderDxfOverlay(d.geojson, d.layers, filename, !!deferFit);
-    toast('\u2713 '+filename+' loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
+    var res = await fetch(path);
+    if(!res.ok) { toast('GeoJSON asset not found: '+res.status, 'err'); return; }
+    var geojson = await res.json();
+    var layers = Array.from(new Set((geojson.features||[]).map(function(f){
+      var p = f.properties || {};
+      return p.layer || p.Layer || '';
+    }).filter(Boolean))).sort();
+    renderMapOverlay(geojson, layers, filename, !!deferFit);
+    toast('\u2713 '+filename+' loaded: '+(geojson.features||[]).length+' features');
   } catch(e) {
-    toast('DXF failed: '+e.message, 'err');
+    toast('GeoJSON failed: '+e.message, 'err');
   }
 }
 
-function renderDxfOverlay(geojson, layers, filename, deferFit) {
+function renderMapOverlay(geojson, layers, filename, deferFit) {
   if(!bhMap) { toast('Map not ready','err'); return; }
   var layer = L.geoJSON(geojson, {
     renderer: L.canvas({padding:0.5}),
     style: function(feature) {
-      var col = dxfColor(feature.properties.color);
+      feature.properties = feature.properties || {};
+      if(!feature.properties.layer && feature.properties.Layer) feature.properties.layer = feature.properties.Layer;
+      if(!feature.properties.text && feature.properties.Text) feature.properties.text = feature.properties.Text;
+      if(!feature.properties.type) feature.properties.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
+      var col = overlayColor(feature.properties.color);
       return {
         color: col, weight: feature.properties.type==='polygon'?2:1.5,
         opacity: 0.85, fillColor: col,
@@ -5991,40 +6308,36 @@ function renderDxfOverlay(geojson, layers, filename, deferFit) {
       };
     },
     pointToLayer: function(feature, latlng) {
+      feature.properties = feature.properties || {};
+      if(!feature.properties.text && feature.properties.Text) feature.properties.text = feature.properties.Text;
+      if(!feature.properties.type) feature.properties.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
       if(feature.properties.type==='text') {
         return L.marker(latlng, {icon: L.divIcon({
-          html: '<div style="font-size:9px;color:'+dxfColor(feature.properties.color)+';white-space:nowrap;text-shadow:1px 1px 1px rgba(0,0,0,0.5);">'+feature.properties.text+'</div>',
+          html: '<div style="font-size:9px;color:'+overlayColor(feature.properties.color)+';white-space:nowrap;text-shadow:1px 1px 1px rgba(0,0,0,0.5);">'+feature.properties.text+'</div>',
           className:'', iconSize:[100,14], iconAnchor:[0,7]
         })});
       }
       if(feature.properties.type==='circle') {
         return L.circle(latlng, {radius:feature.properties.radius||5,
-          color:dxfColor(feature.properties.color), weight:1.5, fillOpacity:0.1});
+          color:overlayColor(feature.properties.color), weight:1.5, fillOpacity:0.1});
       }
       return L.circleMarker(latlng, {radius:3,
-        color:dxfColor(feature.properties.color), weight:1, fillOpacity:0.8});
+        color:overlayColor(feature.properties.color), weight:1, fillOpacity:0.8});
     },
     onEachFeature: function(feature, layer) {
-      var props = feature.properties;
+      var props = feature.properties || {};
+      if(!props.layer && props.Layer) props.layer = props.Layer;
+      if(!props.type) props.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
       var popup = '<div style="font-family:Inter,sans-serif;font-size:12px;">';
-      popup += '<b>Layer:</b> '+props.layer+'<br><b>Type:</b> '+props.type;
+      popup += '<b>Layer:</b> '+(props.layer||'')+'<br><b>Type:</b> '+props.type;
       if(props.text) popup += '<br><b>Text:</b> '+props.text;
       popup += '</div>';
       layer.bindPopup(popup);
     }
   });
   layer.addTo(bhMap);
-  dxfLayers.push({name:filename, layer:layer});
-  document.getElementById('dxf-clear-btn').style.display = 'block';
+  mapOverlayLayers.push({name:filename, layer:layer});
   if(!deferFit) fitMapToVisibleContent();
-}
-
-function clearDxfOverlay() {
-  dxfLayers.forEach(function(item){try{if(bhMap)bhMap.removeLayer(item.layer);}catch(e){}});
-  dxfLayers = [];
-  dxfAutoLoaded = false;
-  var btn = document.getElementById('dxf-clear-btn');
-  if(btn) btn.style.display = 'none';
 }
 
 
