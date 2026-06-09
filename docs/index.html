@@ -5907,6 +5907,7 @@ function initBhMap() {
   if(bhMap) { bhMap.remove(); bhMap=null; }
   mapOverlayLayers = [];
   mapOverlaysAutoLoaded = false;
+  mapOverlayProjectKey = '';
   setMapOverlayStatus('Mine drawings loading...');
   const el = document.getElementById('bh-map');
   if(!el) return;
@@ -6247,6 +6248,7 @@ async function importBudgetToDb() {
 var mapOverlayLayers = [];
 var mapOverlaysAutoLoaded = false;
 var mapOverlayLoadSummary = [];
+var mapOverlayProjectKey = '';
 var OVERLAY_COLORS = {
   1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
   6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
@@ -6279,15 +6281,37 @@ function fitMapToVisibleContent() {
   if(bounds&&bounds.isValid()) bhMap.fitBounds(bounds,{padding:[30,30]});
 }
 
-async function loadDefaultMapOverlays() {
-  if(mapOverlaysAutoLoaded || !bhMap) return;
+function mapOverlayAssetsForProject(projectName) {
+  var p = String(projectName||'').toLowerCase();
+  if(p.includes('iron')) return [{path:'assets/map-overlays/IB001.geojson', name:'IB001 GeoJSON'}];
+  if(p.includes('carb') || p.includes('cd')) return [{path:'assets/map-overlays/CD001.geojson', name:'CD001 GeoJSON'}];
+  return [
+    {path:'assets/map-overlays/IB001.geojson', name:'IB001 GeoJSON'},
+    {path:'assets/map-overlays/CD001.geojson', name:'CD001 GeoJSON'}
+  ];
+}
+
+function clearMapOverlays() {
+  mapOverlayLayers.forEach(function(item){try{if(bhMap)bhMap.removeLayer(item.layer);}catch(e){}});
+  mapOverlayLayers = [];
+}
+
+async function loadDefaultMapOverlays(forceReload) {
+  if(!bhMap) return;
+  var project = document.getElementById('bh-project-select') ? document.getElementById('bh-project-select').value : '';
+  var key = project || 'All Projects';
+  if(!forceReload && mapOverlaysAutoLoaded && mapOverlayProjectKey===key) return;
   mapOverlaysAutoLoaded = true;
+  mapOverlayProjectKey = key;
   mapOverlayLoadSummary = [];
-  await loadBundledGeojsonOverlay('assets/map-overlays/IB001.geojson','IB001 GeoJSON', true);
-  await loadBundledGeojsonOverlay('assets/map-overlays/CD001.geojson','CD001 GeoJSON', true);
-  fitMapToVisibleContent();
+  clearMapOverlays();
+  setMapOverlayStatus('Mine drawings loading for '+key+'...');
+  var assets = mapOverlayAssetsForProject(project);
+  for(var i=0;i<assets.length;i++) {
+    await loadBundledGeojsonOverlay(assets[i].path, assets[i].name, true);
+  }
   if(mapOverlayLoadSummary.length) {
-    setMapOverlayStatus('Mine drawings loaded: '+mapOverlayLoadSummary.join(', '));
+    setMapOverlayStatus('Mine drawings loaded for '+key+': '+mapOverlayLoadSummary.join(', '));
   }
 }
 
@@ -6413,6 +6437,7 @@ function filterBoreholesByProject() {
   });
   renderBhTable(filtered);
   renderBhMapFiltered(filtered);
+  loadDefaultMapOverlays(false);
 }
 
 function renderBhMapFiltered(filteredData) {
