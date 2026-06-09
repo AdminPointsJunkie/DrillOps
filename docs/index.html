@@ -302,8 +302,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
 .period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
-.period-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;margin-bottom:14px;}
-#period-report-map{height:360px;width:100%;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:#eef2f7;}
+.period-layout{display:block;margin-bottom:14px;}
 .period-section-title{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;}
 .period-mini-table{width:100%;border-collapse:collapse;font-size:12px;}
 .period-mini-table th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px;border-bottom:1px solid var(--border);text-align:left;}
@@ -701,7 +700,6 @@ tbody td[contenteditable=true]:focus {
   .report-kpis,
   .period-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .report-detail-grid { grid-template-columns:1fr; }
-  .period-layout { grid-template-columns:1fr; }
   .charts-grid { grid-template-columns:1fr; }
   .filter-body.open { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -1646,10 +1644,6 @@ tbody td[contenteditable=true]:focus {
           </div>
           <div class="period-layout">
             <div>
-              <div class="period-section-title">Map of Holes Drilled</div>
-              <div id="period-report-map"></div>
-            </div>
-            <div>
               <div class="period-section-title">Cost Breakdown</div>
               <div id="period-cost-breakdown"></div>
             </div>
@@ -2171,6 +2165,7 @@ tbody td[contenteditable=true]:focus {
             </div>
           </div>
           <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
+          <div id="map-overlay-status" style="font-size:11px;color:var(--muted);line-height:1.35;padding:2px 1px;">Mine drawings loading...</div>
           <button class="btn-ghost" onclick="importBudgetToDb()" style="width:100%;font-size:12px;">💾 Save All to Database</button>
         </div>
       </div>
@@ -3209,9 +3204,6 @@ function renderDailyReportSummary(rows){
   renderPeriodReport();
 }
 
-let periodReportMap = null;
-let periodReportMarkers = [];
-
 async function ensureReportBoreholes(){
   if(bhData&&bhData.length)return;
   try{await loadBoreholes();}catch(e){console.warn('Borehole planning data unavailable for period report',e);}
@@ -3352,7 +3344,6 @@ function renderPeriodReport(){
   renderPeriodHoleTable(rows,consumables,activeHoles,holes);
   renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal);
   renderPeriodProgress(rows,activeHoles,projectHoles);
-  renderPeriodMap(activeHoles,rows,holes);
 }
 
 function setPeriodText(id,value){
@@ -3449,37 +3440,6 @@ function renderPeriodProgress(rows,activeHoles,projectHoles){
   el.innerHTML='<ul>'+items.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul>';
 }
 
-function renderPeriodMap(activeHoles,rows,holes){
-  const el=document.getElementById('period-report-map');
-  if(!el||typeof L==='undefined')return;
-  if(!periodReportMap){
-    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
-    const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
-    periodReportMap=L.map('period-report-map',{layers:[sat]});
-    L.control.layers({'Satellite':sat,'Street':osm}).addTo(periodReportMap);
-  }
-  periodReportMarkers.forEach(function(m){try{m.remove();}catch(e){}});
-  periodReportMarkers=[];
-  const bounds=[];
-  activeHoles.forEach(function(b){
-    const lat=parseFloat(b.lat),lng=parseFloat(b.lng);
-    if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
-    const id=String(b.hole_id||b.hole_num||'').trim();
-    const hr=rows.filter(function(r){return rowHole(r)===id;});
-    const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0);
-    const variance=numVal(b.budget_total)-charged;
-    const color=variance<0?'#dc2626':String(b.status||'').toLowerCase()==='complete'?'#16a34a':'#2563eb';
-    const marker=L.circleMarker([lat,lng],{radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:0.95})
-      .bindTooltip(id,{permanent:true,direction:'right',offset:[8,0],className:'bh-label'})
-      .bindPopup('<b>'+esc(id)+'</b><br>'+esc(b.project||'')+'<br>Charged '+cur(charged)+'<br>Variance '+(variance>=0?'under ':'over ')+cur(Math.abs(variance)));
-    marker.addTo(periodReportMap);
-    periodReportMarkers.push(marker);
-    bounds.push([lat,lng]);
-  });
-  setTimeout(function(){periodReportMap.invalidateSize();},50);
-  if(bounds.length)periodReportMap.fitBounds(L.latLngBounds(bounds),{padding:[35,35],maxZoom:16});
-  else periodReportMap.setView([-21.9,148.2],10);
-}
 
 function renderReportStatusSelect(report){
   const status=(getStoredReportApproval(report.date,report.hole,report.sourceFile)||{}).status||'pending';
@@ -5903,6 +5863,9 @@ function renderBhBudgetSummary() {
 
 function initBhMap() {
   if(bhMap) { bhMap.remove(); bhMap=null; }
+  mapOverlayLayers = [];
+  mapOverlaysAutoLoaded = false;
+  setMapOverlayStatus('Mine drawings loading...');
   const el = document.getElementById('bh-map');
   if(!el) return;
   ['bh-filter-core','bh-filter-chip','bh-filter-labels'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=true;});
@@ -6241,6 +6204,7 @@ async function importBudgetToDb() {
 // ── Mine Drawing GeoJSON Overlays ─────────────────────────────────────────────
 var mapOverlayLayers = [];
 var mapOverlaysAutoLoaded = false;
+var mapOverlayLoadSummary = [];
 var OVERLAY_COLORS = {
   1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
   6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
@@ -6248,6 +6212,13 @@ var OVERLAY_COLORS = {
   70:'#0099cc',80:'#3366ff',90:'#6633ff',140:'#ff3399',
 };
 function overlayColor(c) { return OVERLAY_COLORS[c] || '#e74c3c'; }
+
+function setMapOverlayStatus(message, isError) {
+  var el = document.getElementById('map-overlay-status');
+  if(!el) return;
+  el.textContent = message;
+  el.style.color = isError ? 'var(--red)' : 'var(--muted)';
+}
 
 function fitMapToVisibleContent() {
   if(!bhMap) return;
@@ -6269,9 +6240,13 @@ function fitMapToVisibleContent() {
 async function loadDefaultMapOverlays() {
   if(mapOverlaysAutoLoaded || !bhMap) return;
   mapOverlaysAutoLoaded = true;
+  mapOverlayLoadSummary = [];
   await loadBundledGeojsonOverlay('assets/map-overlays/IB001.geojson','IB001 GeoJSON', true);
   await loadBundledGeojsonOverlay('assets/map-overlays/CD001.geojson','CD001 GeoJSON', true);
   fitMapToVisibleContent();
+  if(mapOverlayLoadSummary.length) {
+    setMapOverlayStatus('Mine drawings loaded: '+mapOverlayLoadSummary.join(', '));
+  }
 }
 
 async function loadBundledGeojsonOverlay(path, filename, deferFit) {
@@ -6285,8 +6260,10 @@ async function loadBundledGeojsonOverlay(path, filename, deferFit) {
       return p.layer || p.Layer || '';
     }).filter(Boolean))).sort();
     renderMapOverlay(geojson, layers, filename, !!deferFit);
+    mapOverlayLoadSummary.push(filename.replace(' GeoJSON','')+' '+(geojson.features||[]).length.toLocaleString());
     toast('\u2713 '+filename+' loaded: '+(geojson.features||[]).length+' features');
   } catch(e) {
+    setMapOverlayStatus(filename+' failed to load: '+e.message, true);
     toast('GeoJSON failed: '+e.message, 'err');
   }
 }
