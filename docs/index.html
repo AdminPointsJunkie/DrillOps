@@ -3551,7 +3551,9 @@ async function rationaliseAndSync() {
     if(d.holes_fixed > 0) parts.push(d.holes_fixed+" hole IDs fixed");
     if(d.sites_fixed > 0) parts.push(d.sites_fixed+" sites filled");
     parts.push(d.priced+" of "+d.total+" activities priced");
+    if(d.locked_skipped > 0) parts.push(d.locked_skipped+" locked activities skipped");
     if(d.consumables_priced > 0) parts.push(d.consumables_priced+" of "+(d.consumables_total||0)+" consumables priced");
+    if(d.consumables_locked_skipped > 0) parts.push(d.consumables_locked_skipped+" locked consumables skipped");
     if(d.consumables_error) parts.push("consumables error: "+d.consumables_error);
     toast("\u2713 "+parts.join(", "));
 
@@ -3593,7 +3595,9 @@ async function repriceCosting(){
     const parts=[];
     if(d.priced!=null)parts.push((d.priced||0)+" priced");
     if(d.total!=null)parts.push((d.total||0)+" activities checked");
+    if(d.locked_skipped)parts.push(d.locked_skipped+" locked skipped");
     if(d.consumables_priced)parts.push(d.consumables_priced+" consumables priced");
+    if(d.consumables_locked_skipped)parts.push(d.consumables_locked_skipped+" locked consumables skipped");
     toast("✓ Repriced "+(parts.length?parts.join(", "):"costing"));
     await updateDbCount();
     await loadCosting();
@@ -4083,11 +4087,14 @@ async function recalculateDatabaseFromRates(){
     const cleanup=d.cleanup||{};
     const reprice=d.reprice||{};
     const match=d.invoice_match_summary||{};
-    toast('Recalculated '+(reprice.priced||0)+' activities, '+(reprice.consumables_priced||0)+' consumables, '+(d.invoices_rematched||0)+' invoices');
+    const lockedText=(reprice.locked_skipped||reprice.consumables_locked_skipped)?' ('+(reprice.locked_skipped||0)+' locked activities skipped, '+(reprice.consumables_locked_skipped||0)+' locked consumables skipped)':'';
+    toast('Recalculated '+(reprice.priced||0)+' activities, '+(reprice.consumables_priced||0)+' consumables, '+(d.invoices_rematched||0)+' invoices'+lockedText);
     alert(
       'Database recalculated for '+activeContractor+'\\n\\n'
       +'Activities repriced: '+(reprice.priced||0)+' / '+(reprice.total||0)+'\\n'
+      +'Locked activities skipped: '+(reprice.locked_skipped||0)+'\\n'
       +'Consumables repriced: '+(reprice.consumables_priced||0)+' / '+(reprice.consumables_total||0)+'\\n'
+      +'Locked consumables skipped: '+(reprice.consumables_locked_skipped||0)+'\\n'
       +'CorePlan adjustment rows removed: '+(cleanup.deleted_adjustments||0)+'\\n'
       +'Minimum shift duration rows zeroed: '+(cleanup.zeroed_minimum_shift_rows||0)+'\\n'
       +'Invoices rematched: '+(d.invoices_rematched||0)+'\\n'

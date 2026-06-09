@@ -510,6 +510,20 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS activity_sheet_locks (
+                    id          SERIAL PRIMARY KEY,
+                    contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    report_date TEXT,
+                    hole_num    TEXT,
+                    source_file TEXT,
+                    locked      BOOLEAN DEFAULT TRUE,
+                    reason      TEXT,
+                    updated_at  TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(contractor, report_date, hole_num, source_file)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumable_rates (
                     id          SERIAL PRIMARY KEY,
                     contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
@@ -2536,6 +2550,7 @@ async def ai_fix_import_rates(request: Request):
             cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
             all_cr = [dict(r) for r in cur.fetchall()]
             rate_context = build_rate_context(all_hr, all_dr, all_cr)
+            locked_keys = locked_activity_sheet_keys(cur, contractor)
 
             cur.execute("""
                 SELECT * FROM activities
@@ -2544,6 +2559,8 @@ async def ai_fix_import_rates(request: Request):
                 LIMIT %s
             """, (contractor, limit))
             activities = [dict(r) for r in cur.fetchall()]
+            locked_activity_count = sum(1 for r in activities if row_is_in_locked_sheet(r, locked_keys))
+            activities = [r for r in activities if not row_is_in_locked_sheet(r, locked_keys)]
 
             hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE) | set(MITCHELLS_NOT_CHARGEABLE)
             fuzzy_activity_rows = [
@@ -2573,6 +2590,8 @@ async def ai_fix_import_rates(request: Request):
                 LIMIT %s
             """, (contractor, limit))
             consumables = [dict(r) for r in cur.fetchall()]
+            locked_consumable_count = sum(1 for r in consumables if row_is_in_locked_sheet(r, locked_keys))
+            consumables = [r for r in consumables if not row_is_in_locked_sheet(r, locked_keys)]
 
             product_lookup = {}
             for r in all_cr:
@@ -2662,6 +2681,8 @@ async def ai_fix_import_rates(request: Request):
         "activities_changed": len(activity_changes),
         "consumables_changed": len(consumable_changes),
         "consumable_rates_added": len(new_consumable_rates),
+        "locked_activities_skipped": locked_activity_count,
+        "locked_consumables_skipped": locked_consumable_count,
         "activity_changes": activity_changes[:100],
         "consumable_changes": consumable_changes[:100],
         "new_consumable_rates": new_consumable_rates[:100],
@@ -2672,19 +2693,35 @@ def cleanup_coreplan_doubleups_for_contractor(contractor: str):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                DELETE FROM activities
-                WHERE contractor=%s
-                  AND notes='CorePlan report total adjustment'
+                DELETE FROM activities a
+                WHERE a.contractor=%s
+                  AND a.notes='CorePlan report total adjustment'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM activity_sheet_locks l
+                    WHERE l.contractor=a.contractor
+                      AND l.report_date=COALESCE(a.date,'')
+                      AND l.hole_num=COALESCE(a.hole_num,'')
+                      AND l.source_file=COALESCE(a.source_file,'')
+                      AND l.locked=TRUE
+                  )
             """, (contractor,))
             deleted_adjustments = cur.rowcount
 
             cur.execute("""
-                UPDATE activities
+                UPDATE activities a
                 SET total_time='0:00', time_from='', time_to=''
-                WHERE contractor=%s
-                  AND code='H_Min_Shift'
-                  AND COALESCE(notes,'') ILIKE '%%minimum shift charge%%'
-                  AND COALESCE(total_time,'') NOT IN ('', '0', '0:00', '00:00')
+                WHERE a.contractor=%s
+                  AND a.code='H_Min_Shift'
+                  AND COALESCE(a.notes,'') ILIKE '%%minimum shift charge%%'
+                  AND COALESCE(a.total_time,'') NOT IN ('', '0', '0:00', '00:00')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM activity_sheet_locks l
+                    WHERE l.contractor=a.contractor
+                      AND l.report_date=COALESCE(a.date,'')
+                      AND l.hole_num=COALESCE(a.hole_num,'')
+                      AND l.source_file=COALESCE(a.source_file,'')
+                      AND l.locked=TRUE
+                  )
             """, (contractor,))
             zeroed_minimum_shift_rows = cur.rowcount
         conn.commit()
@@ -2728,6 +2765,141 @@ def report_approval_response(row):
         "reason": row.get("reason") or "",
         "log": row.get("log") or [],
     }
+
+
+def activity_sheet_lock_params(contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    return {
+        "contractor": contractor or "Allianz Drilling",
+        "report_date": report_date or "",
+        "hole_num": hole_num or "",
+        "source_file": source_file or "",
+    }
+
+
+def activity_sheet_lock_response(row):
+    if not row:
+        return {"locked": False, "reason": "", "updated_at": ""}
+    return {
+        "contractor": row.get("contractor") or "",
+        "report_date": row.get("report_date") or "",
+        "hole_num": row.get("hole_num") or "",
+        "source_file": row.get("source_file") or "",
+        "locked": bool(row.get("locked")),
+        "reason": row.get("reason") or "",
+        "updated_at": str(row.get("updated_at") or ""),
+    }
+
+
+def activity_row_lock_key(row: dict):
+    return activity_sheet_lock_params(
+        row.get("contractor") or "Allianz Drilling",
+        row.get("date") or "",
+        row.get("hole_num") or "",
+        row.get("source_file") or "",
+    )
+
+
+def activity_sheet_is_locked(cur, contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    key = activity_sheet_lock_params(contractor, report_date, hole_num, source_file)
+    cur.execute(
+        """
+        SELECT locked FROM activity_sheet_locks
+        WHERE contractor=%(contractor)s
+          AND report_date=%(report_date)s
+          AND hole_num=%(hole_num)s
+          AND source_file=%(source_file)s
+        """,
+        key,
+    )
+    row = cur.fetchone()
+    return bool(row and row.get("locked"))
+
+
+def locked_activity_sheet_keys(cur, contractor: str):
+    cur.execute(
+        """
+        SELECT contractor, report_date, hole_num, source_file
+        FROM activity_sheet_locks
+        WHERE contractor=%s AND locked=TRUE
+        """,
+        (contractor,),
+    )
+    return {
+        (r.get("contractor") or "", r.get("report_date") or "", r.get("hole_num") or "", r.get("source_file") or "")
+        for r in cur.fetchall()
+    }
+
+
+def row_is_in_locked_sheet(row: dict, locked_keys: set):
+    key = (
+        row.get("contractor") or "",
+        row.get("date") or "",
+        row.get("hole_num") or "",
+        row.get("source_file") or "",
+    )
+    return key in locked_keys
+
+
+@app.get("/activity-sheet-locks")
+def get_activity_sheet_locks(
+    contractor: str = Query(...),
+    dates: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    hole: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+):
+    conds = ["contractor=%(contractor)s"]
+    params = {"contractor": contractor}
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl:
+            conds.append("report_date=ANY(%(dates)s)")
+            params["dates"] = dl
+    if date is not None:
+        conds.append("report_date=%(date)s")
+        params["date"] = date or ""
+    if hole is not None:
+        conds.append("hole_num=%(hole)s")
+        params["hole"] = hole or ""
+    if source is not None:
+        conds.append("source_file=%(source)s")
+        params["source"] = source or ""
+    q = f"SELECT * FROM activity_sheet_locks WHERE {' AND '.join(conds)} ORDER BY updated_at DESC"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(q, params)
+            rows = [dict(r) for r in cur.fetchall()]
+    if date is not None or hole is not None or source is not None:
+        return activity_sheet_lock_response(rows[0] if rows else None)
+    return [activity_sheet_lock_response(r) for r in rows]
+
+
+@app.post("/activity-sheet-locks")
+async def save_activity_sheet_lock(request: Request):
+    payload = await request.json()
+    key = activity_sheet_lock_params(
+        payload.get("contractor") or "Allianz Drilling",
+        payload.get("date") or payload.get("report_date") or "",
+        payload.get("hole") or payload.get("hole_num") or "",
+        payload.get("source") or payload.get("source_file") or "",
+    )
+    locked = bool(payload.get("locked", True))
+    reason = (payload.get("reason") or "").strip()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO activity_sheet_locks (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
+                VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(locked)s, %(reason)s, NOW())
+                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
+                RETURNING *
+                """,
+                {**key, "locked": locked, "reason": reason},
+            )
+            saved = dict(cur.fetchone())
+        conn.commit()
+    return activity_sheet_lock_response(saved)
 
 
 @app.get("/report-approvals")
@@ -2914,6 +3086,16 @@ def reprice_activity_row(row_id: int):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(404, "Activity not found")
+            if activity_sheet_is_locked(
+                cur,
+                row.get("contractor") or "Allianz Drilling",
+                row.get("date") or "",
+                row.get("hole_num") or "",
+                row.get("source_file") or "",
+            ):
+                locked_row = dict(row)
+                locked_row["_locked"] = True
+                return locked_row
             priced = price_activity(cur, dict(row), row["contractor"])
             updates = {
                 "rate_year": priced.get("rate_year"),
@@ -4533,7 +4715,7 @@ def reprice_activities(contractor: str = Query(...)):
             return f"{int(m.group(1)):02d}/{mon}/{m.group(3)}"
         return d
 
-    stats = {"total":0,"dates_fixed":0,"holes_fixed":0,"sites_fixed":0,"priced":0}
+    stats = {"total":0,"dates_fixed":0,"holes_fixed":0,"sites_fixed":0,"priced":0,"locked_skipped":0}
     skipped_codes = {}
 
     with get_conn() as conn:
@@ -4542,6 +4724,7 @@ def reprice_activities(contractor: str = Query(...)):
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
             stats["total"] = len(rows)
+            locked_keys = locked_activity_sheet_keys(cur, contractor)
 
             cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
             all_dr = [dict(r) for r in cur.fetchall()]
@@ -4597,6 +4780,9 @@ def reprice_activities(contractor: str = Query(...)):
         # ── Process all rows in memory ────────────────────────────────
         batch_updates = []
         for row in rows:
+            if row_is_in_locked_sheet(row, locked_keys):
+                stats["locked_skipped"] += 1
+                continue
             updates = {}
             rid = row["id"]
 
@@ -4734,7 +4920,11 @@ def reprice_activities(contractor: str = Query(...)):
                     cr_lookup[key.replace(" ", "")] = float(r["unit_price"] or 0)
 
                 cons_priced = 0
+                cons_locked_skipped = 0
                 for crow in cons_rows:
+                    if row_is_in_locked_sheet(crow, locked_keys):
+                        cons_locked_skipped += 1
+                        continue
                     product = (crow.get("consumable") or crow.get("type") or "").strip()
                     product_upper = product.upper()
                     product_nospace = product_upper.replace(" ", "")
@@ -4761,10 +4951,12 @@ def reprice_activities(contractor: str = Query(...)):
 
                 stats["consumables_priced"] = cons_priced
                 stats["consumables_total"] = len(cons_rows)
+                stats["consumables_locked_skipped"] = cons_locked_skipped
             except Exception as e:
                 stats["consumables_error"] = str(e)
                 stats["consumables_priced"] = 0
                 stats["consumables_total"] = 0
+                stats["consumables_locked_skipped"] = 0
 
         conn.commit()
 
@@ -4775,8 +4967,10 @@ def reprice_activities(contractor: str = Query(...)):
         "holes_fixed": stats["holes_fixed"],
         "sites_fixed": stats["sites_fixed"],
         "priced": stats["priced"],
+        "locked_skipped": stats["locked_skipped"],
         "consumables_priced": stats.get("consumables_priced", 0),
         "consumables_total": stats.get("consumables_total", 0),
+        "consumables_locked_skipped": stats.get("consumables_locked_skipped", 0),
         "drilling_rate_years": dr_years,
         "hourly_rate_years": hr_years,
         "skipped_codes": skipped_codes,
