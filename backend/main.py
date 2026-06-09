@@ -5102,7 +5102,10 @@ async def upload_dxf(
     """Parse a DXF file and return GeoJSON for Leaflet overlay.
     Converts from the specified EPSG (default MGA Zone 55) to WGS84."""
     import ezdxf
+    import os
+    import tempfile
     import zipfile
+    from ezdxf import recover
     from pyproj import Transformer
 
     content = await file.read()
@@ -5121,8 +5124,27 @@ async def upload_dxf(
         except Exception as e:
             raise HTTPException(400, f"Cannot read zipped DXF: {str(e)}")
 
+    def read_dxf_document(dxf_bytes: bytes):
+        try:
+            text = dxf_bytes.decode("utf-8", errors="replace")
+            return ezdxf.read(StringIO(text))
+        except Exception:
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".dxf") as tmp:
+                    tmp.write(dxf_bytes)
+                    tmp_path = tmp.name
+                doc, _auditor = recover.readfile(tmp_path)
+                return doc
+            finally:
+                if tmp_path:
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+
     try:
-        doc = ezdxf.read(BytesIO(content))
+        doc = read_dxf_document(content)
     except Exception as e:
         raise HTTPException(400, f"Cannot read DXF: {str(e)}")
 
@@ -5131,7 +5153,8 @@ async def upload_dxf(
     def to_wgs84(x, y):
         try:
             lng, lat = transformer.transform(float(x), float(y))
-            if -90 <= lat <= 90 and -180 <= lng <= 180:
+            # EPSG:20355 mine drawings should land in Australia; skip drawing-sheet outliers.
+            if 110 <= lng <= 155 and -45 <= lat <= -10:
                 return [lng, lat]
         except:
             pass
