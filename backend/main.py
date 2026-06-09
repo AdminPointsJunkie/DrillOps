@@ -5102,9 +5102,24 @@ async def upload_dxf(
     """Parse a DXF file and return GeoJSON for Leaflet overlay.
     Converts from the specified EPSG (default MGA Zone 55) to WGS84."""
     import ezdxf
+    import zipfile
     from pyproj import Transformer
 
     content = await file.read()
+    filename = file.filename or "overlay.dxf"
+
+    if filename.lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(BytesIO(content)) as zf:
+                dxf_names = [n for n in zf.namelist() if n.lower().endswith(".dxf")]
+                if not dxf_names:
+                    raise HTTPException(400, "ZIP does not contain a DXF file")
+                filename = dxf_names[0].split("/")[-1] or dxf_names[0]
+                content = zf.read(dxf_names[0])
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(400, f"Cannot read zipped DXF: {str(e)}")
 
     try:
         doc = ezdxf.read(BytesIO(content))
@@ -5223,7 +5238,7 @@ async def upload_dxf(
 
     return {
         "status": "ok",
-        "filename": file.filename,
+        "filename": filename,
         "entity_count": len(features),
         "layers": layers,
         "epsg": epsg,
