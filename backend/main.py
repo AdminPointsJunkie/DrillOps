@@ -207,6 +207,7 @@ def init_db():
                     quantity        FLOAT,
                     line_cost       FLOAT,
                     rate_basis      TEXT,
+                    min_shift       BOOLEAN DEFAULT FALSE,
                     po_id           INTEGER
                 )
             """)
@@ -219,6 +220,7 @@ def init_db():
                 ("quantity",   "FLOAT"),
                 ("line_cost",  "FLOAT"),
                 ("rate_basis", "TEXT"),
+                ("min_shift",  "BOOLEAN DEFAULT FALSE"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} {typedef}")
@@ -595,6 +597,75 @@ DAY_RATE_CODES = {
     "D_Water_Cart_Standby":       ("D_Water_Cart_Standby", "day"),
 }
 BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":PCD_SMALL_LABEL}
+MIN_SHIFT_AMOUNTS = {
+    "Allianz Drilling": 8900.00,
+    "Mitchells Drilling": 7500.00,
+}
+
+
+def contractor_min_shift_amount(contractor: str):
+    return MIN_SHIFT_AMOUNTS.get(contractor)
+
+
+def is_truthy_flag(value):
+    return value is True or str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def is_min_shift_productive(row):
+    code = row.get("code", "") or ""
+    if code == "H_Min_Shift":
+        return False
+    return code in DRILLING_METRE_CODES or code in ACTIVE_CODES or (
+        code.startswith("H_") and code not in INACTIVE_CODES and code not in STANDBY_CODES
+    )
+
+
+def min_shift_group_key(row):
+    return (
+        row.get("contractor") or "",
+        row.get("date") or "",
+        row.get("source_file") or "",
+        row.get("drill_rig") or "",
+        row.get("shift") or "",
+        row.get("hole_num") or "",
+        row.get("site_name") or "",
+    )
+
+
+def reset_min_shift_basis(row):
+    basis = row.get("rate_basis")
+    if basis and "Minimum shift applied:" in basis:
+        row["rate_basis"] = basis.split(" | Minimum shift applied:", 1)[0]
+
+
+def apply_min_shift_to_priced_rows(rows, contractor):
+    minimum = contractor_min_shift_amount(contractor)
+    if not minimum:
+        return rows
+    for row in rows:
+        reset_min_shift_basis(row)
+    groups = {}
+    for row in rows:
+        groups.setdefault(min_shift_group_key(row), []).append(row)
+    for group_rows in groups.values():
+        if not any(is_truthy_flag(r.get("min_shift")) for r in group_rows):
+            continue
+        productive_rows = [r for r in group_rows if is_min_shift_productive(r)]
+        productive_total = round(sum(float(r.get("line_cost") or 0) for r in productive_rows), 2)
+        if productive_total <= 0 or productive_total >= minimum:
+            continue
+        flagged_rows = [r for r in group_rows if is_truthy_flag(r.get("min_shift"))]
+        flagged_productive = [r for r in productive_rows if is_truthy_flag(r.get("min_shift"))]
+        target = flagged_productive[0] if flagged_productive else flagged_rows[0] if flagged_rows else productive_rows[0]
+        original = float(target.get("line_cost") or 0)
+        top_up = round(minimum - productive_total, 2)
+        target["line_cost"] = round(original + top_up, 2)
+        base_basis = target.get("rate_basis") or "productive drilling charge"
+        target["rate_basis"] = (
+            f"{base_basis} | Minimum shift applied: productive total ${productive_total:,.2f} "
+            f"below ${minimum:,.2f}; added ${top_up:,.2f} to this row"
+        )
+    return rows
 
 
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
@@ -685,7 +756,13 @@ def price_activity(cur, row, contractor):
             if r: return float(r["rate"])
         return None
 
-    if code in DRILLING_METRE_CODES and total_metres and total_metres > 0:
+    if code == "H_Min_Shift":
+        r = get_hr("H_Min_Shift") or contractor_min_shift_amount(contractor) or 0
+        unit_rate = r
+        quantity = 1
+        line_cost = 0
+        rate_basis = "minimum shift adjustment row; calculated against productive shift total"
+    elif code in DRILLING_METRE_CODES and total_metres and total_metres > 0:
         bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
         r = get_dr(bk, metres_to or 0)
         if r is not None:
@@ -1331,6 +1408,7 @@ def parse_coreplan_plod_csv(content, filename, contractor):
             "rate_year": extract_year(report_date),
             "unit_rate": unit_rate, "quantity": quantity,
             "line_cost": line_cost, "rate_basis": rate_basis,
+            "min_shift": False,
             "po_id": None,
         }
 
@@ -1384,12 +1462,14 @@ def parse_coreplan_plod_csv(content, filename, contractor):
         unit_rate = coreplan_money(row.get("cost_per_h"))
         line_cost = coreplan_money(row.get("cost"))
         rig_type = row.get("rig_type") or "Rig"
-        acts.append(base_activity(
+        act = base_activity(
             row, "H_Min_Shift", f"{rig_type} minimum shift charge", 0,
             line_cost=line_cost, unit_rate=unit_rate,
             quantity=coreplan_float(duration),
             rate_basis=(f"CorePlan minimum ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan minimum drilling cost")
-        ))
+        )
+        act["min_shift"] = True
+        acts.append(act)
 
     for row in sections.get("Miscellaneous") or []:
         name = row.get("name") or "Miscellaneous"
@@ -2001,18 +2081,20 @@ async def import_pdf(
         with get_conn() as conn:
             with conn.cursor() as cur:
                 if acts:
+                    for row in acts:
+                        row.setdefault("min_shift", False)
                     psycopg2.extras.execute_batch(cur, """
                         INSERT INTO activities
                         (source_file,contractor,date,hole_num,site_name,location,drill_rig,
                          client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                          metres_from,metres_to,total_metres,code,notes,
-                         rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                         rate_year,unit_rate,quantity,line_cost,rate_basis,min_shift,po_id)
                         VALUES
                         (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
                          %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                          %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                          %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
-                         %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                         %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(min_shift)s,%(po_id)s)
                     """, acts)
                 if cons:
                     psycopg2.extras.execute_batch(cur, """
@@ -2193,18 +2275,20 @@ async def import_pdf(
 
         with conn.cursor() as cur:
             if acts:
+                for row in acts:
+                    row.setdefault("min_shift", False)
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
                     (source_file,contractor,date,hole_num,site_name,location,drill_rig,
                      client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                      metres_from,metres_to,total_metres,code,notes,
-                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,min_shift,po_id)
                     VALUES
                     (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
                      %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                      %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                      %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
-                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(min_shift)s,%(po_id)s)
                 """, acts)
             if cons:
                 psycopg2.extras.execute_batch(cur, """
@@ -2664,9 +2748,10 @@ async def create_activity(request: Request):
     safe = {"source_file","contractor","date","hole_num","site_name","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
-            "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
+            "rate_year","unit_rate","quantity","line_cost","rate_basis","min_shift","po_id"}
     row = {k: v for k, v in payload.items() if k in safe}
     row.setdefault("source_file", "Manual entry")
+    row.setdefault("min_shift", False)
     cols = list(row.keys())
     placeholders = ",".join(f"%({c})s" for c in cols)
     col_names = ",".join(cols)
@@ -2688,7 +2773,7 @@ async def update_activity(row_id: int, request: Request):
     safe = {"date","hole_num","site_name","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
-            "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
+            "rate_year","unit_rate","quantity","line_cost","rate_basis","min_shift","po_id"}
     updates = {k:v for k,v in payload.items() if k in safe}
     if not updates: raise HTTPException(400,"No valid fields")
     set_clause = ",".join(f"{k}=%({k})s" for k in updates)
@@ -2708,27 +2793,38 @@ def reprice_activity_row(row_id: int):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(404, "Activity not found")
-            priced = price_activity(cur, dict(row), row["contractor"])
-            updates = {
-                "rate_year": priced.get("rate_year"),
-                "unit_rate": priced.get("unit_rate"),
-                "quantity": priced.get("quantity"),
-                "line_cost": priced.get("line_cost"),
-                "rate_basis": priced.get("rate_basis"),
-            }
-            cur.execute("""
-                UPDATE activities
-                SET rate_year=%(rate_year)s,
-                    unit_rate=%(unit_rate)s,
-                    quantity=%(quantity)s,
-                    line_cost=%(line_cost)s,
-                    rate_basis=%(rate_basis)s
-                WHERE id=%(id)s
-                RETURNING *
-            """, {**updates, "id": row_id})
-            updated = dict(cur.fetchone())
+            contractor = row["contractor"]
+            cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
+            all_rows = [dict(r) for r in cur.fetchall()]
+            target_key = min_shift_group_key(dict(row))
+            group_rows = [r for r in all_rows if min_shift_group_key(r) == target_key]
+            priced_rows = [price_activity(cur, dict(r), contractor) for r in group_rows]
+            apply_min_shift_to_priced_rows(priced_rows, contractor)
+            updated = None
+            for priced in priced_rows:
+                payload = {
+                    "id": priced["id"],
+                    "rate_year": priced.get("rate_year"),
+                    "unit_rate": priced.get("unit_rate"),
+                    "quantity": priced.get("quantity"),
+                    "line_cost": priced.get("line_cost"),
+                    "rate_basis": priced.get("rate_basis"),
+                }
+                cur.execute("""
+                    UPDATE activities
+                    SET rate_year=%(rate_year)s,
+                        unit_rate=%(unit_rate)s,
+                        quantity=%(quantity)s,
+                        line_cost=%(line_cost)s,
+                        rate_basis=%(rate_basis)s
+                    WHERE id=%(id)s
+                    RETURNING *
+                """, payload)
+                row_out = dict(cur.fetchone())
+                if row_out["id"] == row_id:
+                    updated = row_out
         conn.commit()
-    return updated
+    return updated or {}
 
 
 @app.get("/consumables")
@@ -4389,7 +4485,7 @@ def reprice_activities(contractor: str = Query(...)):
             except: return 0
 
         # ── Process all rows in memory ────────────────────────────────
-        batch_updates = []
+        row_updates_by_id = {}
         for row in rows:
             updates = {}
             rid = row["id"]
@@ -4438,8 +4534,14 @@ def reprice_activities(contractor: str = Query(...)):
 
             line_cost = None; unit_rate = None; quantity = None; rate_basis = None
 
+            # Minimum shift adjustment rows carry the top-up after the group total is calculated.
+            if code == "H_Min_Shift":
+                r = get_hr_mem("H_Min_Shift", year) or contractor_min_shift_amount(contractor) or 0
+                unit_rate = r; quantity = 1; line_cost = 0
+                rate_basis = "minimum shift adjustment row; calculated against productive shift total"
+
             # Drilling metres
-            if metres > 0 and bit_type:
+            if line_cost is None and metres > 0 and bit_type:
                 bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
                 if depth is not None:
                     r = get_dr_mem(bk, depth, year)
@@ -4498,12 +4600,29 @@ def reprice_activities(contractor: str = Query(...)):
                 updates["quantity"] = quantity
                 updates["line_cost"] = line_cost
                 updates["rate_basis"] = rate_basis
+                row["rate_year"] = year
+                row["unit_rate"] = unit_rate
+                row["quantity"] = quantity
+                row["line_cost"] = line_cost
+                row["rate_basis"] = rate_basis
                 stats["priced"] += 1
             else:
                 skipped_codes[code or "empty"] = skipped_codes.get(code or "empty", 0) + 1
 
             if updates:
-                batch_updates.append((updates, rid))
+                row_updates_by_id[rid] = updates
+
+        apply_min_shift_to_priced_rows(rows, contractor)
+        for row in rows:
+            if row.get("line_cost") is not None:
+                updates = row_updates_by_id.setdefault(row["id"], {})
+                updates["rate_year"] = row.get("rate_year")
+                updates["unit_rate"] = row.get("unit_rate")
+                updates["quantity"] = row.get("quantity")
+                updates["line_cost"] = row.get("line_cost")
+                updates["rate_basis"] = row.get("rate_basis")
+
+        batch_updates = [(updates, rid) for rid, updates in row_updates_by_id.items()]
 
         # ── Batch update activities in one transaction ────────────────
         with conn.cursor() as cur:
@@ -5030,18 +5149,20 @@ async def import_ocr_pdf(
     with get_conn() as conn:
         with conn.cursor() as cur:
             if rows:
+                for row in rows:
+                    row.setdefault("min_shift", False)
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
                     (source_file,contractor,date,hole_num,site_name,location,drill_rig,
                      client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                      metres_from,metres_to,total_metres,code,notes,
-                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,min_shift,po_id)
                     VALUES
                     (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
                      %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                      %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                      %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
-                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(min_shift)s,%(po_id)s)
                 """, rows)
             cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                         (filename, contractor))

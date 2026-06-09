@@ -27,6 +27,10 @@ textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .kpi .value{font-size:18px;font-weight:800;margin-top:5px;}
 .subtitle{margin:16px 0 8px;}
 .timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow:hidden;}
+.timeline-summary{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-bottom:10px;}
+.stat-chip{display:inline-flex;align-items:center;gap:5px;border-radius:6px;background:#f1f5f9;color:#0f2540;padding:6px 9px;font-size:12px;font-weight:750;}
+.stat-chip strong{font-family:var(--mono);font-size:12px;}
+.stat-chip.chargeable{background:#eef4ff}.stat-chip.total{background:#dbeafe;color:#174d72}
 .timeline-tools{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;}
 .timeline-tools button{padding:5px 9px;font-size:11px;}
 .timeline-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:7px;scrollbar-color:#87909c #e8edf3;scrollbar-width:thin;}
@@ -65,6 +69,11 @@ tr.saving td{background:#fff7e6;}
 .log-time{font-size:11px;color:var(--muted);white-space:nowrap;}
 .log-note{grid-column:2 / -1;border:1px solid #d8e0ea;border-radius:6px;background:#fff;padding:8px 10px;color:#526273;}
 .empty{padding:22px;color:var(--muted);}
+.activity-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;margin-bottom:8px;}
+.activity-head .subtitle{margin:0;}
+.toggle-row{display:inline-flex;align-items:center;gap:8px;color:#0f2540;font-size:13px;}
+.toggle-row input{width:17px;height:17px;accent-color:var(--accent);}
+.category-row td{background:#f8fafc;color:#647285;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;}
 @media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
 @media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}}
 </style>
@@ -126,7 +135,10 @@ tr.saving td{background:#fff7e6;}
       <div class="timeline" id="timeline"></div>
       <div class="subtitle">Report Notes</div>
       <div class="notes" id="notes"></div>
-      <div class="subtitle">Activities</div>
+      <div class="activity-head">
+        <div class="subtitle">Activities</div>
+        <label class="toggle-row"><input id="activity-category-toggle" type="checkbox"/> Group by Category</label>
+      </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="scroll">
           <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
@@ -156,6 +168,7 @@ const title=params.get('title')||'Daily report';
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
 let reportRows=[],reportConsumables=[],reportCrew=[];
+let groupActivitiesByCategory=false;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function attr(s){return esc(s).replace(/"/g,'&quot;');}
@@ -398,8 +411,16 @@ function renderReport(rows,consumables,crew){
   const drilled=metresDrilledSummary(rows);
   document.getElementById('metres-drilled-body').innerHTML=drilled.map(d=>'<tr><td>'+esc(d.item)+'</td><td>'+cur(d.rate)+'</td><td>'+d.metres.toFixed(2)+'</td><td>10%</td><td>'+cur(d.cost)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No drilled metres recorded.</td></tr>';
   renderTimeline(rows,hours);
+  renderActivityRows(rows);
+  document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
+  const pdf=document.getElementById('pdf-btn');
+  pdf.style.display=source?'inline-flex':'none';
+  pdf.onclick=()=>{if(source)window.open(API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor),'_blank');};
+}
+function renderActivityRows(rows){
   const activityBody=document.getElementById('activity-body');
-  activityBody.innerHTML=rows.map(r=>{
+  const renderRow=function(r){
     const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
     return '<tr data-id="'+attr(r.id)+'">'
       +'<td contenteditable="true" data-col="time">'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td>'
@@ -409,25 +430,39 @@ function renderReport(rows,consumables,crew){
       +'<td contenteditable="true" data-col="notes">'+esc(r.notes||'')+'</td>'
       +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
       +'</tr>';
-  }).join('')||'<tr><td colspan="6" class="empty">No activities found</td></tr>';
+  };
+  if(groupActivitiesByCategory){
+    const groups={};
+    rows.forEach(r=>{const cat=activityCategory(r);if(!groups[cat])groups[cat]=[];groups[cat].push(r);});
+    activityBody.innerHTML=Object.keys(groups).map(cat=>'<tr class="category-row"><td colspan="6">'+esc(cat)+' · '+groups[cat].length+' row(s)</td></tr>'+groups[cat].map(renderRow).join('')).join('')||'<tr><td colspan="6" class="empty">No activities found</td></tr>';
+  }else{
+    activityBody.innerHTML=rows.map(renderRow).join('')||'<tr><td colspan="6" class="empty">No activities found</td></tr>';
+  }
   activityBody.querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
     cell.addEventListener('keydown',e=>{
       if(e.key==='Enter'){e.preventDefault();cell.blur();}
     });
   });
-  document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
-  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
-  const pdf=document.getElementById('pdf-btn');
-  pdf.style.display=source?'inline-flex':'none';
-  pdf.onclick=()=>{if(source)window.open(API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor),'_blank');};
 }
 function renderTimeline(rows,totalHours){
   const target=document.getElementById('timeline');
   const sorted=rows.slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const chargeableHours=rows.reduce((s,r)=>s+(num(r.line_cost)>0?parseDurationHours(r.total_time):0),0);
+  const nonChargeableHours=Math.max(0,totalHours-chargeableHours);
+  const drilledRows=rows.filter(isDrilledMetresRow);
+  const drilledMetres=drilledRows.reduce((s,r)=>s+num(r.total_metres),0);
+  const drilledHours=drilledRows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  const penRate=drilledHours>0?(drilledMetres/drilledHours):0;
+  const chips='<div class="timeline-summary">'
+    +'<span class="stat-chip">Pen. Rate: <strong>'+(penRate?penRate.toFixed(2):'-')+' m/hour</strong></span>'
+    +'<span class="stat-chip chargeable">Chargeable hrs <strong>'+chargeableHours.toFixed(2)+'</strong></span>'
+    +'<span class="stat-chip">Non-chargeable hrs <strong>'+nonChargeableHours.toFixed(2)+'</strong></span>'
+    +'<span class="stat-chip total">Total hrs <strong>'+totalHours.toFixed(2)+'</strong></span>'
+    +'</div>';
   const starts=sorted.map(r=>parseClockMinutes(r.time_from)).filter(v=>v!=null);
   const ends=sorted.map(r=>{const explicit=parseClockMinutes(r.time_to);if(explicit!=null)return explicit;const start=parseClockMinutes(r.time_from);return start==null?null:start+Math.round(parseDurationHours(r.total_time)*60);}).filter(v=>v!=null);
-  if(!starts.length||!ends.length){target.innerHTML='<div class="empty">No time data recorded for this report.</div>';return;}
+  if(!starts.length||!ends.length){target.innerHTML=chips+'<div class="empty">No time data recorded for this report.</div>';return;}
   let min=Math.min(...starts),max=Math.max(...ends);
   if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
   const span=Math.max(60,max-min);
@@ -435,7 +470,7 @@ function renderTimeline(rows,totalHours){
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
   const blocks=sorted.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
-  target.innerHTML='<div class="timeline-tools"><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div>'
+  target.innerHTML=chips+'<div class="timeline-tools"><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div>'
     +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
     +scale+'<div class="timeline-track">'+blocks+'</div></div></div>';
 }
@@ -443,6 +478,10 @@ function scrollTimelineBy(amount){
   const el=document.getElementById('timeline-scroll');
   if(el)el.scrollBy({left:amount,behavior:'smooth'});
 }
+document.getElementById('activity-category-toggle').addEventListener('change',function(){
+  groupActivitiesByCategory=this.checked;
+  renderActivityRows(reportRows);
+});
 loadReport();
 </script>
 </body>
