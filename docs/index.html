@@ -244,6 +244,11 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .status-ok{background:#ecfdf3;color:#147a39;}
 .status-warn{background:#fff7e6;color:#a05a00;}
 .status-info{background:#eef4ff;color:#174d72;}
+.min-shift-cell{text-align:center;}
+.min-shift-check{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
+.min-shift-normal{text-decoration:line-through;color:var(--muted2)!important;}
+.min-shift-cost{color:var(--accent);font-weight:800;}
+.min-shift-badge{display:inline-flex;margin-left:6px;border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:2px 7px;font-size:10px;font-weight:800;white-space:nowrap;}
 #page-activities{max-width:none;margin:-8px -20px 0;}
 .report-register-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
 .report-search{width:290px;max-width:100%;height:36px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 12px;font-family:var(--font);font-size:14px;color:#344151;}
@@ -1626,7 +1631,7 @@ tbody td[contenteditable=true]:focus {
               <th>Bit Type</th><th>Ø</th>
               <th>From m</th><th>To m</th><th>Metres</th>
               <th>Code</th><th>Notes</th>
-              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
+              <th>Min Shift</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
             </tr></thead>
             <tbody id="act-body"></tbody>
           </table>
@@ -3010,8 +3015,13 @@ function renderActivities(rows){
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="18"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
-  tbody.innerHTML=rows.map(r=>`
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="19"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
+  function minShiftApplied(row){return String(row.rate_basis||'').includes('Minimum shift applied:');}
+  tbody.innerHTML=rows.map(r=>{
+    const applied=minShiftApplied(r);
+    const normalClass=applied?' class="min-shift-normal"':'';
+    const lineCostClass=applied?'min-shift-cost':'';
+    return `
     <tr data-id="${r.id}">
       <td contenteditable="true" data-col="date">${esc(r.date)}</td>
       <td contenteditable="true" data-col="hole_num">${esc(r.hole_num)}</td>
@@ -3026,12 +3036,14 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="total_metres" data-numeric="true" data-cost-trigger="true">${fmt(r.total_metres)}</td>
       <td contenteditable="true" data-col="code" data-cost-trigger="true">${esc(r.code)}</td>
       <td contenteditable="true" data-col="notes">${esc(r.notes)}</td>
-      <td contenteditable="true" data-col="unit_rate" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.unit_rate!=null?r.unit_rate.toFixed(2):''}</td>
-      <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
-      <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
+      <td class="min-shift-cell"><input class="min-shift-check" type="checkbox" data-col="min_shift" ${r.min_shift?'checked':''} title="Apply contractor minimum daily shift amount"/></td>
+      <td contenteditable="true" data-col="unit_rate" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)"${normalClass}>${r.unit_rate!=null?r.unit_rate.toFixed(2):''}</td>
+      <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)"${normalClass}>${r.quantity!=null?r.quantity.toFixed(2):''}</td>
+      <td contenteditable="true" data-col="line_cost" data-numeric="true" class="${lineCostClass}" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}${applied?'<span class="min-shift-badge">MIN SHIFT</span>':''}</td>
       <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
       <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':''}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   function setCellValue(row,col,value){
     const target=row.querySelector('[data-col="'+col+'"]');
@@ -3093,6 +3105,27 @@ function renderActivities(rows){
     });
     cell.addEventListener('keydown',e=>{
       if(e.key==='Enter'){e.preventDefault();const cells=[...cell.closest('tr').querySelectorAll('[contenteditable]')];const nx=cells[cells.indexOf(cell)+1];if(nx)nx.focus();}
+    });
+  });
+  tbody.querySelectorAll('.min-shift-check').forEach(box=>{
+    box.addEventListener('change',async()=>{
+      const row=box.closest('tr');
+      const id=row.dataset.id;
+      const checked=box.checked;
+      row.classList.add('saving');
+      try{
+        const patch=await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({min_shift:checked})});
+        if(!patch.ok)throw new Error(await patch.text());
+        await repriceRenderedActivityRow(row);
+        updateActivityRowCache(id,{min_shift:checked});
+        toast(checked?'Minimum shift applied':'Minimum shift removed');
+        await loadActivities();
+      }catch(e){
+        box.checked=!checked;
+        toast('Minimum shift save failed','err');
+      }finally{
+        row.classList.remove('saving');
+      }
     });
   });
   makeTableSortable('act-table');
