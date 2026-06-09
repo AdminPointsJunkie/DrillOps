@@ -49,16 +49,26 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
+PCD_SMALL_LABEL = "PCD or Blade 99-125mm"
+PCD_MEDIUM_LABEL = "PCD or Blade 125-175mm"
+PCD_LARGE_LABEL = "PCD or Blade 175-305mm"
+
+LEGACY_DRILLING_BIT_LABELS = {
+    "PCD_S": PCD_SMALL_LABEL,
+    "PCD_M": PCD_MEDIUM_LABEL,
+    "PCD_L": PCD_LARGE_LABEL,
+}
+
 ALLIANZ_CONTRACT_DRILLING_RATES = [
-    ("PCD_S", 0, 100, 46.00), ("PCD_S", 100, 200, 51.00),
-    ("PCD_S", 200, 300, 59.00), ("PCD_S", 300, 400, 66.00),
-    ("PCD_S", 400, 500, 70.00),
-    ("PCD_M", 0, 100, 51.00), ("PCD_M", 100, 200, 62.00),
-    ("PCD_M", 200, 300, 76.00), ("PCD_M", 300, 400, 81.00),
-    ("PCD_M", 400, 500, 95.00),
-    ("PCD_L", 0, 100, 84.58), ("PCD_L", 100, 200, 94.58),
-    ("PCD_L", 200, 300, 100.50), ("PCD_L", 300, 400, 111.00),
-    ("PCD_L", 400, 500, 126.00),
+    (PCD_SMALL_LABEL, 0, 100, 46.00), (PCD_SMALL_LABEL, 100, 200, 51.00),
+    (PCD_SMALL_LABEL, 200, 300, 59.00), (PCD_SMALL_LABEL, 300, 400, 66.00),
+    (PCD_SMALL_LABEL, 400, 500, 70.00),
+    (PCD_MEDIUM_LABEL, 0, 100, 51.00), (PCD_MEDIUM_LABEL, 100, 200, 62.00),
+    (PCD_MEDIUM_LABEL, 200, 300, 76.00), (PCD_MEDIUM_LABEL, 300, 400, 81.00),
+    (PCD_MEDIUM_LABEL, 400, 500, 95.00),
+    (PCD_LARGE_LABEL, 0, 100, 84.58), (PCD_LARGE_LABEL, 100, 200, 94.58),
+    (PCD_LARGE_LABEL, 200, 300, 100.50), (PCD_LARGE_LABEL, 300, 400, 111.00),
+    (PCD_LARGE_LABEL, 400, 500, 126.00),
     ("HAMMER_S", 0, 200, 51.00), ("HAMMER_S", 200, 300, 61.00),
     ("HAMMER_S", 400, 500, 90.00),
     ("HAMMER_M", 0, 200, 60.00), ("HAMMER_M", 200, 300, 73.00),
@@ -151,6 +161,18 @@ def contract_drilling_rows(contractor: str, year: str):
 def contract_hourly_rows(contractor: str, year: str):
     return [(contractor, year, code, desc, rate, unit)
             for code, desc, rate, unit in ALLIANZ_CONTRACT_HOURLY_RATES]
+
+
+def migrate_legacy_drilling_bit_labels():
+    """Rename old internal PCD bucket labels to the contract schedule labels."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for old_label, new_label in LEGACY_DRILLING_BIT_LABELS.items():
+                cur.execute(
+                    "UPDATE drilling_rates SET bit_type=%s WHERE bit_type=%s",
+                    (new_label, old_label),
+                )
+        conn.commit()
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
@@ -535,6 +557,7 @@ def seed_2025_rates():
 
 
 seed_2025_rates()
+migrate_legacy_drilling_bit_labels()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
@@ -571,7 +594,7 @@ DAY_RATE_CODES = {
     "D_Water Cart - Standby Rate":("D_Water_Cart_Standby", "day"),
     "D_Water_Cart_Standby":       ("D_Water_Cart_Standby", "day"),
 }
-BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":"PCD_S"}
+BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":PCD_SMALL_LABEL}
 
 
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
@@ -588,19 +611,29 @@ def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -
         if "125" in text or "HAMMER_M" in compact or "M" in tokens:
             return "HAMMER_M"
         return "HAMMER_S"
-    if "BLADE" in text:
+    if "BLADE" in text and "PCD" not in text:
         if "175" in text or "BLADE_L" in compact or "L" in tokens:
             return "BLADE_L"
         if "125" in text or "BLADE_M" in compact or "M" in tokens:
             return "BLADE_M"
         return "BLADE_S"
     if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
-        if "175" in text or "PCD_L" in compact or "L" in tokens:
-            return "PCD_L"
+        if PCD_LARGE_LABEL.upper() in text or "175_305MM" in compact or "7_10_INCH" in compact:
+            return PCD_LARGE_LABEL
+        if PCD_MEDIUM_LABEL.upper() in text or "125_175MM" in compact or "5_7_INCH" in compact:
+            return PCD_MEDIUM_LABEL
+        if PCD_SMALL_LABEL.upper() in text or "99_125MM" in compact or "3_1_2_5_INCH" in compact:
+            return PCD_SMALL_LABEL
+        if "175" in text or "305" in text or "PCD_L" in compact or "L" in tokens:
+            return PCD_LARGE_LABEL
         if "125" in text or "PCD_M" in compact or "M" in tokens:
-            return "PCD_M"
-        return "PCD_S"
-    return "PCD_S" if "CHIP" in text else "HQ_HQ3"
+            return PCD_MEDIUM_LABEL
+        if "PCD_S" in compact or "S" in tokens:
+            return PCD_SMALL_LABEL
+        if "5-7/8" in text or "5_7_8" in compact:
+            return PCD_MEDIUM_LABEL
+        return PCD_SMALL_LABEL
+    return PCD_SMALL_LABEL if "CHIP" in text else "HQ_HQ3"
 
 
 def time_str_to_hours(t):
@@ -1479,7 +1512,7 @@ def build_rate_context(hourly_rates=None, drilling_rates=None, consumable_rates=
     for r in drilling_rates or []:
         drilling.append({
             "year": str(r.get("year") or ""),
-            "bit_type": r.get("bit_type") or "",
+            "bit_type": normalise_drilling_bit_key(r.get("bit_type") or ""),
             "depth_from": float(r.get("depth_from") or 0),
             "depth_to": float(r.get("depth_to") or 0),
             "rate": float(r.get("rate") or 0),
@@ -2036,7 +2069,7 @@ async def import_pdf(
             hr_lookup[(r["year"], r["code"])] = float(r["rate"])
         dr_lookup = {}
         for r in all_dr:
-            key = (r["year"], r["bit_type"])
+            key = (r["year"], normalise_drilling_bit_key(r["bit_type"]))
             if key not in dr_lookup: dr_lookup[key] = []
             dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
         cr_lookup = {}
@@ -4322,7 +4355,7 @@ def reprice_activities(contractor: str = Query(...)):
         # drilling: {(year, bit_type, depth): rate}  — depth is the matching band
         dr_lookup = {}
         for r in all_dr:
-            key = (r["year"], r["bit_type"])
+            key = (r["year"], normalise_drilling_bit_key(r["bit_type"]))
             if key not in dr_lookup: dr_lookup[key] = []
             dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
 
