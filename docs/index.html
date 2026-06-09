@@ -1429,7 +1429,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="borehole-details" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Details</span><span class="drawer-nav-meta">Full register</span></button>
         <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Rig Scheduler</span><span class="drawer-nav-meta">Rig calendar</span></button>
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
-        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily reports</span></button>
+        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Daily report sheets</span></button>
         <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span class="drawer-nav-label">Costing</span><span class="drawer-nav-meta">Actuals</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
@@ -1816,7 +1816,7 @@ tbody td[contenteditable=true]:focus {
           <input id="new-year-input" type="text" placeholder="e.g. 2026" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;outline:none;"/>
           <button class="btn-primary" onclick="copyRatesYear()">Copy year →</button>
           <button class="btn-ghost" id="sync-contract-rates-btn" onclick="syncAllianzContractRates()">Sync Allianz 2025 rates</button>
-          <button class="btn-primary" id="recalc-db-btn" onclick="recalculateDatabaseFromRates()">Recalculate database</button>
+          <button class="btn-primary" id="recalc-db-btn">Recalculate database</button>
         </div>
       </div>
       <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Drilling Rates — $/m by bit type &amp; depth</h3>
@@ -2075,8 +2075,8 @@ tbody td[contenteditable=true]:focus {
 
       <!-- Map + controls row -->
       <div style="display:grid;grid-template-columns:1fr 260px;gap:14px;margin-bottom:16px;">
-        <div class="chart-card" style="padding:0;overflow:hidden;min-height:440px;">
-          <div id="bh-map" style="width:100%;height:440px;"></div>
+        <div class="chart-card" style="padding:0;overflow:hidden;min-height:640px;">
+          <div id="bh-map" style="width:100%;height:640px;"></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div class="chart-card" style="padding:14px;">
@@ -2099,14 +2099,6 @@ tbody td[contenteditable=true]:focus {
             </div>
           </div>
           <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
-          <label style="display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">
-            DXF CRS
-            <select id="dxf-epsg-select" style="width:100%;font-size:12px;text-transform:none;letter-spacing:0;font-weight:600;">
-              <option value="20355" selected>AGD84 / AMG Zone 55</option>
-              <option value="28355">GDA94 / MGA Zone 55</option>
-              <option value="7855">GDA2020 / MGA Zone 55</option>
-            </select>
-          </label>
           <div style="position:relative;width:100%;">
             <input type="file" id="dxf-file-input" accept=".dxf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;" onchange="uploadDXF(this)"/>
             <button class="btn-ghost" style="width:100%;font-size:12px;">Upload DXF Overlay</button>
@@ -4081,6 +4073,7 @@ async function syncAllianzContractRates(){
 
 async function recalculateDatabaseFromRates(){
   const btn=document.getElementById('recalc-db-btn');
+  if(!btn){toast('Recalculate button not found','err');return;}
   if(!confirm('Recalculate all EOS activity costs, consumables, and invoice matching for '+activeContractor+' using the current schedule of rates?'))return;
   btn.disabled=true;
   btn.textContent='Recalculating...';
@@ -5573,12 +5566,22 @@ function initBhMap() {
   if(bhMap) { bhMap.remove(); bhMap=null; }
   const el = document.getElementById('bh-map');
   if(!el) return;
+  ['bh-filter-core','bh-filter-chip','bh-filter-labels'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=true;});
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
   bhMap = L.map('bh-map', {layers:[osm]});
   L.control.layers({'Street':osm,'Satellite':sat}).addTo(bhMap);
   renderBhMap();
+  setTimeout(loadDefaultDxfOverlays, 250);
 }
+
+document.addEventListener('DOMContentLoaded',function(){
+  var recalcBtn=document.getElementById('recalc-db-btn');
+  if(recalcBtn) recalcBtn.addEventListener('click',function(e){
+    e.preventDefault();
+    recalculateDatabaseFromRates();
+  });
+});
 
 function renderBhMap() {
   if(!bhMap) return;
@@ -5588,7 +5591,9 @@ function renderBhMap() {
   const showChip   = document.getElementById('bh-filter-chip') ? document.getElementById('bh-filter-chip').checked : true;
   const showLabels = document.getElementById('bh-filter-labels') ? document.getElementById('bh-filter-labels').checked : true;
   const visible = bhData.filter(function(b) {
-    if(!b.lat||!b.lng) return false;
+    b.lat = parseFloat(b.lat);
+    b.lng = parseFloat(b.lng);
+    if(!Number.isFinite(b.lat)||!Number.isFinite(b.lng)) return false;
     const t = b.type||b.bh_type||'';
     return t==='Core' ? showCore : showChip;
   });
@@ -5895,7 +5900,8 @@ async function importBudgetToDb() {
 }
 
 // ── DXF Overlay ───────────────────────────────────────────────────────────────
-var dxfLayer = null;
+var dxfLayers = [];
+var dxfAutoLoaded = false;
 var DXF_COLORS = {
   1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
   6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
@@ -5904,8 +5910,32 @@ var DXF_COLORS = {
 };
 function dxfColor(c) { return DXF_COLORS[c] || '#e74c3c'; }
 function selectedDxfEpsg() {
-  var sel = document.getElementById('dxf-epsg-select');
-  return sel ? sel.value : '20355';
+  return '20355';
+}
+
+function fitMapToVisibleContent() {
+  if(!bhMap) return;
+  var bounds = null;
+  var points = (bhData||[]).filter(function(b){
+    var lat=parseFloat(b.lat),lng=parseFloat(b.lng);
+    return Number.isFinite(lat)&&Number.isFinite(lng);
+  }).map(function(b){return [parseFloat(b.lat),parseFloat(b.lng)];});
+  if(points.length) bounds = L.latLngBounds(points);
+  dxfLayers.forEach(function(item){
+    try {
+      var b = item.layer.getBounds();
+      if(b&&b.isValid()) bounds = bounds ? bounds.extend(b) : b;
+    } catch(e) {}
+  });
+  if(bounds&&bounds.isValid()) bhMap.fitBounds(bounds,{padding:[30,30]});
+}
+
+async function loadDefaultDxfOverlays() {
+  if(dxfAutoLoaded || !bhMap) return;
+  dxfAutoLoaded = true;
+  await loadBundledDxfOverlay('assets/map-overlays/IB001-DXF.zip','IB001 DXF.zip', true);
+  await loadBundledDxfOverlay('assets/map-overlays/CD001.zip','CD001.zip', true);
+  fitMapToVisibleContent();
 }
 
 async function uploadDXF(input) {
@@ -5920,7 +5950,7 @@ async function uploadDXF(input) {
     if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
     var d = await res.json();
     console.log('DXF:', d.entity_count+' entities, layers:', d.layers);
-    renderDxfOverlay(d.geojson, d.layers, file.name);
+    renderDxfOverlay(d.geojson, d.layers, file.name, false);
     toast('\u2713 DXF loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
   } catch(e) {
     toast('DXF failed: '+e.message, 'err');
@@ -5928,7 +5958,7 @@ async function uploadDXF(input) {
   input.value = '';
 }
 
-async function loadBundledDxfOverlay(path, filename) {
+async function loadBundledDxfOverlay(path, filename, deferFit) {
   toast('Loading '+filename+'...');
   try {
     var asset = await fetch(path);
@@ -5941,17 +5971,17 @@ async function loadBundledDxfOverlay(path, filename) {
     if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
     var d = await res.json();
     console.log('Bundled DXF:', filename, d.entity_count+' entities, layers:', d.layers);
-    renderDxfOverlay(d.geojson, d.layers, filename);
+    renderDxfOverlay(d.geojson, d.layers, filename, !!deferFit);
     toast('\u2713 '+filename+' loaded: '+d.entity_count+' entities, '+d.layers.length+' layers');
   } catch(e) {
     toast('DXF failed: '+e.message, 'err');
   }
 }
 
-function renderDxfOverlay(geojson, layers, filename) {
+function renderDxfOverlay(geojson, layers, filename, deferFit) {
   if(!bhMap) { toast('Map not ready','err'); return; }
-  clearDxfOverlay();
-  dxfLayer = L.geoJSON(geojson, {
+  var layer = L.geoJSON(geojson, {
+    renderer: L.canvas({padding:0.5}),
     style: function(feature) {
       var col = dxfColor(feature.properties.color);
       return {
@@ -5983,16 +6013,16 @@ function renderDxfOverlay(geojson, layers, filename) {
       layer.bindPopup(popup);
     }
   });
-  dxfLayer.addTo(bhMap);
+  layer.addTo(bhMap);
+  dxfLayers.push({name:filename, layer:layer});
   document.getElementById('dxf-clear-btn').style.display = 'block';
-  try {
-    var bounds = dxfLayer.getBounds();
-    if(bounds.isValid()) bhMap.fitBounds(bounds, {padding:[30,30]});
-  } catch(e) {}
+  if(!deferFit) fitMapToVisibleContent();
 }
 
 function clearDxfOverlay() {
-  if(dxfLayer && bhMap) { bhMap.removeLayer(dxfLayer); dxfLayer = null; }
+  dxfLayers.forEach(function(item){try{if(bhMap)bhMap.removeLayer(item.layer);}catch(e){}});
+  dxfLayers = [];
+  dxfAutoLoaded = false;
   var btn = document.getElementById('dxf-clear-btn');
   if(btn) btn.style.display = 'none';
 }
@@ -6061,7 +6091,9 @@ function renderBhMapFiltered(filteredData) {
   var showChip   = document.getElementById("bh-filter-chip") ? document.getElementById("bh-filter-chip").checked : true;
   var showLabels = document.getElementById("bh-filter-labels") ? document.getElementById("bh-filter-labels").checked : true;
   var visible = filteredData.filter(function(b) {
-    if(!b.lat||!b.lng) return false;
+    b.lat = parseFloat(b.lat);
+    b.lng = parseFloat(b.lng);
+    if(!Number.isFinite(b.lat)||!Number.isFinite(b.lng)) return false;
     var t = b.type||b.bh_type||"";
     return t==="Core" ? showCore : showChip;
   });
