@@ -368,6 +368,21 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS report_approvals (
+                    id          SERIAL PRIMARY KEY,
+                    contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    report_date TEXT,
+                    hole_num    TEXT,
+                    source_file TEXT,
+                    status      TEXT,
+                    reason      TEXT,
+                    log         JSONB DEFAULT '[]'::jsonb,
+                    updated_at  TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(contractor, report_date, hole_num, source_file)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumable_rates (
                     id          SERIAL PRIMARY KEY,
                     contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
@@ -2444,6 +2459,132 @@ async def cleanup_coreplan_doubleups(request: Request):
     contractor = payload.get("contractor", "Allianz Drilling")
     result = cleanup_coreplan_doubleups_for_contractor(contractor)
     return {"status": "cleaned", "contractor": contractor, **result}
+
+
+def normalize_report_approval_status(status: str):
+    status = (status or "").strip().lower()
+    return status if status in {"approved", "query", "rejected"} else ""
+
+
+def report_approval_params(contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    return {
+        "contractor": contractor or "Allianz Drilling",
+        "report_date": report_date or "",
+        "hole_num": hole_num or "",
+        "source_file": source_file or "",
+    }
+
+
+def report_approval_response(row):
+    if not row:
+        return {"status": "", "reason": "", "log": []}
+    return {
+        "contractor": row.get("contractor") or "",
+        "report_date": row.get("report_date") or "",
+        "hole_num": row.get("hole_num") or "",
+        "source_file": row.get("source_file") or "",
+        "status": row.get("status") or "",
+        "reason": row.get("reason") or "",
+        "log": row.get("log") or [],
+    }
+
+
+@app.get("/report-approvals")
+def get_report_approvals(
+    contractor: str = Query(...),
+    dates: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    hole: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+):
+    conds = ["contractor=%(contractor)s"]
+    params = {"contractor": contractor}
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl:
+            conds.append("report_date=ANY(%(dates)s)")
+            params["dates"] = dl
+    if date is not None:
+        conds.append("report_date=%(date)s")
+        params["date"] = date or ""
+    if hole is not None:
+        conds.append("hole_num=%(hole)s")
+        params["hole"] = hole or ""
+    if source is not None:
+        conds.append("source_file=%(source)s")
+        params["source"] = source or ""
+    q = f"SELECT * FROM report_approvals WHERE {' AND '.join(conds)} ORDER BY updated_at DESC"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(q, params)
+            rows = [dict(r) for r in cur.fetchall()]
+    if date is not None or hole is not None or source is not None:
+        return report_approval_response(rows[0] if rows else None)
+    return [report_approval_response(r) for r in rows]
+
+
+@app.post("/report-approvals")
+async def save_report_approval(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor") or "Allianz Drilling"
+    status = normalize_report_approval_status(payload.get("status"))
+    if not status:
+        raise HTTPException(400, "status must be approved, query, or rejected")
+    reason = (payload.get("reason") or "").strip()
+    if status in {"query", "rejected"} and not reason:
+        raise HTTPException(400, "reason is required for query or rejected decisions")
+    key = report_approval_params(
+        contractor,
+        payload.get("date") or payload.get("report_date") or "",
+        payload.get("hole") or payload.get("hole_num") or "",
+        payload.get("source") or payload.get("source_file") or "",
+    )
+    entry = {
+        "status": status,
+        "reason": reason,
+        "at": payload.get("at") or "",
+        "by": payload.get("by") or "Client",
+    }
+    if not entry["at"]:
+        from datetime import datetime, timezone
+        entry["at"] = datetime.now(timezone.utc).isoformat()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO report_approvals (contractor, report_date, hole_num, source_file, status, reason, log, updated_at)
+                VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(status)s, %(reason)s, %(log)s::jsonb, NOW())
+                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                DO UPDATE SET
+                    status=EXCLUDED.status,
+                    reason=EXCLUDED.reason,
+                    log=EXCLUDED.log || report_approvals.log,
+                    updated_at=NOW()
+                RETURNING *
+            """, {**key, "status": status, "reason": reason, "log": json.dumps([entry])})
+            saved = dict(cur.fetchone())
+        conn.commit()
+    return report_approval_response(saved)
+
+
+@app.delete("/report-approvals")
+def delete_report_approval(
+    contractor: str = Query(...),
+    date: str = Query(""),
+    hole: str = Query(""),
+    source: str = Query(""),
+):
+    key = report_approval_params(contractor, date, hole, source)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM report_approvals
+                WHERE contractor=%(contractor)s
+                  AND report_date=%(report_date)s
+                  AND hole_num=%(hole_num)s
+                  AND source_file=%(source_file)s
+            """, key)
+        conn.commit()
+    return {"status": "deleted"}
 
 
 @app.get("/activities")

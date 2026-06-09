@@ -2444,6 +2444,7 @@ let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
 let dailyReportsData=[], selectedDailyReportKey=null;
+let reportApprovalsByKey={};
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
 let drillingRatesData=[], hourlyRatesData=[];
 let posData=[];
@@ -2568,9 +2569,28 @@ function reportStatus(group){
 function reportApprovalStorageKey(contractor,date,hole,source){
   return ['drillops-report-approval',contractor||'',date||'',hole||'',source||''].join('|');
 }
+function reportApprovalRecordKey(contractor,date,hole,source){
+  return [contractor||'',date||'',hole||'',source||''].join('|');
+}
 function getStoredReportApproval(date,hole,source){
+  const key=reportApprovalRecordKey(activeContractor,date,hole,source);
+  if(reportApprovalsByKey[key])return reportApprovalsByKey[key];
   try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,date,hole,source))||'null');}
   catch(e){return null;}
+}
+async function loadReportApprovals(dates){
+  reportApprovalsByKey={};
+  const p=new URLSearchParams({contractor:activeContractor});
+  if(dates)p.set('dates',dates);
+  try{
+    const rows=await fetch(API+'/report-approvals?'+p.toString()).then(function(r){return r.ok?r.json():[];});
+    (rows||[]).forEach(function(r){
+      const key=reportApprovalRecordKey(r.contractor,r.report_date,r.hole_num,r.source_file);
+      reportApprovalsByKey[key]=r;
+    });
+  }catch(e){
+    console.warn('Report approvals unavailable',e);
+  }
 }
 function groupDailyReports(rows){
   const map=new Map();
@@ -2917,6 +2937,7 @@ async function loadActivities(){
   try{
     activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
     await loadDailyReportRelatedData(dates);
+    await loadReportApprovals(dates);
     renderActivities(activitiesData);
   }catch(e){
     renderDailyReportSummary([]);
@@ -3130,13 +3151,24 @@ function renderReportStatusSelect(report){
     +'</select>';
 }
 
-function changeReportApprovalFromList(select){
+async function changeReportApprovalFromList(select){
   const report=dailyReportsData.find(function(r){return r.key===select.dataset.reportKey;});
   if(!report)return;
   const status=select.value;
+  const key=reportApprovalRecordKey(activeContractor,report.date,report.hole,report.sourceFile);
   if(status==='pending'){
-    localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile));
-    renderDailyReportSummary(activitiesData);
+    try{
+      const p=new URLSearchParams({contractor:activeContractor,date:report.date||'',hole:report.hole||'',source:report.sourceFile||''});
+      const res=await fetch(API+'/report-approvals?'+p.toString(),{method:'DELETE'});
+      if(!res.ok)throw new Error(await res.text());
+      delete reportApprovalsByKey[key];
+      localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile));
+      renderDailyReportSummary(activitiesData);
+      toast('Client decision cleared');
+    }catch(e){
+      toast('Decision clear failed','err');
+      renderDailyReportSummary(activitiesData);
+    }
     return;
   }
   let reason='';
@@ -3147,14 +3179,28 @@ function changeReportApprovalFromList(select){
     renderDailyReportSummary(activitiesData);
     return;
   }
-  const entry={status:status,reason:reason.trim(),at:new Date().toISOString(),by:'Client'};
-  const record={status:status,reason:reason.trim(),log:[entry]};
   try{
-    const existing=JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile))||'null');
-    if(existing&&Array.isArray(existing.log))record.log=record.log.concat(existing.log);
-  }catch(e){}
-  localStorage.setItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile),JSON.stringify(record));
-  renderDailyReportSummary(activitiesData);
+    const res=await fetch(API+'/report-approvals',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contractor:activeContractor,
+        date:report.date||'',
+        hole:report.hole||'',
+        source:report.sourceFile||'',
+        status:status,
+        reason:reason.trim(),
+        by:'Client'
+      })
+    });
+    if(!res.ok)throw new Error(await res.text());
+    reportApprovalsByKey[key]=await res.json();
+    renderDailyReportSummary(activitiesData);
+    toast('Client decision saved');
+  }catch(e){
+    toast('Decision save failed','err');
+    renderDailyReportSummary(activitiesData);
+  }
 }
 
 function filterDailyReportRows(){

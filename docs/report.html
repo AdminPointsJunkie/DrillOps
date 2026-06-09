@@ -251,7 +251,7 @@ async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.time
 async function loadReport(){
   document.getElementById('title').textContent=title;
   document.title=title+' | DrillOps';
-  initApprovalControls();
+  await initApprovalControls();
   const actParams=new URLSearchParams({contractor});
   if(reportDate)actParams.set('dates',reportDate);
   if(hole)actParams.set('holes',hole);
@@ -270,19 +270,24 @@ async function loadReport(){
     document.getElementById('activity-body').innerHTML='<tr><td colspan="6" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
   }
 }
-function getApprovalRecord(){
-  try{return JSON.parse(localStorage.getItem(approvalKey)||'null')||{status:'',reason:'',log:[]};}
-  catch(e){return {status:'',reason:'',log:[]};}
+function emptyApprovalRecord(){return {status:'',reason:'',log:[]};}
+function approvalParams(){
+  return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
 }
-function setApprovalRecord(record){
-  localStorage.setItem(approvalKey,JSON.stringify(record));
+async function getApprovalRecord(){
+  try{
+    const res=await fetch(API+'/report-approvals?'+approvalParams().toString());
+    if(res.ok)return await res.json();
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(approvalKey)||'null')||emptyApprovalRecord();}
+  catch(e){return emptyApprovalRecord();}
 }
-function initApprovalControls(){
+async function initApprovalControls(){
   const select=document.getElementById('approval-select');
   const reasonWrap=document.getElementById('approval-reason-wrap');
   const reason=document.getElementById('approval-reason');
   const save=document.getElementById('approval-save');
-  const record=getApprovalRecord();
+  const record=await getApprovalRecord();
   select.value=record.status||'';
   reason.value=record.reason||'';
   reasonWrap.classList.toggle('open',select.value==='rejected'||select.value==='query');
@@ -296,24 +301,44 @@ function initApprovalControls(){
   renderApprovalStatus(record);
   renderApprovalLog(record);
 }
-function saveApprovalDecision(){
+async function saveApprovalDecision(){
   const select=document.getElementById('approval-select');
   const reason=document.getElementById('approval-reason');
+  const save=document.getElementById('approval-save');
   const status=select.value;
   const why=reason.value.trim();
   if(!status){alert('Select approve, query, or reject first.');return;}
   if((status==='rejected'||status==='query')&&!why){alert('Enter a reason or query before saving.');reason.focus();return;}
-  const record=getApprovalRecord();
   const label=status==='approved'?'Approved':status==='query'?'Queried':'Rejected';
-  const entry={status:status,reason:why,at:new Date().toISOString(),by:'Client'};
-  record.status=status;
-  record.reason=why;
-  record.log=[entry].concat(record.log||[]);
-  setApprovalRecord(record);
-  renderApprovalStatus(record);
-  renderApprovalLog(record);
-  reason.value='';
-  reason.placeholder=status==='approved'?'Approved. Select reject or query if this changes.':label+' reason saved. Add another note if needed.';
+  save.disabled=true;
+  save.textContent='Saving...';
+  try{
+    const res=await fetch(API+'/report-approvals',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contractor:contractor,
+        date:reportDate,
+        hole:hole,
+        source:source,
+        status:status,
+        reason:why,
+        by:'Client'
+      })
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const record=await res.json();
+    localStorage.removeItem(approvalKey);
+    renderApprovalStatus(record);
+    renderApprovalLog(record);
+    reason.value='';
+    reason.placeholder=status==='approved'?'Approved. Select reject or query if this changes.':label+' reason saved. Add another note if needed.';
+  }catch(e){
+    alert('Could not save client decision: '+e.message);
+  }finally{
+    save.disabled=false;
+    save.textContent='Save';
+  }
 }
 function renderApprovalStatus(record){
   const badge=document.getElementById('approval-status');
