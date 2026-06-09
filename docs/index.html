@@ -2099,6 +2099,14 @@ tbody td[contenteditable=true]:focus {
             </div>
           </div>
           <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
+          <label style="display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">
+            DXF CRS
+            <select id="dxf-epsg-select" style="width:100%;font-size:12px;text-transform:none;letter-spacing:0;font-weight:600;">
+              <option value="20355" selected>AGD84 / AMG Zone 55</option>
+              <option value="28355">GDA94 / MGA Zone 55</option>
+              <option value="7855">GDA2020 / MGA Zone 55</option>
+            </select>
+          </label>
           <div style="position:relative;width:100%;">
             <input type="file" id="dxf-file-input" accept=".dxf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;" onchange="uploadDXF(this)"/>
             <button class="btn-ghost" style="width:100%;font-size:12px;">Upload DXF Overlay</button>
@@ -5705,10 +5713,6 @@ function renderBhTable(rows) {
       const bh = bhData.find(function(b){return b.hole_id===holeId;});
       if(bh) {
         bh[col] = val;
-        if((col==='easting'||col==='northing')&&bh.easting&&bh.northing) {
-          const wgs = mgaToWgs84(bh.easting, bh.northing);
-          bh.lat = wgs.lat; bh.lng = wgs.lng;
-        }
       }
       try {
         const res = await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
@@ -5719,7 +5723,7 @@ function renderBhTable(rows) {
         toast('✓ Saved');
       } catch(e) { toast('Save failed: '+((e&&e.message)||'change was not saved'),'err'); }
       updateBhKPIs();
-      if(col==='easting'||col==='northing') renderBhMap();
+      if(col==='easting'||col==='northing') await loadBoreholes();
     });
   });
   makeTableSortable('bh-table');
@@ -5736,7 +5740,6 @@ async function addBorehole() {
   if(bhData.find(function(b){return b.hole_id===holeId;})) { toast('Hole ID already exists','err'); return; }
   const easting  = parseFloat(document.getElementById('add-bh-east').value)||0;
   const northing = parseFloat(document.getElementById('add-bh-north').value)||0;
-  const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
   const newBh = {
     hole_id:holeId,
     project:document.getElementById('add-bh-project').value,
@@ -5757,7 +5760,6 @@ async function addBorehole() {
     budget_total:parseFloat(document.getElementById('add-bh-budget').value)||null,
     status:document.getElementById('add-bh-status').value,
     notes:document.getElementById('add-bh-notes').value,
-    lat:wgs.lat, lng:wgs.lng,
     drill_order:bhData.length+1,
     eos_cost:0, eos_metres:0
   };
@@ -5767,15 +5769,12 @@ async function addBorehole() {
       body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
-    bhData.push(newBh);
     ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(function(id){
       const el=document.getElementById(id); if(el) el.value='';
     });
     document.getElementById('bh-add-form').style.display='none';
     toast('✓ '+holeId+' added');
-    renderBhTable(bhData);
-    renderBhMap();
-    updateBhKPIs();
+    await loadBoreholes();
   } catch(e) { toast('Failed: '+e.message,'err'); }
 }
 
@@ -5904,6 +5903,10 @@ var DXF_COLORS = {
   70:'#0099cc',80:'#3366ff',90:'#6633ff',140:'#ff3399',
 };
 function dxfColor(c) { return DXF_COLORS[c] || '#e74c3c'; }
+function selectedDxfEpsg() {
+  var sel = document.getElementById('dxf-epsg-select');
+  return sel ? sel.value : '20355';
+}
 
 async function uploadDXF(input) {
   var file = input.files[0];
@@ -5911,7 +5914,7 @@ async function uploadDXF(input) {
   toast('Parsing DXF...');
   var fd = new FormData();
   fd.append('file', file);
-  fd.append('epsg', '20355');
+  fd.append('epsg', selectedDxfEpsg());
   try {
     var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
     if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
@@ -5933,7 +5936,7 @@ async function loadBundledDxfOverlay(path, filename) {
     var blob = await asset.blob();
     var fd = new FormData();
     fd.append('file', new File([blob], filename, {type:'application/dxf'}));
-    fd.append('epsg', '20355');
+    fd.append('epsg', selectedDxfEpsg());
     var res = await fetch(API+'/dxf/upload', {method:'POST', body:fd});
     if(!res.ok) { toast('DXF upload failed: '+res.status, 'err'); return; }
     var d = await res.json();

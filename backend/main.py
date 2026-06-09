@@ -5019,6 +5019,28 @@ async def recalculate_database_from_rates(request: Request):
 
 # ── Borehole Planning ─────────────────────────────────────────────────────────
 
+def agd84_amg55_to_wgs84(easting, northing):
+    if easting in (None, "", 0) or northing in (None, "", 0):
+        return None, None
+    try:
+        from pyproj import Transformer
+        transformer = Transformer.from_crs("EPSG:20355", "EPSG:4326", always_xy=True)
+        lng, lat = transformer.transform(float(easting), float(northing))
+        if 110 <= lng <= 155 and -45 <= lat <= -10:
+            return lat, lng
+    except Exception:
+        pass
+    return None, None
+
+
+def apply_borehole_wgs84(row: dict):
+    lat, lng = agd84_amg55_to_wgs84(row.get("easting"), row.get("northing"))
+    if lat is not None and lng is not None:
+        row["lat"] = lat
+        row["lng"] = lng
+    return row
+
+
 @app.get("/boreholes")
 def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
@@ -5079,7 +5101,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 if current.get(field) in (None, "", 0) and row.get(field) not in (None, "", 0):
                                     current[field] = row.get(field)
                     rows = sorted(deduped.values(), key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
-                return rows
+                return [apply_borehole_wgs84(row) for row in rows]
     except Exception as e:
         raise HTTPException(500, f"Boreholes error: {str(e)}")
 
@@ -5095,6 +5117,10 @@ async def import_budget(request: Request):
     boreholes = payload.get("boreholes", [])
     if not boreholes:
         raise HTTPException(400, "No boreholes provided")
+    for b in boreholes:
+        lat, lng = agd84_amg55_to_wgs84(b.get("easting"), b.get("northing"))
+        b["_lat"] = lat if lat is not None else b.get("lat")
+        b["_lng"] = lng if lng is not None else b.get("lng")
     with get_conn() as conn:
         with conn.cursor() as cur:
             psycopg2.extras.execute_batch(cur, """
@@ -5120,7 +5146,7 @@ async def import_budget(request: Request):
                    b.get("type") or b.get("bh_type"), b.get("bit_type"), b.get("purpose"),
                    b.get("easting"), b.get("northing"), b.get("rl"),
                    b.get("chip_depth"), b.get("eoh_depth"), b.get("total_core"),
-                   b.get("seam_tk"), b.get("lat"), b.get("lng"),
+                   b.get("seam_tk"), b.get("_lat"), b.get("_lng"),
                    b.get("status", "Planned"),
                    b.get("budget_total")) for b in boreholes])
         conn.commit()
@@ -5131,13 +5157,22 @@ async def import_budget(request: Request):
 async def update_borehole(hole_id: str, request: Request):
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
-    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","assigned_rig","scheduled_start","scheduled_end","hole_id"}
+    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
     u["hole_id"] = hole_id
     u["contractor"] = contractor
     with get_conn() as conn:
         with conn.cursor() as cur:
+            if "easting" in u or "northing" in u:
+                cur.execute("SELECT easting,northing FROM boreholes WHERE hole_id=%s AND contractor IN (%s, 'Company') ORDER BY CASE WHEN contractor=%s THEN 0 ELSE 1 END LIMIT 1", (hole_id, contractor, contractor))
+                existing = cur.fetchone() or {}
+                easting = u.get("easting", existing.get("easting"))
+                northing = u.get("northing", existing.get("northing"))
+                lat, lng = agd84_amg55_to_wgs84(easting, northing)
+                if lat is not None and lng is not None:
+                    u["lat"] = lat
+                    u["lng"] = lng
             cur.execute(
                 f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in u if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
                 u
@@ -5500,7 +5535,7 @@ async def upload_dxf(
     epsg: str = Form(default="20355"),
 ):
     """Parse a DXF file and return GeoJSON for Leaflet overlay.
-    Converts from the specified EPSG (default MGA Zone 55) to WGS84."""
+    Converts from the specified EPSG (default AGD84 AMG Zone 55) to WGS84."""
     import ezdxf
     import os
     import tempfile
@@ -5553,7 +5588,7 @@ async def upload_dxf(
     def to_wgs84(x, y):
         try:
             lng, lat = transformer.transform(float(x), float(y))
-            # EPSG:20355 mine drawings should land in Australia; skip drawing-sheet outliers.
+            # Mine drawings should land in Australia; skip drawing-sheet outliers.
             if 110 <= lng <= 155 and -45 <= lat <= -10:
                 return [lng, lat]
         except:
