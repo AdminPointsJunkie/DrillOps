@@ -153,9 +153,18 @@ ALLIANZ_CONTRACT_HOURLY_RATES = [
 ]
 
 
+MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES = {
+    (PCD_MEDIUM_LABEL, 0, 100): 52.00,
+}
+
+
 def contract_drilling_rows(contractor: str, year: str):
-    return [(contractor, year, bit, depth_from, depth_to, rate)
-            for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES]
+    rows = []
+    for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES:
+        if contractor == "Mitchells Drilling":
+            rate = MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.get((bit, depth_from, depth_to), rate)
+        rows.append((contractor, year, bit, depth_from, depth_to, rate))
+    return rows
 
 
 def contract_hourly_rows(contractor: str, year: str):
@@ -176,6 +185,102 @@ def migrate_legacy_drilling_bit_labels():
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
+def apply_mitchells_contract_exceptions():
+    """Keep known Mitchells contract exceptions aligned for existing data."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE activities
+                SET contractor='Mitchells Drilling'
+                WHERE contractor <> 'Mitchells Drilling'
+                  AND (
+                    UPPER(COALESCE(drill_rig, '')) = 'IB652C'
+                    OR source_file IN (
+                        SELECT filename FROM source_files
+                        WHERE file_type='coreplan_csv'
+                    )
+                  )
+                """
+            )
+            cur.execute(
+                """
+                UPDATE consumables
+                SET contractor='Mitchells Drilling'
+                WHERE contractor <> 'Mitchells Drilling'
+                  AND source_file IN (
+                    SELECT filename FROM source_files
+                    WHERE file_type='coreplan_csv'
+                  )
+                """
+            )
+            cur.execute(
+                """
+                UPDATE crew
+                SET contractor='Mitchells Drilling'
+                WHERE contractor <> 'Mitchells Drilling'
+                  AND source_file IN (
+                    SELECT filename FROM source_files
+                    WHERE file_type='coreplan_csv'
+                  )
+                """
+            )
+            for (bit, depth_from, depth_to), rate in MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.items():
+                cur.execute(
+                    """
+                    UPDATE drilling_rates
+                    SET rate=%s
+                    WHERE contractor='Mitchells Drilling'
+                      AND bit_type=%s
+                      AND depth_from=%s
+                      AND depth_to=%s
+                    """,
+                    (rate, bit, depth_from, depth_to),
+                )
+            cur.execute(
+                """
+                UPDATE activities
+                SET code='H_Standby_Fatigue',
+                    unit_rate=0,
+                    line_cost=0,
+                    rate_basis='not chargeable - Mitchells fatigue management'
+                WHERE contractor='Mitchells Drilling'
+                  AND (code='H_Standby_Fatigue' OR code='H_Standby_AAC')
+                  AND COALESCE(notes, '') ILIKE '%fatigue%'
+                """
+            )
+            cur.execute(
+                """
+                UPDATE source_files sf
+                SET contractor='Mitchells Drilling'
+                WHERE sf.contractor <> 'Mitchells Drilling'
+                  AND sf.file_type='coreplan_csv'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM source_files existing
+                    WHERE existing.filename=sf.filename
+                      AND existing.contractor='Mitchells Drilling'
+                  )
+                """
+            )
+            cur.execute(
+                """
+                UPDATE imported_files im
+                SET contractor='Mitchells Drilling'
+                WHERE im.contractor <> 'Mitchells Drilling'
+                  AND im.filename IN (
+                    SELECT filename FROM source_files
+                    WHERE file_type='coreplan_csv'
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM imported_files existing
+                    WHERE existing.filename=im.filename
+                      AND existing.contractor='Mitchells Drilling'
+                  )
+                """
+            )
+        conn.commit()
+
+
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -405,6 +510,20 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS activity_sheet_locks (
+                    id          SERIAL PRIMARY KEY,
+                    contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    report_date TEXT,
+                    hole_num    TEXT,
+                    source_file TEXT,
+                    locked      BOOLEAN DEFAULT TRUE,
+                    reason      TEXT,
+                    updated_at  TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(contractor, report_date, hole_num, source_file)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumable_rates (
                     id          SERIAL PRIMARY KEY,
                     contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
@@ -558,6 +677,7 @@ def seed_2025_rates():
 
 seed_2025_rates()
 migrate_legacy_drilling_bit_labels()
+apply_mitchells_contract_exceptions()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
@@ -578,9 +698,11 @@ INACTIVE_CODES = {
 }
 # Not chargeable
 NOT_CHARGEABLE = {"H_Repairs","Crew_Travel"}
+MITCHELLS_NOT_CHARGEABLE = {"H_Standby_Fatigue"}
 STANDBY_CODES = {
     "H_Standby_Sumps","H_Standby_AAC","H_Standby_Logger",
     "H_Standby_Grout","H_Standby_Cement_Set","H_Standby_Cement_set",
+    "H_Standby_Fatigue",
 }
 DAY_RATE_CODES = {
     "D_Backhoe":                  ("D_Backhoe",            "day"),
@@ -597,10 +719,25 @@ DAY_RATE_CODES = {
 BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":PCD_SMALL_LABEL}
 
 
+def is_not_chargeable_code(code: str, contractor: str = "") -> bool:
+    if code in NOT_CHARGEABLE:
+        return True
+    return contractor == "Mitchells Drilling" and code in MITCHELLS_NOT_CHARGEABLE
+
+
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
     text = f"{bit_type or ''} {code or ''} {notes or ''}".upper()
     compact = re.sub(r"[\s/-]+", "_", text)
     tokens = set(re.findall(r"[A-Z0-9.]+", text))
+    mm_values = [float(v) for v in re.findall(r"(\d+(?:\.\d+)?)\s*MM\b", text)]
+    inch_values = []
+    for whole, numerator, denominator in re.findall(r"\b(\d+)\s+(\d+)/(\d+)\b", text):
+        if float(denominator):
+            inch_values.append(float(whole) + float(numerator) / float(denominator))
+    for value in re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:INCH|IN|\"|\u2033)\b", text):
+        inch_values.append(float(value))
+    for value in inch_values:
+        mm_values.append(value * 25.4)
     if "4C" in text or "101.6" in text:
         return "4C"
     if "HQ" in text or "NQ" in text:
@@ -618,6 +755,12 @@ def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -
             return "BLADE_M"
         return "BLADE_S"
     if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
+        if any(mm >= 175 for mm in mm_values):
+            return PCD_LARGE_LABEL
+        if any(125 <= mm < 175 for mm in mm_values):
+            return PCD_MEDIUM_LABEL
+        if any(99 <= mm < 125 for mm in mm_values):
+            return PCD_SMALL_LABEL
         if PCD_LARGE_LABEL.upper() in text or "175_305MM" in compact or "7_10_INCH" in compact:
             return PCD_LARGE_LABEL
         if PCD_MEDIUM_LABEL.upper() in text or "125_175MM" in compact or "5_7_INCH" in compact:
@@ -686,13 +829,13 @@ def price_activity(cur, row, contractor):
         return None
 
     if code in DRILLING_METRE_CODES and total_metres and total_metres > 0:
-        bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
-        r = get_dr(bk, metres_to or 0)
-        if r is not None:
-            unit_rate  = r
-            quantity   = total_metres
-            line_cost  = round(r * total_metres, 2)
-            rate_basis = f"$/m @ {(metres_to or 0):.0f}m ({bk})"
+        cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+        priced = drilling_schedule_cost(row, build_rate_context(drilling_rates=[dict(r) for r in cur.fetchall()]))
+        if priced is not None:
+            unit_rate = priced["unit_rate"]
+            quantity = priced["quantity"]
+            line_cost = priced["line_cost"]
+            rate_basis = priced["rate_basis"]
     elif code in DRILLING_METRE_CODES:
         unit_rate = 0
         quantity = 0
@@ -705,7 +848,7 @@ def price_activity(cur, row, contractor):
             if r is not None:
                 unit_rate  = r; quantity = 1; line_cost = r
                 rate_basis = f"${r:,.2f}/{matched[1]}"
-    elif code in NOT_CHARGEABLE:
+    elif is_not_chargeable_code(code, contractor):
         unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
         line_cost = 0; rate_basis = "not chargeable"
     elif code in STANDBY_CODES or "Standby" in code:
@@ -1012,7 +1155,7 @@ def parse_activities(text, header, filename, contractor):
         "D_WaterCart_Day_Rate", "D_Water_Cart", "D_Water_Cart_Day_Rate",
         "D_Water_Cart_Standby", "D_Backhoe", "D_Backhoe_Day_Rate",
         "D_Backhoe_Standby", "H_Standby_Cement_Set", "H_Standby_Cement_set",
-        "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Logger",
+        "H_Standby_Sumps", "H_Standby_AAC", "H_Standby_Fatigue", "H_Standby_Logger",
         "H_Standby_Grout", "H_Water_Flow_Measure",
         "Drill_Core", "Drill_Chip_or_Open_hole",
         "H_Tripping_Rods", "H_Circulation_Flush", "H_Circulation_Lost",
@@ -1172,7 +1315,7 @@ COREPLAN_CATEGORY_CODES = {
     "Run/Pull_Casing": "H_Casing_Install",
     "Safety/PSI Meeting": "H_Safety_Contractor",
     "Standby": "H_Standby_AAC",
-    "Standby - Fatigue Management": "H_Standby_AAC",
+    "Standby - Fatigue Management": "H_Standby_Fatigue",
     "Travel": "H_Crew_Travel_On",
     "Tripping Rods": "H_Tripping_Rods",
 }
@@ -1591,6 +1734,75 @@ def find_drilling_schedule_rate(row, rate_context):
     return None
 
 
+def drilling_schedule_segments(row, rate_context):
+    if not rate_context:
+        return []
+    mf, mt = row.get("metres_from"), row.get("metres_to")
+    if mf is None or mt is None:
+        return []
+    start = row_num(mf)
+    end = row_num(mt)
+    if end <= start:
+        return []
+    bit = drilling_schedule_key(row)
+    year = rate_year_for_row(row)
+    years = [year]
+    if year.isdigit():
+        years += [str(int(year) - 1), str(int(year) + 1)]
+    years += ["2026", "2025"]
+    for ty in years:
+        segments = []
+        bands = [
+            rate for rate in rate_context["drilling"]
+            if rate["year"] == ty and rate["bit_type"] == bit
+        ]
+        for rate in sorted(bands, key=lambda r: (r["depth_from"], r["depth_to"])):
+            seg_from = max(start, rate["depth_from"])
+            seg_to = min(end, rate["depth_to"])
+            if seg_to > seg_from:
+                metres = round(seg_to - seg_from, 2)
+                segments.append({
+                    "year": ty,
+                    "bit_type": bit,
+                    "depth_from": rate["depth_from"],
+                    "depth_to": rate["depth_to"],
+                    "metres": metres,
+                    "rate": rate["rate"],
+                    "cost": round(metres * rate["rate"], 2),
+                })
+        if segments:
+            return segments
+    return []
+
+
+def drilling_schedule_cost(row, rate_context):
+    segments = drilling_schedule_segments(row, rate_context)
+    if not segments:
+        rate = find_drilling_schedule_rate(row, rate_context)
+        if rate is None:
+            return None
+        metres = row_num(row.get("total_metres"))
+        return {
+            "unit_rate": rate,
+            "quantity": round(metres, 2),
+            "line_cost": round(rate * metres, 2),
+            "rate_basis": f"schedule ${rate:,.2f}/m x {metres:.2f}m ({drilling_schedule_key(row)})",
+        }
+    quantity = round(sum(s["metres"] for s in segments), 2)
+    line_cost = round(sum(s["cost"] for s in segments), 2)
+    unit_rate = round(line_cost / quantity, 4) if quantity else None
+    parts = [
+        f"{s['depth_from']:.0f}-{s['depth_to']:.0f}m ${s['rate']:,.2f}/m x {s['metres']:.2f}m"
+        for s in segments
+    ]
+    return {
+        "unit_rate": unit_rate,
+        "quantity": quantity,
+        "line_cost": line_cost,
+        "rate_basis": f"schedule split ({drilling_schedule_key(row)}): " + "; ".join(parts),
+    }
+
+
 def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
     code = suggested_code or row.get("code") or ""
     original_code = row.get("code") or ""
@@ -1601,15 +1813,15 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
     reason = ""
 
     if metres > 0:
-        rate = find_drilling_schedule_rate({**row, "code": code}, rate_context)
-        if rate is None:
+        priced = drilling_schedule_cost({**row, "code": code}, rate_context)
+        if priced is None:
             return None
         updates.update({
             "rate_year": year,
-            "unit_rate": rate,
-            "quantity": round(metres, 2),
-            "line_cost": round(rate * metres, 2),
-            "rate_basis": f"schedule ${rate:,.2f}/m x {metres:.2f}m ({drilling_schedule_key({**row, 'code': code})})",
+            "unit_rate": priced["unit_rate"],
+            "quantity": priced["quantity"],
+            "line_cost": priced["line_cost"],
+            "rate_basis": priced["rate_basis"],
         })
         reason = "Repriced drilled metres from drilling schedule."
     elif code in DRILLING_METRE_CODES:
@@ -1621,7 +1833,7 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
             "rate_basis": "drilling time covered by metreage; no metres recorded",
         })
         reason = "Kept drilling time non-chargeable because drilling is billed by metres."
-    elif code in NOT_CHARGEABLE:
+    elif is_not_chargeable_code(code, row.get("contractor", "")):
         qty = round(hours, 2) if hours > 0 else 1
         updates.update({"rate_year": year, "unit_rate": 0, "quantity": qty, "line_cost": 0, "rate_basis": "not chargeable"})
         reason = "Applied not-chargeable schedule code."
@@ -1809,25 +2021,6 @@ def local_import_qa(acts, cons, crew, rate_context=None):
                 return val
         return rate_context["hourly_any"].get(code)
 
-    def _drilling_key(row):
-        return normalise_drilling_bit_key(row.get("bit_type"), row.get("code"), row.get("notes"))
-
-    def _drilling_rate(row):
-        if not rate_context:
-            return None
-        mf, mt = row.get("metres_from"), row.get("metres_to")
-        if mf is None or mt is None:
-            return None
-        depth = (_num(mf) + _num(mt)) / 2
-        bit = _drilling_key(row)
-        year = _year(row)
-        years = [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025", "2026"]
-        for ty in years:
-            for rate in rate_context["drilling"]:
-                if rate["year"] == ty and rate["bit_type"] == bit and rate["depth_from"] <= depth < rate["depth_to"]:
-                    return rate["rate"]
-        return None
-
     def _cost_mismatch(row, expected, basis):
         actual = row.get("line_cost")
         if actual is None or expected is None:
@@ -1858,19 +2051,16 @@ def local_import_qa(acts, cons, crew, rate_context=None):
             if not row.get("bit_type"):
                 warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Drilled metres row has no bit type", "recommendation": "Check the drilling line and rate card mapping."})
             if rate_context:
-                schedule_rate = _drilling_rate(row)
-                if schedule_rate is None:
+                priced = drilling_schedule_cost(row, rate_context)
+                if priced is None:
                     warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": f"No drilling schedule rate found for {row.get('bit_type') or 'blank bit'} at {row.get('metres_from')} - {row.get('metres_to')} m", "recommendation": "Check the bit type/depth band against the drilling schedule of rates."})
                 else:
-                    unit_rate = row.get("unit_rate")
-                    if unit_rate is None or abs(_num(unit_rate) - schedule_rate) > 0.01:
-                        warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": f"Drilling unit rate does not match schedule: imported {unit_rate}, schedule ${schedule_rate:,.2f}/m", "recommendation": "Check the drilling rate band and imported bit type."})
-                    mismatch = _cost_mismatch(row, schedule_rate * metres, f"against {metres:.2f}m x ${schedule_rate:,.2f}/m")
+                    mismatch = _cost_mismatch(row, priced["line_cost"], f"against {priced['rate_basis']}")
                     if mismatch:
                         warnings.append({"severity": "critical", "section": "rates", "row": i, "code": code, "issue": mismatch, "recommendation": "Recalculate the drilling charge from the schedule of rates."})
         if code.startswith("H_") and row.get("total_time") and line_cost is None:
             warnings.append({"severity": "warning", "row": i, "code": code, "issue": "Chargeable hourly-looking activity has no calculated cost", "recommendation": "Check the code against the hourly rate schedule."})
-        if rate_context and metres <= 0 and code and code not in NOT_CHARGEABLE:
+        if rate_context and metres <= 0 and code and not is_not_chargeable_code(code, row.get("contractor", "")):
             hours = _hours(row.get("total_time"))
             schedule_rate = _hourly_rate(code, _year(row))
             if schedule_rate is None and (code.startswith("H_") or line_cost is not None):
@@ -1978,25 +2168,45 @@ PARSED CREW:
         return {"status": "partial", "summary": f"Gemini import QA could not parse a result: {str(e)}", "warnings": local_warnings}
 
 
+def infer_report_contractor(selected_contractor: str, filename: str = "", header: dict = None, source_text: str = "") -> str:
+    header = header or {}
+    haystack = " ".join([
+        selected_contractor or "",
+        filename or "",
+        header.get("drill_rig") or "",
+        header.get("contract") or "",
+        header.get("client") or "",
+        source_text[:4000] if source_text else "",
+    ]).upper()
+    rig = str(header.get("drill_rig") or "").upper().strip()
+    if "MITCHELL" in haystack or "COREPLAN" in haystack or rig in {"IB652C"}:
+        return "Mitchells Drilling"
+    if "ALLIANZ" in haystack or rig.startswith(("ADR", "ALZ")):
+        return "Allianz Drilling"
+    return selected_contractor or "Allianz Drilling"
+
+
 @app.post("/import")
 async def import_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="Allianz Drilling"),
 ):
     filename = file.filename
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                        (filename, contractor))
-            if cur.fetchone():
-                return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
-
     content = await file.read()
     if filename.lower().endswith(".csv"):
         try:
+            header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, "Mitchells Drilling")
+            contractor = infer_report_contractor(contractor, filename, header, source_text)
             header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, contractor)
         except Exception as e:
             raise HTTPException(400, f"Could not read CorePlan CSV: {e}")
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
 
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -2046,13 +2256,21 @@ async def import_pdf(
 
     header = parse_header(text)
     fmt = detect_pdf_format(text)
+    import_check = None
+    contractor = infer_report_contractor(contractor, filename, header, text)
     if fmt == "adr001":
         acts = parse_activities_adr001(text, header, filename, contractor)
     else:
         acts = parse_activities(text, header, filename, contractor)
-    cons   = parse_consumables(text, header, filename, contractor)
-    crew   = parse_crew(text, header, filename, contractor)
-    import_check = None
+    cons = parse_consumables(text, header, filename, contractor)
+    crew = parse_crew(text, header, filename, contractor)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
+                        (filename, contractor))
+            if cur.fetchone():
+                return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -2119,10 +2337,12 @@ async def import_pdf(
 
             # Drilling metres
             if metres > 0 and bit_type and depth is not None:
-                bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
-                r = _get_dr(bk, depth, year)
-                if r is not None:
-                    ur = r; qty = round(metres,2); lc = round(r*metres,2); rb = f"${r:.2f}/m x {metres:.2f}m"
+                priced = drilling_schedule_cost(row, rate_context)
+                if priced is not None:
+                    ur = priced["unit_rate"]
+                    qty = priced["quantity"]
+                    lc = priced["line_cost"]
+                    rb = priced["rate_basis"]
             elif code in DRILLING_METRE_CODES:
                 ur = 0; qty = 0; lc = 0; rb = "drilling time covered by metreage; no metres recorded"
 
@@ -2135,7 +2355,7 @@ async def import_pdf(
                         break
 
             # Not chargeable
-            if lc is None and code in NOT_CHARGEABLE:
+            if lc is None and is_not_chargeable_code(code, contractor):
                 ur = 0; qty = round(hours,2) if hours > 0 else 1; lc = 0; rb = "not chargeable"
 
             # Standby/inactive
@@ -2330,6 +2550,7 @@ async def ai_fix_import_rates(request: Request):
             cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
             all_cr = [dict(r) for r in cur.fetchall()]
             rate_context = build_rate_context(all_hr, all_dr, all_cr)
+            locked_keys = locked_activity_sheet_keys(cur, contractor)
 
             cur.execute("""
                 SELECT * FROM activities
@@ -2338,8 +2559,10 @@ async def ai_fix_import_rates(request: Request):
                 LIMIT %s
             """, (contractor, limit))
             activities = [dict(r) for r in cur.fetchall()]
+            locked_activity_count = sum(1 for r in activities if row_is_in_locked_sheet(r, locked_keys))
+            activities = [r for r in activities if not row_is_in_locked_sheet(r, locked_keys)]
 
-            hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE)
+            hourly_codes = set(rate_context["hourly_any"].keys()) | set(NOT_CHARGEABLE) | set(MITCHELLS_NOT_CHARGEABLE)
             fuzzy_activity_rows = [
                 r for r in activities
                 if row_num(r.get("total_metres")) <= 0
@@ -2367,6 +2590,8 @@ async def ai_fix_import_rates(request: Request):
                 LIMIT %s
             """, (contractor, limit))
             consumables = [dict(r) for r in cur.fetchall()]
+            locked_consumable_count = sum(1 for r in consumables if row_is_in_locked_sheet(r, locked_keys))
+            consumables = [r for r in consumables if not row_is_in_locked_sheet(r, locked_keys)]
 
             product_lookup = {}
             for r in all_cr:
@@ -2456,6 +2681,8 @@ async def ai_fix_import_rates(request: Request):
         "activities_changed": len(activity_changes),
         "consumables_changed": len(consumable_changes),
         "consumable_rates_added": len(new_consumable_rates),
+        "locked_activities_skipped": locked_activity_count,
+        "locked_consumables_skipped": locked_consumable_count,
         "activity_changes": activity_changes[:100],
         "consumable_changes": consumable_changes[:100],
         "new_consumable_rates": new_consumable_rates[:100],
@@ -2466,19 +2693,35 @@ def cleanup_coreplan_doubleups_for_contractor(contractor: str):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                DELETE FROM activities
-                WHERE contractor=%s
-                  AND notes='CorePlan report total adjustment'
+                DELETE FROM activities a
+                WHERE a.contractor=%s
+                  AND a.notes='CorePlan report total adjustment'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM activity_sheet_locks l
+                    WHERE l.contractor=a.contractor
+                      AND l.report_date=COALESCE(a.date,'')
+                      AND l.hole_num=COALESCE(a.hole_num,'')
+                      AND l.source_file=COALESCE(a.source_file,'')
+                      AND l.locked=TRUE
+                  )
             """, (contractor,))
             deleted_adjustments = cur.rowcount
 
             cur.execute("""
-                UPDATE activities
+                UPDATE activities a
                 SET total_time='0:00', time_from='', time_to=''
-                WHERE contractor=%s
-                  AND code='H_Min_Shift'
-                  AND COALESCE(notes,'') ILIKE '%%minimum shift charge%%'
-                  AND COALESCE(total_time,'') NOT IN ('', '0', '0:00', '00:00')
+                WHERE a.contractor=%s
+                  AND a.code='H_Min_Shift'
+                  AND COALESCE(a.notes,'') ILIKE '%%minimum shift charge%%'
+                  AND COALESCE(a.total_time,'') NOT IN ('', '0', '0:00', '00:00')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM activity_sheet_locks l
+                    WHERE l.contractor=a.contractor
+                      AND l.report_date=COALESCE(a.date,'')
+                      AND l.hole_num=COALESCE(a.hole_num,'')
+                      AND l.source_file=COALESCE(a.source_file,'')
+                      AND l.locked=TRUE
+                  )
             """, (contractor,))
             zeroed_minimum_shift_rows = cur.rowcount
         conn.commit()
@@ -2522,6 +2765,141 @@ def report_approval_response(row):
         "reason": row.get("reason") or "",
         "log": row.get("log") or [],
     }
+
+
+def activity_sheet_lock_params(contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    return {
+        "contractor": contractor or "Allianz Drilling",
+        "report_date": report_date or "",
+        "hole_num": hole_num or "",
+        "source_file": source_file or "",
+    }
+
+
+def activity_sheet_lock_response(row):
+    if not row:
+        return {"locked": False, "reason": "", "updated_at": ""}
+    return {
+        "contractor": row.get("contractor") or "",
+        "report_date": row.get("report_date") or "",
+        "hole_num": row.get("hole_num") or "",
+        "source_file": row.get("source_file") or "",
+        "locked": bool(row.get("locked")),
+        "reason": row.get("reason") or "",
+        "updated_at": str(row.get("updated_at") or ""),
+    }
+
+
+def activity_row_lock_key(row: dict):
+    return activity_sheet_lock_params(
+        row.get("contractor") or "Allianz Drilling",
+        row.get("date") or "",
+        row.get("hole_num") or "",
+        row.get("source_file") or "",
+    )
+
+
+def activity_sheet_is_locked(cur, contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    key = activity_sheet_lock_params(contractor, report_date, hole_num, source_file)
+    cur.execute(
+        """
+        SELECT locked FROM activity_sheet_locks
+        WHERE contractor=%(contractor)s
+          AND report_date=%(report_date)s
+          AND hole_num=%(hole_num)s
+          AND source_file=%(source_file)s
+        """,
+        key,
+    )
+    row = cur.fetchone()
+    return bool(row and row.get("locked"))
+
+
+def locked_activity_sheet_keys(cur, contractor: str):
+    cur.execute(
+        """
+        SELECT contractor, report_date, hole_num, source_file
+        FROM activity_sheet_locks
+        WHERE contractor=%s AND locked=TRUE
+        """,
+        (contractor,),
+    )
+    return {
+        (r.get("contractor") or "", r.get("report_date") or "", r.get("hole_num") or "", r.get("source_file") or "")
+        for r in cur.fetchall()
+    }
+
+
+def row_is_in_locked_sheet(row: dict, locked_keys: set):
+    key = (
+        row.get("contractor") or "",
+        row.get("date") or "",
+        row.get("hole_num") or "",
+        row.get("source_file") or "",
+    )
+    return key in locked_keys
+
+
+@app.get("/activity-sheet-locks")
+def get_activity_sheet_locks(
+    contractor: str = Query(...),
+    dates: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    hole: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+):
+    conds = ["contractor=%(contractor)s"]
+    params = {"contractor": contractor}
+    if dates and dates.strip():
+        dl = [d.strip() for d in dates.split(",") if d.strip()]
+        if dl:
+            conds.append("report_date=ANY(%(dates)s)")
+            params["dates"] = dl
+    if date is not None:
+        conds.append("report_date=%(date)s")
+        params["date"] = date or ""
+    if hole is not None:
+        conds.append("hole_num=%(hole)s")
+        params["hole"] = hole or ""
+    if source is not None:
+        conds.append("source_file=%(source)s")
+        params["source"] = source or ""
+    q = f"SELECT * FROM activity_sheet_locks WHERE {' AND '.join(conds)} ORDER BY updated_at DESC"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(q, params)
+            rows = [dict(r) for r in cur.fetchall()]
+    if date is not None or hole is not None or source is not None:
+        return activity_sheet_lock_response(rows[0] if rows else None)
+    return [activity_sheet_lock_response(r) for r in rows]
+
+
+@app.post("/activity-sheet-locks")
+async def save_activity_sheet_lock(request: Request):
+    payload = await request.json()
+    key = activity_sheet_lock_params(
+        payload.get("contractor") or "Allianz Drilling",
+        payload.get("date") or payload.get("report_date") or "",
+        payload.get("hole") or payload.get("hole_num") or "",
+        payload.get("source") or payload.get("source_file") or "",
+    )
+    locked = bool(payload.get("locked", True))
+    reason = (payload.get("reason") or "").strip()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO activity_sheet_locks (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
+                VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(locked)s, %(reason)s, NOW())
+                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
+                RETURNING *
+                """,
+                {**key, "locked": locked, "reason": reason},
+            )
+            saved = dict(cur.fetchone())
+        conn.commit()
+    return activity_sheet_lock_response(saved)
 
 
 @app.get("/report-approvals")
@@ -2708,6 +3086,16 @@ def reprice_activity_row(row_id: int):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(404, "Activity not found")
+            if activity_sheet_is_locked(
+                cur,
+                row.get("contractor") or "Allianz Drilling",
+                row.get("date") or "",
+                row.get("hole_num") or "",
+                row.get("source_file") or "",
+            ):
+                locked_row = dict(row)
+                locked_row["_locked"] = True
+                return locked_row
             priced = price_activity(cur, dict(row), row["contractor"])
             updates = {
                 "rate_year": priced.get("rate_year"),
@@ -4327,7 +4715,7 @@ def reprice_activities(contractor: str = Query(...)):
             return f"{int(m.group(1)):02d}/{mon}/{m.group(3)}"
         return d
 
-    stats = {"total":0,"dates_fixed":0,"holes_fixed":0,"sites_fixed":0,"priced":0}
+    stats = {"total":0,"dates_fixed":0,"holes_fixed":0,"sites_fixed":0,"priced":0,"locked_skipped":0}
     skipped_codes = {}
 
     with get_conn() as conn:
@@ -4336,6 +4724,7 @@ def reprice_activities(contractor: str = Query(...)):
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
             stats["total"] = len(rows)
+            locked_keys = locked_activity_sheet_keys(cur, contractor)
 
             cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
             all_dr = [dict(r) for r in cur.fetchall()]
@@ -4391,6 +4780,9 @@ def reprice_activities(contractor: str = Query(...)):
         # ── Process all rows in memory ────────────────────────────────
         batch_updates = []
         for row in rows:
+            if row_is_in_locked_sheet(row, locked_keys):
+                stats["locked_skipped"] += 1
+                continue
             updates = {}
             rid = row["id"]
 
@@ -4440,12 +4832,12 @@ def reprice_activities(contractor: str = Query(...)):
 
             # Drilling metres
             if metres > 0 and bit_type:
-                bk = normalise_drilling_bit_key(bit_type, code, row.get("notes"))
-                if depth is not None:
-                    r = get_dr_mem(bk, depth, year)
-                    if r is not None:
-                        unit_rate = r; quantity = round(metres,2)
-                        line_cost = round(r * metres, 2); rate_basis = f"${r:.2f}/m x {metres:.2f}m"
+                priced = drilling_schedule_cost(row, rate_context)
+                if priced is not None:
+                    unit_rate = priced["unit_rate"]
+                    quantity = priced["quantity"]
+                    line_cost = priced["line_cost"]
+                    rate_basis = priced["rate_basis"]
             elif code in DRILLING_METRE_CODES:
                 unit_rate = 0; quantity = 0; line_cost = 0
                 rate_basis = "drilling time covered by metreage; no metres recorded"
@@ -4460,7 +4852,7 @@ def reprice_activities(contractor: str = Query(...)):
                         break
 
             # Not chargeable
-            if line_cost is None and code in NOT_CHARGEABLE:
+            if line_cost is None and is_not_chargeable_code(code, contractor):
                 unit_rate = 0; quantity = round(hours,2) if hours > 0 else 1
                 line_cost = 0; rate_basis = "not chargeable"
 
@@ -4528,7 +4920,11 @@ def reprice_activities(contractor: str = Query(...)):
                     cr_lookup[key.replace(" ", "")] = float(r["unit_price"] or 0)
 
                 cons_priced = 0
+                cons_locked_skipped = 0
                 for crow in cons_rows:
+                    if row_is_in_locked_sheet(crow, locked_keys):
+                        cons_locked_skipped += 1
+                        continue
                     product = (crow.get("consumable") or crow.get("type") or "").strip()
                     product_upper = product.upper()
                     product_nospace = product_upper.replace(" ", "")
@@ -4555,10 +4951,12 @@ def reprice_activities(contractor: str = Query(...)):
 
                 stats["consumables_priced"] = cons_priced
                 stats["consumables_total"] = len(cons_rows)
+                stats["consumables_locked_skipped"] = cons_locked_skipped
             except Exception as e:
                 stats["consumables_error"] = str(e)
                 stats["consumables_priced"] = 0
                 stats["consumables_total"] = 0
+                stats["consumables_locked_skipped"] = 0
 
         conn.commit()
 
@@ -4569,8 +4967,10 @@ def reprice_activities(contractor: str = Query(...)):
         "holes_fixed": stats["holes_fixed"],
         "sites_fixed": stats["sites_fixed"],
         "priced": stats["priced"],
+        "locked_skipped": stats["locked_skipped"],
         "consumables_priced": stats.get("consumables_priced", 0),
         "consumables_total": stats.get("consumables_total", 0),
+        "consumables_locked_skipped": stats.get("consumables_locked_skipped", 0),
         "drilling_rate_years": dr_years,
         "hourly_rate_years": hr_years,
         "skipped_codes": skipped_codes,
@@ -5102,12 +5502,49 @@ async def upload_dxf(
     """Parse a DXF file and return GeoJSON for Leaflet overlay.
     Converts from the specified EPSG (default MGA Zone 55) to WGS84."""
     import ezdxf
+    import os
+    import tempfile
+    import zipfile
+    from ezdxf import recover
     from pyproj import Transformer
 
     content = await file.read()
+    filename = file.filename or "overlay.dxf"
+
+    if filename.lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(BytesIO(content)) as zf:
+                dxf_names = [n for n in zf.namelist() if n.lower().endswith(".dxf")]
+                if not dxf_names:
+                    raise HTTPException(400, "ZIP does not contain a DXF file")
+                filename = dxf_names[0].split("/")[-1] or dxf_names[0]
+                content = zf.read(dxf_names[0])
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(400, f"Cannot read zipped DXF: {str(e)}")
+
+    def read_dxf_document(dxf_bytes: bytes):
+        try:
+            text = dxf_bytes.decode("utf-8", errors="replace")
+            return ezdxf.read(StringIO(text))
+        except Exception:
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".dxf") as tmp:
+                    tmp.write(dxf_bytes)
+                    tmp_path = tmp.name
+                doc, _auditor = recover.readfile(tmp_path)
+                return doc
+            finally:
+                if tmp_path:
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
 
     try:
-        doc = ezdxf.read(BytesIO(content))
+        doc = read_dxf_document(content)
     except Exception as e:
         raise HTTPException(400, f"Cannot read DXF: {str(e)}")
 
@@ -5116,7 +5553,8 @@ async def upload_dxf(
     def to_wgs84(x, y):
         try:
             lng, lat = transformer.transform(float(x), float(y))
-            if -90 <= lat <= 90 and -180 <= lng <= 180:
+            # EPSG:20355 mine drawings should land in Australia; skip drawing-sheet outliers.
+            if 110 <= lng <= 155 and -45 <= lat <= -10:
                 return [lng, lat]
         except:
             pass
@@ -5223,7 +5661,7 @@ async def upload_dxf(
 
     return {
         "status": "ok",
-        "filename": file.filename,
+        "filename": filename,
         "entity_count": len(features),
         "layers": layers,
         "epsg": epsg,
