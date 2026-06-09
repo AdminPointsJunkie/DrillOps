@@ -575,27 +575,29 @@ BIT_TYPE_MAP = {"HQ_HQ3":"HQ_HQ3","HQ":"HQ_HQ3","NQ":"HQ_HQ3","4C":"4C","PCD":"P
 
 
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
-    text = f"{bit_type or ''} {code or ''} {notes or ''}".upper().replace(" ", "_")
+    text = f"{bit_type or ''} {code or ''} {notes or ''}".upper()
+    compact = re.sub(r"[\s/-]+", "_", text)
+    tokens = set(re.findall(r"[A-Z0-9.]+", text))
     if "4C" in text or "101.6" in text:
         return "4C"
     if "HQ" in text or "NQ" in text:
         return "HQ_HQ3"
     if "HAMMER" in text:
-        if "175" in text or "_L" in text:
+        if "175" in text or "HAMMER_L" in compact or "L" in tokens:
             return "HAMMER_L"
-        if "125" in text or "_M" in text:
+        if "125" in text or "HAMMER_M" in compact or "M" in tokens:
             return "HAMMER_M"
         return "HAMMER_S"
     if "BLADE" in text:
-        if "175" in text or "_L" in text:
+        if "175" in text or "BLADE_L" in compact or "L" in tokens:
             return "BLADE_L"
-        if "125" in text or "_M" in text:
+        if "125" in text or "BLADE_M" in compact or "M" in tokens:
             return "BLADE_M"
         return "BLADE_S"
     if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
-        if "175" in text or "_L" in text:
+        if "175" in text or "PCD_L" in compact or "L" in tokens:
             return "PCD_L"
-        if "125" in text or "_M" in text:
+        if "125" in text or "PCD_M" in compact or "M" in tokens:
             return "PCD_M"
         return "PCD_S"
     return "PCD_S" if "CHIP" in text else "HQ_HQ3"
