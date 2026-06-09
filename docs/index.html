@@ -62,7 +62,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 header{display:flex;align-items:center;justify-content:flex-start;gap:16px;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:900;box-shadow:var(--shadow);}
 .logo{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:0;line-height:1;white-space:nowrap;}
 .logo span{color:var(--text);}
-#contractor-switcher{flex:1;}
+#contractor-switcher{flex:1;min-width:0;}
 .header-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
 .header-meta{font-size:12px;color:var(--muted);}
 #db-count{color:var(--accent);font-weight:600;}
@@ -76,8 +76,9 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:16px;paddi
 .hamburger.open span:nth-child(3){transform:translateY(-5.5px) rotate(-45deg);}
 
 /* Contractor switcher */
-#contractor-switcher{display:flex;gap:4px;flex-wrap:wrap;}
-.con-btn{padding:4px 12px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;border-radius:20px;transition:all 0.15s;white-space:nowrap;}
+#contractor-switcher{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px 0;}
+#contractor-switcher::-webkit-scrollbar{display:none;}
+.con-btn{padding:5px 12px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:20px;transition:all 0.15s;white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
 .con-btn:hover{border-color:var(--accent);color:var(--accent);}
 .con-btn.active{border-color:var(--accent);color:#fff;background:var(--accent);}
 .active-contractor-pill{font-size:12px;font-weight:700;color:#174d72;background:#eaf2f9;border:1px solid #c9dcea;border-radius:999px;padding:6px 12px;white-space:nowrap;}
@@ -1475,7 +1476,7 @@ tbody td[contenteditable=true]:focus {
     <span></span><span></span><span></span>
   </button>
   <div class="logo">Drill<span>Ops</span></div>
-  <div class="active-contractor-pill" id="active-contractor-label">Allianz Drilling</div>
+  <div id="contractor-switcher" aria-label="Contractor switcher"></div>
   <div class="header-right">
     <div class="header-meta"><span id="db-count">—</span> records</div>
   </div>
@@ -2702,6 +2703,19 @@ function groupDailyReports(rows){
 function buildContractorSwitcher(){
   const label=document.getElementById('active-contractor-label');
   if(label)label.textContent=activeContractor;
+  const switcher=document.getElementById('contractor-switcher');
+  if(switcher){
+    switcher.innerHTML=CONTRACTORS.map(function(c){
+      const active=c.name===activeContractor;
+      const code=c.short_code ? ' · '+c.short_code : '';
+      return '<button class="con-btn '+(active?'active':'')+'" type="button" data-contractor="'+attr(c.name)+'" title="'+attr(c.name+code)+'">'+esc(c.name)+'</button>';
+    }).join('');
+    switcher.querySelectorAll('.con-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        if(btn.dataset.contractor&&btn.dataset.contractor!==activeContractor) switchContractor(btn.dataset.contractor);
+      });
+    });
+  }
   // Update clear button label
   const cn=document.getElementById('clear-con-name');
   if(cn)cn.textContent=activeContractor;
