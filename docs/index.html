@@ -6244,18 +6244,11 @@ async function importBudgetToDb() {
   } catch(e) { toast('Save failed: '+e.message,'err'); }
 }
 
-// ── Mine Drawing GeoJSON Overlays ─────────────────────────────────────────────
+// ── Mine Drawing Image Overlays ───────────────────────────────────────────────
 var mapOverlayLayers = [];
 var mapOverlaysAutoLoaded = false;
 var mapOverlayLoadSummary = [];
 var mapOverlayProjectKey = '';
-var OVERLAY_COLORS = {
-  1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',5:'#0000ff',
-  6:'#ff00ff',7:'#333333',8:'#888888',9:'#aaaaaa',
-  30:'#ff6600',40:'#ff9900',50:'#cccc00',60:'#00cc66',
-  70:'#0099cc',80:'#3366ff',90:'#6633ff',140:'#ff3399',
-};
-function overlayColor(c) { return OVERLAY_COLORS[c] || '#e74c3c'; }
 
 function setMapOverlayStatus(message, isError) {
   var el = document.getElementById('map-overlay-status');
@@ -6283,11 +6276,11 @@ function fitMapToVisibleContent() {
 
 function mapOverlayAssetsForProject(projectName) {
   var p = String(projectName||'').toLowerCase();
-  if(p.includes('iron')) return [{path:'assets/map-overlays/IB001.geojson', name:'IB001 GeoJSON'}];
-  if(p.includes('carb') || p.includes('cd')) return [{path:'assets/map-overlays/CD001.geojson', name:'CD001 GeoJSON'}];
+  if(p.includes('iron')) return [{path:'assets/map-overlays/IB001-overlay.png', name:'IB001', bounds:[[-21.85432055,148.15204156],[-21.73056905,148.22051483]]}];
+  if(p.includes('carb') || p.includes('cd')) return [{path:'assets/map-overlays/CD001-overlay.png', name:'CD001', bounds:[[-22.01854530,148.23160263],[-21.95253461,148.29458790]]}];
   return [
-    {path:'assets/map-overlays/IB001.geojson', name:'IB001 GeoJSON'},
-    {path:'assets/map-overlays/CD001.geojson', name:'CD001 GeoJSON'}
+    {path:'assets/map-overlays/IB001-overlay.png', name:'IB001', bounds:[[-21.85432055,148.15204156],[-21.73056905,148.22051483]]},
+    {path:'assets/map-overlays/CD001-overlay.png', name:'CD001', bounds:[[-22.01854530,148.23160263],[-21.95253461,148.29458790]]}
   ];
 }
 
@@ -6308,79 +6301,22 @@ async function loadDefaultMapOverlays(forceReload) {
   setMapOverlayStatus('Mine drawings loading for '+key+'...');
   var assets = mapOverlayAssetsForProject(project);
   for(var i=0;i<assets.length;i++) {
-    await loadBundledGeojsonOverlay(assets[i].path, assets[i].name, true);
+    loadImageMapOverlay(assets[i]);
   }
   if(mapOverlayLoadSummary.length) {
     setMapOverlayStatus('Mine drawings loaded for '+key+': '+mapOverlayLoadSummary.join(', '));
   }
 }
 
-async function loadBundledGeojsonOverlay(path, filename, deferFit) {
-  toast('Loading '+filename+'...');
-  try {
-    var res = await fetch(path);
-    if(!res.ok) { toast('GeoJSON asset not found: '+res.status, 'err'); return; }
-    var geojson = await res.json();
-    var layers = Array.from(new Set((geojson.features||[]).map(function(f){
-      var p = f.properties || {};
-      return p.layer || p.Layer || '';
-    }).filter(Boolean))).sort();
-    renderMapOverlay(geojson, layers, filename, !!deferFit);
-    mapOverlayLoadSummary.push(filename.replace(' GeoJSON','')+' '+(geojson.features||[]).length.toLocaleString());
-    toast('\u2713 '+filename+' loaded: '+(geojson.features||[]).length+' features');
-  } catch(e) {
-    setMapOverlayStatus(filename+' failed to load: '+e.message, true);
-    toast('GeoJSON failed: '+e.message, 'err');
-  }
-}
-
-function renderMapOverlay(geojson, layers, filename, deferFit) {
-  if(!bhMap) { toast('Map not ready','err'); return; }
-  var layer = L.geoJSON(geojson, {
-    renderer: L.canvas({padding:0.5}),
-    style: function(feature) {
-      feature.properties = feature.properties || {};
-      if(!feature.properties.layer && feature.properties.Layer) feature.properties.layer = feature.properties.Layer;
-      if(!feature.properties.text && feature.properties.Text) feature.properties.text = feature.properties.Text;
-      if(!feature.properties.type) feature.properties.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
-      var col = overlayColor(feature.properties.color);
-      return {
-        color: col, weight: feature.properties.type==='polygon'?2:1.5,
-        opacity: 0.85, fillColor: col,
-        fillOpacity: feature.properties.type==='polygon'?0.1:0,
-      };
-    },
-    pointToLayer: function(feature, latlng) {
-      feature.properties = feature.properties || {};
-      if(!feature.properties.text && feature.properties.Text) feature.properties.text = feature.properties.Text;
-      if(!feature.properties.type) feature.properties.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
-      if(feature.properties.type==='text') {
-        return L.marker(latlng, {icon: L.divIcon({
-          html: '<div style="font-size:9px;color:'+overlayColor(feature.properties.color)+';white-space:nowrap;text-shadow:1px 1px 1px rgba(0,0,0,0.5);">'+feature.properties.text+'</div>',
-          className:'', iconSize:[100,14], iconAnchor:[0,7]
-        })});
-      }
-      if(feature.properties.type==='circle') {
-        return L.circle(latlng, {radius:feature.properties.radius||5,
-          color:overlayColor(feature.properties.color), weight:1.5, fillOpacity:0.1});
-      }
-      return L.circleMarker(latlng, {radius:3,
-        color:overlayColor(feature.properties.color), weight:1, fillOpacity:0.8});
-    },
-    onEachFeature: function(feature, layer) {
-      var props = feature.properties || {};
-      if(!props.layer && props.Layer) props.layer = props.Layer;
-      if(!props.type) props.type = (feature.geometry && feature.geometry.type ? feature.geometry.type : 'geometry').toLowerCase();
-      var popup = '<div style="font-family:Inter,sans-serif;font-size:12px;">';
-      popup += '<b>Layer:</b> '+(props.layer||'')+'<br><b>Type:</b> '+props.type;
-      if(props.text) popup += '<br><b>Text:</b> '+props.text;
-      popup += '</div>';
-      layer.bindPopup(popup);
-    }
+function loadImageMapOverlay(asset) {
+  if(!bhMap) { setMapOverlayStatus('Map not ready', true); return; }
+  var layer = L.imageOverlay(asset.path, asset.bounds, {opacity:0.9, interactive:false});
+  layer.on('error', function(){
+    setMapOverlayStatus(asset.name+' drawing failed to load', true);
   });
   layer.addTo(bhMap);
-  mapOverlayLayers.push({name:filename, layer:layer});
-  if(!deferFit) fitMapToVisibleContent();
+  mapOverlayLayers.push({name:asset.name, layer:layer});
+  mapOverlayLoadSummary.push(asset.name);
 }
 
 

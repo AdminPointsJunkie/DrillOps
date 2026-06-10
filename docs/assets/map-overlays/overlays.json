@@ -1,0 +1,36 @@
+[
+  {
+    "name": "IB001 Drawing",
+    "path": "assets/map-overlays/IB001-overlay.png",
+    "bounds": [
+      [
+        -21.85432055,
+        148.15204156
+      ],
+      [
+        -21.73056905,
+        148.22051483
+      ]
+    ],
+    "line_count": 12975,
+    "width": 4096,
+    "height": 4096
+  },
+  {
+    "name": "CD001 Drawing",
+    "path": "assets/map-overlays/CD001-overlay.png",
+    "bounds": [
+      [
+        -22.0185453,
+        148.23160263
+      ],
+      [
+        -21.95253461,
+        148.2945879
+      ]
+    ],
+    "line_count": 93138,
+    "width": 4096,
+    "height": 4096
+  }
+]
