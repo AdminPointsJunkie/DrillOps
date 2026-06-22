@@ -4957,7 +4957,7 @@ def reprice_activities(contractor: str = Query(...)):
             line_cost = None; unit_rate = None; quantity = None; rate_basis = None
 
             # Drilling metres
-            if metres > 0 and bit_type:
+            if metres > 0 and bit_type and mf is not None and mt is not None:
                 priced = drilling_schedule_cost(row, rate_context)
                 if priced is not None:
                     unit_rate = priced["unit_rate"]
