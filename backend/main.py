@@ -4872,6 +4872,8 @@ def reprice_activities(contractor: str = Query(...)):
             if key not in dr_lookup: dr_lookup[key] = []
             dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
 
+        rate_context = build_rate_context(all_hr, all_dr)
+
         def get_hr_mem(code, year):
             for try_year in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
                 r = hr_lookup.get((try_year, code))

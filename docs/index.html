@@ -4428,9 +4428,11 @@ async function recalculateDatabaseFromRates(){
     if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
     const cleanup=d.cleanup||{};
     const reprice=d.reprice||{};
+    const topups=reprice.minimum_shift_topups||{};
     const match=d.invoice_match_summary||{};
     const lockedText=(reprice.locked_skipped||reprice.consumables_locked_skipped)?' ('+(reprice.locked_skipped||0)+' locked activities skipped, '+(reprice.consumables_locked_skipped||0)+' locked consumables skipped)':'';
-    toast('Recalculated '+(reprice.priced||0)+' activities, '+(reprice.consumables_priced||0)+' consumables, '+(d.invoices_rematched||0)+' invoices'+lockedText);
+    const topupText=topups.inserted?(', '+topups.inserted+' minimum shift top-ups added'):'';
+    toast('Recalculated '+(reprice.priced||0)+' activities, '+(reprice.consumables_priced||0)+' consumables, '+(d.invoices_rematched||0)+' invoices'+topupText+lockedText);
     alert(
       'Database recalculated for '+activeContractor+'\\n\\n'
       +'Activities repriced: '+(reprice.priced||0)+' / '+(reprice.total||0)+'\\n'
@@ -4439,6 +4441,7 @@ async function recalculateDatabaseFromRates(){
       +'Locked consumables skipped: '+(reprice.consumables_locked_skipped||0)+'\\n'
       +'CorePlan adjustment rows removed: '+(cleanup.deleted_adjustments||0)+'\\n'
       +'Minimum shift duration rows zeroed: '+(cleanup.zeroed_minimum_shift_rows||0)+'\\n'
+      +'Minimum shift top-ups refreshed: '+(topups.deleted||0)+' removed, '+(topups.inserted||0)+' added\\n'
       +'Invoices rematched: '+(d.invoices_rematched||0)+'\\n'
       +'Invoice lines accounted for: '+(match.accounted_lines||0)+' / '+(match.line_count||0)+'\\n'
       +'Invoice variance: '+cur(match.variance||0)
