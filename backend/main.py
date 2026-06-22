@@ -685,6 +685,7 @@ DRILLING_METRE_CODES = {"Drill_Core", "Drill_Chip_or_Open_hole"}
 ALLIANZ_MIN_SHIFT_COST = 8940.00
 ALLIANZ_MIN_SHIFT_ACTIVE_RATE = 745.00
 ALLIANZ_MIN_SHIFT_TOPUP_NOTE = "Allianz minimum shift top-up to $8,940"
+SUPPORT_EQUIPMENT_CODE_RE = re.compile(r"^D_(Backhoe|Water)", re.I)
 # Codes charged at Active rate ($/hr)
 ACTIVE_CODES = {
     "H_Tripping_Rods","H_Circulation_Flush","H_Circulation_Lost",
@@ -747,22 +748,27 @@ def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
         if row.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE:
             continue
         key = allianz_minimum_shift_group_key(row)
-        group = groups.setdefault(key, {"base": row, "drilling_cost": 0.0, "has_drilling": False, "has_min_shift": False})
-        if row.get("code") in DRILLING_METRE_CODES:
-            group["has_drilling"] = True
-            try:
-                group["drilling_cost"] += float(row.get("line_cost") or 0)
-            except (TypeError, ValueError):
-                pass
-        elif row.get("code") == "H_Min_Shift":
+        group = groups.setdefault(key, {"base": row, "drilling_cost": 0.0, "has_drilling_cost": False, "has_min_shift": False})
+        code = row.get("code") or ""
+        if code == "H_Min_Shift":
             try:
                 group["has_min_shift"] = group["has_min_shift"] or float(row.get("line_cost") or 0) > 0
             except (TypeError, ValueError):
                 pass
+            continue
+        if SUPPORT_EQUIPMENT_CODE_RE.search(code):
+            continue
+        try:
+            line_cost = float(row.get("line_cost") or 0)
+        except (TypeError, ValueError):
+            line_cost = 0
+        if line_cost > 0:
+            group["has_drilling_cost"] = True
+            group["drilling_cost"] += line_cost
 
     topups = []
     for group in groups.values():
-        if not group["has_drilling"] or group["has_min_shift"]:
+        if not group["has_drilling_cost"] or group["has_min_shift"]:
             continue
         drilling_cost = round(group["drilling_cost"], 2)
         topup = round(ALLIANZ_MIN_SHIFT_COST - drilling_cost, 2)
@@ -795,7 +801,7 @@ def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
             "unit_rate": ALLIANZ_MIN_SHIFT_ACTIVE_RATE,
             "quantity": active_hours,
             "line_cost": topup,
-            "rate_basis": f"Allianz minimum shift: drilling ${drilling_cost:,.2f} + top-up ${topup:,.2f} = ${ALLIANZ_MIN_SHIFT_COST:,.2f}",
+            "rate_basis": f"Allianz minimum shift: drilling activity ${drilling_cost:,.2f} + top-up ${topup:,.2f} = ${ALLIANZ_MIN_SHIFT_COST:,.2f}",
             "po_id": None,
         })
     return topups
