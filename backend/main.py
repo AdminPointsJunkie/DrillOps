@@ -2863,6 +2863,14 @@ async def cleanup_coreplan_doubleups(request: Request):
     return {"status": "cleaned", "contractor": contractor, **result}
 
 
+@app.post("/rates/minimum-shift-topups")
+async def refresh_minimum_shift_topups(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor", "Allianz Drilling")
+    result = sync_allianz_minimum_shift_topups(contractor)
+    return {"status": "refreshed", "contractor": contractor, "minimum_shift_topups": result}
+
+
 def normalize_report_approval_status(status: str):
     status = (status or "").strip().lower()
     return status if status in {"approved", "query", "rejected"} else ""
@@ -5112,7 +5120,9 @@ async def recalculate_database_from_rates(request: Request):
     contractor = payload.get("contractor", "Allianz Drilling")
 
     cleanup = cleanup_coreplan_doubleups_for_contractor(contractor)
+    minimum_shift_topups = sync_allianz_minimum_shift_topups(contractor)
     reprice = reprice_activities(contractor)
+    reprice["minimum_shift_topups"] = reprice.get("minimum_shift_topups") or minimum_shift_topups
 
     with get_conn() as conn:
         with conn.cursor() as cur:
