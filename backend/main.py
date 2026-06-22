@@ -682,6 +682,9 @@ apply_mitchells_contract_exceptions()
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
 DRILLING_METRE_CODES = {"Drill_Core", "Drill_Chip_or_Open_hole"}
+ALLIANZ_MIN_SHIFT_COST = 8940.00
+ALLIANZ_MIN_SHIFT_ACTIVE_RATE = 745.00
+ALLIANZ_MIN_SHIFT_TOPUP_NOTE = "Allianz minimum shift top-up to $8,940"
 # Codes charged at Active rate ($/hr)
 ACTIVE_CODES = {
     "H_Tripping_Rods","H_Circulation_Flush","H_Circulation_Lost",
@@ -723,6 +726,85 @@ def is_not_chargeable_code(code: str, contractor: str = "") -> bool:
     if code in NOT_CHARGEABLE:
         return True
     return contractor == "Mitchells Drilling" and code in MITCHELLS_NOT_CHARGEABLE
+
+
+def allianz_minimum_shift_group_key(row: dict):
+    return (
+        row.get("source_file") or "",
+        row.get("date") or "",
+        row.get("hole_num") or "",
+        row.get("site_name") or "",
+        row.get("contract") or "",
+        row.get("shift") or "",
+    )
+
+
+def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
+    groups = {}
+    for row in rows:
+        if row.get("contractor") != "Allianz Drilling":
+            continue
+        if row.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE:
+            continue
+        key = allianz_minimum_shift_group_key(row)
+        group = groups.setdefault(key, {"base": row, "drilling_cost": 0.0, "has_drilling": False, "has_min_shift": False})
+        if row.get("code") in DRILLING_METRE_CODES:
+            group["has_drilling"] = True
+            try:
+                group["drilling_cost"] += float(row.get("line_cost") or 0)
+            except (TypeError, ValueError):
+                pass
+        elif row.get("code") == "H_Min_Shift":
+            try:
+                group["has_min_shift"] = group["has_min_shift"] or float(row.get("line_cost") or 0) > 0
+            except (TypeError, ValueError):
+                pass
+
+    topups = []
+    for group in groups.values():
+        if not group["has_drilling"] or group["has_min_shift"]:
+            continue
+        drilling_cost = round(group["drilling_cost"], 2)
+        topup = round(ALLIANZ_MIN_SHIFT_COST - drilling_cost, 2)
+        if topup <= 0:
+            continue
+        base = group["base"]
+        active_hours = round(topup / ALLIANZ_MIN_SHIFT_ACTIVE_RATE, 2)
+        topups.append({
+            "source_file": base.get("source_file"),
+            "contractor": "Allianz Drilling",
+            "date": base.get("date"),
+            "hole_num": base.get("hole_num"),
+            "site_name": base.get("site_name"),
+            "location": base.get("location"),
+            "drill_rig": base.get("drill_rig"),
+            "client": base.get("client"),
+            "contract": base.get("contract"),
+            "shift": base.get("shift"),
+            "time_from": "",
+            "time_to": "",
+            "total_time": "0:00",
+            "bit_type": "",
+            "diameter": "",
+            "metres_from": None,
+            "metres_to": None,
+            "total_metres": None,
+            "code": "H_Min_Shift",
+            "notes": ALLIANZ_MIN_SHIFT_TOPUP_NOTE,
+            "rate_year": extract_year(base.get("date") or ""),
+            "unit_rate": ALLIANZ_MIN_SHIFT_ACTIVE_RATE,
+            "quantity": active_hours,
+            "line_cost": topup,
+            "rate_basis": f"Allianz minimum shift: drilling ${drilling_cost:,.2f} + top-up ${topup:,.2f} = ${ALLIANZ_MIN_SHIFT_COST:,.2f}",
+            "po_id": None,
+        })
+    return topups
+
+
+def apply_allianz_minimum_shift_topups_to_rows(rows: list[dict]) -> list[dict]:
+    if not rows:
+        return rows
+    return rows + build_allianz_minimum_shift_topups(rows)
 
 
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
@@ -2208,6 +2290,8 @@ async def import_pdf(
                 if cur.fetchone():
                     return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
 
+        acts = apply_allianz_minimum_shift_topups_to_rows(acts)
+
         with get_conn() as conn:
             with conn.cursor() as cur:
                 if acts:
@@ -2389,6 +2473,7 @@ async def import_pdf(
 
         # Price all activities in memory
         acts = [_price_row(row) for row in acts]
+        acts = apply_allianz_minimum_shift_topups_to_rows(acts)
 
         # Price consumables
         for c in cons:
@@ -2729,6 +2814,45 @@ def cleanup_coreplan_doubleups_for_contractor(contractor: str):
         "deleted_adjustments": deleted_adjustments,
         "zeroed_minimum_shift_rows": zeroed_minimum_shift_rows,
     }
+
+
+def sync_allianz_minimum_shift_topups(contractor: str):
+    if contractor != "Allianz Drilling":
+        return {"deleted": 0, "inserted": 0}
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            locked_keys = locked_activity_sheet_keys(cur, contractor)
+            cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
+            rows = [dict(r) for r in cur.fetchall()]
+
+            unlocked_rows = [r for r in rows if not row_is_in_locked_sheet(r, locked_keys)]
+            existing_topups = [
+                r for r in unlocked_rows
+                if r.get("code") == "H_Min_Shift" and r.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE
+            ]
+            for row in existing_topups:
+                cur.execute("DELETE FROM activities WHERE id=%s", (row["id"],))
+
+            source_rows = [r for r in unlocked_rows if r.get("notes") != ALLIANZ_MIN_SHIFT_TOPUP_NOTE]
+            topups = build_allianz_minimum_shift_topups(source_rows)
+            if topups:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO activities
+                    (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                     client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                     metres_from,metres_to,total_metres,code,notes,
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                    VALUES
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                     %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                     %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                     %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                """, topups)
+        conn.commit()
+
+    return {"deleted": len(existing_topups), "inserted": len(topups)}
 
 
 @app.post("/imports/cleanup-coreplan-doubleups")
@@ -4960,6 +5084,8 @@ def reprice_activities(contractor: str = Query(...)):
 
         conn.commit()
 
+    minimum_shift_topups = sync_allianz_minimum_shift_topups(contractor)
+
     return {
         "status": "rationalised",
         "total": stats["total"],
@@ -4973,6 +5099,7 @@ def reprice_activities(contractor: str = Query(...)):
         "consumables_locked_skipped": stats.get("consumables_locked_skipped", 0),
         "drilling_rate_years": dr_years,
         "hourly_rate_years": hr_years,
+        "minimum_shift_topups": minimum_shift_topups,
         "skipped_codes": skipped_codes,
     }
 
