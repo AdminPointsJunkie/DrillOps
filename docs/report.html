@@ -27,8 +27,11 @@ textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .kpi .value{font-size:18px;font-weight:800;margin-top:5px;}
 .subtitle{margin:16px 0 8px;}
 .timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow:hidden;}
-.timeline-tools{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;}
+.timeline-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
 .timeline-tools button{padding:5px 9px;font-size:11px;}
+.minimum-shift-toggle{display:inline-flex;align-items:center;gap:7px;color:#334155;font-size:12px;font-weight:700;user-select:none;}
+.minimum-shift-toggle input{width:15px;height:15px;accent-color:var(--accent);}
+.minimum-shift-toggle small{color:var(--muted);font-weight:650;}
 .timeline-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:7px;scrollbar-color:#87909c #e8edf3;scrollbar-width:thin;}
 .timeline-scroll::-webkit-scrollbar{height:10px;}
 .timeline-scroll::-webkit-scrollbar-track{background:#e8edf3;border-radius:999px;}
@@ -158,8 +161,9 @@ const source=params.get('source')||'';
 const title=params.get('title')||'Daily report';
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
+const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
-let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]};
+let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function attr(s){return esc(s).replace(/"/g,'&quot;');}
@@ -289,11 +293,7 @@ async function saveReportActivityEdit(cell){
   }
 }
 async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
-async function loadReport(){
-  document.getElementById('title').textContent=title;
-  document.title=title+' | DrillOps';
-  await initApprovalControls();
-  await initLockControls();
+async function loadReportData(){
   const actParams=new URLSearchParams({contractor});
   if(reportDate)actParams.set('dates',reportDate);
   if(hole)actParams.set('holes',hole);
@@ -313,12 +313,61 @@ async function loadReport(){
     document.getElementById('activity-body').innerHTML='<tr><td colspan="6" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
   }
 }
+async function loadReport(){
+  document.getElementById('title').textContent=title;
+  document.title=title+' | DrillOps';
+  await initApprovalControls();
+  await initLockControls();
+  await initMinimumShiftControls();
+  await loadReportData();
+}
 function emptyApprovalRecord(){return {status:'',reason:'',log:[]};}
 function approvalParams(){
   return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
 }
 function lockParams(){
   return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
+}
+function minimumShiftParams(){
+  return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
+}
+async function getMinimumShiftPreference(){
+  try{
+    const res=await fetch(API+'/minimum-shift-topups/preference?'+minimumShiftParams().toString());
+    if(res.ok)return await res.json();
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(minimumShiftKey)||'null')||{include_topup:true,reason:''};}
+  catch(e){return {include_topup:true,reason:''};}
+}
+async function initMinimumShiftControls(){
+  minimumShiftPreference=await getMinimumShiftPreference();
+}
+async function toggleMinimumShiftTopup(box){
+  const include=!!box.checked;
+  const previous=!!minimumShiftPreference.include_topup;
+  let reason=minimumShiftPreference.reason||'';
+  if(!include){
+    reason=prompt('Optional note for excluding this minimum shift top-up',reason)||'';
+  }
+  box.disabled=true;
+  try{
+    const res=await fetch(API+'/minimum-shift-topups/preference',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor,date:reportDate,hole,source,include_topup:include,reason})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const saved=await res.json();
+    minimumShiftPreference=saved.preference||{include_topup:include,reason};
+    localStorage.setItem(minimumShiftKey,JSON.stringify(minimumShiftPreference));
+    await loadReportData();
+  }catch(e){
+    alert('Could not update minimum shift top-up option: '+e.message);
+    box.checked=previous;
+    minimumShiftPreference.include_topup=previous;
+  }finally{
+    box.disabled=false;
+  }
 }
 async function getSheetLock(){
   try{
@@ -536,7 +585,10 @@ function renderTimeline(rows,totalHours){
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
   const blocks=sorted.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
-  target.innerHTML='<div class="timeline-tools"><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div>'
+  const toggle=contractor==='Allianz Drilling'
+    ? '<label class="minimum-shift-toggle" title="Untick this when the daily minimum shift top-up is not appropriate for this report."><input id="minimum-shift-toggle" type="checkbox" '+(minimumShiftPreference.include_topup!==false?'checked':'')+' onchange="toggleMinimumShiftTopup(this)">Include daily minimum top-up <small>review option</small></label>'
+    : '<span></span>';
+  target.innerHTML='<div class="timeline-tools">'+toggle+'<div><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div></div>'
     +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
     +scale+'<div class="timeline-track">'+blocks+'</div></div></div>';
 }

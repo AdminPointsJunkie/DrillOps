@@ -524,6 +524,20 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS minimum_shift_topup_preferences (
+                    id            SERIAL PRIMARY KEY,
+                    contractor    TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    report_date   TEXT,
+                    hole_num      TEXT,
+                    source_file   TEXT,
+                    include_topup BOOLEAN DEFAULT TRUE,
+                    reason        TEXT,
+                    updated_at    TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(contractor, report_date, hole_num, source_file)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumable_rates (
                     id          SERIAL PRIMARY KEY,
                     contractor  TEXT NOT NULL DEFAULT 'Allianz Drilling',
@@ -731,13 +745,42 @@ def is_not_chargeable_code(code: str, contractor: str = "") -> bool:
 
 def allianz_minimum_shift_group_key(row: dict):
     return (
+        row.get("contractor") or "Allianz Drilling",
         row.get("source_file") or "",
         row.get("date") or "",
         row.get("hole_num") or "",
-        row.get("site_name") or "",
-        row.get("contract") or "",
-        row.get("shift") or "",
     )
+
+
+def minimum_shift_preference_params(contractor: str, report_date: str = "", hole_num: str = "", source_file: str = ""):
+    return {
+        "contractor": contractor or "Allianz Drilling",
+        "report_date": report_date or "",
+        "hole_num": hole_num or "",
+        "source_file": source_file or "",
+    }
+
+
+def minimum_shift_preference_response(row):
+    if not row:
+        return {
+            "contractor": "",
+            "report_date": "",
+            "hole_num": "",
+            "source_file": "",
+            "include_topup": True,
+            "reason": "",
+            "updated_at": None,
+        }
+    return {
+        "contractor": row.get("contractor") or "",
+        "report_date": row.get("report_date") or "",
+        "hole_num": row.get("hole_num") or "",
+        "source_file": row.get("source_file") or "",
+        "include_topup": bool(row.get("include_topup", True)),
+        "reason": row.get("reason") or "",
+        "updated_at": row.get("updated_at"),
+    }
 
 
 def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
@@ -2822,6 +2865,21 @@ def cleanup_coreplan_doubleups_for_contractor(contractor: str):
     }
 
 
+def minimum_shift_excluded_keys(cur, contractor: str):
+    cur.execute(
+        """
+        SELECT contractor, report_date, hole_num, source_file
+        FROM minimum_shift_topup_preferences
+        WHERE contractor=%s AND include_topup=FALSE
+        """,
+        (contractor,),
+    )
+    return {
+        (r.get("contractor") or "", r.get("source_file") or "", r.get("report_date") or "", r.get("hole_num") or "")
+        for r in cur.fetchall()
+    }
+
+
 def sync_allianz_minimum_shift_topups(contractor: str):
     if contractor != "Allianz Drilling":
         return {"deleted": 0, "inserted": 0}
@@ -2829,6 +2887,7 @@ def sync_allianz_minimum_shift_topups(contractor: str):
     with get_conn() as conn:
         with conn.cursor() as cur:
             locked_keys = locked_activity_sheet_keys(cur, contractor)
+            excluded_keys = minimum_shift_excluded_keys(cur, contractor)
             cur.execute("SELECT * FROM activities WHERE contractor=%s", (contractor,))
             rows = [dict(r) for r in cur.fetchall()]
 
@@ -2840,7 +2899,11 @@ def sync_allianz_minimum_shift_topups(contractor: str):
             for row in existing_topups:
                 cur.execute("DELETE FROM activities WHERE id=%s", (row["id"],))
 
-            source_rows = [r for r in unlocked_rows if r.get("notes") != ALLIANZ_MIN_SHIFT_TOPUP_NOTE]
+            source_rows = [
+                r for r in unlocked_rows
+                if r.get("notes") != ALLIANZ_MIN_SHIFT_TOPUP_NOTE
+                and allianz_minimum_shift_group_key(r) not in excluded_keys
+            ]
             topups = build_allianz_minimum_shift_topups(source_rows)
             if topups:
                 psycopg2.extras.execute_batch(cur, """
@@ -2875,6 +2938,67 @@ async def refresh_minimum_shift_topups(request: Request):
     contractor = payload.get("contractor", "Allianz Drilling")
     result = sync_allianz_minimum_shift_topups(contractor)
     return {"status": "refreshed", "contractor": contractor, "minimum_shift_topups": result}
+
+
+@app.get("/minimum-shift-topups/preference")
+def get_minimum_shift_topup_preference(
+    contractor: str = Query(...),
+    date: str = Query(""),
+    hole: str = Query(""),
+    source: str = Query(""),
+):
+    key = minimum_shift_preference_params(contractor, date, hole, source)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT * FROM minimum_shift_topup_preferences
+                WHERE contractor=%(contractor)s
+                  AND report_date=%(report_date)s
+                  AND hole_num=%(hole_num)s
+                  AND source_file=%(source_file)s
+                """,
+                key,
+            )
+            row = cur.fetchone()
+    if not row:
+        return {**key, "include_topup": True, "reason": "", "updated_at": None}
+    return minimum_shift_preference_response(row)
+
+
+@app.post("/minimum-shift-topups/preference")
+async def save_minimum_shift_topup_preference(request: Request):
+    payload = await request.json()
+    key = minimum_shift_preference_params(
+        payload.get("contractor") or "Allianz Drilling",
+        payload.get("date") or payload.get("report_date") or "",
+        payload.get("hole") or payload.get("hole_num") or "",
+        payload.get("source") or payload.get("source_file") or "",
+    )
+    include_topup = bool(payload.get("include_topup", True))
+    reason = (payload.get("reason") or "").strip()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO minimum_shift_topup_preferences
+                    (contractor, report_date, hole_num, source_file, include_topup, reason, updated_at)
+                VALUES
+                    (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(include_topup)s, %(reason)s, NOW())
+                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                DO UPDATE SET include_topup=EXCLUDED.include_topup, reason=EXCLUDED.reason, updated_at=NOW()
+                RETURNING *
+                """,
+                {**key, "include_topup": include_topup, "reason": reason},
+            )
+            saved = dict(cur.fetchone())
+        conn.commit()
+    result = sync_allianz_minimum_shift_topups(key["contractor"])
+    return {
+        "status": "saved",
+        "preference": minimum_shift_preference_response(saved),
+        "minimum_shift_topups": result,
+    }
 
 
 def normalize_report_approval_status(status: str):
