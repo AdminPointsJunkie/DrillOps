@@ -4441,6 +4441,7 @@ async function recalculateDatabaseFromRates(){
       +'Locked consumables skipped: '+(reprice.consumables_locked_skipped||0)+'\\n'
       +'CorePlan adjustment rows removed: '+(cleanup.deleted_adjustments||0)+'\\n'
       +'Minimum shift duration rows zeroed: '+(cleanup.zeroed_minimum_shift_rows||0)+'\\n'
+      +'Imported minimum shift rows adjusted: '+(reprice.minimum_shift_rows_adjusted||0)+'\\n'
       +'Minimum shift top-ups refreshed: '+(topups.deleted||0)+' removed, '+(topups.inserted||0)+' added\\n'
       +'Invoices rematched: '+(d.invoices_rematched||0)+'\\n'
       +'Invoice lines accounted for: '+(match.accounted_lines||0)+' / '+(match.line_count||0)+'\\n'
