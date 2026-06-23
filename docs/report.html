@@ -138,7 +138,7 @@ tr.saving td{background:#fff7e6;}
       <div class="subtitle">Activities</div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="scroll">
-          <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
+          <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Charge/Hr</th><th>Charge/m</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
         </div>
       </div>
       <div class="grid">
@@ -226,6 +226,21 @@ function metresDrilledSummary(rows){
     });
   });
   return Object.values(map).sort((a,b)=>a.item.localeCompare(b.item)||a.rate-b.rate);
+}
+function rowChargePerMetre(row){
+  if(!isDrilledMetresRow(row))return null;
+  const segments=drillSummarySegments(row);
+  if(segments.length===1)return num(segments[0].rate)||null;
+  const metres=segments.reduce((s,r)=>s+num(r.metres),0);
+  const cost=segments.reduce((s,r)=>s+num(r.cost),0);
+  return metres>0?cost/metres:null;
+}
+function rowChargePerHour(row){
+  if(isDrilledMetresRow(row))return null;
+  const hours=parseDurationHours(row.total_time);
+  if(hours<=0)return null;
+  const rate=num(row.unit_rate);
+  return rate>0?rate:null;
 }
 function rowHoleLabel(row){
   return String(row.hole_num||row.site_name||'No hole').trim()||'No hole';
@@ -318,7 +333,7 @@ async function loadReportData(){
     reportCrew=crew;
     renderReport(reportRows,reportConsumables,reportCrew);
   }catch(e){
-    document.getElementById('activity-body').innerHTML='<tr><td colspan="6" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
+    document.getElementById('activity-body').innerHTML='<tr><td colspan="8" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
   }
 }
 async function loadReport(){
@@ -561,15 +576,19 @@ function renderReport(rows,consumables,crew){
   const activityBody=document.getElementById('activity-body');
   activityBody.innerHTML=rows.map(r=>{
     const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
+    const chargeHr=rowChargePerHour(r);
+    const chargeM=rowChargePerMetre(r);
     return '<tr data-id="'+attr(r.id)+'">'
       +'<td contenteditable="true" data-col="time">'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td>'
       +'<td contenteditable="true" data-col="code" class="code">'+esc(r.code||'')+'</td>'
       +'<td contenteditable="true" data-col="total_time">'+esc(r.total_time||'')+'</td>'
       +'<td contenteditable="true" data-col="depth">'+esc(depth)+'</td>'
       +'<td contenteditable="true" data-col="notes">'+esc(r.notes||'')+'</td>'
+      +'<td>'+((chargeHr!=null)?cur(chargeHr):'--')+'</td>'
+      +'<td>'+((chargeM!=null)?cur(chargeM):'--')+'</td>'
       +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
       +'</tr>';
-  }).join('')||'<tr><td colspan="6" class="empty">No activities found</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">No activities found</td></tr>';
   activityBody.querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
     cell.addEventListener('keydown',e=>{
