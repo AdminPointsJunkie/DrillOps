@@ -1648,6 +1648,9 @@ tbody td[contenteditable=true]:focus {
         <input class="range-date" id="range-from" type="date" title="Report start date"/>
         <input class="range-date" id="range-to" type="date" title="Report end date"/>
         <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
+        <button class="btn-ghost" id="bulk-lock-btn" type="button" onclick="bulkSetReportLocks(true)" disabled>Lock selected</button>
+        <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
+        <span class="table-count" id="bulk-report-count">0 selected</span>
         <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
       </div>
       <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
@@ -1676,7 +1679,7 @@ tbody td[contenteditable=true]:focus {
           <table id="report-table">
             <thead><tr>
               <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
-              <th>Plod</th><th>Status</th><th>Plod date <span class="date-sort">↕</span></th><th></th><th>Rig</th><th>Hole</th><th>Driller</th>
+              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th>Rig</th><th>Hole</th><th>Driller</th>
               <th>Depth (m)</th><th>Duration (h)</th><th>Total Cost</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
@@ -2515,6 +2518,7 @@ let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
 let dailyReportsData=[], selectedDailyReportKey=null;
 let reportApprovalsByKey={};
+let reportLocksByKey={};
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
 let drillingRatesData=[], hourlyRatesData=[];
 let posData=[];
@@ -2642,11 +2646,18 @@ function reportApprovalStorageKey(contractor,date,hole,source){
 function reportApprovalRecordKey(contractor,date,hole,source){
   return [contractor||'',date||'',hole||'',source||''].join('|');
 }
+function reportLockRecordKey(contractor,date,hole,source){
+  return [contractor||'',date||'',hole||'',source||''].join('|');
+}
 function getStoredReportApproval(date,hole,source){
   const key=reportApprovalRecordKey(activeContractor,date,hole,source);
   if(reportApprovalsByKey[key])return reportApprovalsByKey[key];
   try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,date,hole,source))||'null');}
   catch(e){return null;}
+}
+function getStoredReportLock(date,hole,source){
+  const key=reportLockRecordKey(activeContractor,date,hole,source);
+  return reportLocksByKey[key]||null;
 }
 async function loadReportApprovals(dates){
   reportApprovalsByKey={};
@@ -2660,6 +2671,20 @@ async function loadReportApprovals(dates){
     });
   }catch(e){
     console.warn('Report approvals unavailable',e);
+  }
+}
+async function loadReportLocks(dates){
+  reportLocksByKey={};
+  const p=new URLSearchParams({contractor:activeContractor});
+  if(dates)p.set('dates',dates);
+  try{
+    const rows=await fetch(API+'/activity-sheet-locks?'+p.toString()).then(function(r){return r.ok?r.json():[];});
+    (rows||[]).forEach(function(r){
+      const key=reportLockRecordKey(r.contractor,r.report_date,r.hole_num,r.source_file);
+      reportLocksByKey[key]=r;
+    });
+  }catch(e){
+    console.warn('Report locks unavailable',e);
   }
 }
 function groupDailyReports(rows){
@@ -3029,6 +3054,7 @@ async function loadActivities(){
     activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
     await loadDailyReportRelatedData(dates);
     await loadReportApprovals(dates);
+    await loadReportLocks(dates);
     await ensureReportBoreholes();
     renderActivities(activitiesData);
   }catch(e){
@@ -3206,16 +3232,18 @@ function renderDailyReportSummary(rows){
   const tbody=document.getElementById('report-body');
   if(!tbody)return;
   if(!dailyReportsData.length){
-    tbody.innerHTML='<tr><td colspan="13"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="14"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    updateBulkReportSelection();
     closeDailyReportDetail();
     return;
   }
   tbody.innerHTML=dailyReportsData.map(function(r){
     const note=r.notes.join(' ').slice(0,180);
     return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+attr(r.key)+'" data-search="'+attr((r.id+' '+r.date+' '+r.hole+' '+r.rig+' '+r.driller+' '+note).toLowerCase())+'">'
-      +'<td class="select-cell"><input class="row-check" type="checkbox"/></td>'
+      +'<td class="select-cell"><input class="row-check" type="checkbox" onchange="updateBulkReportSelection()"/></td>'
       +'<td><div class="plod-cell"><button class="plod-link" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">'+esc(r.id)+'</button>'+(r.sourceFile?'<span class="attach-icon">↗</span>':'')+'</div></td>'
       +'<td>'+renderReportStatusSelect(r)+'</td>'
+      +'<td>'+renderReportLockStatus(r)+'</td>'
       +'<td>'+esc(r.date)+'</td>'
       +'<td>'+(r.shift?'<span class="shift-pill">'+esc(r.shift)+'</span>':'')+'</td>'
       +'<td>'+esc(r.rig||'--')+'</td>'
@@ -3229,6 +3257,7 @@ function renderDailyReportSummary(rows){
       +'</tr>';
   }).join('');
   filterDailyReportRows();
+  updateBulkReportSelection();
   if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
   renderPeriodReport();
 }
@@ -3501,6 +3530,13 @@ function renderReportStatusSelect(report){
     +'</select>';
 }
 
+function renderReportLockStatus(report){
+  const lock=getStoredReportLock(report.date,report.hole,report.sourceFile);
+  const locked=!!(lock&&lock.locked);
+  const title=locked?(lock.reason||'Locked from recalculation'):'Not locked';
+  return '<span title="'+attr(title)+'" style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;border:1px solid '+(locked?'#bdc9ff':'#d8e0ea')+';background:'+(locked?'#eef2ff':'#f8fafc')+';color:'+(locked?'#243b80':'#647285')+';">'+(locked?'Locked':'Open')+'</span>';
+}
+
 async function changeReportApprovalFromList(select){
   const report=dailyReportsData.find(function(r){return r.key===select.dataset.reportKey;});
   if(!report)return;
@@ -3549,7 +3585,11 @@ async function changeReportApprovalFromList(select){
       })
     });
     if(!res.ok)throw new Error(await res.text());
-    reportApprovalsByKey[key]=await res.json();
+    const saved=await res.json();
+    reportApprovalsByKey[key]=saved;
+    if(saved.lock){
+      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,report.hole,report.sourceFile)]=saved.lock;
+    }
     renderDailyReportSummary(activitiesData);
     toast('Client decision saved');
   }catch(e){
@@ -3567,6 +3607,64 @@ function filterDailyReportRows(){
 
 function toggleAllReportRows(box){
   document.querySelectorAll('#report-body .row-check').forEach(function(cb){cb.checked=box.checked;});
+  updateBulkReportSelection();
+}
+
+function selectedReportRows(){
+  return [...document.querySelectorAll('#report-body tr.report-row')].filter(function(row){
+    return row.querySelector('.row-check')?.checked;
+  }).map(function(row){
+    return dailyReportsData.find(function(r){return r.key===row.dataset.reportKey;});
+  }).filter(Boolean);
+}
+
+function updateBulkReportSelection(){
+  const selected=selectedReportRows();
+  const count=document.getElementById('bulk-report-count');
+  const lockBtn=document.getElementById('bulk-lock-btn');
+  const unlockBtn=document.getElementById('bulk-unlock-btn');
+  if(count)count.textContent=selected.length+' selected';
+  if(lockBtn)lockBtn.disabled=!selected.length;
+  if(unlockBtn)unlockBtn.disabled=!selected.length;
+}
+
+async function bulkSetReportLocks(locked){
+  const reports=selectedReportRows();
+  if(!reports.length){toast('Select reports first','warn');return;}
+  const reason=locked
+    ? (prompt('Bulk lock note', 'Bulk locked to protect reviewed/custom changes.')||'')
+    : (prompt('Bulk unlock note', 'Bulk unlocked for recalculation.')||'');
+  if(!confirm((locked?'Lock ':'Unlock ')+reports.length+' selected report(s)?'))return;
+  const lockBtn=document.getElementById('bulk-lock-btn');
+  const unlockBtn=document.getElementById('bulk-unlock-btn');
+  if(lockBtn)lockBtn.disabled=true;
+  if(unlockBtn)unlockBtn.disabled=true;
+  let done=0;
+  try{
+    for(const report of reports){
+      const res=await fetch(API+'/activity-sheet-locks',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          contractor:activeContractor,
+          date:report.date||'',
+          hole:report.hole||'',
+          source:report.sourceFile||'',
+          locked:locked,
+          reason:reason
+        })
+      });
+      if(!res.ok)throw new Error(await res.text());
+      const saved=await res.json();
+      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,report.hole,report.sourceFile)]=saved;
+      done++;
+    }
+    renderDailyReportSummary(activitiesData);
+    toast((locked?'Locked ':'Unlocked ')+done+' report(s)');
+  }catch(e){
+    toast('Bulk lock update failed after '+done+' report(s): '+(e.message||e),'err');
+    renderDailyReportSummary(activitiesData);
+  }
 }
 
 function openDailyReportDetailByKey(key){
