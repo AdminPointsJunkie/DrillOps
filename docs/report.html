@@ -292,6 +292,21 @@ function activityRowPatch(col,value){
   if(col==='line_cost')return {line_cost:optionalNumber(value)};
   return {[col]:String(value||'').trim()};
 }
+function equipmentUnitRateBasis(value){
+  const unit=String(value||'').trim();
+  return 'CorePlan equipment charge'+(unit?' ('+unit+')':'');
+}
+function equipmentRowPatch(row,col,value){
+  if(col==='unit_rate'){
+    const unitRate=optionalNumber(value);
+    const quantity=num(row.quantity)||1;
+    return {unit_rate:unitRate,line_cost:unitRate==null?null:Number((unitRate*quantity).toFixed(2))};
+  }
+  if(col==='line_cost')return {line_cost:optionalNumber(value)};
+  if(col==='equipment_unit')return {rate_basis:equipmentUnitRateBasis(value)};
+  if(col==='total_time')return {total_time:String(value||'').trim()};
+  return {[col]:String(value||'').trim()};
+}
 function updateCachedActivity(id,updates){
   const idx=reportRows.findIndex(r=>Number(r.id)===Number(id));
   if(idx>=0)reportRows[idx]=Object.assign({},reportRows[idx],updates);
@@ -324,6 +339,27 @@ async function saveReportActivityEdit(cell){
     renderReport(reportRows,reportConsumables,reportCrew);
   }catch(e){
     alert('Could not save activity row: '+e.message);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }finally{
+    tr.classList.remove('saving');
+  }
+}
+async function saveReportEquipmentEdit(cell){
+  const tr=cell.closest('tr');
+  const id=tr.dataset.id;
+  const row=reportRows.find(r=>Number(r.id)===Number(id))||{};
+  const col=cell.dataset.col;
+  const patch=equipmentRowPatch(row,col,cell.textContent);
+  tr.classList.add('saving');
+  try{
+    const res=await fetch(API+'/activities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    if(!res.ok)throw new Error(await res.text());
+    updateCachedActivity(id,patch);
+    const fresh=reportRows.find(r=>Number(r.id)===Number(id))||Object.assign({},row,patch);
+    broadcastActivityUpdate(fresh);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(e){
+    alert('Could not save equipment row: '+e.message);
     renderReport(reportRows,reportConsumables,reportCrew);
   }finally{
     tr.classList.remove('saving');
@@ -622,16 +658,23 @@ function renderReport(rows,consumables,crew){
     });
   });
   const equipmentSubtotal=equipmentRows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
-  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr>'
+  const equipmentBody=document.getElementById('equipment-body');
+  equipmentBody.innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'">'
     +'<td>'+esc(rowHoleLabel(r)||'--')+'</td>'
-    +'<td>'+esc(equipmentName(r))+'</td>'
-    +'<td>'+esc(equipmentUnit(r))+'</td>'
-    +'<td>'+esc(r.total_time||'')+'</td>'
-    +'<td>'+esc(r.rate_basis||'')+'</td>'
-    +'<td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td>'
-    +'<td>'+cur(r.line_cost)+'</td>'
+    +'<td contenteditable="true" data-col="notes">'+esc(equipmentName(r))+'</td>'
+    +'<td contenteditable="true" data-col="equipment_unit">'+esc(equipmentUnit(r))+'</td>'
+    +'<td contenteditable="true" data-col="total_time">'+esc(r.total_time||'')+'</td>'
+    +'<td contenteditable="true" data-col="rate_basis">'+esc(r.rate_basis||'')+'</td>'
+    +'<td contenteditable="true" data-col="unit_rate">'+((r.unit_rate!=null)?cur(r.unit_rate):'')+'</td>'
+    +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
     +'</tr>').join('')
     +(equipmentRows.length?'<tr><td colspan="5"></td><td style="font-weight:800;color:#0f172a;">Sub-total</td><td style="font-weight:800;color:#0f172a;">'+cur(equipmentSubtotal)+'</td></tr>':'<tr><td colspan="7" class="empty">No equipment recorded.</td></tr>');
+  equipmentBody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',()=>saveReportEquipmentEdit(cell));
+    cell.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();cell.blur();}
+    });
+  });
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
