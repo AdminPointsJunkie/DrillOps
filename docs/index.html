@@ -3683,16 +3683,25 @@ async function bulkDeleteReports(){
   if(lockBtn)lockBtn.disabled=true;
   if(unlockBtn)unlockBtn.disabled=true;
   try{
-    const res=await fetch(API+'/activity-reports/delete',{
+    const payload={
+      contractor:activeContractor,
+      reports:reports.map(function(r){
+        return {date:r.date||'',hole:r.hole||'',source:r.sourceFile||''};
+      })
+    };
+    let res=await fetch(API+'/activity-reports/delete',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contractor:activeContractor,
-        reports:reports.map(function(r){
-          return {date:r.date||'',hole:r.hole||'',source:r.sourceFile||''};
-        })
-      })
+      body:JSON.stringify(payload)
     });
+    if(res.status===404){
+      res=await fetch(API+'/activity-reports',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+    }
+    if(res.status===404)throw new Error('The API delete route is not deployed yet. Wait for the backend deploy to finish, then refresh and try again.');
     if(!res.ok)throw new Error(await res.text());
     const result=await res.json();
     toast('Deleted '+(result.reports||reports.length)+' report(s), '+(result.activities||0)+' activity row(s)');

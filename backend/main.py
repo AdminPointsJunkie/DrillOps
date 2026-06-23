@@ -3515,6 +3515,7 @@ def get_activities(
 
 
 @app.post("/activity-reports/delete")
+@app.delete("/activity-reports")
 async def delete_activity_reports(request: Request):
     payload = await request.json()
     contractor = payload.get("contractor")
