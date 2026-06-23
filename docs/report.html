@@ -39,6 +39,9 @@ textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .timeline-inner{min-width:1200px;}
 .timeline-scale{position:relative;height:26px;border-bottom:1px solid var(--border);margin-bottom:8px;}
 .timeline-tick{position:absolute;top:0;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--muted);}
+.timeline-lanes{display:flex;flex-direction:column;gap:6px;}
+.timeline-lane{display:grid;grid-template-columns:86px minmax(0,1fr);gap:8px;align-items:center;}
+.timeline-lane-label{font-family:var(--mono);font-size:11px;font-weight:800;color:#1f2d3d;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .timeline-track{position:relative;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 79px,#edf1f5 80px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
 .timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
 .notes{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;line-height:1.5;max-height:190px;overflow:auto;}
@@ -224,11 +227,16 @@ function metresDrilledSummary(rows){
   });
   return Object.values(map).sort((a,b)=>a.item.localeCompare(b.item)||a.rate-b.rate);
 }
+function rowHoleLabel(row){
+  return String(row.hole_num||row.site_name||'No hole').trim()||'No hole';
+}
 function belongsToThisReport(row){
+  const sourceMatches=!source||!row.source_file||row.source_file===source;
+  const holeMatches=source?true:(!hole||row.hole_num===hole);
   return (!row.contractor||row.contractor===contractor)
     && (!reportDate||row.date===reportDate)
-    && (!hole||row.hole_num===hole)
-    && (!source||!row.source_file||row.source_file===source);
+    && holeMatches
+    && sourceMatches;
 }
 function optionalNumber(text){
   const raw=String(text||'').trim().replace(/[$,]/g,'');
@@ -296,7 +304,7 @@ async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.time
 async function loadReportData(){
   const actParams=new URLSearchParams({contractor});
   if(reportDate)actParams.set('dates',reportDate);
-  if(hole)actParams.set('holes',hole);
+  if(hole&&!source)actParams.set('holes',hole);
   const relatedParams=new URLSearchParams({contractor});
   if(reportDate)relatedParams.set('dates',reportDate);
   try{
@@ -529,7 +537,9 @@ function renderReport(rows,consumables,crew){
   const first=rows[0]||{};
   const relatedCrew=crew.filter(belongsToThisReport);
   const driller=relatedCrew.filter(c=>String(c.role||'').toLowerCase().includes('drill')).map(c=>c.name)[0]||'';
-  document.getElementById('meta').innerHTML=[reportDate,hole?'Hole '+hole:'',first.drill_rig?'Rig '+first.drill_rig:'',first.shift||'',driller].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
+  const reportHoles=[...new Set(rows.map(rowHoleLabel).filter(Boolean))];
+  const holeText=reportHoles.length>1?reportHoles.length+' holes':(reportHoles[0]?'Hole '+reportHoles[0]:(hole?'Hole '+hole:''));
+  document.getElementById('meta').innerHTML=[reportDate,holeText,first.drill_rig?'Rig '+first.drill_rig:'',first.shift||'',driller].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
   const notes=rows.map(r=>r.notes).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
   const flags=[];
   if(metres===0&&cost>0)flags.push('Cost with zero metres');
@@ -584,13 +594,18 @@ function renderTimeline(rows,totalHours){
   const timelineWidth=Math.max(1400,Math.ceil(span/60)*170);
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
-  const blocks=sorted.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
+  const laneMap=new Map();
+  sorted.forEach(r=>{const lane=rowHoleLabel(r);if(!laneMap.has(lane))laneMap.set(lane,[]);laneMap.get(lane).push(r);});
+  const lanes=[...laneMap.entries()].map(([lane,laneRows])=>{
+    const blocks=laneRows.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(lane+' | '+label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
+    return '<div class="timeline-lane"><div class="timeline-lane-label" title="'+attr(lane)+'">'+esc(lane)+'</div><div class="timeline-track">'+blocks+'</div></div>';
+  }).join('');
   const toggle=contractor==='Allianz Drilling'
     ? '<label class="minimum-shift-toggle" title="Untick this when the daily minimum shift top-up is not appropriate for this report."><input id="minimum-shift-toggle" type="checkbox" '+(minimumShiftPreference.include_topup!==false?'checked':'')+' onchange="toggleMinimumShiftTopup(this)">Include daily minimum top-up <small>review option</small></label>'
     : '<span></span>';
   target.innerHTML='<div class="timeline-tools">'+toggle+'<div><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div></div>'
     +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
-    +scale+'<div class="timeline-track">'+blocks+'</div></div></div>';
+    +scale+'<div class="timeline-lanes">'+lanes+'</div></div></div>';
 }
 function scrollTimelineBy(amount){
   const el=document.getElementById('timeline-scroll');
