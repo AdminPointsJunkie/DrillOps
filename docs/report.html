@@ -620,7 +620,8 @@ function renderTimeline(rows,totalHours){
     const blocks=laneRows.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(lane+' | '+label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
     return '<div class="timeline-lane"><div class="timeline-lane-label" title="'+attr(lane)+'">'+esc(lane)+'</div><div class="timeline-track">'+blocks+'</div></div>';
   }).join('');
-  const toggle=contractor==='Allianz Drilling'
+  const hasMinimumShiftOption=['Allianz Drilling','Mitchells Drilling'].includes(contractor);
+  const toggle=hasMinimumShiftOption
     ? '<label class="minimum-shift-toggle" title="Untick this when the daily minimum shift top-up is not appropriate for this report."><input id="minimum-shift-toggle" type="checkbox" '+(minimumShiftPreference.include_topup!==false?'checked':'')+' onchange="toggleMinimumShiftTopup(this)">Include daily minimum top-up <small>review option</small></label>'
     : '<span></span>';
   target.innerHTML='<div class="timeline-tools">'+toggle+'<div><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div></div>'

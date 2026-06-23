@@ -745,6 +745,20 @@ DRILLING_METRE_CODES = {"Drill_Core", "Drill_Chip_or_Open_hole"}
 ALLIANZ_MIN_SHIFT_COST = 8940.00
 ALLIANZ_MIN_SHIFT_ACTIVE_RATE = 745.00
 ALLIANZ_MIN_SHIFT_TOPUP_NOTE = "Allianz minimum shift top-up to $8,940"
+MINIMUM_SHIFT_RULES = {
+    "Allianz Drilling": {
+        "cost": 8940.00,
+        "active_rate": 745.00,
+        "note": ALLIANZ_MIN_SHIFT_TOPUP_NOTE,
+        "label": "Allianz",
+    },
+    "Mitchells Drilling": {
+        "cost": 7800.00,
+        "active_rate": 650.00,
+        "note": "Mitchells minimum shift top-up to $7,800",
+        "label": "Mitchells",
+    },
+}
 SUPPORT_EQUIPMENT_CODE_RE = re.compile(r"^D_(Backhoe|Water)", re.I)
 # Codes charged at Active rate ($/hr)
 ACTIVE_CODES = {
@@ -829,15 +843,25 @@ def minimum_shift_preference_response(row):
     }
 
 
+def minimum_shift_rule(contractor: str):
+    return MINIMUM_SHIFT_RULES.get(contractor or "")
+
+
+def is_generated_minimum_shift_topup(row: dict) -> bool:
+    return (row.get("code") == "H_Min_Shift") and (row.get("notes") in {r["note"] for r in MINIMUM_SHIFT_RULES.values()})
+
+
 def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
     groups = {}
     for row in rows:
-        if row.get("contractor") != "Allianz Drilling":
+        contractor = row.get("contractor") or ""
+        rule = minimum_shift_rule(contractor)
+        if not rule:
             continue
-        if row.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE:
+        if is_generated_minimum_shift_topup(row):
             continue
         key = allianz_minimum_shift_group_key(row)
-        group = groups.setdefault(key, {"base": row, "drilling_cost": 0.0, "has_drilling_cost": False, "has_min_shift": False})
+        group = groups.setdefault(key, {"base": row, "rule": rule, "drilling_cost": 0.0, "has_drilling_cost": False, "has_min_shift": False})
         code = row.get("code") or ""
         if code == "H_Min_Shift":
             try:
@@ -860,14 +884,15 @@ def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
         if not group["has_drilling_cost"] or group["has_min_shift"]:
             continue
         drilling_cost = round(group["drilling_cost"], 2)
-        topup = round(ALLIANZ_MIN_SHIFT_COST - drilling_cost, 2)
+        rule = group["rule"]
+        topup = round(rule["cost"] - drilling_cost, 2)
         if topup <= 0:
             continue
         base = group["base"]
-        active_hours = round(topup / ALLIANZ_MIN_SHIFT_ACTIVE_RATE, 2)
+        active_hours = round(topup / rule["active_rate"], 2) if rule["active_rate"] else 0
         topups.append({
             "source_file": base.get("source_file"),
-            "contractor": "Allianz Drilling",
+            "contractor": base.get("contractor"),
             "date": base.get("date"),
             "hole_num": base.get("hole_num"),
             "site_name": base.get("site_name"),
@@ -885,12 +910,12 @@ def build_allianz_minimum_shift_topups(rows: list[dict]) -> list[dict]:
             "metres_to": None,
             "total_metres": None,
             "code": "H_Min_Shift",
-            "notes": ALLIANZ_MIN_SHIFT_TOPUP_NOTE,
+            "notes": rule["note"],
             "rate_year": extract_year(base.get("date") or ""),
-            "unit_rate": ALLIANZ_MIN_SHIFT_ACTIVE_RATE,
+            "unit_rate": rule["active_rate"],
             "quantity": active_hours,
             "line_cost": topup,
-            "rate_basis": f"Allianz minimum shift: drilling activity ${drilling_cost:,.2f} + top-up ${topup:,.2f} = ${ALLIANZ_MIN_SHIFT_COST:,.2f}",
+            "rate_basis": f"{rule['label']} minimum shift: drilling activity ${drilling_cost:,.2f} + top-up ${topup:,.2f} = ${rule['cost']:,.2f}",
             "po_id": None,
         })
     return topups
@@ -929,7 +954,7 @@ def minimum_shift_base_cost(row: dict) -> float:
 def is_imported_minimum_shift_row(row: dict) -> bool:
     if row.get("code") != "H_Min_Shift":
         return False
-    if row.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE:
+    if is_generated_minimum_shift_topup(row):
         return False
     return "minimum shift" in (row.get("notes") or row.get("rate_basis") or "").lower()
 
@@ -952,24 +977,30 @@ def minimum_shift_activity_subtotal(row: dict, rows: list[dict]) -> float:
     return round(total, 2)
 
 
-def adjust_imported_minimum_shift_rows(rows: list[dict], contractor: str = "") -> list[dict]:
+def adjust_imported_minimum_shift_rows(rows: list[dict], contractor: str = "", excluded_keys: set | None = None) -> list[dict]:
     if not rows:
         return rows
+    excluded_keys = excluded_keys or set()
     adjusted = []
     for row in rows:
         updated = dict(row)
         if is_imported_minimum_shift_row(updated):
             minimum_cost = minimum_shift_base_cost(updated)
+            rule = minimum_shift_rule(updated.get("contractor") or contractor)
+            if rule:
+                minimum_cost = rule["cost"]
             activity_cost = minimum_shift_activity_subtotal(updated, rows)
             topup = round(max(0, minimum_cost - activity_cost), 2)
             try:
                 unit_rate = float(updated.get("unit_rate") or 0)
             except (TypeError, ValueError):
                 unit_rate = 0
-            updated["line_cost"] = topup
+            include_topup = allianz_minimum_shift_group_key(updated) not in excluded_keys
+            updated["line_cost"] = topup if include_topup else 0
             if unit_rate > 0:
-                updated["quantity"] = round(topup / unit_rate, 2)
-            updated["rate_basis"] = f"minimum shift top-up: drilling activity ${activity_cost:,.2f} + top-up ${topup:,.2f} = ${minimum_cost:,.2f}"
+                updated["quantity"] = round((topup if include_topup else 0) / unit_rate, 2)
+            basis = f"minimum shift top-up: drilling activity ${activity_cost:,.2f} + top-up ${topup:,.2f} = ${minimum_cost:,.2f}"
+            updated["rate_basis"] = basis if include_topup else f"{basis} (excluded by reviewer)"
         adjusted.append(updated)
     return adjusted
 
@@ -3003,7 +3034,7 @@ def minimum_shift_excluded_keys(cur, contractor: str):
 
 
 def sync_allianz_minimum_shift_topups(contractor: str):
-    if contractor != "Allianz Drilling":
+    if not minimum_shift_rule(contractor):
         return {"deleted": 0, "inserted": 0}
 
     with get_conn() as conn:
@@ -3016,14 +3047,30 @@ def sync_allianz_minimum_shift_topups(contractor: str):
             unlocked_rows = [r for r in rows if not row_is_in_locked_sheet(r, locked_keys)]
             existing_topups = [
                 r for r in unlocked_rows
-                if r.get("code") == "H_Min_Shift" and r.get("notes") == ALLIANZ_MIN_SHIFT_TOPUP_NOTE
+                if is_generated_minimum_shift_topup(r)
             ]
             for row in existing_topups:
                 cur.execute("DELETE FROM activities WHERE id=%s", (row["id"],))
 
+            base_rows = [r for r in unlocked_rows if not is_generated_minimum_shift_topup(r)]
+            adjusted_rows = adjust_imported_minimum_shift_rows(base_rows, contractor, excluded_keys)
+            adjusted = 0
+            for row in adjusted_rows:
+                if not is_imported_minimum_shift_row(row) or row.get("id") is None:
+                    continue
+                cur.execute(
+                    """
+                    UPDATE activities
+                    SET quantity=%s, line_cost=%s, rate_basis=%s
+                    WHERE id=%s
+                    """,
+                    (row.get("quantity"), row.get("line_cost"), row.get("rate_basis"), row["id"]),
+                )
+                adjusted += cur.rowcount
+
             source_rows = [
-                r for r in unlocked_rows
-                if r.get("notes") != ALLIANZ_MIN_SHIFT_TOPUP_NOTE
+                r for r in adjusted_rows
+                if not is_generated_minimum_shift_topup(r)
                 and allianz_minimum_shift_group_key(r) not in excluded_keys
             ]
             topups = build_allianz_minimum_shift_topups(source_rows)
@@ -3043,7 +3090,7 @@ def sync_allianz_minimum_shift_topups(contractor: str):
                 """, topups)
         conn.commit()
 
-    return {"deleted": len(existing_topups), "inserted": len(topups)}
+    return {"deleted": len(existing_topups), "inserted": len(topups), "adjusted": adjusted}
 
 
 @app.post("/imports/cleanup-coreplan-doubleups")
@@ -5294,7 +5341,8 @@ def reprice_activities(contractor: str = Query(...)):
             repriced_rows = [dict(r) for r in cur.fetchall()]
             min_shift_updates = []
             original_by_id = {r["id"]: r for r in repriced_rows}
-            for row in adjust_imported_minimum_shift_rows(repriced_rows, contractor):
+            excluded_min_shift_keys = minimum_shift_excluded_keys(cur, contractor) if minimum_shift_rule(contractor) else set()
+            for row in adjust_imported_minimum_shift_rows(repriced_rows, contractor, excluded_min_shift_keys):
                 if not is_imported_minimum_shift_row(row):
                     continue
                 original = original_by_id.get(row["id"])
