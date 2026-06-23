@@ -1677,7 +1677,7 @@ tbody td[contenteditable=true]:focus {
             <thead><tr>
               <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
               <th>Plod</th><th>Status</th><th>Plod date <span class="date-sort">↕</span></th><th></th><th>Rig</th><th>Hole</th><th>Driller</th>
-              <th>Depth (m)</th><th>Duration (h)</th><th>Cost</th><th>Notes</th><th></th>
+              <th>Depth (m)</th><th>Duration (h)</th><th>Total Cost</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
           </table>
@@ -2667,11 +2667,11 @@ function groupDailyReports(rows){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
-    g.cost+=parseFloat(r.line_cost)||0;
+    g.activityCost+=parseFloat(r.line_cost)||0;
     g.metres+=parseFloat(r.total_metres)||0;
     const hrs=parseDurationHours(r.total_time);
     g.hours+=hrs;
@@ -2682,7 +2682,14 @@ function groupDailyReports(rows){
     if(!g.shift&&r.shift)g.shift=r.shift;
   });
   const groups=[...map.values()];
+  const consumablesByKey=new Map();
+  (consumablesData||[]).forEach(function(c){
+    const key=reportKeyFor(c);
+    consumablesByKey.set(key,(consumablesByKey.get(key)||0)+(parseFloat(c.line_cost)||0));
+  });
   groups.forEach(function(g,i){
+    g.consumableCost=consumablesByKey.get(g.key)||0;
+    g.cost=g.activityCost+g.consumableCost;
     g.id=reportIdFor(g,i);
     g.driller=crewData.filter(function(c){
       return (!c.contractor||c.contractor===g.contractor)
