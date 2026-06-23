@@ -157,6 +157,10 @@ MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES = {
     (PCD_MEDIUM_LABEL, 0, 100): 52.00,
 }
 
+MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES = {
+    "H_Min_Shift": (7800.00, "shift"),
+}
+
 
 def contract_drilling_rows(contractor: str, year: str):
     rows = []
@@ -168,8 +172,13 @@ def contract_drilling_rows(contractor: str, year: str):
 
 
 def contract_hourly_rows(contractor: str, year: str):
-    return [(contractor, year, code, desc, rate, unit)
-            for code, desc, rate, unit in ALLIANZ_CONTRACT_HOURLY_RATES]
+    rows = []
+    for code, desc, rate, unit in ALLIANZ_CONTRACT_HOURLY_RATES:
+        if contractor == "Mitchells Drilling" and code in MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES:
+            rate, unit = MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES[code]
+            desc = "Minimum shift rate: 12 hours at active rate"
+        rows.append((contractor, year, code, desc, rate, unit))
+    return rows
 
 
 def migrate_legacy_drilling_bit_labels():
@@ -3676,8 +3685,8 @@ async def sync_allianz_contract_rates(request: Request):
     payload = await request.json()
     contractor = payload.get("contractor", "Allianz Drilling")
     year = str(payload.get("year") or "2025")
-    if contractor != "Allianz Drilling":
-        raise HTTPException(400, "The signed contract rates supplied here are only for Allianz Drilling.")
+    if contractor not in {"Allianz Drilling", "Mitchells Drilling"}:
+        raise HTTPException(400, "Contract rate sync is only available for Allianz Drilling and Mitchells Drilling.")
     if not re.match(r"^\d{4}$", year):
         raise HTTPException(400, "Year must be a four digit value.")
 
@@ -3702,7 +3711,7 @@ async def sync_allianz_contract_rates(request: Request):
         "year": year,
         "drilling_rates": len(drilling_rows),
         "hourly_rates": len(hourly_rows),
-        "source": "Allianz_Schedule_of_Rates_Fitzroy_Coal_Management_01122025.pdf, dated 12-February-2025",
+        "source": "DrillOps contract rate template; review and edit against the signed schedule of rates.",
     }
 
 

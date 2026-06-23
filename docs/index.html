@@ -1889,7 +1889,7 @@ tbody td[contenteditable=true]:focus {
         <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
           <input id="new-year-input" type="text" placeholder="e.g. 2026" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:11px;border-radius:3px;width:90px;outline:none;"/>
           <button class="btn-primary" onclick="copyRatesYear()">Copy year →</button>
-          <button class="btn-ghost" id="sync-contract-rates-btn" onclick="syncAllianzContractRates()">Sync Allianz 2025 rates</button>
+          <button class="btn-ghost" id="sync-contract-rates-btn" onclick="syncContractRates()">Sync contract rates</button>
           <button class="btn-primary" id="recalc-db-btn">Recalculate database</button>
         </div>
       </div>
@@ -4387,11 +4387,11 @@ async function addConsumableRate(){
   loadRates(year);toast('New consumable added');
 }
 
-async function syncAllianzContractRates(){
+async function syncContractRates(){
   const year=activeRateYear||'2025';
   const btn=document.getElementById('sync-contract-rates-btn');
-  if(activeContractor!=='Allianz Drilling'){toast('Contract sync is only for Allianz Drilling','err');return;}
-  if(!confirm('Replace Allianz Drilling drilling/hourly rates for '+year+' with the 2025 Fitzroy Coal Management Allianz schedule of rates?'))return;
+  if(!['Allianz Drilling','Mitchells Drilling'].includes(activeContractor)){toast('Contract sync is only available for Allianz and Mitchells','err');return;}
+  if(!confirm('Replace '+activeContractor+' drilling/hourly rates for '+year+' with the contract rate template? You can edit the rows after syncing.'))return;
   btn.disabled=true;
   btn.textContent='Syncing contract...';
   try{
@@ -4408,7 +4408,7 @@ async function syncAllianzContractRates(){
     toast('Contract sync failed: '+(e.message||e),'err');
   }finally{
     btn.disabled=false;
-    btn.textContent='Sync Allianz 2025 rates';
+    btn.textContent='Sync contract rates';
   }
 }
 
