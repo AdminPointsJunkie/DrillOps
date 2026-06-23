@@ -3529,6 +3529,9 @@ async function changeReportApprovalFromList(select){
     renderDailyReportSummary(activitiesData);
     return;
   }
+  const lockOnApproval=status==='approved'
+    ? confirm('Lock this approved report data so future recalculations skip it?')
+    : false;
   try{
     const res=await fetch(API+'/report-approvals',{
       method:'POST',
@@ -3540,7 +3543,9 @@ async function changeReportApprovalFromList(select){
         source:report.sourceFile||'',
         status:status,
         reason:reason.trim(),
-        by:'Client'
+        by:'Client',
+        lock_on_approval:lockOnApproval,
+        lock_reason:'Locked on client approval to protect reviewed/custom changes.'
       })
     });
     if(!res.ok)throw new Error(await res.text());

@@ -61,6 +61,8 @@ tr.saving td{background:#fff7e6;}
 .approval-row{display:grid;grid-template-columns:220px minmax(0,1fr) auto;gap:10px;align-items:start;}
 .approval-reason{display:none;}
 .approval-reason.open{display:block;}
+.approval-lock-option{margin-top:8px;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:700;}
+.approval-lock-option input{width:15px;height:15px;accent-color:var(--accent);}
 .approval-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800;margin-left:8px;}
 .approval-status.approved{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .approval-status.rejected{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
@@ -105,6 +107,10 @@ tr.saving td{background:#fff7e6;}
               <option value="query">Query report</option>
               <option value="rejected">Reject report</option>
             </select>
+            <label class="approval-lock-option" id="approval-lock-wrap">
+              <input id="approval-lock-on-approve" type="checkbox" checked>
+              Lock data when approved
+            </label>
           </div>
           <div class="approval-reason" id="approval-reason-wrap">
             <div class="subtitle" style="margin:0 0 7px;">Reason</div>
@@ -463,9 +469,11 @@ async function initApprovalControls(){
   select.value=record.status||'';
   reason.value=record.reason||'';
   reasonWrap.classList.toggle('open',select.value==='rejected'||select.value==='query');
+  document.getElementById('approval-lock-wrap').style.display=select.value==='approved'?'flex':'none';
   select.addEventListener('change',function(){
     const needsReason=select.value==='rejected'||select.value==='query';
     reasonWrap.classList.toggle('open',needsReason);
+    document.getElementById('approval-lock-wrap').style.display=select.value==='approved'?'flex':'none';
     reason.placeholder=select.value==='query'?'Enter the query':'Enter why this report is rejected';
     if(needsReason)reason.focus();
   });
@@ -477,6 +485,7 @@ async function saveApprovalDecision(){
   const select=document.getElementById('approval-select');
   const reason=document.getElementById('approval-reason');
   const save=document.getElementById('approval-save');
+  const lockOnApprove=document.getElementById('approval-lock-on-approve');
   const status=select.value;
   const why=reason.value.trim();
   if(!status){alert('Select approve, query, or reject first.');return;}
@@ -495,13 +504,19 @@ async function saveApprovalDecision(){
         source:source,
         status:status,
         reason:why,
-        by:'Client'
+        by:'Client',
+        lock_on_approval:status==='approved'&&!!lockOnApprove.checked,
+        lock_reason:'Locked on client approval to protect reviewed/custom changes.'
       })
     });
     if(!res.ok)throw new Error(await res.text());
     const record=await res.json();
     approvalRecord=record;
     localStorage.removeItem(approvalKey);
+    if(record.lock){
+      localStorage.setItem(lockKey,JSON.stringify(record.lock));
+      renderSheetLock(record.lock);
+    }
     renderApprovalStatus(record);
     renderApprovalLog(record);
     reason.value='';

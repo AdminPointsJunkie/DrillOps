@@ -3221,6 +3221,20 @@ def activity_sheet_lock_response(row):
     }
 
 
+def save_activity_sheet_lock_record(cur, key: dict, locked: bool, reason: str):
+    cur.execute(
+        """
+        INSERT INTO activity_sheet_locks (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
+        VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(locked)s, %(reason)s, NOW())
+        ON CONFLICT (contractor, report_date, hole_num, source_file)
+        DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
+        RETURNING *
+        """,
+        {**key, "locked": locked, "reason": reason},
+    )
+    return dict(cur.fetchone())
+
+
 def activity_row_lock_key(row: dict):
     return activity_sheet_lock_params(
         row.get("contractor") or "Allianz Drilling",
@@ -3318,17 +3332,7 @@ async def save_activity_sheet_lock(request: Request):
     reason = (payload.get("reason") or "").strip()
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO activity_sheet_locks (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
-                VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(locked)s, %(reason)s, NOW())
-                ON CONFLICT (contractor, report_date, hole_num, source_file)
-                DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
-                RETURNING *
-                """,
-                {**key, "locked": locked, "reason": reason},
-            )
-            saved = dict(cur.fetchone())
+            saved = save_activity_sheet_lock_record(cur, key, locked, reason)
         conn.commit()
     return activity_sheet_lock_response(saved)
 
@@ -3406,8 +3410,15 @@ async def save_report_approval(request: Request):
                 RETURNING *
             """, {**key, "status": status, "reason": reason, "log": json.dumps([entry])})
             saved = dict(cur.fetchone())
+            lock_saved = None
+            if status == "approved" and bool(payload.get("lock_on_approval", False)):
+                lock_reason = (payload.get("lock_reason") or "Locked on client approval to protect reviewed/custom changes.").strip()
+                lock_saved = save_activity_sheet_lock_record(cur, activity_sheet_lock_params(**key), True, lock_reason)
         conn.commit()
-    return report_approval_response(saved)
+    response = report_approval_response(saved)
+    if lock_saved:
+        response["lock"] = activity_sheet_lock_response(lock_saved)
+    return response
 
 
 @app.delete("/report-approvals")
