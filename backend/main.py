@@ -3514,6 +3514,107 @@ def get_activities(
             return [dict(r) for r in cur.fetchall()]
 
 
+@app.post("/activity-reports/delete")
+async def delete_activity_reports(request: Request):
+    payload = await request.json()
+    contractor = payload.get("contractor")
+    reports = payload.get("reports") or []
+    if not contractor:
+        raise HTTPException(400, "contractor is required")
+    if not isinstance(reports, list) or not reports:
+        raise HTTPException(400, "reports are required")
+
+    totals = {
+        "reports": 0,
+        "activities": 0,
+        "consumables": 0,
+        "crew": 0,
+        "approvals": 0,
+        "locks": 0,
+        "topup_preferences": 0,
+        "imported_files": 0,
+        "source_files": 0,
+    }
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for report in reports:
+                report_date = report.get("date") or report.get("report_date") or ""
+                hole_num = report.get("hole") or report.get("hole_num") or ""
+                source_file = report.get("source") or report.get("source_file") or ""
+                key = {
+                    "contractor": contractor,
+                    "report_date": report_date,
+                    "hole_num": hole_num,
+                    "source_file": source_file,
+                }
+                if not (report_date or hole_num or source_file):
+                    continue
+
+                row_params = {
+                    "contractor": contractor,
+                    "date": report_date,
+                    "hole_num": hole_num,
+                    "source_file": source_file,
+                }
+                where = """
+                    contractor=%(contractor)s
+                    AND COALESCE(date,'')=%(date)s
+                    AND COALESCE(hole_num,'')=%(hole_num)s
+                    AND COALESCE(source_file,'')=%(source_file)s
+                """
+                for table, counter in (
+                    ("activities", "activities"),
+                    ("consumables", "consumables"),
+                    ("crew", "crew"),
+                ):
+                    cur.execute(f"DELETE FROM {table} WHERE {where}", row_params)
+                    totals[counter] += max(cur.rowcount, 0)
+
+                meta_where = """
+                    contractor=%(contractor)s
+                    AND COALESCE(report_date,'')=%(report_date)s
+                    AND COALESCE(hole_num,'')=%(hole_num)s
+                    AND COALESCE(source_file,'')=%(source_file)s
+                """
+                for table, counter in (
+                    ("report_approvals", "approvals"),
+                    ("activity_sheet_locks", "locks"),
+                    ("minimum_shift_topup_preferences", "topup_preferences"),
+                ):
+                    cur.execute(f"DELETE FROM {table} WHERE {meta_where}", key)
+                    totals[counter] += max(cur.rowcount, 0)
+
+                if source_file:
+                    cur.execute(
+                        """
+                        SELECT EXISTS (
+                          SELECT 1 FROM activities WHERE contractor=%(contractor)s AND source_file=%(source_file)s
+                          UNION ALL
+                          SELECT 1 FROM consumables WHERE contractor=%(contractor)s AND source_file=%(source_file)s
+                          UNION ALL
+                          SELECT 1 FROM crew WHERE contractor=%(contractor)s AND source_file=%(source_file)s
+                        ) AS still_used
+                        """,
+                        {"contractor": contractor, "source_file": source_file},
+                    )
+                    still_used = bool(cur.fetchone()["still_used"])
+                    if not still_used:
+                        cur.execute(
+                            "DELETE FROM imported_files WHERE contractor=%s AND filename=%s",
+                            (contractor, source_file),
+                        )
+                        totals["imported_files"] += max(cur.rowcount, 0)
+                        cur.execute(
+                            "DELETE FROM source_files WHERE contractor=%s AND filename=%s",
+                            (contractor, source_file),
+                        )
+                        totals["source_files"] += max(cur.rowcount, 0)
+                totals["reports"] += 1
+        conn.commit()
+    return {"status": "deleted", **totals}
+
+
 @app.post("/activities")
 async def create_activity(request: Request):
     payload = await request.json()

@@ -1650,6 +1650,7 @@ tbody td[contenteditable=true]:focus {
         <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
         <button class="btn-ghost" id="bulk-lock-btn" type="button" onclick="bulkSetReportLocks(true)" disabled>Lock selected</button>
         <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
+        <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
         <span class="table-count" id="bulk-report-count">0 selected</span>
         <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
       </div>
@@ -3623,9 +3624,11 @@ function updateBulkReportSelection(){
   const count=document.getElementById('bulk-report-count');
   const lockBtn=document.getElementById('bulk-lock-btn');
   const unlockBtn=document.getElementById('bulk-unlock-btn');
+  const deleteBtn=document.getElementById('bulk-delete-btn');
   if(count)count.textContent=selected.length+' selected';
   if(lockBtn)lockBtn.disabled=!selected.length;
   if(unlockBtn)unlockBtn.disabled=!selected.length;
+  if(deleteBtn)deleteBtn.disabled=!selected.length;
 }
 
 async function bulkSetReportLocks(locked){
@@ -3664,6 +3667,42 @@ async function bulkSetReportLocks(locked){
   }catch(e){
     toast('Bulk lock update failed after '+done+' report(s): '+(e.message||e),'err');
     renderDailyReportSummary(activitiesData);
+  }
+}
+
+async function bulkDeleteReports(){
+  const reports=selectedReportRows();
+  if(!reports.length){toast('Select reports first','warn');return;}
+  const label=reports.slice(0,5).map(function(r){return (r.id||r.date||'Report')+' '+(r.hole||'');}).join('\\n');
+  const more=reports.length>5?'\\n...and '+(reports.length-5)+' more':'';
+  if(!confirm('Delete '+reports.length+' selected activity report(s) and their database rows?\\n\\n'+label+more+'\\n\\nThis cannot be undone.'))return;
+  const deleteBtn=document.getElementById('bulk-delete-btn');
+  const lockBtn=document.getElementById('bulk-lock-btn');
+  const unlockBtn=document.getElementById('bulk-unlock-btn');
+  if(deleteBtn)deleteBtn.disabled=true;
+  if(lockBtn)lockBtn.disabled=true;
+  if(unlockBtn)unlockBtn.disabled=true;
+  try{
+    const res=await fetch(API+'/activity-reports/delete',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contractor:activeContractor,
+        reports:reports.map(function(r){
+          return {date:r.date||'',hole:r.hole||'',source:r.sourceFile||''};
+        })
+      })
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const result=await res.json();
+    toast('Deleted '+(result.reports||reports.length)+' report(s), '+(result.activities||0)+' activity row(s)');
+    selectedDailyReportKey=null;
+    closeDailyReportDetail();
+    await loadActivities();
+    await updateDbCount();
+  }catch(e){
+    toast('Delete failed: '+(e.message||e),'err');
+    updateBulkReportSelection();
   }
 }
 
