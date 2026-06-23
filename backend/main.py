@@ -52,6 +52,7 @@ def get_conn():
 PCD_SMALL_LABEL = "PCD or Blade 99-125mm"
 PCD_MEDIUM_LABEL = "PCD or Blade 125-175mm"
 PCD_LARGE_LABEL = "PCD or Blade 175-305mm"
+PQ_PQ3_LABEL = "PQ_PQ3"
 
 LEGACY_DRILLING_BIT_LABELS = {
     "PCD_S": PCD_SMALL_LABEL,
@@ -153,20 +154,45 @@ ALLIANZ_CONTRACT_HOURLY_RATES = [
 ]
 
 
-MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES = {
-    (PCD_MEDIUM_LABEL, 0, 100): 52.00,
-}
+MITCHELLS_CONTRACT_DRILLING_RATES = [
+    (PCD_SMALL_LABEL, 0, 100, 48.00), (PCD_SMALL_LABEL, 100, 200, 52.00),
+    (PCD_SMALL_LABEL, 200, 300, 62.00), (PCD_SMALL_LABEL, 300, 400, 67.00),
+    (PCD_SMALL_LABEL, 400, 500, 71.00),
+    (PCD_MEDIUM_LABEL, 0, 100, 52.00), (PCD_MEDIUM_LABEL, 100, 200, 62.00),
+    (PCD_MEDIUM_LABEL, 200, 300, 71.00), (PCD_MEDIUM_LABEL, 300, 400, 81.00),
+    (PCD_MEDIUM_LABEL, 400, 500, 90.00), (PCD_MEDIUM_LABEL, 500, 600, 100.00),
+    (PCD_MEDIUM_LABEL, 600, 700, 109.00),
+    (PCD_LARGE_LABEL, 0, 100, 62.00), (PCD_LARGE_LABEL, 100, 200, 71.00),
+    (PCD_LARGE_LABEL, 200, 300, 81.00), (PCD_LARGE_LABEL, 300, 400, 90.00),
+    (PCD_LARGE_LABEL, 400, 500, 100.00),
+    ("HQ_HQ3", 0, 100, 190.00), ("HQ_HQ3", 100, 200, 238.00),
+    ("HQ_HQ3", 200, 300, 285.00), ("HQ_HQ3", 300, 400, 333.00),
+    ("HQ_HQ3", 400, 500, 380.00),
+    (PQ_PQ3_LABEL, 0, 100, 238.00), (PQ_PQ3_LABEL, 100, 200, 285.00),
+    (PQ_PQ3_LABEL, 200, 300, 333.00), (PQ_PQ3_LABEL, 300, 400, 380.00),
+    (PQ_PQ3_LABEL, 400, 500, 428.00),
+]
 
 MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES = {
+    "MOB": (40000.00, "event"),
+    "DEMOB": (40000.00, "event"),
+    "H_Active": (725.00, "hour"),
+    "H_Inactive": (650.00, "hour"),
     "H_Min_Shift": (7800.00, "shift"),
+    "H_Standby_Without_Crew": (0.00, "day"),
+    "H_Standby_NoCrew": (0.00, "day"),
+    "D_Accommodation": (0.00, "item"),
+    "D_Backhoe": (0.00, "item"),
+    "D_Water_Cart": (0.00, "item"),
+    "D_Backhoe_Standby": (0.00, "item"),
+    "D_Water_Cart_Standby": (0.00, "item"),
 }
 
 
 def contract_drilling_rows(contractor: str, year: str):
     rows = []
-    for bit, depth_from, depth_to, rate in ALLIANZ_CONTRACT_DRILLING_RATES:
-        if contractor == "Mitchells Drilling":
-            rate = MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.get((bit, depth_from, depth_to), rate)
+    source = MITCHELLS_CONTRACT_DRILLING_RATES if contractor == "Mitchells Drilling" else ALLIANZ_CONTRACT_DRILLING_RATES
+    for bit, depth_from, depth_to, rate in source:
         rows.append((contractor, year, bit, depth_from, depth_to, rate))
     return rows
 
@@ -174,9 +200,20 @@ def contract_drilling_rows(contractor: str, year: str):
 def contract_hourly_rows(contractor: str, year: str):
     rows = []
     for code, desc, rate, unit in ALLIANZ_CONTRACT_HOURLY_RATES:
-        if contractor == "Mitchells Drilling" and code in MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES:
-            rate, unit = MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES[code]
-            desc = "Minimum shift rate: 12 hours at active rate"
+        if contractor == "Mitchells Drilling":
+            if code in MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES:
+                rate, unit = MITCHELLS_CONTRACT_HOURLY_RATE_OVERRIDES[code]
+            elif rate == 745.00:
+                rate = 725.00
+            elif rate == 675.00:
+                rate = 650.00
+            elif unit in {"day", "item"}:
+                rate = 0.00
+                unit = "item"
+            if code == "H_Min_Shift":
+                desc = "Minimum shift rate: 12 hours at active rate"
+            elif code.startswith("D_") or code == "D_Accommodation":
+                desc = f"{desc}; Mitchells schedule recharges are cost plus 10%"
         rows.append((contractor, year, code, desc, rate, unit))
     return rows
 
@@ -195,7 +232,7 @@ def migrate_legacy_drilling_bit_labels():
 
 # ── Schema ────────────────────────────────────────────────────────────────────
 def apply_mitchells_contract_exceptions():
-    """Keep known Mitchells contract exceptions aligned for existing data."""
+    """Keep Mitchells contract details aligned for existing imported data."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -234,7 +271,7 @@ def apply_mitchells_contract_exceptions():
                   )
                 """
             )
-            for (bit, depth_from, depth_to), rate in MITCHELLS_CONTRACT_DRILLING_RATE_OVERRIDES.items():
+            for bit, depth_from, depth_to, rate in MITCHELLS_CONTRACT_DRILLING_RATES:
                 cur.execute(
                     """
                     UPDATE drilling_rates
@@ -952,6 +989,8 @@ def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -
         mm_values.append(value * 25.4)
     if "4C" in text or "101.6" in text:
         return "4C"
+    if "PQ" in text:
+        return PQ_PQ3_LABEL
     if "HQ" in text or "NQ" in text:
         return "HQ_HQ3"
     if "HAMMER" in text:
@@ -1590,7 +1629,7 @@ def coreplan_bit_type(row):
 def coreplan_drill_code(row):
     bit = coreplan_bit_type(row)
     typ = str(row.get("type") or "").upper()
-    if bit in ("HQ_HQ3", "NQ", "PQ") or "COR" in typ:
+    if bit in ("HQ_HQ3", "NQ", PQ_PQ3_LABEL) or "COR" in typ:
         return "Drill_Core"
     return "Drill_Chip_or_Open_hole"
 

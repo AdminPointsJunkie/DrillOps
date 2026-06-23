@@ -190,6 +190,7 @@ function normaliseReportBit(row){
   for(const m of text.matchAll(/\b(\d+)\s+(\d+)\/(\d+)\b/g)){const d=parseFloat(m[3]);if(d)mm.push((parseFloat(m[1])+parseFloat(m[2])/d)*25.4);}
   for(const m of text.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:INCH|IN|")\b/g))mm.push(parseFloat(m[1])*25.4);
   if(text.includes('4C')||text.includes('101.6'))return '4C';
+  if(text.includes('PQ'))return 'PQ_PQ3';
   if(text.includes('HQ')||text.includes('NQ'))return 'HQ_HQ3';
   if(text.includes('PCD')||text.includes('CHIP')||text.includes('OPEN_HOLE')){
     if(mm.some(v=>v>=175))return 'PCD or Blade 175-305mm';
