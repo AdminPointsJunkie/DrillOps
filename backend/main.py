@@ -1133,6 +1133,19 @@ def price_activity(cur, row, contractor):
     elif is_not_chargeable_code(code, contractor):
         unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
         line_cost = 0; rate_basis = "not chargeable"
+    elif code.startswith("E_"):
+        r = get_hr(code)
+        try:
+            existing_qty = float(row.get("quantity") or 1)
+        except (TypeError, ValueError):
+            existing_qty = 1
+        qty = round(hours, 2) if hours > 0 else existing_qty
+        if r is not None:
+            unit_rate = r; quantity = qty; line_cost = round(r * qty, 2)
+            rate_basis = f"equipment ${r:,.2f}/unit x {qty}"
+        elif row.get("line_cost") is not None:
+            unit_rate = row.get("unit_rate"); quantity = row.get("quantity") or qty
+            line_cost = row.get("line_cost"); rate_basis = row.get("rate_basis") or "equipment charge"
     elif code in STANDBY_CODES or "Standby" in code:
         r = get_hr(code)
         if r is None:
@@ -1828,6 +1841,22 @@ def parse_coreplan_plod_csv(content, filename, contractor):
             row, code, row.get("notes") or name, 0,
             line_cost=line_cost, unit_rate=unit_rate, quantity=qty,
             rate_basis="CorePlan miscellaneous charge"
+        ))
+
+    for row in sections.get("Equipment") or []:
+        name = row.get("item_name") or row.get("name") or row.get("equipment") or "Equipment"
+        line_cost = coreplan_money(row.get("cost"))
+        duration = row.get("duration_hours") or row.get("quantity")
+        qty = coreplan_float(duration) or coreplan_float(row.get("quantity")) or 1
+        unit_rate = coreplan_money(row.get("cost_per_unit")) or coreplan_money(row.get("cost_per_day")) or coreplan_money(row.get("cost_per_hour"))
+        if unit_rate is None and line_cost is not None and qty:
+            unit_rate = round(line_cost / qty, 2)
+        unit = row.get("unit") or row.get("billing_unit") or ""
+        notes = row.get("notes") or name
+        acts.append(base_activity(
+            row, "E_Equipment", notes, duration,
+            line_cost=line_cost, unit_rate=unit_rate, quantity=qty,
+            rate_basis=("CorePlan equipment charge" + (f" ({unit})" if unit else ""))
         ))
 
     cons = []
@@ -2642,6 +2671,16 @@ async def import_pdf(
             # Not chargeable
             if lc is None and is_not_chargeable_code(code, contractor):
                 ur = 0; qty = round(hours,2) if hours > 0 else 1; lc = 0; rb = "not chargeable"
+
+            # Equipment packages
+            if lc is None and code.startswith("E_"):
+                r = _get_hr(code, year)
+                q = round(hours,2) if hours > 0 else (coreplan_float(row.get("quantity")) or 1)
+                if r is not None:
+                    ur = r; qty = q; lc = round(r*q,2); rb = f"equipment ${r:,.2f}/unit x {q}"
+                elif row.get("line_cost") is not None:
+                    ur = row.get("unit_rate"); qty = row.get("quantity") or q
+                    lc = row.get("line_cost"); rb = row.get("rate_basis") or "equipment charge"
 
             # Standby/inactive
             if lc is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):
@@ -5299,6 +5338,17 @@ def reprice_activities(contractor: str = Query(...)):
             if line_cost is None and is_not_chargeable_code(code, contractor):
                 unit_rate = 0; quantity = round(hours,2) if hours > 0 else 1
                 line_cost = 0; rate_basis = "not chargeable"
+
+            # Equipment packages
+            if line_cost is None and code.startswith("E_"):
+                r = get_hr_mem(code, year)
+                qty = round(hours,2) if hours > 0 else (row_num(row.get("quantity")) or 1)
+                if r is not None:
+                    unit_rate = r; quantity = qty
+                    line_cost = round(r * qty, 2); rate_basis = f"equipment ${r:,.2f}/unit x {qty}"
+                elif row.get("line_cost") is not None:
+                    unit_rate = row.get("unit_rate"); quantity = row.get("quantity") or qty
+                    line_cost = row.get("line_cost"); rate_basis = row.get("rate_basis") or "equipment charge"
 
             # Standby / inactive
             if line_cost is None and (code in STANDBY_CODES or "Standby" in code or code in INACTIVE_CODES):

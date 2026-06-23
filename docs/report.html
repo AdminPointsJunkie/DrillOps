@@ -147,6 +147,10 @@ tr.saving td{background:#fff7e6;}
           <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Charge/Hr</th><th>Charge/m</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
         </div>
       </div>
+      <div class="subtitle">Equipment</div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <table><thead><tr><th>Hole</th><th>Equipment</th><th>Unit</th><th>Duration</th><th>Notes</th><th>Charge/Unit</th><th>Total</th></tr></thead><tbody id="equipment-body"></tbody></table>
+      </div>
       <div class="grid">
         <div>
           <div class="subtitle">Consumables</div>
@@ -185,6 +189,9 @@ function clockLabel(mins){mins=((mins%1440)+1440)%1440;const h=Math.floor(mins/6
 function activityCategory(row){const text=((row.code||'')+' '+(row.notes||'')).toLowerCase();if(text.includes('drill')||text.includes('core')||text.includes('chip'))return 'Productive Drilling';if(text.includes('trip')||text.includes('rod'))return 'Tripping Rods';if(text.includes('flush')||text.includes('circul')||text.includes('water')||text.includes('lost'))return 'Circulation';if(text.includes('repair')||text.includes('breakdown'))return 'Repairs';if(text.includes('standby')||text.includes('fatigue')||text.includes('wait')||text.includes('delay')||text.includes('no access'))return 'Standby / Delays';if(text.includes('travel'))return 'Travel';if(text.includes('safety')||text.includes('prestart')||text.includes('meeting')||text.includes('admin'))return 'Safety & Admin';return 'Other';}
 function isDrilledMetresRow(row){const code=String(row.code||'');return num(row.total_metres)>0&&(code==='Drill_Core'||code==='Drill_Chip_or_Open_hole'||/drill|core|chip/i.test(code));}
 function isSupportCostRow(row){return /^D_(Backhoe|Water)/i.test(String(row.code||''));}
+function isEquipmentRow(row){const code=String(row.code||''),text=(code+' '+(row.notes||'')+' '+(row.rate_basis||'')).toLowerCase();return code.startsWith('E_')||text.includes('directional kit')||text.includes('directional drilling package')||text.includes('directional package');}
+function equipmentName(row){const note=String(row.notes||'').trim();if(note)return note.replace(/\s+/g,' ');return String(row.code||'Equipment').replace(/^E_/,'').replace(/_/g,' ');}
+function equipmentUnit(row){const basis=String(row.rate_basis||'');const m=basis.match(/\(([^)]+)\)/);if(m)return m[1];return row.quantity&&parseDurationHours(row.total_time)>0?'Per Hour':'Per Unit';}
 function diameterLabel(row){const raw=String(row.diameter||'').trim();if(!raw)return '';const n=parseFloat(raw);return isNaN(n)?raw:(n+'mm');}
 function depthBandLabel(from,to){const f=num(from),t=num(to);if(!t&&!f)return '';const start=Math.floor(f/100)*100;const end=Math.max(start+100,Math.ceil(t/100)*100);return '('+start+'-'+end+'m)';}
 function drillItemBase(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia].filter(Boolean).join(' ');}
@@ -558,13 +565,16 @@ function renderApprovalLog(record){
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
+  const equipmentRows=rows.filter(isEquipmentRow);
+  const activityRows=rows.filter(r=>!isEquipmentRow(r));
   const activityCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
-  const supportCost=rows.filter(isSupportCostRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const equipmentCost=equipmentRows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const supportCost=rows.filter(isSupportCostRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0)+equipmentCost;
   const drillingCost=activityCost-supportCost;
   const consumableCost=relatedConsumables.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
   const cost=activityCost+consumableCost;
   const metres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
-  const hours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  const hours=activityRows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
   const first=rows[0]||{};
   const relatedCrew=crew.filter(belongsToThisReport);
   const driller=relatedCrew.filter(c=>String(c.role||'').toLowerCase().includes('drill')).map(c=>c.name)[0]||'';
@@ -588,9 +598,9 @@ function renderReport(rows,consumables,crew){
   document.getElementById('notes').innerHTML=notes.length?notes.map(n=>'<p>'+esc(n)+'</p>').join(''):'No notes recorded.';
   const drilled=metresDrilledSummary(rows);
   document.getElementById('metres-drilled-body').innerHTML=drilled.map(d=>'<tr><td>'+esc(d.item)+'</td><td>'+cur(d.rate)+'</td><td>'+d.metres.toFixed(2)+'</td><td>10%</td><td>'+cur(d.cost)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No drilled metres recorded.</td></tr>';
-  renderTimeline(rows,hours);
+  renderTimeline(activityRows,hours);
   const activityBody=document.getElementById('activity-body');
-  activityBody.innerHTML=rows.map(r=>{
+  activityBody.innerHTML=activityRows.map(r=>{
     const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
     const chargeHr=rowChargePerHour(r);
     const chargeM=rowChargePerMetre(r);
@@ -611,6 +621,17 @@ function renderReport(rows,consumables,crew){
       if(e.key==='Enter'){e.preventDefault();cell.blur();}
     });
   });
+  const equipmentSubtotal=equipmentRows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr>'
+    +'<td>'+esc(rowHoleLabel(r)||'--')+'</td>'
+    +'<td>'+esc(equipmentName(r))+'</td>'
+    +'<td>'+esc(equipmentUnit(r))+'</td>'
+    +'<td>'+esc(r.total_time||'')+'</td>'
+    +'<td>'+esc(r.rate_basis||'')+'</td>'
+    +'<td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td>'
+    +'<td>'+cur(r.line_cost)+'</td>'
+    +'</tr>').join('')
+    +(equipmentRows.length?'<tr><td colspan="5"></td><td style="font-weight:800;color:#0f172a;">Sub-total</td><td style="font-weight:800;color:#0f172a;">'+cur(equipmentSubtotal)+'</td></tr>':'<tr><td colspan="7" class="empty">No equipment recorded.</td></tr>');
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
