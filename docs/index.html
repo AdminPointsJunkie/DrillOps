@@ -3330,6 +3330,14 @@ function rowIsMitchellsDrillingCost(row){
   return code.indexOf('Drill_')===0||['H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods'].includes(code);
 }
 
+function rowMatchesPeriodProject(row,holes,project){
+  if(!project)return true;
+  const bh=holes.get(rowHole(row));
+  if((bh&&bh.project||'')===project)return true;
+  const text=[row.project,row.site_name,row.hole_num,row.source_file,row.notes].join(' ').toLowerCase();
+  return project.toLowerCase()==='ironbark'&&text.includes('ironbark');
+}
+
 function buildPeriodProjectOptions(){
   const sel=document.getElementById('period-project-select');
   if(!sel)return;
@@ -3378,10 +3386,7 @@ function periodFilteredRows(){
     const iso=reportIso(r.date);
     if(period.from&&(!iso||iso<period.from))return false;
     if(period.to&&(!iso||iso>period.to))return false;
-    if(period.project){
-      const bh=holes.get(rowHole(r));
-      if((bh&&bh.project||'')!==period.project)return false;
-    }
+    if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });
 }
@@ -3393,10 +3398,7 @@ function periodFilteredConsumables(){
     const iso=reportIso(r.date);
     if(period.from&&(!iso||iso<period.from))return false;
     if(period.to&&(!iso||iso>period.to))return false;
-    if(period.project){
-      const bh=holes.get(rowHole(r));
-      if((bh&&bh.project||'')!==period.project)return false;
-    }
+    if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });
 }
@@ -3409,7 +3411,7 @@ function periodHoleMetrics(rows,consumables,activeHoles,holes){
     const actualMetres=hr.reduce(function(s,r){return s+numVal(r.total_metres);},0);
     const drillHours=hr.filter(function(r){return numVal(r.total_metres)>0;}).reduce(function(s,r){return s+parseDurationHours(r.total_time);},0);
     const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
-    const drillingCharged=hr.filter(rowIsMitchellsDrillingCost).reduce(function(s,r){return s+numVal(r.line_cost);},0);
+    const drillingCharged=charged;
     const budget=numVal(b.budget_total);
     const drillingBudget=numVal(b.drilling_budget_total);
     const plannedMetres=numVal(b.eoh_depth)||numVal(b.chip_depth)||numVal(b.total_core);
