@@ -3359,8 +3359,8 @@ function holeLookup(){
 
 function activityMethod(row,bh){
   const text=[row.bit_type,row.code,row.activity_code,row.notes,bh&&bh.bh_type,bh&&bh.type,bh&&bh.bit_type].join(' ').toLowerCase();
+  if(text.match(/\bpcd\b|chip|rc|open hole/))return 'Chipped / RC';
   if(text.match(/core|coring|hq|nq|pq|dd/))return 'Core';
-  if(text.match(/chip|rc|open hole|pcd/))return 'Chipped / RC';
   return bh&&(bh.bh_type||bh.type)||'Other';
 }
 
