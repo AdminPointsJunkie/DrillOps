@@ -1682,8 +1682,15 @@ tbody td[contenteditable=true]:focus {
               <div id="period-cost-breakdown"></div>
             </div>
           </div>
-          <div class="period-section-title">Standby Reasons</div>
-          <div id="period-standby-reasons"></div>
+          <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span>Standby Reasons</span>
+            <button class="btn-csv collapse-btn" type="button" onclick="togglePanel('period-standby-panel','period-standby-toggle-label','detail')"><span class="collapse-arrow">▶</span><span id="period-standby-toggle-label">Show detail</span></button>
+          </div>
+          <div class="collapsible-table collapsed" id="period-standby-panel">
+            <div class="tbl-scroll" style="max-height:260px;">
+              <div id="period-standby-reasons"></div>
+            </div>
+          </div>
           <div class="period-section-title">Cost Per Hole &amp; Drilling Performance</div>
           <div class="period-visual-grid" id="period-hole-graphics"></div>
           <div class="period-section-title">Hole Detail Table</div>
@@ -3096,12 +3103,13 @@ function toggleActivityLog(){
   togglePanel('activity-log-panel','activity-log-toggle-label');
 }
 
-function togglePanel(panelId,labelId){
+function togglePanel(panelId,labelId,labelWord){
   const panel=document.getElementById(panelId);
   const label=document.getElementById(labelId);
   if(!panel)return;
   panel.classList.toggle('collapsed');
-  if(label)label.textContent=panel.classList.contains('collapsed')?'Show rows':'Hide rows';
+  const word=labelWord||'rows';
+  if(label)label.textContent=panel.classList.contains('collapsed')?'Show '+word:'Hide '+word;
 }
 
 async function loadActivities(){
