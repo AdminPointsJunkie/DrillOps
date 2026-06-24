@@ -3733,7 +3733,7 @@ function cleanStandbyReason(row){
 function renderPeriodStandbyReasons(rows){
   const el=document.getElementById('period-standby-reasons');
   if(!el)return;
-  const standby=(rows||[]).filter(rowIsStandby);
+  const standby=(rows||[]).filter(function(r){return rowIsStandby(r)&&numVal(r.line_cost)>0;});
   if(!standby.length){
     el.innerHTML='<div class="period-issues"><div class="empty-state" style="padding:0;">No standby rows recorded in this period.</div></div>';
     return;
