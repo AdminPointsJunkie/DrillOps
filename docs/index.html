@@ -1682,6 +1682,8 @@ tbody td[contenteditable=true]:focus {
               <div id="period-cost-breakdown"></div>
             </div>
           </div>
+          <div class="period-section-title">Standby Reasons</div>
+          <div id="period-standby-reasons"></div>
           <div class="period-section-title">Cost Per Hole &amp; Drilling Performance</div>
           <div class="period-visual-grid" id="period-hole-graphics"></div>
           <div class="period-section-title">Hole Detail Table</div>
@@ -3539,6 +3541,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
+  renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles);
 }
 
@@ -3719,6 +3722,48 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
     +'<table class="period-mini-table"><thead><tr><th>Code</th><th>Group</th><th>Occurrences</th><th>Value</th></tr></thead><tbody>'
     +(codes.map(function(r){return '<tr><td>'+esc(r.code)+'</td><td>'+esc(r.group)+'</td><td class="num">'+r.count+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="4">No activity codes in period.</td></tr>')
     +'</tbody></table>';
+}
+
+function cleanStandbyReason(row){
+  const raw=String(row.notes||'').trim();
+  if(raw)return raw.replace(/\s+/g,' ');
+  return String(row.code||row.activity_code||'Standby').replace(/_/g,' ');
+}
+
+function renderPeriodStandbyReasons(rows){
+  const el=document.getElementById('period-standby-reasons');
+  if(!el)return;
+  const standby=(rows||[]).filter(rowIsStandby);
+  if(!standby.length){
+    el.innerHTML='<div class="period-issues"><div class="empty-state" style="padding:0;">No standby rows recorded in this period.</div></div>';
+    return;
+  }
+  const groups=new Map();
+  standby.forEach(function(r){
+    const reason=cleanStandbyReason(r);
+    if(!groups.has(reason))groups.set(reason,{reason:reason,count:0,hours:0,cost:0,holes:new Set(),dates:new Set()});
+    const item=groups.get(reason);
+    item.count+=1;
+    item.hours+=parseDurationHours(r.total_time);
+    item.cost+=numVal(r.line_cost);
+    if(rowHole(r))item.holes.add(rowHole(r));
+    const iso=reportIso(r.date);
+    if(iso)item.dates.add(iso);
+  });
+  const items=Array.from(groups.values()).sort(function(a,b){return b.cost-a.cost||b.hours-a.hours||a.reason.localeCompare(b.reason);});
+  const totalHours=items.reduce(function(s,r){return s+r.hours;},0);
+  const totalCost=items.reduce(function(s,r){return s+r.cost;},0);
+  el.innerHTML='<div class="period-bar-chart">'
+    +'<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;">'
+    +'<div><div class="period-visual-title">Standby Events</div><b>'+standby.length.toLocaleString()+'</b></div>'
+    +'<div><div class="period-visual-title">Standby Hours</div><b>'+totalHours.toFixed(2)+' h</b></div>'
+    +'<div><div class="period-visual-title">Standby Cost</div><b>'+cur(totalCost)+'</b></div>'
+    +'</div>'
+    +'<table class="period-mini-table"><thead><tr><th>Reason</th><th>Holes</th><th>Dates</th><th>Events</th><th>Hours</th><th>Cost</th></tr></thead><tbody>'
+    +items.map(function(r){
+      return '<tr><td>'+esc(r.reason)+'</td><td>'+esc(Array.from(r.holes).join(', ')||'--')+'</td><td>'+esc(Array.from(r.dates).sort().join(', ')||'--')+'</td><td class="num">'+r.count+'</td><td class="num">'+r.hours.toFixed(2)+'</td><td class="num">'+cur(r.cost)+'</td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
 }
 
 function renderPeriodProgress(rows,activeHoles,projectHoles){
