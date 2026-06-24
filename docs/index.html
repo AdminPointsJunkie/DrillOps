@@ -363,6 +363,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
   .period-section-title{margin:9px 0 5px!important;}
   .period-bar-chart,.period-visual-card,.period-map-card,.period-issues{break-inside:avoid!important;}
   .period-map{height:250px!important;}
+  .period-map,.period-map *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   .period-visual-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
   .tbl-scroll{max-height:none!important;overflow:visible!important;}
   .period-mini-table{font-size:9.5px!important;}
@@ -3565,17 +3566,24 @@ function renderPeriodMap(activeHoles){
   if(!mapped.length){
     el.style.display='none';
     if(empty)empty.style.display='flex';
-    if(periodMap){periodMap.remove();periodMap=null;periodMapMarkers=[];}
+    if(periodMap){periodMap.remove();periodMap=null;periodMapMarkers=[];periodMapOverlays=[];}
     return;
   }
   el.style.display='block';
   if(empty)empty.style.display='none';
   if(!periodMap){
-    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
-    periodMap=L.map('period-map',{layers:[osm],scrollWheelZoom:false,zoomControl:true});
+    const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
+    periodMap=L.map('period-map',{layers:[sat],scrollWheelZoom:false,zoomControl:true});
   }
   periodMapMarkers.forEach(function(m){try{m.remove();}catch(e){}});
+  periodMapOverlays.forEach(function(m){try{m.remove();}catch(e){}});
   periodMapMarkers=[];
+  periodMapOverlays=[];
+  periodMapOverlayAssets(mapped).forEach(function(asset){
+    const layer=L.imageOverlay(asset.path,asset.bounds,{opacity:0.86,interactive:false});
+    layer.addTo(periodMap);
+    periodMapOverlays.push(layer);
+  });
   mapped.forEach(function(b){
     const col=getBhColor(b);
     const label=displayHoleId(b)||b.hole_id||b.site_id||'Hole';
@@ -3592,6 +3600,15 @@ function renderPeriodMap(activeHoles){
       periodMap.fitBounds(bounds,{padding:[24,24],maxZoom:16});
     }
   },80);
+}
+
+function periodMapOverlayAssets(activeHoles){
+  const period=selectedPeriod();
+  if(period.project)return mapOverlayAssetsForProject(period.project);
+  const projects=Array.from(new Set((activeHoles||[]).map(function(b){return b.project||'';}).filter(Boolean)));
+  if(projects.length===1)return mapOverlayAssetsForProject(projects[0]);
+  if(projects.some(function(p){return String(p).toLowerCase().includes('iron');}))return mapOverlayAssetsForProject('Ironbark');
+  return [];
 }
 
 function renderPeriodHoleTable(metrics){
@@ -5620,6 +5637,7 @@ let bhMap = null;
 let bhMarkers = [];
 let periodMap = null;
 let periodMapMarkers = [];
+let periodMapOverlays = [];
 let boreholesCsvData = [];
 let boreholeDetailsCsvData = [];
 
