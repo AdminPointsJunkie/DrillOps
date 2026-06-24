@@ -5552,6 +5552,16 @@ function getBhColor(bh) {
   return '#6b7280';
 }
 
+function isPlaceholderHoleId(bh) {
+  const hole = String((bh&&bh.hole_id)||'').trim();
+  const site = String((bh&&bh.site_id)||'').trim();
+  return !!hole && !!site && hole===site && /^26-\d+/i.test(site);
+}
+
+function displayHoleId(bh) {
+  return isPlaceholderHoleId(bh) ? '' : ((bh&&bh.hole_id)||'');
+}
+
 async function loadBoreholes() {
   let dbData = [];
   try {
@@ -5590,7 +5600,7 @@ async function loadBoreholes() {
 
 const BOREHOLE_DETAIL_COLUMNS = [
   {key:'site_id', label:'Site ID', editable:true},
-  {key:'hole_id', label:'Hole ID', editable:false},
+  {key:'hole_id', label:'Hole ID', editable:true},
   {key:'ug_location', label:'UG Location', editable:true, extra:true},
   {key:'status', label:'Borehole Status', editable:true, type:'status'},
   {key:'notes', label:'Comments', editable:true},
@@ -5641,7 +5651,7 @@ const BOREHOLE_DETAIL_COLUMNS = [
 ];
 
 const BOREHOLE_DB_DETAIL_FIELDS = new Set([
-  'site_id','status','notes','assigned_rig','scheduled_start','scheduled_end','bh_type','easting','northing','rl'
+  'site_id','hole_id','status','notes','assigned_rig','scheduled_start','scheduled_end','bh_type','easting','northing','rl'
 ]);
 
 function boreholeDetailsExtraKey() {
@@ -5691,6 +5701,7 @@ function boreholeDetailUrl(b) {
 
 function detailsCellValue(b, col) {
   if(col.extra) return (getBoreholeDetailsExtras()[b.hole_id]||{})[col.key] ?? '';
+  if(col.key==='hole_id') return displayHoleId(b);
   return b[col.key];
 }
 
@@ -5766,6 +5777,10 @@ function renderBoreholeDetails() {
       const holeId = row.dataset.hole;
       const col = cell.dataset.col;
       let val = cell.textContent.trim().replace(/[$,]/g,'');
+      if(col==='hole_id' && !val) {
+        renderBoreholeDetails();
+        return;
+      }
       saveBoreholeDetailCell(holeId, col, val, !!cell.dataset.num, !!cell.dataset.extra);
     });
   });
@@ -5778,6 +5793,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
   const oldHoleId = holeId;
   let val = rawVal;
   if(isNumeric) val = val==='' ? null : parseFloat(val);
+  if(col==='hole_id' && !val) return;
   if(isExtra || !BOREHOLE_DB_DETAIL_FIELDS.has(col)) {
     setBoreholeDetailsExtra(oldHoleId, col, val);
     toast('Saved');
@@ -5798,6 +5814,10 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
     toast('Saved');
   } catch(e) {
     toast('Save failed: '+((e&&e.message)||'change was not saved'),'err');
+  }
+  if(col==='hole_id') {
+    await loadBoreholes();
+    return;
   }
   renderBoreholeDetails();
   updateBhKPIs();
@@ -6294,7 +6314,7 @@ function renderBhTable(rows) {
       +'<td contenteditable="true" data-col="project" style="font-size:12px;">'+ esc(b.project||'')+'</td>'
       +'<td contenteditable="true" data-col="planned_year" style="font-size:12px;">'+ esc(b.planned_year||'')+'</td>'
       +'<td style="font-size:12px;"><a href="'+boreholeDetailUrl(b)+'" target="_blank" onclick="event.stopPropagation()" style="font-weight:700;color:var(--accent);text-decoration:none;">'+ esc(b.site_id||'Open')+'</a></td>'
-      +'<td><a href="'+boreholeDetailUrl(b)+'" target="_blank" onclick="event.stopPropagation()" style="font-weight:700;color:var(--accent);text-decoration:none;">'+esc(b.hole_id)+'</a></td>'
+      +'<td contenteditable="true" data-col="hole_id" onclick="event.stopPropagation()" style="font-weight:700;color:var(--accent);min-width:90px;">'+esc(displayHoleId(b))+'</td>'
       +'<td contenteditable="true" data-col="bh_type"><span class="badge '+(t==='Core'?'badge-drill':'badge-standby')+'">'+esc(t)+'</span></td>'
       +'<td contenteditable="true" data-col="bit_type" style="font-family:var(--font-mono);font-size:11px;">'+esc(b.bit_type||'')+'</td>'
       +'<td contenteditable="true" data-col="purpose" style="font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;">'+esc(b.purpose||'')+'</td>'
@@ -6324,6 +6344,10 @@ function renderBhTable(rows) {
       const holeId = row.dataset.hole;
       const col = cell.dataset.col;
       let val = cell.textContent.trim().replace(/[$,]/g,'');
+      if(col==='hole_id' && !val) {
+        renderBhTable(bhData);
+        return;
+      }
       if(cell.dataset.num) val = val===''?null:parseFloat(val);
       const bh = bhData.find(function(b){return b.hole_id===holeId;});
       if(bh) {
@@ -6337,6 +6361,10 @@ function renderBhTable(rows) {
         if(!res.ok) throw new Error(await res.text());
         toast('✓ Saved');
       } catch(e) { toast('Save failed: '+((e&&e.message)||'change was not saved'),'err'); }
+      if(col==='hole_id') {
+        await loadBoreholes();
+        return;
+      }
       updateBhKPIs();
       if(col==='easting'||col==='northing') await loadBoreholes();
     });
