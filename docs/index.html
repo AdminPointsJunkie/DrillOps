@@ -3348,6 +3348,8 @@ function holeLookup(){
   (bhData||[]).forEach(function(b){
     const id=String(b.hole_id||b.hole_num||'').trim();
     if(id)map.set(id,b);
+    const site=String(b.site_id||'').trim();
+    if(site)map.set(site,b);
   });
   return map;
 }
@@ -3488,7 +3490,7 @@ function renderPeriodReport(){
   const rows=periodFilteredRows();
   const consumables=periodFilteredConsumables();
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
-  const activeHoles=activeIds.map(function(id){return holes.get(id)||{hole_id:id};});
+  const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
   const projectHoles=(bhData||[]).filter(function(b){return !period.project||b.project===period.project;});
   const activityCost=rows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
@@ -3497,7 +3499,7 @@ function renderPeriodReport(){
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,activeHoles,holes);
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
-  const totalDrillingCost=metrics.reduce(function(s,r){return s+r.drillingCharged;},0);
+  const totalDrillingCost=actualTotal;
   const drillingBudgetTotal=metrics.reduce(function(s,r){return s+r.drillingBudget;},0);
   const variance=drillingBudgetTotal-totalDrillingCost;
   const penetration=drillHours>0?totalMetres/drillHours:0;
@@ -3526,7 +3528,7 @@ function renderPeriodReport(){
   setPeriodText('period-variance-sub',variance>=0?'Under budget':'Over budget');
   setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
   setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
-  setPeriodText('period-holes',activeIds.length.toLocaleString());
+  setPeriodText('period-holes',activeHoles.length.toLocaleString());
   setPeriodText('period-holes-sub',completed+' completed / '+planned+' planned');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
   setPeriodText('period-extra-costs','Mitchells drilling only');
