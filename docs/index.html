@@ -3550,9 +3550,9 @@ function setPeriodText(id,value){
 function printPeriodReport(){
   renderPeriodReport();
   setTimeout(function(){
-    if(periodMap)periodMap.invalidateSize();
+    fitPeriodMapToBounds();
     window.print();
-  }, 700);
+  }, 900);
 }
 
 function renderPeriodMap(activeHoles){
@@ -3566,6 +3566,7 @@ function renderPeriodMap(activeHoles){
   if(!mapped.length){
     el.style.display='none';
     if(empty)empty.style.display='flex';
+    periodMapBounds=null;
     if(periodMap){periodMap.remove();periodMap=null;periodMapMarkers=[];periodMapOverlays=[];}
     return;
   }
@@ -3593,13 +3594,25 @@ function renderPeriodMap(activeHoles){
     marker.addTo(periodMap);
     periodMapMarkers.push(marker);
   });
-  const bounds=L.latLngBounds(mapped.map(function(b){return[b.lat,b.lng];}));
-  setTimeout(function(){
-    if(periodMap){
-      periodMap.invalidateSize();
-      periodMap.fitBounds(bounds,{padding:[24,24],maxZoom:16});
-    }
-  },80);
+  periodMapBounds=L.latLngBounds(mapped.map(function(b){return[b.lat,b.lng];}));
+  setTimeout(fitPeriodMapToBounds,80);
+}
+
+function fitPeriodMapToBounds(){
+  if(!periodMap||!periodMapBounds||!periodMapBounds.isValid())return;
+  periodMap.invalidateSize();
+  periodMap.fitBounds(periodMapBounds,{
+    paddingTopLeft:[90,36],
+    paddingBottomRight:[190,36],
+    maxZoom:15
+  });
+}
+
+if(typeof window!=='undefined'){
+  window.addEventListener('beforeprint',function(){
+    fitPeriodMapToBounds();
+    setTimeout(fitPeriodMapToBounds,120);
+  });
 }
 
 function periodMapOverlayAssets(activeHoles){
@@ -5638,6 +5651,7 @@ let bhMarkers = [];
 let periodMap = null;
 let periodMapMarkers = [];
 let periodMapOverlays = [];
+let periodMapBounds = null;
 let boreholesCsvData = [];
 let boreholeDetailsCsvData = [];
 
