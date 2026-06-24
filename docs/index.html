@@ -298,7 +298,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-report-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
 .period-report-actions select{height:34px;border:1px solid #cfd7e1;border-radius:6px;background:#fff;padding:0 10px;font-family:var(--font);font-size:12px;color:var(--text);min-width:180px;}
 .period-report-body{padding:16px;}
-.period-kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.period-kpis{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-bottom:14px;}
 .period-kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
@@ -1624,7 +1624,8 @@ tbody td[contenteditable=true]:focus {
         <div class="period-report-body">
           <div class="period-section-title">Headline Figures</div>
           <div class="period-kpis">
-            <div class="period-kpi"><div class="label">Budgeted Total</div><div class="value" id="period-budget-total">--</div><div class="sub">Active holes in period</div></div>
+            <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub">Whole hole budget</div></div>
+            <div class="period-kpi"><div class="label">Drilling Budget</div><div class="value" id="period-drilling-budget">--</div><div class="sub">Schedule drilling only</div></div>
             <div class="period-kpi"><div class="label">Drilling Spend</div><div class="value" id="period-actual-total">--</div><div class="sub">Drilling charged total</div></div>
             <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
             <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
@@ -3410,7 +3411,7 @@ function periodHoleMetrics(rows,consumables,activeHoles,holes){
     const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
     const drillingCharged=hr.filter(rowIsMitchellsDrillingCost).reduce(function(s,r){return s+numVal(r.line_cost);},0);
     const budget=numVal(b.budget_total);
-    const drillingBudget=numVal(b.drilling_budget_total)||budget;
+    const drillingBudget=numVal(b.drilling_budget_total);
     const plannedMetres=numVal(b.eoh_depth)||numVal(b.chip_depth)||numVal(b.total_core);
     const variance=drillingBudget-drillingCharged;
     const dates=hr.map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
@@ -3449,11 +3450,12 @@ function renderPeriodReport(){
   const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const actualTotal=activityCost+consumableCost;
   const budgetTotal=activeHoles.reduce(function(s,b){return s+numVal(b.budget_total);},0);
-  const variance=budgetTotal-actualTotal;
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,activeHoles,holes);
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
   const totalDrillingCost=metrics.reduce(function(s,r){return s+r.drillingCharged;},0);
+  const drillingBudgetTotal=metrics.reduce(function(s,r){return s+r.drillingBudget;},0);
+  const variance=drillingBudgetTotal-totalDrillingCost;
   const penetration=drillHours>0?totalMetres/drillHours:0;
   let coreMetres=0, chippedMetres=0;
   rows.forEach(function(r){
@@ -3469,7 +3471,8 @@ function renderPeriodReport(){
   const today=new Date().toLocaleDateString('en-AU');
   shell.textContent=projectLabel+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
   setPeriodText('period-budget-total',cur(budgetTotal));
-  setPeriodText('period-actual-total',cur(actualTotal));
+  setPeriodText('period-drilling-budget',cur(drillingBudgetTotal));
+  setPeriodText('period-actual-total',cur(totalDrillingCost));
   const varianceEl=document.getElementById('period-variance');
   if(varianceEl){
     varianceEl.textContent=cur(Math.abs(variance));
@@ -3486,7 +3489,7 @@ function renderPeriodReport(){
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
-  renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal);
+  renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
   renderPeriodProgress(rows,activeHoles,projectHoles);
 }
 
@@ -3580,8 +3583,8 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
   const types=Array.from(typeMap.values()).sort(function(a,b){return b.value-a.value;});
   const max=Math.max(budgetTotal,actualTotal,1);
   el.innerHTML='<div class="period-bar-chart">'
-    +'<div class="period-bar-row"><div>Budget</div><div class="period-bar-track"><div class="period-bar-fill" style="width:'+Math.min(100,(budgetTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(budgetTotal)+'</div></div>'
-    +'<div class="period-bar-row"><div>Actual</div><div class="period-bar-track"><div class="period-bar-fill actual" style="width:'+Math.min(100,(actualTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(actualTotal)+'</div></div>'
+    +'<div class="period-bar-row"><div>Drill Budget</div><div class="period-bar-track"><div class="period-bar-fill" style="width:'+Math.min(100,(budgetTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(budgetTotal)+'</div></div>'
+    +'<div class="period-bar-row"><div>Drill Spend</div><div class="period-bar-track"><div class="period-bar-fill actual" style="width:'+Math.min(100,(actualTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(actualTotal)+'</div></div>'
     +'</div>'
     +'<table class="period-mini-table"><thead><tr><th>Type</th><th>Metres</th><th>Value</th></tr></thead><tbody>'
     +(types.map(function(r){return '<tr><td>'+esc(r.type)+'</td><td class="num">'+(r.metres?r.metres.toFixed(1):'--')+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="3">No costs in period.</td></tr>')
