@@ -1643,7 +1643,7 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Hole Detail Table</div>
           <div class="tbl-scroll" style="max-height:320px;">
             <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Budget</th><th>Charged</th><th>$/m</th><th>Penetration</th><th>Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Mitchells $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
               <tbody id="period-hole-body"></tbody>
             </table>
           </div>
@@ -2166,7 +2166,7 @@ tbody td[contenteditable=true]:focus {
         <div class="kpi warn"><div class="kpi-label">In Progress</div><div class="kpi-value" id="bh-kpi-inprog">—</div></div>
         <div class="kpi"><div class="kpi-label">Planned</div><div class="kpi-value" id="bh-kpi-planned">—</div></div>
         <div class="kpi"><div class="kpi-label">Total Budget</div><div class="kpi-value" id="bh-kpi-budget">—</div><div class="kpi-sub" id="bh-kpi-days">— days</div></div>
-        <div class="kpi"><div class="kpi-label">EOS Actual</div><div class="kpi-value" id="bh-kpi-actual">—</div><div class="kpi-sub" id="bh-kpi-variance" style="font-weight:600;"></div></div>
+        <div class="kpi"><div class="kpi-label">Mitchells Drilling</div><div class="kpi-value" id="bh-kpi-actual">—</div><div class="kpi-sub" id="bh-kpi-variance" style="font-weight:600;"></div></div>
       </div>
 
       <!-- Map + controls row -->
@@ -2242,7 +2242,8 @@ tbody td[contenteditable=true]:focus {
             <div class="filter-group"><label>EOH Depth (m)</label><input type="number" id="add-bh-eoh" placeholder="250" step="0.01"/></div>
             <div class="filter-group"><label>Total Core (m)</label><input type="number" id="add-bh-core" placeholder="25" step="0.01"/></div>
             <div class="filter-group"><label>Seam Tk (m)</label><input type="number" id="add-bh-seam" placeholder="5.0" step="0.1"/></div>
-            <div class="filter-group"><label>Budget $</label><input type="number" id="add-bh-budget" placeholder="0" step="100"/></div>
+            <div class="filter-group"><label>Total Budget $</label><input type="number" id="add-bh-budget" placeholder="0" step="100"/></div>
+            <div class="filter-group"><label>Drilling Budget $</label><input type="number" id="add-bh-drilling-budget" placeholder="0" step="100"/></div>
             <div class="filter-group"><label>Status</label>
               <select id="add-bh-status"><option>Planned</option><option>In Progress</option><option>Complete</option><option>Cancelled</option></select></div>
             <div class="filter-group"><label>Notes</label><input type="text" id="add-bh-notes" placeholder="Optional"/></div>
@@ -2265,7 +2266,7 @@ tbody td[contenteditable=true]:focus {
             <thead><tr>
               <th>#</th><th>Project</th><th>Year</th><th>Site ID</th><th>Hole ID</th><th>Type</th><th>Bit</th><th>Purpose</th>
               <th>Easting</th><th>Northing</th><th>RL</th><th>Chip Depth</th><th>EOH Depth</th><th>Total Core</th><th>Seam Tk</th>
-              <th>Days</th><th>Status</th><th>Budget $</th><th>EOS $</th><th>Variance</th><th>Notes</th><th></th>
+              <th>Days</th><th>Status</th><th>Total Budget $</th><th>Drilling Budget $</th><th>Mitchells Drilling $</th><th>Total EOS $</th><th>Drilling Variance</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="bh-body"></tbody>
           </table>
@@ -3323,6 +3324,10 @@ function rowIsExtra(row){
   const text=[row.code,row.activity_code,row.notes].join(' ').toLowerCase();
   return rowIsStandby(row)||text.match(/mobil|travel|delay|wait|fatigue|breakdown|repair|extra|non[- ]?drilling/);
 }
+function rowIsMitchellsDrillingCost(row){
+  const code=String(row.code||row.activity_code||'');
+  return code.indexOf('Drill_')===0||['H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods'].includes(code);
+}
 
 function buildPeriodProjectOptions(){
   const sel=document.getElementById('period-project-select');
@@ -3403,9 +3408,11 @@ function periodHoleMetrics(rows,consumables,activeHoles,holes){
     const actualMetres=hr.reduce(function(s,r){return s+numVal(r.total_metres);},0);
     const drillHours=hr.filter(function(r){return numVal(r.total_metres)>0;}).reduce(function(s,r){return s+parseDurationHours(r.total_time);},0);
     const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+    const drillingCharged=hr.filter(rowIsMitchellsDrillingCost).reduce(function(s,r){return s+numVal(r.line_cost);},0);
     const budget=numVal(b.budget_total);
+    const drillingBudget=numVal(b.drilling_budget_total)||budget;
     const plannedMetres=numVal(b.eoh_depth)||numVal(b.chip_depth)||numVal(b.total_core);
-    const variance=budget-charged;
+    const variance=drillingBudget-drillingCharged;
     const dates=hr.map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
     return {
       id:id,
@@ -3414,10 +3421,12 @@ function periodHoleMetrics(rows,consumables,activeHoles,holes){
       actualMetres:actualMetres,
       drillHours:drillHours,
       charged:charged,
+      drillingCharged:drillingCharged,
       budget:budget,
+      drillingBudget:drillingBudget,
       plannedMetres:plannedMetres,
       variance:variance,
-      costPerMetre:actualMetres>0?charged/actualMetres:0,
+      costPerMetre:actualMetres>0?drillingCharged/actualMetres:0,
       penetration:drillHours>0?actualMetres/drillHours:0,
       start:dates[0]||'',
       end:dates[dates.length-1]||''
@@ -3444,6 +3453,7 @@ function renderPeriodReport(){
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,activeHoles,holes);
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
+  const totalDrillingCost=metrics.reduce(function(s,r){return s+r.drillingCharged;},0);
   const penetration=drillHours>0?totalMetres/drillHours:0;
   let coreMetres=0, chippedMetres=0;
   rows.forEach(function(r){
@@ -3454,7 +3464,7 @@ function renderPeriodReport(){
   const completed=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()==='complete';}).length;
   const planned=projectHoles.length||activeHoles.length;
   const extrasCost=rows.filter(rowIsExtra).reduce(function(s,r){return s+numVal(r.line_cost);},0);
-  const avgCost=totalMetres>0?actualTotal/totalMetres:0;
+  const avgCost=totalMetres>0?totalDrillingCost/totalMetres:0;
   const projectLabel=period.project||'All Projects';
   const today=new Date().toLocaleDateString('en-AU');
   shell.textContent=projectLabel+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
@@ -3471,7 +3481,7 @@ function renderPeriodReport(){
   setPeriodText('period-holes',activeIds.length.toLocaleString());
   setPeriodText('period-holes-sub',completed+' completed / '+planned+' planned');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
-  setPeriodText('period-extra-costs','Standby/downtime/mob/extra '+cur(extrasCost));
+  setPeriodText('period-extra-costs','Mitchells drilling only');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
   renderPeriodHoleGraphics(metrics);
@@ -3489,7 +3499,7 @@ function renderPeriodHoleTable(metrics){
   const tbody=document.getElementById('period-hole-body');
   if(!tbody)return;
   if(!metrics.length){
-    tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">No holes active in the selected period.</div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="13"><div class="empty-state">No holes active in the selected period.</div></td></tr>';
     return;
   }
   tbody.innerHTML=metrics.map(function(m){
@@ -3498,7 +3508,8 @@ function renderPeriodHoleTable(metrics){
       +'<td><b>'+esc(m.id)+'</b></td>'
       +'<td class="num">'+(m.plannedMetres?m.plannedMetres.toFixed(1):'--')+'</td>'
       +'<td class="num">'+m.actualMetres.toFixed(1)+'</td>'
-      +'<td class="num">'+cur(m.budget)+'</td>'
+      +'<td class="num">'+cur(m.drillingBudget)+'</td>'
+      +'<td class="num">'+cur(m.drillingCharged)+'</td>'
       +'<td class="num">'+cur(m.charged)+'</td>'
       +'<td class="num">'+(m.costPerMetre>0?cur(m.costPerMetre):'--')+'</td>'
       +'<td class="num">'+(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--')+'</td>'
@@ -3518,16 +3529,16 @@ function renderPeriodHoleGraphics(metrics){
     el.innerHTML='<div class="period-visual-card"><div class="empty-state">No hole performance data for this period.</div></div>';
     return;
   }
-  const rankedCost=metrics.slice().sort(function(a,b){return b.charged-a.charged;}).slice(0,10);
+  const rankedCost=metrics.slice().sort(function(a,b){return b.drillingCharged-a.drillingCharged;}).slice(0,10);
   const rankedPen=metrics.slice().filter(function(m){return m.penetration>0;}).sort(function(a,b){return b.penetration-a.penetration;}).slice(0,10);
-  const maxCost=Math.max(1,...rankedCost.map(function(m){return Math.max(m.charged,m.budget);}));
+  const maxCost=Math.max(1,...rankedCost.map(function(m){return Math.max(m.drillingCharged,m.drillingBudget);}));
   const maxPen=Math.max(1,...rankedPen.map(function(m){return m.penetration;}));
   const costBars=rankedCost.map(function(m){
-    const over=m.budget>0&&m.charged>m.budget;
+    const over=m.drillingBudget>0&&m.drillingCharged>m.drillingBudget;
     return '<div class="period-hole-bar">'
       +'<div class="period-hole-label" title="'+attr(m.id)+'">'+esc(m.id)+'</div>'
-      +'<div class="period-hole-track" title="Actual '+attr(cur(m.charged))+' / Budget '+attr(cur(m.budget))+'"><div class="period-hole-fill cost '+(over?'over':'')+'" style="width:'+Math.min(100,(m.charged/maxCost)*100).toFixed(1)+'%"></div></div>'
-      +'<div class="period-hole-value">'+cur(m.charged)+'</div>'
+      +'<div class="period-hole-track" title="Mitchells '+attr(cur(m.drillingCharged))+' / Drill budget '+attr(cur(m.drillingBudget))+'"><div class="period-hole-fill cost '+(over?'over':'')+'" style="width:'+Math.min(100,(m.drillingCharged/maxCost)*100).toFixed(1)+'%"></div></div>'
+      +'<div class="period-hole-value">'+cur(m.drillingCharged)+'</div>'
       +'</div>';
   }).join('');
   const penBars=(rankedPen.length?rankedPen:metrics.slice(0,10)).map(function(m){
@@ -3537,7 +3548,7 @@ function renderPeriodHoleGraphics(metrics){
       +'<div class="period-hole-value">'+(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--')+'</div>'
       +'</div>';
   }).join('');
-  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Cost Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#1f5f8b"></i>Actual</span><span><i style="background:#dc2626"></i>Over budget</span></div></div>'
+  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Mitchells Drilling Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#1f5f8b"></i>Mitchells drilling</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
     +'<div class="period-visual-card"><div class="period-visual-title">Penetration Rate</div><div class="period-hole-bars">'+penBars+'</div><div class="period-legend"><span><i style="background:#2563eb"></i>Metres per drilling hour</span></div></div>';
 }
 
@@ -5555,16 +5566,18 @@ async function loadBoreholes() {
         lat: d.lat||seed.lat, lng: d.lng||seed.lng,
         type: d.bh_type||d.type||seed.type,
         eos_cost: parseFloat(d.eos_cost)||0,
+        drilling_cost: parseFloat(d.drilling_cost)||0,
+        drilling_metres: parseFloat(d.drilling_metres)||0,
         eos_metres: parseFloat(d.eos_metres)||0
       });
     });
     BUDGET_BOREHOLES.forEach(b => {
       if(!bhData.find(d => d.hole_id===b.hole_id)) {
-        bhData.push(Object.assign({}, b, {status:'Planned',eos_cost:0,eos_metres:0}));
+        bhData.push(Object.assign({}, b, {status:'Planned',eos_cost:0,drilling_cost:0,drilling_metres:0,eos_metres:0}));
       }
     });
   } else {
-    bhData = BUDGET_BOREHOLES.map(b => Object.assign({}, b, {status:'Planned',eos_cost:0,eos_metres:0}));
+    bhData = BUDGET_BOREHOLES.map(b => Object.assign({}, b, {status:'Planned',eos_cost:0,drilling_cost:0,drilling_metres:0,eos_metres:0}));
   }
   bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
   updateBhKPIs();
@@ -6106,18 +6119,20 @@ function updateBhKPIs() {
   const inprog   = bhData.filter(b => b.status==='In Progress').length;
   const planned  = bhData.filter(b => b.status==='Planned').length;
   const totalBudget = bhData.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
+  const drillingBudget = bhData.reduce((s,b) => s+(parseFloat(b.drilling_budget_total)||0), 0);
   const totalDays   = bhData.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
   const totalEos    = bhData.reduce((s,b) => s+(parseFloat(b.eos_cost)||0), 0);
-  const variance    = totalEos - totalBudget;
+  const totalDrilling = bhData.reduce((s,b) => s+(parseFloat(b.drilling_cost)||0), 0);
+  const variance    = totalDrilling - drillingBudget;
   document.getElementById('bh-kpi-total').textContent = bhData.length;
   document.getElementById('bh-kpi-complete').textContent = complete;
   document.getElementById('bh-kpi-inprog').textContent = inprog;
   document.getElementById('bh-kpi-planned').textContent = planned;
   document.getElementById('bh-kpi-budget').textContent = totalBudget>0 ? '$'+Math.round(totalBudget).toLocaleString('en-AU') : '—';
   document.getElementById('bh-kpi-days').textContent = totalDays>0 ? totalDays.toFixed(1)+' days' : '—';
-  document.getElementById('bh-kpi-actual').textContent = totalEos>0 ? '$'+Math.round(totalEos).toLocaleString('en-AU') : '—';
+  document.getElementById('bh-kpi-actual').textContent = totalDrilling>0 ? '$'+Math.round(totalDrilling).toLocaleString('en-AU') : '—';
   const vEl = document.getElementById('bh-kpi-variance');
-  if(vEl && totalBudget>0) {
+  if(vEl && drillingBudget>0) {
     vEl.textContent = (variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
     vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
@@ -6198,7 +6213,9 @@ function renderBhMap() {
       })});
     }
     const eos = parseFloat(b.eos_cost)||0;
+    const drilling = parseFloat(b.drilling_cost)||0;
     const budget = parseFloat(b.budget_total)||0;
+    const drillingBudget = parseFloat(b.drilling_budget_total)||0;
     const popupHtml = '<div style="font-family:Inter,sans-serif;min-width:190px;">'
       +'<div style="font-weight:700;font-size:15px;margin-bottom:2px;">'+b.hole_id+'</div>'
       +'<div style="color:#6b7280;font-size:12px;margin-bottom:8px;">'+t+' &middot; '+(b.bit_type||'')+' &middot; '+(b.purpose||'')+'</div>'
@@ -6211,7 +6228,9 @@ function renderBhMap() {
       +'<div><div style="color:#9ca3af;font-size:10px;">DAYS</div>'+(b.days_budgeted||b.days||'—')+'</div>'
       +'</div>'
       +(budget>0?'<div style="font-size:12px;margin-bottom:4px;">Budget: <b>$'+budget.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
-      +(eos>0?'<div style="font-size:12px;margin-bottom:8px;">EOS: <b style="color:'+(eos>budget&&budget>0?'#dc2626':'#16a34a')+'">$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +(drillingBudget>0?'<div style="font-size:12px;margin-bottom:4px;">Drilling budget: <b>$'+drillingBudget.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +(drilling>0?'<div style="font-size:12px;margin-bottom:4px;">Mitchells drilling: <b style="color:'+(drilling>drillingBudget&&drillingBudget>0?'#dc2626':'#16a34a')+'">$'+drilling.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +(eos>0?'<div style="font-size:12px;margin-bottom:8px;">Total EOS: <b style="color:var(--accent)">$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
       +'<span style="background:'+col+'22;color:'+col+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">'+b.status+'</span>'
       +'<div style="margin-top:10px;display:flex;gap:6px;">'
       +'<button onclick="setBhStatus(&apos;'+b.hole_id+'&apos;,&apos;In Progress&apos;)" style="font-size:10px;padding:3px 8px;background:#fef3c7;border:1px solid #d97706;color:#d97706;border-radius:4px;cursor:pointer;">&#9654; Start</button>'
@@ -6261,8 +6280,10 @@ function renderBhTable(rows) {
   const STATUS_CLR = {Planned:'#6b7280','In Progress':'#d97706',Complete:'#16a34a',Cancelled:'#dc2626'};
   document.getElementById('bh-body').innerHTML = rows.map(function(b) {
     const eos = parseFloat(b.eos_cost)||0;
+    const drilling = parseFloat(b.drilling_cost)||0;
     const bgt = parseFloat(b.budget_total)||0;
-    const variance = bgt>0 ? eos-bgt : null;
+    const drillingBudget = parseFloat(b.drilling_budget_total)||0;
+    const drillingVariance = drillingBudget>0 ? drilling-drillingBudget : null;
     const sc = STATUS_CLR[b.status]||'#6b7280';
     const t = b.type||b.bh_type||'Core';
     const statusOpts = ['Planned','In Progress','Complete','Cancelled'].map(function(s) {
@@ -6287,9 +6308,11 @@ function renderBhTable(rows) {
       +'<td contenteditable="true" data-col="days_budgeted" data-num="true" style="font-family:var(--font-mono);font-size:11px;">'+(b.days_budgeted||b.days||'')+'</td>'
       +'<td><select onclick="event.stopPropagation()" onchange="setBhStatus(&apos;'+b.hole_id+'&apos;,this.value)" style="font-size:11px;background:'+sc+'18;color:'+sc+';border:1.5px solid '+sc+';border-radius:12px;padding:2px 6px;outline:none;font-family:var(--font);">'+statusOpts+'</select></td>'
       +'<td contenteditable="true" data-col="budget_total" data-num="true" style="font-weight:600;">'+(bgt>0?bgt.toLocaleString("en-AU",{maximumFractionDigits:0}):"")+'</td>'
+      +'<td contenteditable="true" data-col="drilling_budget_total" data-num="true" style="font-weight:600;color:#174d72;">'+(drillingBudget>0?drillingBudget.toLocaleString("en-AU",{maximumFractionDigits:0}):"")+'</td>'
+      +'<td style="color:#174d72;font-weight:700;">'+(drilling>0?"$"+drilling.toLocaleString("en-AU",{maximumFractionDigits:0}):"\u2014")+'</td>'
       +'<td style="color:var(--accent);font-weight:600;">'+(eos>0?"$"+eos.toLocaleString("en-AU",{maximumFractionDigits:0}):"\u2014")+'</td>'
-      +'<td style="color:'+(variance===null?"var(--muted)":variance>0?"var(--red)":"var(--green)")+';font-weight:600;">'
-        +(variance===null?"\u2014":(variance>0?"+":"")+("$"+Math.abs(Math.round(variance)).toLocaleString("en-AU")))+'</td>'
+      +'<td style="color:'+(drillingVariance===null?"var(--muted)":drillingVariance>0?"var(--red)":"var(--green)")+';font-weight:600;">'
+        +(drillingVariance===null?"\u2014":(drillingVariance>0?"+":"")+("$"+Math.abs(Math.round(drillingVariance)).toLocaleString("en-AU")))+'</td>'
       +'<td contenteditable="true" data-col="notes" style="font-size:11px;color:var(--muted);max-width:120px;">'+esc(b.notes||'')+'</td>'
       +'<td><button onclick="deleteBorehole(&apos;'+esc(b.hole_id)+'&apos;)" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:14px;">\u2715</button></td>'
       +'</tr>';
@@ -6349,11 +6372,12 @@ async function addBorehole() {
     eoh_depth:parseFloat(document.getElementById('add-bh-eoh').value)||null,
     total_core:parseFloat(document.getElementById('add-bh-core').value)||null,
     seam_tk:parseFloat(document.getElementById('add-bh-seam').value)||null,
+    drilling_budget_total:parseFloat(document.getElementById('add-bh-drilling-budget').value)||null,
     budget_total:parseFloat(document.getElementById('add-bh-budget').value)||null,
     status:document.getElementById('add-bh-status').value,
     notes:document.getElementById('add-bh-notes').value,
     drill_order:bhData.length+1,
-    eos_cost:0, eos_metres:0
+    eos_cost:0, drilling_cost:0, drilling_metres:0, eos_metres:0
   };
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
@@ -6361,7 +6385,7 @@ async function addBorehole() {
       body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
-    ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-notes'].forEach(function(id){
+    ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-drilling-budget','add-bh-notes'].forEach(function(id){
       const el=document.getElementById(id); if(el) el.value='';
     });
     document.getElementById('bh-add-form').style.display='none';
@@ -6384,8 +6408,8 @@ async function deleteBorehole(holeId) {
 
 function downloadBhCsvTemplate(e) {
   e.preventDefault();
-  const cols = 'project,planned_year,hole_id,site_id,type,bit_type,purpose,planned_days,easting,northing,rl,chip_depth,seam_tk,eoh_depth,total_core,budget_total,notes';
-  const example = 'Ironbark No.1,2026,26-062,CD-26-004,Core,HQ,Geotech,3.5,620000,7594000,320.5,250,5.2,239.5,25.2,85000,Example hole';
+  const cols = 'project,planned_year,hole_id,site_id,type,bit_type,purpose,planned_days,easting,northing,rl,chip_depth,seam_tk,eoh_depth,total_core,drilling_budget_total,budget_total,notes';
+  const example = 'Ironbark No.1,2026,26-062,CD-26-004,Core,HQ,Geotech,3.5,620000,7594000,320.5,250,5.2,239.5,25.2,65000,85000,Example hole';
   const csv = cols + String.fromCharCode(10) + example;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -6423,10 +6447,11 @@ function importBhCSV(input) {
         seam_tk:parseFloat(row.seam_tk||row.seamtk)||null,
         eoh_depth:parseFloat(row.eoh_depth||row.eoh)||null,
         total_core:parseFloat(row.total_core)||null,
+        drilling_budget_total:parseFloat(row.drilling_budget_total||row.drillingbudget||row.drilling_budget)||null,
         budget_total:parseFloat(row.budget_total||row.budget)||null,
         notes:row.notes||'',
         lat:wgs.lat, lng:wgs.lng,
-        drill_order:i, status:'Planned', eos_cost:0, eos_metres:0
+        drill_order:i, status:'Planned', eos_cost:0, drilling_cost:0, drilling_metres:0, eos_metres:0
       });
     }
     if(errors.length) toast('⚠ '+errors.join('; '),'warn');

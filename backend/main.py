@@ -488,6 +488,7 @@ def init_db():
                     lng             FLOAT,
                     status          TEXT DEFAULT 'Planned',
                     notes           TEXT,
+                    drilling_budget_total FLOAT,
                     budget_total    FLOAT,
                     actual_total    FLOAT,
                     UNIQUE(contractor, hole_id)
@@ -502,6 +503,7 @@ def init_db():
                 ("assigned_rig", "TEXT"),
                 ("scheduled_start", "TEXT"),
                 ("scheduled_end", "TEXT"),
+                ("drilling_budget_total", "FLOAT"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE boreholes ADD COLUMN IF NOT EXISTS {col} {typedef}")
@@ -5680,6 +5682,10 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                     cur.execute("""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
+                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
+                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
+                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=%s
@@ -5694,6 +5700,10 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                     cur.execute("""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
+                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
+                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
+                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
                             SUM(a.total_metres) AS eos_metres
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=b.contractor
@@ -5710,7 +5720,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         "project","planned_year","site_id","drill_order","days_budgeted",
                         "bh_type","bit_type","purpose","easting","northing","rl",
                         "chip_depth","eoh_depth","total_core","seam_tk","lat","lng",
-                        "budget_total","actual_total","assigned_rig","scheduled_start",
+                        "drilling_budget_total","budget_total","actual_total","assigned_rig","scheduled_start",
                         "scheduled_end"
                     }
                     for row in rows:
@@ -5757,8 +5767,8 @@ async def import_budget(request: Request):
                 INSERT INTO boreholes
                 (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
                  bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
-                 seam_tk,lat,lng,status,budget_total)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 seam_tk,lat,lng,status,drilling_budget_total,budget_total)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (contractor,hole_id) DO UPDATE SET
                     project=EXCLUDED.project, planned_year=EXCLUDED.planned_year,
                     site_id=EXCLUDED.site_id, drill_order=EXCLUDED.drill_order,
@@ -5769,6 +5779,7 @@ async def import_budget(request: Request):
                     chip_depth=EXCLUDED.chip_depth, eoh_depth=EXCLUDED.eoh_depth,
                     total_core=EXCLUDED.total_core, seam_tk=EXCLUDED.seam_tk,
                     lat=EXCLUDED.lat, lng=EXCLUDED.lng,
+                    drilling_budget_total=EXCLUDED.drilling_budget_total,
                     budget_total=EXCLUDED.budget_total
             """, [(contractor, b.get("project",""), b.get("planned_year",""),
                    b.get("site_id",""), b["hole_id"], b.get("drill_order"),
@@ -5778,6 +5789,7 @@ async def import_budget(request: Request):
                    b.get("chip_depth"), b.get("eoh_depth"), b.get("total_core"),
                    b.get("seam_tk"), b.get("_lat"), b.get("_lng"),
                    b.get("status", "Planned"),
+                   b.get("drilling_budget_total"),
                    b.get("budget_total")) for b in boreholes])
         conn.commit()
     return {"status": "imported", "count": len(boreholes)}
@@ -5787,7 +5799,7 @@ async def import_budget(request: Request):
 async def update_borehole(hole_id: str, request: Request):
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
-    safe = {"status","notes","days_budgeted","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
+    safe = {"status","notes","days_budgeted","drilling_budget_total","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
     u["hole_id"] = hole_id
