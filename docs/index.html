@@ -320,6 +320,9 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-bar-track{height:12px;background:#e5eaf1;border-radius:999px;overflow:hidden;}
 .period-bar-fill{height:100%;background:#1f5f8b;border-radius:999px;}
 .period-bar-fill.actual{background:#dc2626;}
+.period-map-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:14px;break-inside:avoid;}
+.period-map{height:320px;border:1px solid #dfe5ec;border-radius:6px;background:#eef2f7;overflow:hidden;}
+.period-map-empty{height:120px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;border:1px dashed var(--border);border-radius:6px;background:#fff;}
 .period-visual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;}
 .period-visual-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;min-height:150px;}
 .period-visual-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;}
@@ -358,7 +361,8 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
   .period-kpi{padding:8px 9px!important;break-inside:avoid!important;}
   .period-kpi .value{font-size:15px!important;}
   .period-section-title{margin:9px 0 5px!important;}
-  .period-bar-chart,.period-visual-card,.period-issues{break-inside:avoid!important;}
+  .period-bar-chart,.period-visual-card,.period-map-card,.period-issues{break-inside:avoid!important;}
+  .period-map{height:250px!important;}
   .period-visual-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
   .tbl-scroll{max-height:none!important;overflow:visible!important;}
   .period-mini-table{font-size:9.5px!important;}
@@ -1654,6 +1658,11 @@ tbody td[contenteditable=true]:focus {
               <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
             </div>
             <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
+          </div>
+          <div class="period-section-title">Boreholes In Drilling Period</div>
+          <div class="period-map-card">
+            <div id="period-map" class="period-map"></div>
+            <div id="period-map-empty" class="period-map-empty" style="display:none;">No mapped boreholes in this period.</div>
           </div>
           <div class="period-section-title">Headline Figures</div>
           <div class="period-kpis">
@@ -3523,6 +3532,7 @@ function renderPeriodReport(){
   setPeriodText('period-extra-costs','Mitchells drilling only');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
+  renderPeriodMap(activeHoles);
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
@@ -3536,7 +3546,50 @@ function setPeriodText(id,value){
 
 function printPeriodReport(){
   renderPeriodReport();
-  setTimeout(function(){ window.print(); }, 150);
+  setTimeout(function(){
+    if(periodMap)periodMap.invalidateSize();
+    window.print();
+  }, 700);
+}
+
+function renderPeriodMap(activeHoles){
+  const el=document.getElementById('period-map');
+  const empty=document.getElementById('period-map-empty');
+  if(!el||typeof L==='undefined')return;
+  const mapped=(activeHoles||[]).map(function(b){
+    const lat=parseFloat(b.lat),lng=parseFloat(b.lng);
+    return Object.assign({},b,{lat:lat,lng:lng});
+  }).filter(function(b){return Number.isFinite(b.lat)&&Number.isFinite(b.lng);});
+  if(!mapped.length){
+    el.style.display='none';
+    if(empty)empty.style.display='flex';
+    if(periodMap){periodMap.remove();periodMap=null;periodMapMarkers=[];}
+    return;
+  }
+  el.style.display='block';
+  if(empty)empty.style.display='none';
+  if(!periodMap){
+    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
+    periodMap=L.map('period-map',{layers:[osm],scrollWheelZoom:false,zoomControl:true});
+  }
+  periodMapMarkers.forEach(function(m){try{m.remove();}catch(e){}});
+  periodMapMarkers=[];
+  mapped.forEach(function(b){
+    const col=getBhColor(b);
+    const label=displayHoleId(b)||b.hole_id||b.site_id||'Hole';
+    const marker=L.circleMarker([b.lat,b.lng],{radius:7,color:'#fff',weight:1.5,fillColor:col,fillOpacity:0.92});
+    marker.bindTooltip(label,{permanent:true,direction:'right',className:'bh-label',offset:[8,0]});
+    marker.bindPopup('<b>'+esc(label)+'</b><br>'+esc(b.site_id||'')+'<br>'+esc(b.bh_type||b.type||''));
+    marker.addTo(periodMap);
+    periodMapMarkers.push(marker);
+  });
+  const bounds=L.latLngBounds(mapped.map(function(b){return[b.lat,b.lng];}));
+  setTimeout(function(){
+    if(periodMap){
+      periodMap.invalidateSize();
+      periodMap.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+    }
+  },80);
 }
 
 function renderPeriodHoleTable(metrics){
@@ -5563,6 +5616,8 @@ const BUDGET_BOREHOLES = [];  // removed - DB is source of truth
 let bhData = [];
 let bhMap = null;
 let bhMarkers = [];
+let periodMap = null;
+let periodMapMarkers = [];
 let boreholesCsvData = [];
 let boreholeDetailsCsvData = [];
 
