@@ -5802,8 +5802,8 @@ async def update_borehole(hole_id: str, request: Request):
     safe = {"status","notes","days_budgeted","drilling_budget_total","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
-    u["hole_id"] = hole_id
-    u["contractor"] = contractor
+    params = {**u, "old_hole_id": hole_id, "contractor": contractor}
+    set_clause = ",".join(f"{k}=%({k})s" for k in u)
     with get_conn() as conn:
         with conn.cursor() as cur:
             if "easting" in u or "northing" in u:
@@ -5815,14 +5815,17 @@ async def update_borehole(hole_id: str, request: Request):
                 if lat is not None and lng is not None:
                     u["lat"] = lat
                     u["lng"] = lng
+                    params["lat"] = lat
+                    params["lng"] = lng
+                    set_clause = ",".join(f"{k}=%({k})s" for k in u)
             cur.execute(
-                f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in u if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
-                u
+                f"UPDATE boreholes SET {set_clause} WHERE hole_id=%(old_hole_id)s AND contractor=%(contractor)s",
+                params
             )
             if cur.rowcount == 0 and contractor != "Company":
-                legacy = {**u, "contractor": "Company"}
+                legacy = {**params, "contractor": "Company"}
                 cur.execute(
-                    f"UPDATE boreholes SET {','.join(f'{k}=%('+k+')s' for k in legacy if k not in ('hole_id','contractor'))} WHERE hole_id=%(hole_id)s AND contractor=%(contractor)s",
+                    f"UPDATE boreholes SET {set_clause} WHERE hole_id=%(old_hole_id)s AND contractor=%(contractor)s",
                     legacy
                 )
             if cur.rowcount == 0:
