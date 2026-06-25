@@ -602,9 +602,15 @@ def init_db():
                     id         SERIAL PRIMARY KEY,
                     name       TEXT NOT NULL UNIQUE,
                     short_code TEXT,
+                    program    TEXT DEFAULT 'Exploration',
                     active     BOOLEAN DEFAULT TRUE
                 )
             """)
+            try:
+                cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
+                cur.execute("UPDATE contractors SET program='Exploration' WHERE program IS NULL OR program=''")
+            except Exception:
+                conn.rollback()
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
@@ -1916,10 +1922,10 @@ def get_contractors():
         with conn.cursor() as cur:
             for name, code in CONTRACTORS:
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code)
-                    VALUES (%s, %s) ON CONFLICT (name) DO NOTHING
+                    INSERT INTO contractors (name, short_code, program)
+                    VALUES (%s, %s, 'Exploration') ON CONFLICT (name) DO NOTHING
                 """, (name, code))
-            cur.execute("SELECT * FROM contractors ORDER BY name")
+            cur.execute("SELECT * FROM contractors ORDER BY program, name")
             rows = [dict(r) for r in cur.fetchall()]
         conn.commit()
     return rows
@@ -1933,22 +1939,52 @@ async def add_contractor(request: Request):
         raise HTTPException(400, "Invalid JSON body")
     name = payload.get("name", "").strip()
     code = payload.get("short_code", "").strip().upper() or name[:3].upper()
+    program = str(payload.get("program", "Exploration") or "Exploration").strip() or "Exploration"
     if not name:
         raise HTTPException(400, "name is required")
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, active)
-                    VALUES (%s, %s, TRUE)
-                    ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code
+                    INSERT INTO contractors (name, short_code, program, active)
+                    VALUES (%s, %s, %s, TRUE)
+                    ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code, program=EXCLUDED.program
                     RETURNING id
-                """, (name, code))
+                """, (name, code, program))
                 new_id = cur.fetchone()["id"]
             conn.commit()
-        return {"status": "created", "id": new_id, "name": name, "short_code": code}
+        return {"status": "created", "id": new_id, "name": name, "short_code": code, "program": program}
     except Exception as e:
         raise HTTPException(500, f"Failed to add contractor: {str(e)}")
+
+
+@app.patch("/contractors/{name}")
+async def update_contractor(name: str, request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    safe = {}
+    if "short_code" in payload:
+        safe["short_code"] = str(payload.get("short_code") or "").strip().upper()
+    if "program" in payload:
+        safe["program"] = str(payload.get("program") or "Exploration").strip() or "Exploration"
+    if not safe:
+        raise HTTPException(400, "No valid fields")
+    set_clause = ", ".join(f"{k}=%({k})s" for k in safe)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"UPDATE contractors SET {set_clause} WHERE name=%(name)s RETURNING *", {**safe, "name": name})
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(404, "Contractor not found")
+            conn.commit()
+        return dict(row)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to update contractor: {str(e)}")
 
 
 @app.delete("/contractors/{name}")

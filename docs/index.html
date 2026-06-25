@@ -1521,6 +1521,12 @@ tbody td[contenteditable=true]:focus {
     <span></span><span></span><span></span>
   </button>
   <div class="logo">Drill<span>Ops</span></div>
+  <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="background:#fff;border:1.5px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;color:var(--text);min-width:128px;">
+    <option value="Exploration">Exploration</option>
+    <option value="Gas Riser">Gas Riser</option>
+    <option value="SIS">SIS</option>
+    <option value="">All Programs</option>
+  </select>
   <div id="contractor-switcher" aria-label="Contractor switcher"></div>
   <div class="header-right">
     <div class="header-meta"><span id="db-count">—</span> records</div>
@@ -1588,9 +1594,10 @@ tbody td[contenteditable=true]:focus {
           <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('contractor-panel-body').classList.toggle('open');">Contractors <span class="arrow">▼</span></button>
           <div class="filter-body open" id="contractor-panel-body" style="display:block;padding:14px;">
             <div class="contractor-panel-list" id="contractors-page-list"></div>
-            <div style="display:grid;grid-template-columns:1fr 110px auto;gap:8px;margin-top:12px;">
+            <div style="display:grid;grid-template-columns:1fr 110px 130px auto;gap:8px;margin-top:12px;">
               <input class="drawer-input" id="page-new-con-name" placeholder="Contractor name"/>
               <input class="drawer-input" id="page-new-con-code" placeholder="Code"/>
+              <select class="drawer-input" id="page-new-con-program"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select>
               <button class="btn-primary" onclick="addContractor()">Add</button>
             </div>
           </div>
@@ -2195,7 +2202,7 @@ tbody td[contenteditable=true]:focus {
         <div style="display:flex;gap:10px;align-items:center;">
           <div style="display:flex;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Program</label>
-            <select id="bh-program-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
+            <select id="bh-program-select" onchange="switchProgram(this.value)" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
               <option value="">All Programs</option>
               <option value="Exploration" selected>Exploration</option>
               <option value="Gas Riser">Gas Riser</option>
@@ -2401,6 +2408,17 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'Weatherfords',short_code:'WFD'},
    {name:'Epiroc',short_code:'EPI'},{name:'Fortem',short_code:'FOR'}];
 
+const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
+let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
+
+function contractorProgram(c) {
+  return (c && c.program) || 'Exploration';
+}
+
+function filteredContractors() {
+  return CONTRACTORS.filter(function(c){ return !activeProgram || contractorProgram(c) === activeProgram; });
+}
+
 async function fetchContractors(){
   try{
     const data=await fetch(`${API}/contractors`).then(r=>r.json());
@@ -2444,17 +2462,17 @@ function drawerNav(btn){
 function renderDrawerContractors(){
   const list=document.getElementById('drawer-contractor-list');
   if(!list)return;
-  list.innerHTML=CONTRACTORS.map((c,i)=>`
+  list.innerHTML=filteredContractors().map((c)=>`
     <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
       <div class="contractor-item-left">
         <div class="contractor-dot"></div>
         <div>
           <div class="contractor-name">${esc(c.name)}</div>
-          <div class="contractor-code">${esc(c.short_code||'')}</div>
+          <div class="contractor-code">${esc(c.short_code||'')} · ${esc(contractorProgram(c))}</div>
         </div>
       </div>
       <div class="contractor-item-actions">
-        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractor(${i})">Remove</button>
+        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Remove</button>
       </div>
     </div>`).join('');
 }
@@ -2462,17 +2480,18 @@ function renderDrawerContractors(){
 function renderContractorsPage(){
   const list=document.getElementById('contractors-page-list');
   if(!list)return;
-  list.innerHTML=CONTRACTORS.map((c,i)=>`
+  list.innerHTML=filteredContractors().map((c)=>`
     <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
       <div class="contractor-item-left">
         <div class="contractor-dot"></div>
         <div>
           <div class="contractor-name">${esc(c.name)}</div>
-          <div class="contractor-code">${esc(c.short_code||'')}</div>
+          <div class="contractor-code">${esc(c.short_code||'')} · ${esc(contractorProgram(c))}</div>
         </div>
       </div>
       <div class="contractor-item-actions">
-        ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':`<button class="icon-btn" onclick="event.stopPropagation();removeContractor(${i})">Remove</button>`}
+        <select class="drawer-input" style="width:130px;padding:5px 8px;font-size:11px;" onclick="event.stopPropagation()" onchange="updateContractorProgram('${c.name.replace(/'/g,"\\'")}',this.value)">${PROJECT_PROGRAMS.map(function(p){return '<option value="'+p+'"'+(p===contractorProgram(c)?' selected':'')+'>'+p+'</option>';}).join('')}</select>
+        ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':`<button class="icon-btn" onclick="event.stopPropagation();removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Remove</button>`}
       </div>
     </div>`).join('');
 }
@@ -2485,22 +2504,24 @@ function toggleAddContractorForm(){
 async function addContractor(){
   const nameEl=document.getElementById('page-new-con-name')||document.getElementById('new-con-name');
   const codeEl=document.getElementById('page-new-con-code')||document.getElementById('new-con-code');
+  const programEl=document.getElementById('page-new-con-program');
   const name=nameEl.value.trim();
   const code=codeEl.value.trim().toUpperCase();
+  const program=(programEl&&programEl.value)||activeProgram||'Exploration';
   if(!name){toast('Contractor name required','err');return;}
   try{
     const res=await fetch(`${API}/contractors`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase()})
+      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),program})
     });
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to add','err');return;}
     const d=await res.json();
     // Update local list
-    if(!CONTRACTORS.find(c=>c.name===name)){
-      CONTRACTORS.push({name,short_code:d.short_code});
-      sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
-    }
+    const existing=CONTRACTORS.find(c=>c.name===name);
+    if(existing)Object.assign(existing,{short_code:d.short_code,program:d.program||program});
+    else CONTRACTORS.push({name,short_code:d.short_code,program:d.program||program});
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     nameEl.value='';
     codeEl.value='';
     document.getElementById('add-contractor-form')?.classList.remove('open');
@@ -2524,6 +2545,30 @@ async function removeContractor(idx){
     renderContractorsPage();
     toast(`${c.name} removed`,'warn');
   }catch(e){toast('Failed to remove contractor','err');}
+}
+
+async function removeContractorByName(name){
+  const idx=CONTRACTORS.findIndex(function(c){return c.name===name;});
+  if(idx>=0) return removeContractor(idx);
+}
+
+async function updateContractorProgram(name, program){
+  const c=CONTRACTORS.find(function(item){return item.name===name;});
+  if(!c)return;
+  try{
+    const res=await fetch(`${API}/contractors/${encodeURIComponent(name)}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({program})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    c.program=program;
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    buildContractorSwitcher();
+    renderDrawerContractors();
+    renderContractorsPage();
+    toast(name+' moved to '+program);
+  }catch(e){toast('Failed to update contractor program','err');}
 }
 
 // Wire up clear buttons (drawer + sidebar)
@@ -2625,6 +2670,64 @@ function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFra
 function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
 function selectAll(id){const s=document.getElementById(id);if(s)[...s.options].forEach(o=>o.selected=true);}
 function isPageActive(page){return document.getElementById('page-'+page)?.classList.contains('active');}
+function setProgramControls(){
+  const global=document.getElementById('global-program-select');
+  if(global)global.value=activeProgram;
+  const planning=document.getElementById('bh-program-select');
+  if(planning)planning.value=activeProgram;
+  const addCon=document.getElementById('page-new-con-program');
+  if(addCon)addCon.value=activeProgram||'Exploration';
+}
+function activeProgramLabel(){return activeProgram||'All Programs';}
+function projectMatchesActiveProgram(projectName){
+  if(!activeProgram)return true;
+  if(!projectName)return false;
+  return projectProgramForName(projectName)===activeProgram;
+}
+function boreholeMatchesActiveProgram(b){
+  return !activeProgram || projectMatchesActiveProgram((b&&b.project)||'');
+}
+function filterBoreholesForActiveProgram(rows){
+  return (rows||[]).filter(boreholeMatchesActiveProgram);
+}
+function rowMatchesActiveProgram(row){
+  if(!activeProgram)return true;
+  if(row&&row.project)return projectMatchesActiveProgram(row.project);
+  const holes=holeLookup();
+  const bh=holes.get(rowHole(row||{}));
+  return !!(bh&&boreholeMatchesActiveProgram(bh));
+}
+function filterRowsForActiveProgram(rows){
+  return (rows||[]).filter(rowMatchesActiveProgram);
+}
+function ensureActiveContractorInProgram(){
+  const allowed=filteredContractors();
+  if(!allowed.length){
+    activeContractor='';
+    sessionStorage.setItem('drillops_contractor',activeContractor);
+    return;
+  }
+  if(!allowed.some(function(c){return c.name===activeContractor;})){
+    activeContractor=allowed[0].name;
+    sessionStorage.setItem('drillops_contractor',activeContractor);
+  }
+}
+async function switchProgram(program){
+  activeProgram=program||'';
+  sessionStorage.setItem('drillops_program',activeProgram);
+  setProgramControls();
+  ensureActiveContractorInProgram();
+  projects=[];
+  bhData=[];
+  activitiesData=[];consumablesData=[];crewData=[];dailyReportsData=[];
+  buildContractorSwitcher();
+  renderDrawerContractors();
+  await fetchProjects();
+  await updateDbCount();
+  const activePage=document.querySelector('.page.active')?.id?.replace('page-','');
+  if(activePage) triggerPageLoad(activePage);
+  toast('Workspace: '+activeProgramLabel());
+}
 let costingRefreshTimer=null;
 function refreshCostingIfActive(delay=250){
   if(!isPageActive('costing'))return;
@@ -2815,11 +2918,13 @@ function groupDailyReports(rows){
 
 // ── Contractor switcher ───────────────────────────────────────────────────────
 function buildContractorSwitcher(){
+  ensureActiveContractorInProgram();
+  setProgramControls();
   const label=document.getElementById('active-contractor-label');
   if(label)label.textContent=activeContractor;
   const switcher=document.getElementById('contractor-switcher');
   if(switcher){
-    switcher.innerHTML=CONTRACTORS.map(function(c){
+    switcher.innerHTML=filteredContractors().map(function(c){
       const active=c.name===activeContractor;
       const code=c.short_code ? ' · '+c.short_code : '';
       return '<button class="con-btn '+(active?'active':'')+'" type="button" data-contractor="'+attr(c.name)+'" title="'+attr(c.name+code)+'">'+esc(c.name)+'</button>';
@@ -2848,6 +2953,7 @@ async function switchContractor(name){
   costingHolesData=[];costingDatesData=[];costingLinesData=[];
   posData=[];drillingRatesData=[];hourlyRatesData=[];
   // Reload current page
+  await fetchProjects();
   await updateDbCount();
   const activePage=document.querySelector('.page.active')?.id?.replace('page-','');
   if(activePage) triggerPageLoad(activePage);
@@ -3139,6 +3245,11 @@ async function loadActivities(){
     await loadReportApprovals(dates);
     await loadReportLocks(dates);
     await ensureReportBoreholes();
+    activitiesData=filterRowsForActiveProgram(activitiesData);
+    consumablesData=filterRowsForActiveProgram(consumablesData);
+    crewData=filterRowsForActiveProgram(crewData);
+    renderConsumablesTable();
+    renderCrewTable();
     renderActivities(activitiesData);
   }catch(e){
     renderDailyReportSummary([]);
@@ -3436,6 +3547,8 @@ async function loadReportsPage(){
     activitiesData=results[0]||[];
     consumablesData=results[1]||[];
     await ensureReportBoreholes();
+    activitiesData=filterRowsForActiveProgram(activitiesData);
+    consumablesData=filterRowsForActiveProgram(consumablesData);
     renderPeriodReport();
   }catch(e){
     if(shell)shell.textContent='Report data could not be loaded.';
@@ -4393,9 +4506,12 @@ async function loadCosting(){
   try{
     const url=`${API}/costing?contractor=${encodeURIComponent(activeContractor)}`;
     const d=await fetch(url).then(r=>r.json());
+    await ensureReportBoreholes();
     costingHolesData=Array.isArray(d.by_hole)?d.by_hole:[];
     costingDatesData=Array.isArray(d.by_date)?d.by_date:[];
-    const grand=d.grand_total;
+    costingHolesData=costingHolesData.filter(function(r){return rowMatchesActiveProgram(r);});
+    costingDatesData=costingDatesData.filter(function(r){return rowMatchesActiveProgram(r);});
+    const grand=costingHolesData.reduce((s,r)=>s+(parseFloat(r.total_cost)||0),0);
     const totalDrill=costingHolesData.reduce((s,r)=>s+(parseFloat(r.drilling_cost)||0),0);
     const totalNon=costingHolesData.reduce((s,r)=>s+(parseFloat(r.non_drilling_cost)||0),0);
     const totalM=costingHolesData.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
@@ -4435,8 +4551,9 @@ async function loadCostingLines(){
   const dates=getSelVals('f-cost-dates').join(',');
   const p=new URLSearchParams({contractor:activeContractor,dates,holes});
   try{
+    await ensureReportBoreholes();
     const all=await fetch(`${API}/activities?${p}`).then(r=>r.json());
-    costingLinesData=all.filter(r=>r.line_cost!=null);
+    costingLinesData=filterRowsForActiveProgram(all).filter(r=>r.line_cost!=null);
     document.getElementById('cost-line-count').textContent=costingLinesData.length;
     document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr data-id="${r.id}">
       <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>
@@ -4494,6 +4611,7 @@ async function loadPOs(){
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load POs','err');return;}
     posData=await res.json();
     if(!Array.isArray(posData)){toast('PO data error','err');return;}
+    posData=posData.filter(function(r){return rowMatchesActiveProgram(r);});
     renderPOs(posData);
   }catch(e){console.error('loadPOs:',e);}
 }
@@ -4592,6 +4710,7 @@ async function loadTenements(){
     if(res.ok){
       const rows=await res.json();
       tenementsData=Array.isArray(rows)&&rows.length?rows:(saved?JSON.parse(saved):seedTenements());
+      tenementsData=tenementsData.filter(function(r){return rowMatchesActiveProgram(r);});
       saveTenements();
       renderTenements();
       return;
@@ -4602,6 +4721,7 @@ async function loadTenements(){
   }catch(e){
     tenementsData=seedTenements();
   }
+  tenementsData=tenementsData.filter(function(r){return rowMatchesActiveProgram(r);});
   saveTenements();
   renderTenements();
 }
@@ -5202,6 +5322,7 @@ async function loadInvoices(){
     if(!res.ok) return;
     invoicesData = await res.json();
     if(!Array.isArray(invoicesData)) invoicesData = [];
+    invoicesData = invoicesData.filter(function(r){ return rowMatchesActiveProgram(r); });
 
     // Apply client-side filters
     var cfilt = document.getElementById('inv-contractor-filter').value;
@@ -5785,6 +5906,7 @@ async function loadBoreholes() {
     bhData = BUDGET_BOREHOLES.map(b => Object.assign({}, b, {status:'Planned',eos_cost:0,drilling_cost:0,drilling_metres:0,eos_metres:0}));
   }
   bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
+  bhData = filterBoreholesForActiveProgram(bhData);
   updateBhKPIs();
   renderBhTable(bhData);
   if(isPageActive('boreholes')) setTimeout(initBhMap, 100);
@@ -6814,14 +6936,18 @@ function loadImageMapOverlay(asset) {
 
 // ── Project Management ────────────────────────────────────────────────────────────
 var projects = [];
-const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
 
 function projectProgram(p) {
   return (p && (p.program || p.category)) || 'Exploration';
 }
 
 function projectProgramForName(name) {
-  var match = projects.find(function(p){ return p.name === name; });
+  var raw = String(name||'').toLowerCase();
+  var match = projects.find(function(p){ return String(p.name||'').toLowerCase() === raw; })
+    || projects.find(function(p){
+      var pn=String(p.name||'').toLowerCase();
+      return pn && (raw.includes(pn) || pn.includes(raw));
+    });
   return match ? projectProgram(match) : 'Exploration';
 }
 
@@ -6839,14 +6965,14 @@ async function fetchProjects() {
 function buildProgramSelector() {
   var sel = document.getElementById("bh-program-select");
   if(!sel) return;
-  var current = sel.value;
+  var current = activeProgram;
   var programs = Array.from(new Set(PROJECT_PROGRAMS.concat(projects.map(projectProgram)))).filter(Boolean);
-  sel.innerHTML = "<option value=\"\">All Programs</option>";
+  sel.innerHTML = "<option value=\"\""+(!current?" selected":"")+">All Programs</option>";
   programs.forEach(function(program) {
     var opt = document.createElement("option");
     opt.value = program;
     opt.textContent = program;
-    if(program === current || (!current && program === "Exploration")) opt.selected = true;
+    if(program === current) opt.selected = true;
     sel.appendChild(opt);
   });
 }
@@ -6855,7 +6981,7 @@ function buildProjectSelector() {
   var sel = document.getElementById("bh-project-select");
   if(!sel) return;
   var current = sel.value;
-  var program = document.getElementById("bh-program-select") ? document.getElementById("bh-program-select").value : "";
+  var program = activeProgram;
   sel.innerHTML = "<option value=\"\">All Projects</option>";
   projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
     var opt = document.createElement("option");
@@ -6871,7 +6997,7 @@ function buildAddBoreholeProjectSelector() {
   var sel = document.getElementById("add-bh-project");
   if(!sel) return;
   var current = sel.value;
-  var program = document.getElementById("bh-program-select") ? document.getElementById("bh-program-select").value : "";
+  var program = activeProgram;
   sel.innerHTML = "<option value=\"\">Select project</option>";
   projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
     var opt = document.createElement("option");
@@ -6902,7 +7028,7 @@ function syncHierarchyYearSelector() {
 }
 
 async function showNewProjectDialog() {
-  var program = prompt("Program / first tier:", (document.getElementById("bh-program-select") && document.getElementById("bh-program-select").value) || "Exploration");
+  var program = prompt("Program / first tier:", activeProgram || "Exploration");
   if(!program) return;
   var name = prompt("New project name:");
   if(!name) return;
@@ -6915,6 +7041,9 @@ async function showNewProjectDialog() {
     });
     if(!res.ok) { toast("Failed to create project","err"); return; }
     toast("\u2713 Project "+name+" saved to database");
+    activeProgram = program;
+    sessionStorage.setItem('drillops_program', activeProgram);
+    setProgramControls();
     await fetchProjects();
     var programSel = document.getElementById("bh-program-select");
     var projectSel = document.getElementById("bh-project-select");
@@ -6930,7 +7059,7 @@ function filterBoreholesByProject() {
   buildProjectSelector();
   buildAddBoreholeProjectSelector();
   syncHierarchyYearSelector();
-  const program = document.getElementById("bh-program-select").value;
+  const program = activeProgram;
   const proj = document.getElementById("bh-project-select").value;
   const year = document.getElementById("bh-year-select").value;
   let filtered = bhData;
@@ -7015,9 +7144,9 @@ buildContractorSwitcher();
 (async()=>{
   await fetchContractors();
   buildContractorSwitcher();
+  await fetchProjects();
   await updateDbCount();
   await loadActivities();
-  await fetchProjects();
   loadBoreholes();
   setTimeout(()=>loadAnalytics('all'),200);
 })();
