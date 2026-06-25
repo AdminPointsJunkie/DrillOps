@@ -610,6 +610,7 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS projects (
                     id         SERIAL PRIMARY KEY,
                     contractor TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    program    TEXT DEFAULT 'Exploration',
                     name       TEXT NOT NULL,
                     year       TEXT,
                     status     TEXT DEFAULT 'Active',
@@ -617,6 +618,11 @@ def init_db():
                     UNIQUE(contractor, name)
                 )
             """)
+            try:
+                cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
+                cur.execute("UPDATE projects SET program='Exploration' WHERE program IS NULL OR program=''")
+            except Exception:
+                conn.rollback()
 
             # ── Invoices ──────────────────────────────────────────────────────
             cur.execute("""
@@ -5885,7 +5891,7 @@ def get_borehole_summary(contractor: Optional[str] = Query(None)):
 def get_projects(contractor: str = Query(...)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM projects WHERE contractor=%s ORDER BY name", (contractor,))
+            cur.execute("SELECT * FROM projects WHERE contractor=%s ORDER BY program, name, year", (contractor,))
             return [dict(r) for r in cur.fetchall()]
 
 
@@ -5899,20 +5905,21 @@ async def add_project(request: Request):
     if not name:
         raise HTTPException(400, "name is required")
     contractor = payload.get("contractor", "Allianz Drilling")
+    program = str(payload.get("program", payload.get("category", "Exploration")) or "Exploration").strip() or "Exploration"
     year = payload.get("year", "")
     notes = payload.get("notes", "")
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO projects (contractor, name, year, notes)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (contractor, name) DO UPDATE SET year=EXCLUDED.year, notes=EXCLUDED.notes
+                    INSERT INTO projects (contractor, program, name, year, notes)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (contractor, name) DO UPDATE SET program=EXCLUDED.program, year=EXCLUDED.year, notes=EXCLUDED.notes
                     RETURNING id
-                """, (contractor, name, year, notes))
+                """, (contractor, program, name, year, notes))
                 pid = cur.fetchone()["id"]
             conn.commit()
-        return {"status": "created", "id": pid, "name": name}
+        return {"status": "created", "id": pid, "program": program, "name": name}
     except Exception as e:
         raise HTTPException(500, f"Failed: {str(e)}")
 

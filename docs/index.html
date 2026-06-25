@@ -2194,6 +2194,15 @@ tbody td[contenteditable=true]:focus {
         <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Planning</h2>
         <div style="display:flex;gap:10px;align-items:center;">
           <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Program</label>
+            <select id="bh-program-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
+              <option value="">All Programs</option>
+              <option value="Exploration" selected>Exploration</option>
+              <option value="Gas Riser">Gas Riser</option>
+              <option value="SIS">SIS</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Project</label>
             <select id="bh-project-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:180px;">
               <option value="">All Projects</option>
@@ -2278,7 +2287,7 @@ tbody td[contenteditable=true]:focus {
         <div style="padding:16px;border-bottom:1px solid var(--border);background:var(--bg3);">
           <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Add New Borehole</div>
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px;">
-            <div class="filter-group"><label>Project</label><input type="text" id="add-bh-project" placeholder="Ironbark No.1"/></div>
+            <div class="filter-group"><label>Project</label><select id="add-bh-project"><option value="">Select project</option></select></div>
             <div class="filter-group"><label>Year</label><input type="text" id="add-bh-year" placeholder="2026" value="2026"/></div>
             <div class="filter-group"><label>Site ID</label><input type="text" id="add-bh-site" placeholder="CD-26-004"/></div>
             <div class="filter-group"><label>Hole ID *</label><input type="text" id="add-bh-id" placeholder="26-062"/></div>
@@ -6805,21 +6814,66 @@ function loadImageMapOverlay(asset) {
 
 // ── Project Management ────────────────────────────────────────────────────────────
 var projects = [];
+const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
+
+function projectProgram(p) {
+  return (p && (p.program || p.category)) || 'Exploration';
+}
+
+function projectProgramForName(name) {
+  var match = projects.find(function(p){ return p.name === name; });
+  return match ? projectProgram(match) : 'Exploration';
+}
 
 async function fetchProjects() {
   try {
     var res = await fetch(API+"/projects?contractor=Company");
     if(res.ok) projects = await res.json();
   } catch(e) { console.warn("Could not fetch projects"); }
+  buildProgramSelector();
   buildProjectSelector();
+  buildAddBoreholeProjectSelector();
+  syncHierarchyYearSelector();
+}
+
+function buildProgramSelector() {
+  var sel = document.getElementById("bh-program-select");
+  if(!sel) return;
+  var current = sel.value;
+  var programs = Array.from(new Set(PROJECT_PROGRAMS.concat(projects.map(projectProgram)))).filter(Boolean);
+  sel.innerHTML = "<option value=\"\">All Programs</option>";
+  programs.forEach(function(program) {
+    var opt = document.createElement("option");
+    opt.value = program;
+    opt.textContent = program;
+    if(program === current || (!current && program === "Exploration")) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
 
 function buildProjectSelector() {
   var sel = document.getElementById("bh-project-select");
   if(!sel) return;
   var current = sel.value;
+  var program = document.getElementById("bh-program-select") ? document.getElementById("bh-program-select").value : "";
   sel.innerHTML = "<option value=\"\">All Projects</option>";
-  projects.forEach(function(p) {
+  projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
+    var opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
+    if(p.name === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if(current && sel.value !== current) sel.value = "";
+}
+
+function buildAddBoreholeProjectSelector() {
+  var sel = document.getElementById("add-bh-project");
+  if(!sel) return;
+  var current = sel.value;
+  var program = document.getElementById("bh-program-select") ? document.getElementById("bh-program-select").value : "";
+  sel.innerHTML = "<option value=\"\">Select project</option>";
+  projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
     var opt = document.createElement("option");
     opt.value = p.name;
     opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
@@ -6828,7 +6882,28 @@ function buildProjectSelector() {
   });
 }
 
+function syncHierarchyYearSelector() {
+  var sel = document.getElementById("bh-year-select");
+  if(!sel) return;
+  var current = sel.value || "2026";
+  var years = Array.from(new Set(
+    (bhData||[]).map(function(b){ return b.planned_year || ""; })
+      .concat(projects.map(function(p){ return p.year || ""; }))
+      .concat(["2025","2026","2027"])
+  )).filter(function(y){ return /^\d{4}$/.test(String(y)); }).sort();
+  sel.innerHTML = "<option value=\"\">All Years</option>";
+  years.forEach(function(year) {
+    var opt = document.createElement("option");
+    opt.value = year;
+    opt.textContent = year;
+    if(year === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
 async function showNewProjectDialog() {
+  var program = prompt("Program / first tier:", (document.getElementById("bh-program-select") && document.getElementById("bh-program-select").value) || "Exploration");
+  if(!program) return;
   var name = prompt("New project name:");
   if(!name) return;
   var year = prompt("Year:", "2026");
@@ -6836,18 +6911,30 @@ async function showNewProjectDialog() {
   try {
     var res = await fetch(API+"/projects", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contractor:"Company", name:name, year:year})
+      body:JSON.stringify({contractor:"Company", program:program, name:name, year:year})
     });
     if(!res.ok) { toast("Failed to create project","err"); return; }
     toast("\u2713 Project "+name+" saved to database");
     await fetchProjects();
+    var programSel = document.getElementById("bh-program-select");
+    var projectSel = document.getElementById("bh-project-select");
+    if(programSel) programSel.value = program;
+    buildProjectSelector();
+    buildAddBoreholeProjectSelector();
+    if(projectSel) projectSel.value = name;
+    filterBoreholesByProject();
   } catch(e) { toast("Failed: "+e.message,"err"); }
 }
 
 function filterBoreholesByProject() {
+  buildProjectSelector();
+  buildAddBoreholeProjectSelector();
+  syncHierarchyYearSelector();
+  const program = document.getElementById("bh-program-select").value;
   const proj = document.getElementById("bh-project-select").value;
   const year = document.getElementById("bh-year-select").value;
   let filtered = bhData;
+  if(program) filtered = filtered.filter(function(b){ return projectProgramForName(b.project||"") === program; });
   if(proj) filtered = filtered.filter(function(b){ return (b.project||"") === proj; });
   if(year) filtered = filtered.filter(function(b){ 
     return (b.hole_id||"").startsWith(year.slice(2)+"-") || (b.planned_year||"") === year || (b.project||"").includes(year);
