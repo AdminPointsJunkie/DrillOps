@@ -758,9 +758,10 @@ MCC_SCHEDULE_RATES = [
     ("MCC_MULTI_SKILLED_OPERATOR", "Multi Skilled Operator", 100.00, "hour", "labour", ["multi skilled operator", "mul4 skilled operator"]),
     ("MCC_SUPERVISOR", "Supervisor", 120.00, "hour", "labour", ["supervisor"]),
     ("MCC_PROJECT_MANAGER", "Project Manager", 140.00, "hour", "labour", ["project manager"]),
-    ("MCC_LIGHT_VEHICLE", "Light Vehicle", 105.00, "day", "equipment", ["light vehicle"]),
-    ("MCC_5T_EXCAVATOR", "5t Excavator", 50.00, "hour", "equipment", ["5t excavator"]),
+    ("MCC_LIGHT_VEHICLE", "Light Vehicle", 105.00, "day", "equipment", ["light vehicle", "light vehicles", "lv"]),
+    ("MCC_5T_EXCAVATOR", "5t Excavator", 50.00, "hour", "equipment", ["5t excavator", "pc45 excavator", "komatsu pc45", "ex02"]),
     ("MCC_13T_EXCAVATOR", "13t Excavator", 85.00, "hour", "equipment", ["13t excavator"]),
+    ("MCC_BACKHOE", "Backhoe", 85.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
     ("MCC_36T_EXCAVATOR", "36t Excavator", 115.00, "hour", "equipment", ["36t excavator"]),
     ("MCC_SKID_STEER", "Skid Steer", 50.00, "hour", "equipment", ["skid steer"]),
     ("MCC_10T_BODY_TIP_TRUCK", "10t Body Tip Truck", 50.00, "hour", "equipment", ["10t body tip truck"]),
@@ -805,6 +806,98 @@ def mcc_schedule_match(value, group=None):
 
 
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
+def note_field_value(text, label):
+    prefix = f"{label.lower()}:"
+    for part in str(text or "").split("|"):
+        item = part.strip()
+        if item.lower().startswith(prefix):
+            return item.split(":", 1)[1].strip()
+    return ""
+
+
+def mcc_row_hours(row):
+    value = str(row.get("total_time") or row.get("duration") or "").strip()
+    if not value:
+        return 0.0
+    m = re.match(r"^(\d+):(\d+)", value)
+    if m:
+        return int(m.group(1)) + int(m.group(2)) / 60.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def mcc_row_year(row):
+    text = " ".join(str(row.get(k) or "") for k in ("date", "source_file", "rate_year"))
+    m = re.search(r"(20\d{2})", text)
+    return m.group(1) if m else "2026"
+
+
+def mcc_reprice_from_row(row):
+    contractor = str(row.get("contractor") or "")
+    source_file = str(row.get("source_file") or "")
+    notes = str(row.get("notes") or "")
+    if "mcc" not in contractor.lower() and "weeklysheets" not in source_file.lower() and "workstream:" not in notes.lower():
+        return None
+
+    code = str(row.get("code") or "")
+    match = None
+    if code.startswith("MCC_"):
+        match = next((
+            {"code": c, "description": d, "rate": r, "unit": u, "group": g}
+            for c, d, r, u, g, _aliases in MCC_SCHEDULE_RATES
+            if c == code
+        ), None)
+    if match is None:
+        equipment = note_field_value(notes, "Equipment") or row.get("drill_rig") or ""
+        role = note_field_value(notes, "Role") or ""
+        match = mcc_schedule_match(equipment, "equipment") or mcc_schedule_match(role, "labour")
+    if match is None:
+        return None
+
+    hours = mcc_row_hours(row)
+    qty = 1 if match["unit"] == "day" else round(hours, 2)
+    if qty <= 0:
+        qty = 1
+    return {
+        "code": match["code"],
+        "rate_year": mcc_row_year(row),
+        "unit_rate": match["rate"],
+        "quantity": qty,
+        "line_cost": round(match["rate"] * qty, 2),
+        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}",
+    }
+
+
+def repair_mcc_weekly_activity_costs():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT *
+                FROM activities
+                WHERE (contractor ILIKE 'MCC%%' OR source_file ILIKE '%%WeeklySheets%%' OR notes ILIKE '%%Workstream:%%')
+                  AND (line_cost IS NULL OR line_cost = 0)
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+            repaired = 0
+            for row in rows:
+                fix = mcc_reprice_from_row(row)
+                if not fix:
+                    continue
+                cur.execute("""
+                    UPDATE activities
+                    SET code=%s, rate_year=%s, unit_rate=%s, quantity=%s, line_cost=%s, rate_basis=%s
+                    WHERE id=%s
+                """, (
+                    fix["code"], fix["rate_year"], fix["unit_rate"], fix["quantity"],
+                    fix["line_cost"], fix["rate_basis"], row["id"],
+                ))
+                repaired += 1
+        conn.commit()
+    return repaired
+
+
 def seed_2025_rates():
     """Only seeds rates for Allianz Drilling. All other contractors start with
     empty rate schedules which must be configured manually."""
@@ -870,6 +963,7 @@ def seed_mcc_2026_rates():
 
 seed_2025_rates()
 seed_mcc_2026_rates()
+repair_mcc_weekly_activity_costs()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 
@@ -1221,6 +1315,7 @@ def price_activity(cur, row, contractor):
     year         = extract_year(date_str)
     hours        = time_str_to_hours(total_time)
     unit_rate = quantity = line_cost = rate_basis = None
+    mcc_fix = mcc_reprice_from_row(row)
 
     def get_dr(bit_key, depth):
         # Try exact year first, then fall back to nearest available
@@ -1267,6 +1362,13 @@ def price_activity(cur, row, contractor):
     elif is_not_chargeable_code(code, contractor):
         unit_rate = 0; quantity = round(hours, 2) if hours > 0 else 1
         line_cost = 0; rate_basis = "not chargeable"
+    elif mcc_fix:
+        code = mcc_fix["code"]
+        year = mcc_fix["rate_year"]
+        unit_rate = mcc_fix["unit_rate"]
+        quantity = mcc_fix["quantity"]
+        line_cost = mcc_fix["line_cost"]
+        rate_basis = mcc_fix["rate_basis"]
     elif code.startswith("E_"):
         r = get_hr(code)
         try:
@@ -1330,7 +1432,7 @@ def price_activity(cur, row, contractor):
         elif "D_" in code:
             rate_basis = "day rate code - check schedule of rates"
 
-    row.update(rate_year=year, unit_rate=unit_rate, quantity=quantity,
+    row.update(code=code, rate_year=year, unit_rate=unit_rate, quantity=quantity,
                line_cost=line_cost, rate_basis=rate_basis)
     return row
 
@@ -2524,6 +2626,7 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
     year = rate_year_for_row(row)
     metres = row_num(row.get("total_metres"))
     hours = parse_row_hours(row.get("total_time"))
+    mcc_fix = mcc_reprice_from_row(row)
     updates = {}
     reason = ""
 
@@ -2552,6 +2655,9 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
         qty = round(hours, 2) if hours > 0 else 1
         updates.update({"rate_year": year, "unit_rate": 0, "quantity": qty, "line_cost": 0, "rate_basis": "not chargeable"})
         reason = "Applied not-chargeable schedule code."
+    elif mcc_fix:
+        updates.update(mcc_fix)
+        reason = "Repriced MCC weekly row from MCC schedule."
     elif code:
         rate = find_hourly_schedule_rate(code, year, rate_context)
         if rate is None:
@@ -5995,6 +6101,7 @@ def reprice_activities(contractor: str = Query(...)):
             except: pass
 
             line_cost = None; unit_rate = None; quantity = None; rate_basis = None
+            mcc_fix = mcc_reprice_from_row(row)
 
             # Drilling metres
             if metres > 0 and bit_type and mf is not None and mt is not None:
@@ -6021,6 +6128,17 @@ def reprice_activities(contractor: str = Query(...)):
             if line_cost is None and is_not_chargeable_code(code, contractor):
                 unit_rate = 0; quantity = round(hours,2) if hours > 0 else 1
                 line_cost = 0; rate_basis = "not chargeable"
+
+            # MCC weekly sheets often import as H_Active with equipment/role in notes.
+            if line_cost is None and mcc_fix:
+                code = mcc_fix["code"]
+                row["code"] = code
+                year = mcc_fix["rate_year"]
+                unit_rate = mcc_fix["unit_rate"]
+                quantity = mcc_fix["quantity"]
+                line_cost = mcc_fix["line_cost"]
+                rate_basis = mcc_fix["rate_basis"]
+                updates["code"] = code
 
             # Equipment packages
             if line_cost is None and code.startswith("E_"):
