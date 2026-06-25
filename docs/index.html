@@ -2853,6 +2853,7 @@ function filterBoreholesForActiveProgram(rows){
 }
 function rowMatchesActiveProgram(row){
   if(!activeProgram)return true;
+  if(row&&row.program)return row.program===activeProgram;
   if(row&&row.project)return projectMatchesActiveProgram(row.project);
   const text=[row&&row.location,row&&row.contract,row&&row.notes,row&&row.source_file].join(' ').toLowerCase();
   if(text.includes('arg-002')||text.includes('gas riser'))return activeProgram==='Gas Riser';

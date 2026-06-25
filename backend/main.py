@@ -371,6 +371,8 @@ def init_db():
                     date            TEXT,
                     hole_num        TEXT,
                     site_name       TEXT,
+                    program         TEXT,
+                    project         TEXT,
                     location        TEXT,
                     drill_rig       TEXT,
                     client          TEXT,
@@ -397,6 +399,8 @@ def init_db():
             # Safe migrations for existing tables
             for col, typedef in [
                 ("contractor", "TEXT DEFAULT 'Allianz Drilling'"),
+                ("program",    "TEXT"),
+                ("project",    "TEXT"),
                 ("po_id",      "INTEGER"),
                 ("rate_year",  "TEXT"),
                 ("unit_rate",  "FLOAT"),
@@ -2154,6 +2158,8 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 "date": date,
                 "hole_num": hole,
                 "site_name": str(site or "").strip() or hole,
+                "program": program,
+                "project": str(location or "").strip() or program,
                 "location": str(location or "").strip(),
                 "drill_rig": str(equipment or "").strip(),
                 "client": "ARGO",
@@ -2918,12 +2924,12 @@ async def import_pdf(
                 if acts:
                     psycopg2.extras.execute_batch(cur, """
                         INSERT INTO activities
-                        (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                        (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
                          client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                          metres_from,metres_to,total_metres,code,notes,
                          rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
                         VALUES
-                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
                          %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                          %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                          %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
@@ -4066,7 +4072,7 @@ async def create_activity(request: Request):
     contractor = payload.get("contractor")
     if not contractor:
         raise HTTPException(400, "contractor is required")
-    safe = {"source_file","contractor","date","hole_num","site_name","location","drill_rig","client","contract","shift",
+    safe = {"source_file","contractor","date","hole_num","site_name","program","project","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
             "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
@@ -4090,7 +4096,7 @@ async def create_activity(request: Request):
 @app.patch("/activities/{row_id}")
 async def update_activity(row_id: int, request: Request):
     payload = await request.json()
-    safe = {"date","hole_num","site_name","location","drill_rig","client","contract","shift",
+    safe = {"date","hole_num","site_name","program","project","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
             "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
@@ -4309,17 +4315,30 @@ def get_costing(contractor: str = Query(...), holes: Optional[str]=Query(None), 
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
-                    SELECT hole_num,
+                    SELECT
+                        COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated') AS hole_num,
+                        COALESCE(program, '') AS program,
+                        COALESCE(project, '') AS project,
                         SUM(line_cost) AS total_cost,
                         SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS drilling_cost,
                         SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS non_drilling_cost,
                         SUM(total_metres) AS total_metres, COUNT(*) AS activity_count
-                    FROM activities WHERE {where} GROUP BY hole_num ORDER BY hole_num
+                    FROM activities WHERE {where}
+                    GROUP BY COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated'), COALESCE(program, ''), COALESCE(project, '')
+                    ORDER BY program, project, hole_num
                 """, p)
                 by_hole = [dict(r) for r in cur.fetchall()]
                 cur.execute(f"""
-                    SELECT date, hole_num, SUM(line_cost) AS total_cost, SUM(total_metres) AS total_metres
-                    FROM activities WHERE {where} GROUP BY date, hole_num ORDER BY date
+                    SELECT
+                        date,
+                        COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated') AS hole_num,
+                        COALESCE(program, '') AS program,
+                        COALESCE(project, '') AS project,
+                        SUM(line_cost) AS total_cost,
+                        SUM(total_metres) AS total_metres
+                    FROM activities WHERE {where}
+                    GROUP BY date, COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated'), COALESCE(program, ''), COALESCE(project, '')
+                    ORDER BY date, program, project, hole_num
                 """, p)
                 by_date = [dict(r) for r in cur.fetchall()]
                 cur.execute(f"SELECT SUM(line_cost) AS g FROM activities WHERE {where}", p)
