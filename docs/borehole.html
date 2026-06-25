@@ -94,7 +94,7 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
 <script>
 const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
 const params=new URLSearchParams(window.location.search);
-const contractor=params.get('contractor')||'Allianz Drilling';
+let contractor=params.get('contractor')||'Allianz Drilling';
 const hole=params.get('hole')||'';
 const site=params.get('site')||'';
 let currentBorehole=null;
@@ -107,22 +107,66 @@ function parseDateValue(value){const s=String(value||'');const m=s.match(/^(\d{1
 function detail(label,value){return '<div class="detail"><strong>'+esc(label)+'</strong>'+esc(value??'')+'</div>';}
 async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error(await res.text());return res.json();}
 function statusClass(status){return String(status||'Planned').replace(/\s+/g,'');}
+function matchBorehole(b){
+  return (hole&&(b.hole_id===hole||b.site_id===hole))||(site&&(b.site_id===site||b.hole_id===site));
+}
+function activityKeys(bh){
+  return Array.from(new Set([hole,site,bh&&bh.hole_id,bh&&bh.site_id].filter(Boolean)));
+}
+async function fetchActivitiesFor(contractorName,bh){
+  const keys=activityKeys(bh);
+  const requests=[];
+  keys.forEach(function(k){
+    requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractorName)+'&holes='+encodeURIComponent(k)).catch(()=>[]));
+    requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractorName)+'&sites='+encodeURIComponent(k)).catch(()=>[]));
+  });
+  const results=await Promise.all(requests.length?requests:[Promise.resolve([])]);
+  const seen=new Set();
+  return results.flat().filter(function(r){
+    const key=r.id||[r.date,r.hole_num,r.site_name,r.time_from,r.code,r.notes].join('|');
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  }).sort((a,b)=>parseDateValue(a.date).localeCompare(parseDateValue(b.date))||String(a.time_from||'').localeCompare(String(b.time_from||'')));
+}
+async function loadCandidate(contractorName){
+  const boreholes=await fetchJson(API+'/boreholes?contractor='+encodeURIComponent(contractorName)).catch(()=>[]);
+  const bh=boreholes.find(matchBorehole)||null;
+  const activities=await fetchActivitiesFor(contractorName,bh);
+  return {contractor:contractorName,borehole:bh,activities};
+}
+async function contractorNames(){
+  try{
+    const rows=await fetchJson(API+'/contractors');
+    return rows.map(r=>r.name).filter(Boolean);
+  }catch(e){
+    return ['Allianz Drilling','Mitchells Drilling'];
+  }
+}
 async function loadBorehole(){
+  let candidate=await loadCandidate(contractor);
+  if(!candidate.activities.length){
+    const names=await contractorNames();
+    for(const name of names){
+      if(name===contractor)continue;
+      const next=await loadCandidate(name);
+      if(next.activities.length){
+        if(!next.borehole&&candidate.borehole)next.borehole=candidate.borehole;
+        candidate=next;
+        break;
+      }
+      if(!candidate.borehole&&next.borehole)candidate=next;
+    }
+  }
+  contractor=candidate.contractor;
+  currentBorehole=candidate.borehole;
+  currentActivities=candidate.activities;
   document.getElementById('meta').innerHTML=[contractor,site?'Site '+site:'',hole?'Hole '+hole:''].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
-  const boreholes=await fetchJson(API+'/boreholes?contractor='+encodeURIComponent(contractor));
-  currentBorehole=boreholes.find(b=>(hole&&b.hole_id===hole)||(site&&b.site_id===site))||null;
   if(currentBorehole){
     document.getElementById('title').textContent=(currentBorehole.site_id||site||currentBorehole.hole_id)+' Borehole Details';
     document.getElementById('status-select').value=currentBorehole.status||'Planned';
   }
-  const requests=[];
-  if(hole)requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor)+'&holes='+encodeURIComponent(hole)).catch(()=>[]));
-  if(site)requests.push(fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor)+'&sites='+encodeURIComponent(site)).catch(()=>[]));
-  const results=await Promise.all(requests.length?requests:[Promise.resolve([])]);
-  const seen=new Set();
-  const activities=results.flat().filter(r=>{const key=r.id||[r.date,r.hole_num,r.site_name,r.time_from,r.code,r.notes].join('|');if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>parseDateValue(a.date).localeCompare(parseDateValue(b.date))||String(a.time_from||'').localeCompare(String(b.time_from||'')));
-  currentActivities=activities;
-  renderBorehole(currentBorehole,activities);
+  renderBorehole(currentBorehole,currentActivities);
 }
 function renderBorehole(bh,activities){
   const drilled=activities.filter(r=>num(r.total_metres)>0||num(r.metres_to)>0||num(r.metres_from)>0);
