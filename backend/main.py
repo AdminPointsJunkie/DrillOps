@@ -4671,6 +4671,7 @@ INV_CATEGORY_MAP = [
     ("watercart",       "equipment"),
     ("water cart",      "equipment"),
     ("backhoe",         "equipment"),
+    ("excavator",       "equipment"),
     ("grader",          "equipment"),
     ("vac truck",       "equipment"),
     ("water truck",     "equipment"),
@@ -4974,6 +4975,94 @@ def parse_king_konstruct_invoice_pdf(text: str, filename: str) -> dict:
     }
 
 
+def invoice_project_from_text(text: str, filename: str = "") -> str:
+    haystack = " ".join([text or "", filename or ""]).upper()
+    if "ARG-EXP" in haystack or "ARGEXP" in haystack:
+        return "Exploration"
+    if "ARG-002" in haystack or "GAS RISER" in haystack:
+        return "Gas Riser"
+    if "ARG-003" in haystack or "SIS" in haystack:
+        return "SIS"
+    if "ARG-005" in haystack:
+        return "Exploration"
+    return ""
+
+
+def parse_mcc_group_invoice_pdf(text: str, filename: str) -> dict:
+    def find(pattern, default=""):
+        m = re.search(pattern, text, re.IGNORECASE)
+        return m.group(1).strip() if m else default
+
+    def amount(pattern):
+        raw = find(pattern)
+        try:
+            return float(raw.replace(",", "")) if raw else 0.0
+        except Exception:
+            return 0.0
+
+    invoice_number = find(r"\bINVOICE\s+(ARG[-A-Z0-9]+)") or find(r"(ARG[-A-Z]+[-]?\d+)", os.path.splitext(filename)[0])
+    invoice_date = find(r"\bDATE\s+(\d{1,2}/\d{1,2}/\d{4})")
+    due_date = find(r"\bDUE DATE\s+(\d{1,2}/\d{1,2}/\d{4})")
+    po_reference = find(r"\bPO\s*\n\s*([A-Z]?\d{4,})")
+    client = find(r"INVOICE TO\s+(.+?)\s+DATE") or "Argo Coal Management Pty Ltd"
+    abn = find(r"\bABN[:\s]+(\d{11})")
+    subtotal = amount(r"\bSUBTOTAL\s+([\d,]+\.\d{2})")
+    gst = amount(r"\bGST TOTAL\s+([\d,]+\.\d{2})")
+    raw_lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    total_aud = 0.0
+    for raw_line in raw_lines:
+        m_total = re.match(r"^TOTAL\s+([\d,]+\.\d{2})$", raw_line, re.I)
+        if m_total:
+            total_aud = float(m_total.group(1).replace(",", ""))
+            break
+    if not total_aud:
+        total_aud = amount(r"A\$([\d,]+\.\d{2})")
+    lines = []
+    line_re = re.compile(r"^(Labour Services|Hire - [A-Za-z ]+)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d{2})?)\s+GST\s+([\d,]+(?:\.\d{2})?)$", re.I)
+    for idx, line in enumerate(raw_lines):
+        m = line_re.match(line)
+        if not m:
+            continue
+        item = m.group(1).strip()
+        detail = raw_lines[idx + 1].strip() if idx + 1 < len(raw_lines) else ""
+        desc = f"{item} - {detail}" if detail and not re.search(r"\b(SUBTOTAL|GST|TOTAL|DATE|PO)\b", detail, re.I) else item
+        qty = float(m.group(2).replace(",", ""))
+        rate = float(m.group(3).replace(",", ""))
+        amt = float(m.group(4).replace(",", ""))
+        lines.append({
+            "description": desc,
+            "quantity": qty,
+            "unit_price": rate,
+            "gst_rate": "10%",
+            "amount": amt,
+            "category": categorise_invoice_line(desc),
+        })
+
+    if subtotal == 0 and lines:
+        subtotal = round(sum(l["amount"] for l in lines), 2)
+    if gst == 0 and subtotal:
+        gst = round(subtotal * 0.1, 2)
+    if total_aud == 0 and subtotal:
+        total_aud = round(subtotal + gst, 2)
+
+    return {
+        "invoice_number": invoice_number or os.path.splitext(filename)[0],
+        "invoice_date": invoice_date,
+        "due_date": due_date,
+        "po_reference": po_reference,
+        "project": invoice_project_from_text(text, filename),
+        "client": client,
+        "abn": abn,
+        "subtotal": subtotal,
+        "gst": gst,
+        "total_aud": total_aud,
+        "amount_paid": 0,
+        "amount_due": total_aud,
+        "status": "Unpaid",
+        "lines": lines,
+    }
+
+
 def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     """Parse an Allianz-style tax invoice PDF.
     Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
@@ -4987,6 +5076,9 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
 
     if "KING KONSTRUCT" in text.upper() or re.search(r"Invoice_\d{5}_from_KING_KONSTRUCT", filename, re.IGNORECASE):
         return parse_king_konstruct_invoice_pdf(text, filename)
+
+    if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
+        return parse_mcc_group_invoice_pdf(text, filename)
 
     def find(pattern, default=""):
         m = re.search(pattern, text, re.IGNORECASE)
@@ -5108,6 +5200,18 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
     inv_lines = [dict(r) for r in cur.fetchall()]
     if not inv_lines:
         return
+    cur.execute("SELECT project FROM invoices WHERE id=%s", (invoice_id,))
+    invoice_project = ((cur.fetchone() or {}).get("project") or "").strip()
+
+    def add_invoice_project_filter(where, params):
+        if not invoice_project:
+            return
+        if invoice_project in {"Exploration", "Gas Riser", "SIS"}:
+            where.append("(program=%s OR project=%s)")
+            params.extend([invoice_project, invoice_project])
+        else:
+            where.append("project=%s")
+            params.append(invoice_project)
 
     if any(line.get("line_date") or line.get("activity_code") for line in inv_lines):
         groups = {}
@@ -5125,6 +5229,7 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
             line_date, site_name, hole_num, match_key = key
             params = [contractor]
             where = ["contractor=%s", "line_cost IS NOT NULL"]
+            add_invoice_project_filter(where, params)
             if line_date:
                 iso = line_date
                 m = re.match(r"(\d{2})/(\d{2})/(\d{4})", line_date)
@@ -5189,6 +5294,8 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
                 WHEN code LIKE '%Travel%' OR code LIKE '%travel%' THEN 'travel'
                 WHEN code LIKE '%Safety%' OR code LIKE '%Repair%' OR code LIKE '%Training%'
                   OR code LIKE '%Prestart%' THEN 'safety'
+                WHEN code LIKE 'MCC_%' AND notes ILIKE '%Charge type: Labour%' THEN 'labour'
+                WHEN code LIKE 'MCC_%' AND notes ILIKE '%Charge type: Equipment%' THEN 'equipment'
                 WHEN code LIKE 'D_Backhoe%' OR code LIKE 'D_Water%' THEN 'equipment'
                 WHEN code LIKE '%Setup%' OR code LIKE '%Surface%' THEN 'setup'
                 ELSE 'active'
@@ -5196,8 +5303,9 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
             SUM(line_cost) AS eos_total
         FROM activities
         WHERE contractor=%s AND line_cost IS NOT NULL
+          AND (%s='' OR program=%s OR project=%s)
         GROUP BY 1
-    """, (contractor,))
+    """, (contractor, invoice_project, invoice_project, invoice_project))
     eos_by_cat = {r["category"]: float(r["eos_total"] or 0) for r in cur.fetchall()}
 
     inv_by_cat = {}
@@ -5289,6 +5397,15 @@ async def import_invoice(
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
+    if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
+        contractor = "MCC Group"
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status": "skipped", "filename": filename}
+
     try:
         inv = parse_invoice_pdf(text, filename, contractor)
     except Exception as e:
@@ -5303,13 +5420,13 @@ async def import_invoice(
                 cur.execute("""
                     INSERT INTO invoices
                     (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
-                     client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     project,client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id
                 """, (filename, contractor,
                       inv.get("invoice_number",""), inv.get("invoice_date",""),
                       inv.get("due_date",""), inv.get("po_reference",""),
-                      inv.get("client",""), inv.get("abn",""),
+                      inv.get("project",""), inv.get("client",""), inv.get("abn",""),
                       inv.get("subtotal",0), inv.get("gst",0), inv.get("total_aud",0),
                       inv.get("amount_paid",0), inv.get("amount_due",0), inv.get("status","Unpaid"),
                       psycopg2.Binary(content)))
@@ -5363,6 +5480,7 @@ async def import_invoice(
         "status": "imported",
         "filename": filename,
         "invoice_number": inv.get("invoice_number", filename),
+        "project": inv.get("project", ""),
         "total_aud": inv.get("total_aud", 0),
         "line_count": len(lines),
         "match_summary": match_summary,
