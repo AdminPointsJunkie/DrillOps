@@ -45,6 +45,38 @@ CONTRACTORS = [
     ("Fortem",             "FOR"),
 ]
 
+CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support", "Misc"]
+DEFAULT_CONTRACTOR_CATEGORIES = {
+    "Allianz Drilling": "Drilling",
+    "Mitchells Drilling": "Drilling",
+    "MCC Earthworks": "Earthworks",
+    "MCC Group": "Labour",
+    "King Konstruct": "Earthworks",
+    "Weatherfords": "Misc",
+    "Epiroc": "Misc",
+    "Fortem": "Misc",
+}
+
+CONTRACTOR_REFERENCE_TABLES = [
+    "activities",
+    "consumables",
+    "crew",
+    "imported_files",
+    "drilling_rates",
+    "hourly_rates",
+    "consumable_rates",
+    "boreholes",
+    "purchase_orders",
+    "source_files",
+    "report_approvals",
+    "activity_sheet_locks",
+    "minimum_shift_topup_preferences",
+    "projects",
+    "invoices",
+    "invoice_lines",
+    "invoice_imports",
+]
+
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
@@ -603,13 +635,22 @@ def init_db():
                     id         SERIAL PRIMARY KEY,
                     name       TEXT NOT NULL UNIQUE,
                     short_code TEXT,
+                    category   TEXT DEFAULT 'Misc',
                     program    TEXT DEFAULT 'Exploration',
                     active     BOOLEAN DEFAULT TRUE
                 )
             """)
             try:
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
+                cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Misc'")
                 cur.execute("UPDATE contractors SET program='Exploration' WHERE program IS NULL OR program=''")
+                cur.execute("UPDATE contractors SET category='Misc' WHERE category IS NULL OR category=''")
+                for con_name, con_category in DEFAULT_CONTRACTOR_CATEGORIES.items():
+                    cur.execute("""
+                        UPDATE contractors
+                        SET category=%s
+                        WHERE name=%s AND (category IS NULL OR category='' OR category='Misc')
+                    """, (con_category, con_name))
             except Exception:
                 conn.rollback()
 
@@ -704,6 +745,60 @@ def init_db():
 
 init_db()
 
+MCC_SCHEDULE_DATE = "23 April 2026"
+MCC_SCHEDULE_RATES = [
+    ("MCC_LABOURER", "Labourer", 85.00, "hour", "labour", ["labourer"]),
+    ("MCC_CONSTRUCTION_TRADE", "Construction Trade", 100.00, "hour", "labour", ["construction trade", "construc4on trade"]),
+    ("MCC_MECHANICAL_TRADE", "Mechanical Trade", 115.00, "hour", "labour", ["mechanical trade"]),
+    ("MCC_PUMP_CREW_OPERATOR", "Pump Crew Operator", 95.00, "hour", "labour", ["pump crew operator"]),
+    ("MCC_MULTI_SKILLED_OPERATOR", "Multi Skilled Operator", 100.00, "hour", "labour", ["multi skilled operator", "mul4 skilled operator"]),
+    ("MCC_SUPERVISOR", "Supervisor", 120.00, "hour", "labour", ["supervisor"]),
+    ("MCC_PROJECT_MANAGER", "Project Manager", 140.00, "hour", "labour", ["project manager"]),
+    ("MCC_LIGHT_VEHICLE", "Light Vehicle", 105.00, "day", "equipment", ["light vehicle"]),
+    ("MCC_5T_EXCAVATOR", "5t Excavator", 50.00, "hour", "equipment", ["5t excavator"]),
+    ("MCC_13T_EXCAVATOR", "13t Excavator", 85.00, "hour", "equipment", ["13t excavator"]),
+    ("MCC_36T_EXCAVATOR", "36t Excavator", 115.00, "hour", "equipment", ["36t excavator"]),
+    ("MCC_SKID_STEER", "Skid Steer", 50.00, "hour", "equipment", ["skid steer"]),
+    ("MCC_10T_BODY_TIP_TRUCK", "10t Body Tip Truck", 50.00, "hour", "equipment", ["10t body tip truck"]),
+    ("MCC_BODY_WATER_TRUCK", "Body Water Truck", 80.00, "hour", "equipment", ["body water truck"]),
+    ("MCC_105HP_TRACTOR", "105 Horsepower Tractor", 85.00, "hour", "equipment", ["105 horsepower tractor"]),
+    ("MCC_SMALL_TOOL_HIRE", "Small Tool Hire", 50.00, "day", "equipment", ["small tool hire", "chainsaw", "whipper snipper"]),
+    ("MCC_355MM_POLYWELDER", "355mm Polywelder", 150.00, "day", "equipment", ["355mm polywelder", "polywelder"]),
+    ("MCC_TRAILER_HIRE", "Trailer Hire", 100.00, "day", "equipment", ["trailer hire"]),
+    ("MCC_EQUIPMENT_ATTACHMENT", "Attachment for Equipment", 25.00, "hour", "equipment", ["attachment for equipment", "grader", "auger", "rock breaker", "slasher"]),
+    ("MCC_120T_EXCAVATOR", "120t Excavator", 220.00, "hour", "equipment", ["120t excavator"]),
+    ("MCC_90T_EXCAVATOR", "90t Excavator", 180.00, "hour", "equipment", ["90t excavator"]),
+    ("MCC_100T_DUMP_WATER_TRUCK", "100t Dump Truck Class/Water Truck", 165.00, "hour", "equipment", ["100t dump truck", "100t water truck"]),
+    ("MCC_40T_ARTICULATED_WATER_TRUCK", "40t Articulated Water Truck", 130.00, "hour", "equipment", ["40t articulated water truck", "40t ar4culated water truck"]),
+    ("MCC_IT_LOADER", "IT Loader 15-20t Class", 85.00, "hour", "equipment", ["it loader", "15-20t class"]),
+    ("MCC_LOADER_110T", "Loader 110t Class", 230.00, "hour", "equipment", ["loader 110t"]),
+    ("MCC_SERVICE_TRUCK", "Service Truck", 80.00, "hour", "equipment", ["service truck"]),
+    ("MCC_14_GRADER", "14ft Grader", 125.00, "hour", "equipment", ["14ft grader", "14^ grader", "14 grader"]),
+    ("MCC_16_GRADER", "16ft Grader", 145.00, "hour", "equipment", ["16ft grader", "16^ grader", "16 grader"]),
+    ("MCC_30T_ARTICULATED_DUMP_TRUCK", "30t Articulated Dump Truck", 105.00, "hour", "equipment", ["30t articulated dump truck", "30t ar4culated dump truck"]),
+    ("MCC_40T_ARTICULATED_DUMP_TRUCK", "40t Articulated Dump Truck", 130.00, "hour", "equipment", ["40t articulated dump truck", "40t ar4culated dump truck"]),
+    ("MCC_D11_DOZER", "D11 Dozer", 225.00, "hour", "equipment", ["d11 dozer"]),
+    ("MCC_D10_DOZER", "D10 Dozer", 185.00, "hour", "equipment", ["d10 dozer"]),
+]
+
+
+def _norm_rate_text(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def mcc_schedule_match(value, group=None):
+    haystack = _norm_rate_text(value)
+    if not haystack:
+        return None
+    for code, desc, rate, unit, rate_group, aliases in MCC_SCHEDULE_RATES:
+        if group and rate_group != group:
+            continue
+        for alias in aliases + [desc]:
+            needle = _norm_rate_text(alias)
+            if needle and (needle == haystack or needle in haystack or haystack in needle):
+                return {"code": code, "description": desc, "rate": rate, "unit": unit, "group": rate_group}
+    return None
+
 
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def seed_2025_rates():
@@ -750,7 +845,27 @@ def seed_2025_rates():
         conn.commit()
 
 
+def seed_mcc_2026_rates():
+    rows = []
+    for contractor in ("MCC Group", "MCC Earthworks"):
+        for code, desc, rate, unit, group, _aliases in MCC_SCHEDULE_RATES:
+            rows.append((contractor, "2026", code, f"{desc} ({group}; MCC schedule {MCC_SCHEDULE_DATE})", rate, unit))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for row in rows:
+                cur.execute("""
+                    INSERT INTO hourly_rates (contractor, year, code, description, rate, unit)
+                    SELECT %s, %s, %s, %s, %s, %s
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM hourly_rates
+                        WHERE contractor=%s AND year=%s AND code=%s
+                    )
+                """, (*row, row[0], row[1], row[2]))
+        conn.commit()
+
+
 seed_2025_rates()
+seed_mcc_2026_rates()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 
@@ -2029,7 +2144,11 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 f"SMU: {smu_start} to {smu_finish} ({smu_total})" if equipment and (smu_start is not None or smu_finish is not None or smu_total is not None) else "",
                 f"Created by: {created_by}" if created_by else "",
             ]
-            row = {
+            try:
+                hours_value = float(hours) if hours not in (None, "") else None
+            except Exception:
+                hours_value = None
+            base_row = {
                 "source_file": filename,
                 "contractor": contractor,
                 "date": date,
@@ -2048,29 +2167,54 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 "metres_from": None,
                 "metres_to": None,
                 "total_metres": None,
-                "code": "H_Active",
-                "notes": " | ".join(p for p in notes_parts if p),
                 "rate_year": date[-4:] if len(date) >= 4 else "",
-                "unit_rate": None,
-                "quantity": float(hours) if hours not in (None, "") else None,
-                "line_cost": None,
-                "rate_basis": "MCC weekly EOS import - unpriced",
                 "po_id": None,
             }
-            acts.append(row)
+            priced_lines = []
+            labour_rate = mcc_schedule_match(role, "labour")
+            equipment_rate = mcc_schedule_match(equipment, "equipment")
+            if labour_rate:
+                priced_lines.append(("Labour", labour_rate))
+            if equipment_rate:
+                priced_lines.append(("Equipment", equipment_rate))
+            if not priced_lines:
+                row = {
+                    **base_row,
+                    "code": "H_Active",
+                    "notes": " | ".join(p for p in notes_parts if p),
+                    "unit_rate": None,
+                    "quantity": hours_value,
+                    "line_cost": None,
+                    "rate_basis": "MCC weekly EOS import - unpriced",
+                }
+                acts.append(row)
+            else:
+                for charge_type, rate in priced_lines:
+                    quantity = 1 if rate["unit"] == "day" else hours_value
+                    line_cost = round(float(quantity or 0) * float(rate["rate"]), 2) if quantity is not None else None
+                    row = {
+                        **base_row,
+                        "code": rate["code"],
+                        "notes": " | ".join(p for p in notes_parts + [f"Charge type: {charge_type}", f"Schedule item: {rate['description']}"] if p),
+                        "unit_rate": rate["rate"],
+                        "quantity": quantity,
+                        "line_cost": line_cost,
+                        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']})",
+                    }
+                    acts.append(row)
             if created_by:
                 crew.append({
                     "source_file": filename,
                     "contractor": contractor,
                     "date": date,
                     "hole_num": hole,
-                    "site_name": row["site_name"],
+                    "site_name": base_row["site_name"],
                     "role": str(role or ""),
                     "name": str(created_by or ""),
                     "hours": str(hours or ""),
                 })
             if not header["date"] and date:
-                header.update({"date": date, "site_name": row["site_name"], "hole_num": hole, "contractor": contractor})
+                header.update({"date": date, "site_name": base_row["site_name"], "hole_num": hole, "contractor": contractor})
             source_lines.append(f"{date} {created_by or ''} {location or ''} {description or ''}")
 
     if not acts:
@@ -2090,13 +2234,15 @@ def get_contractors():
         with conn.cursor() as cur:
             for name, code in CONTRACTORS:
                 programs = "Exploration,Gas Riser,SIS" if name == "MCC Group" else "Exploration"
+                category = DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc")
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, program)
-                    VALUES (%s, %s, %s) ON CONFLICT (name) DO NOTHING
-                """, (name, code, programs))
+                    INSERT INTO contractors (name, short_code, category, program)
+                    VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING
+                """, (name, code, category, programs))
             cur.execute("""
                 UPDATE contractors
                 SET short_code = COALESCE(NULLIF(short_code, ''), 'MCC'),
+                    category = COALESCE(NULLIF(category, ''), 'Labour'),
                     program = 'Exploration,Gas Riser,SIS'
                 WHERE name = 'MCC Group'
                   AND COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
@@ -2115,6 +2261,9 @@ async def add_contractor(request: Request):
         raise HTTPException(400, "Invalid JSON body")
     name = payload.get("name", "").strip()
     code = payload.get("short_code", "").strip().upper() or name[:3].upper()
+    category = str(payload.get("category") or "Misc").strip() or "Misc"
+    if category not in CONTRACTOR_CATEGORIES:
+        category = "Misc"
     raw_program = payload.get("programs", payload.get("program", "Exploration"))
     if isinstance(raw_program, list):
         program = ",".join(str(p).strip() for p in raw_program if str(p).strip()) or "Exploration"
@@ -2126,16 +2275,27 @@ async def add_contractor(request: Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, program, active)
-                    VALUES (%s, %s, %s, TRUE)
-                    ON CONFLICT (name) DO UPDATE SET short_code=EXCLUDED.short_code, program=EXCLUDED.program
-                    RETURNING id
-                """, (name, code, program))
-                new_id = cur.fetchone()["id"]
+                    INSERT INTO contractors (name, short_code, category, program, active)
+                    VALUES (%s, %s, %s, %s, TRUE)
+                    ON CONFLICT (name) DO UPDATE
+                    SET short_code=EXCLUDED.short_code,
+                        category=EXCLUDED.category,
+                        program=EXCLUDED.program
+                    RETURNING *
+                """, (name, code, category, program))
+                row = dict(cur.fetchone())
             conn.commit()
-        return {"status": "created", "id": new_id, "name": name, "short_code": code, "program": program}
+        row["status"] = "created"
+        return row
     except Exception as e:
         raise HTTPException(500, f"Failed to add contractor: {str(e)}")
+
+
+def rename_contractor_references(cur, old_name: str, new_name: str):
+    if not new_name or new_name == old_name:
+        return
+    for table in CONTRACTOR_REFERENCE_TABLES:
+        cur.execute(f"UPDATE {table} SET contractor=%s WHERE contractor=%s", (new_name, old_name))
 
 
 @app.patch("/contractors/{name}")
@@ -2145,8 +2305,14 @@ async def update_contractor(name: str, request: Request):
     except Exception:
         raise HTTPException(400, "Invalid JSON body")
     safe = {}
+    new_name = str(payload.get("name") or "").strip()
+    if new_name and new_name != name:
+        safe["name"] = new_name
     if "short_code" in payload:
         safe["short_code"] = str(payload.get("short_code") or "").strip().upper()
+    if "category" in payload:
+        category = str(payload.get("category") or "Misc").strip() or "Misc"
+        safe["category"] = category if category in CONTRACTOR_CATEGORIES else "Misc"
     if "programs" in payload:
         raw_program = payload.get("programs")
         if isinstance(raw_program, list):
@@ -2165,6 +2331,8 @@ async def update_contractor(name: str, request: Request):
                 row = cur.fetchone()
                 if not row:
                     raise HTTPException(404, "Contractor not found")
+                if safe.get("name"):
+                    rename_contractor_references(cur, name, safe["name"])
             conn.commit()
         return dict(row)
     except HTTPException:
@@ -2776,9 +2944,9 @@ async def import_pdf(
 
         return {"status":"imported","filename":filename,"rows":len(acts),
                 "contractor":contractor,
-                "total_cost":0,
+                "total_cost":round(sum(float(a.get("line_cost") or 0) for a in acts), 2),
                 "consumables":0,"crew":len(crew),
-                "import_check":{"status":"ok","summary":"MCC Group weekly end-of-shift XLSX imported. Rows are unpriced and separated by ARG workstream/program.","warnings":[]}}
+                "import_check":{"status":"ok","summary":"MCC Group weekly end-of-shift XLSX imported. Labour and equipment rows are priced from the MCC schedule where matched, and separated by ARG workstream/program.","warnings":[]}}
 
     if filename.lower().endswith(".csv"):
         try:

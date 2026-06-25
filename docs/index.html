@@ -1010,6 +1010,44 @@ tbody td[contenteditable=true]:focus {
   background:#fff7f7;
   color:#b42318;
 }
+.contractor-edit-row {
+  display:grid;
+  grid-template-columns:minmax(180px,1.5fr) 90px 150px minmax(230px,1.4fr) auto;
+  gap:8px;
+  align-items:center;
+  cursor:default;
+}
+.contractor-edit-row.active {
+  border-color:#b9d1e3;
+}
+.contractor-program-checks {
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.contractor-program-checks label {
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  font-size:10px;
+  color:#607083;
+  white-space:nowrap;
+}
+.contractor-row-actions {
+  display:flex;
+  gap:6px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+.contractor-save-btn {
+  border-color:#b9d1e3;
+  color:#124b76;
+}
+.contractor-save-btn:hover {
+  border-color:#9fc2dc;
+  background:#eef7ff;
+  color:#0b4269;
+}
 .add-contractor-form {
   background:#f8fafc;
   border:1px solid #dce2e9;
@@ -1593,9 +1631,10 @@ tbody td[contenteditable=true]:focus {
           <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('contractor-panel-body').classList.toggle('open');">Contractors <span class="arrow">▼</span></button>
           <div class="filter-body open" id="contractor-panel-body" style="display:block;padding:14px;">
             <div class="contractor-panel-list" id="contractors-page-list"></div>
-            <div style="display:grid;grid-template-columns:1fr 110px 130px auto;gap:8px;margin-top:12px;">
+            <div style="display:grid;grid-template-columns:1fr 90px 150px 130px auto;gap:8px;margin-top:12px;">
               <input class="drawer-input" id="page-new-con-name" placeholder="Contractor name"/>
               <input class="drawer-input" id="page-new-con-code" placeholder="Code"/>
+              <select class="drawer-input" id="page-new-con-category"><option>Drilling</option><option>Earthworks</option><option>Labour</option><option>Geological Support</option><option>Misc</option></select>
               <select class="drawer-input" id="page-new-con-program"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select>
               <button class="btn-primary" onclick="addContractor()">Add</button>
             </div>
@@ -2408,6 +2447,7 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'Epiroc',short_code:'EPI'},{name:'Fortem',short_code:'FOR'}];
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
+const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Misc'];
 let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
 
 function contractorPrograms(c) {
@@ -2419,6 +2459,10 @@ function contractorPrograms(c) {
 
 function contractorProgram(c) {
   return contractorPrograms(c).join(', ');
+}
+
+function contractorCategory(c) {
+  return c && c.category ? c.category : 'Misc';
 }
 
 function contractorInProgram(c, program) {
@@ -2506,6 +2550,43 @@ function renderContractorsPage(){
     </div>`).join('');
 }
 
+function renderDrawerContractors(){
+  const list=document.getElementById('drawer-contractor-list');
+  if(!list)return;
+  list.innerHTML=filteredContractors().map((c)=>`
+    <div class="contractor-item ${c.name===activeContractor?'active':''}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
+      <div class="contractor-item-left">
+        <div class="contractor-dot"></div>
+        <div>
+          <div class="contractor-name">${esc(c.name)}</div>
+          <div class="contractor-code">${esc(c.short_code||'')} - ${esc(contractorCategory(c))} - ${esc(contractorProgram(c))}</div>
+        </div>
+      </div>
+      <div class="contractor-item-actions">
+        <button class="icon-btn" title="Remove contractor" onclick="event.stopPropagation();removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderContractorsPage(){
+  const list=document.getElementById('contractors-page-list');
+  if(!list)return;
+  list.innerHTML=filteredContractors().map((c)=>`
+    <div class="contractor-item contractor-edit-row ${c.name===activeContractor?'active':''}" data-contractor-name="${attr(c.name)}" onclick="switchContractor('${c.name.replace(/'/g,"\\'")}')">
+      <input class="drawer-input contractor-name-input" value="${attr(c.name)}" onclick="event.stopPropagation()"/>
+      <input class="drawer-input contractor-code-input" value="${attr(c.short_code||'')}" onclick="event.stopPropagation()"/>
+      <select class="drawer-input contractor-category-input" onclick="event.stopPropagation()">
+        ${CONTRACTOR_CATEGORIES.map(function(cat){return '<option '+(contractorCategory(c)===cat?'selected':'')+'>'+esc(cat)+'</option>';}).join('')}
+      </select>
+      <div class="contractor-program-checks" onclick="event.stopPropagation()">${PROJECT_PROGRAMS.map(function(p){return '<label><input type="checkbox" '+(contractorPrograms(c).includes(p)?'checked':'')+' value="'+attr(p)+'"> '+esc(p)+'</label>';}).join('')}</div>
+      <div class="contractor-row-actions" onclick="event.stopPropagation()">
+        ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':''}
+        <button class="icon-btn contractor-save-btn" onclick="saveContractorFromRow(this,'${c.name.replace(/'/g,"\\'")}')">Save</button>
+        <button class="icon-btn" onclick="removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
 function toggleAddContractorForm(){
   const f=document.getElementById('add-contractor-form');
   f.classList.toggle('open');
@@ -2514,26 +2595,29 @@ function toggleAddContractorForm(){
 async function addContractor(){
   const nameEl=document.getElementById('page-new-con-name')||document.getElementById('new-con-name');
   const codeEl=document.getElementById('page-new-con-code')||document.getElementById('new-con-code');
+  const categoryEl=document.getElementById('page-new-con-category');
   const programEl=document.getElementById('page-new-con-program');
   const name=nameEl.value.trim();
   const code=codeEl.value.trim().toUpperCase();
+  const category=(categoryEl&&categoryEl.value)||'Misc';
   const programs=[(programEl&&programEl.value)||activeProgram||'Exploration'];
   if(!name){toast('Contractor name required','err');return;}
   try{
     const res=await fetch(`${API}/contractors`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),programs})
+      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),category,programs})
     });
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to add','err');return;}
     const d=await res.json();
     // Update local list
     const existing=CONTRACTORS.find(c=>c.name===name);
-    if(existing)Object.assign(existing,{short_code:d.short_code,program:d.program||programs.join(',')});
-    else CONTRACTORS.push({name,short_code:d.short_code,program:d.program||programs.join(',')});
+    if(existing)Object.assign(existing,d);
+    else CONTRACTORS.push(d);
     sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     nameEl.value='';
     codeEl.value='';
+    if(categoryEl)categoryEl.value='Misc';
     document.getElementById('add-contractor-form')?.classList.remove('open');
     buildContractorSwitcher();
     renderDrawerContractors();
@@ -2560,6 +2644,59 @@ async function removeContractor(idx){
 async function removeContractorByName(name){
   const idx=CONTRACTORS.findIndex(function(c){return c.name===name;});
   if(idx>=0) return removeContractor(idx);
+}
+
+async function removeContractor(idx){
+  const c=CONTRACTORS[idx];
+  if(!c)return;
+  if(!confirm(`Remove "${c.name}" from the list?\n\nThis does NOT delete their data from the database.`))return;
+  try{
+    await fetch(`${API}/contractors/${encodeURIComponent(c.name)}`,{method:'DELETE'});
+    CONTRACTORS.splice(idx,1);
+    if(c.name===activeContractor){
+      const next=filteredContractors()[0]||CONTRACTORS[0];
+      if(next){
+        activeContractor=next.name;
+        sessionStorage.setItem('drillops_contractor',activeContractor);
+      }
+    }
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    buildContractorSwitcher();
+    renderDrawerContractors();
+    renderContractorsPage();
+    toast(`${c.name} removed`,'warn');
+  }catch(e){toast('Failed to remove contractor','err');}
+}
+
+async function saveContractorFromRow(button, oldName){
+  const row=button.closest('.contractor-edit-row');
+  const c=CONTRACTORS.find(function(item){return item.name===oldName;});
+  if(!row||!c)return;
+  const newName=row.querySelector('.contractor-name-input').value.trim();
+  const code=row.querySelector('.contractor-code-input').value.trim().toUpperCase();
+  const category=row.querySelector('.contractor-category-input').value;
+  let programs=Array.from(row.querySelectorAll('.contractor-program-checks input:checked')).map(function(input){return input.value;});
+  if(!newName){toast('Contractor name required','err');return;}
+  if(!programs.length)programs=['Exploration'];
+  try{
+    const res=await fetch(`${API}/contractors/${encodeURIComponent(oldName)}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:newName,short_code:code||newName.slice(0,3).toUpperCase(),category,programs})
+    });
+    if(!res.ok){const e=await res.json().catch(()=>({detail:'Failed to update contractor'}));toast(e.detail||'Failed to update contractor','err');return;}
+    const updated=await res.json();
+    Object.assign(c,updated);
+    if(oldName===activeContractor){
+      activeContractor=updated.name;
+      sessionStorage.setItem('drillops_contractor',activeContractor);
+    }
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    buildContractorSwitcher();
+    renderDrawerContractors();
+    renderContractorsPage();
+    toast(updated.name+' saved');
+  }catch(e){toast('Failed to update contractor','err');}
 }
 
 async function updateContractorPrograms(name, programs){
