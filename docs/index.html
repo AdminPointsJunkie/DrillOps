@@ -4291,6 +4291,7 @@ function closeDailyReportDetail(){
 function dailyReportUrl(report){
   const params=new URLSearchParams({
     contractor:activeContractor,
+    program:activeProgram||'',
     date:report.date||'',
     hole:report.hole||'',
     source:report.sourceFile||'',

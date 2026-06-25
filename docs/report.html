@@ -75,6 +75,12 @@ tr.saving td{background:#fff7e6;}
 .log-time{font-size:11px;color:var(--muted);white-space:nowrap;}
 .log-note{grid-column:2 / -1;border:1px solid #d8e0ea;border-radius:6px;background:#fff;padding:8px 10px;color:#526273;}
 .empty{padding:22px;color:var(--muted);}
+.weekly-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px;}
+.weekly-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;}
+.weekly-card-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;}
+.weekly-card-value{font-size:18px;font-weight:800;color:#0f172a;}
+.weekly-card-meta{font-size:12px;color:#607083;margin-top:4px;line-height:1.4;}
+.work-note{max-width:520px;line-height:1.45;}
 @media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
 @media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}}
 </style>
@@ -168,6 +174,7 @@ tr.saving td{background:#fff7e6;}
 const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
 const params=new URLSearchParams(window.location.search);
 const contractor=params.get('contractor')||'Allianz Drilling';
+const program=params.get('program')||'';
 const reportDate=params.get('date')||'';
 const hole=params.get('hole')||'';
 const source=params.get('source')||'';
@@ -262,10 +269,12 @@ function rowHoleLabel(row){
 function belongsToThisReport(row){
   const sourceMatches=!source||!row.source_file||row.source_file===source;
   const holeMatches=source?true:(!hole||row.hole_num===hole);
+  const programMatches=!program||!row.program||row.program===program;
   return (!row.contractor||row.contractor===contractor)
     && (!reportDate||row.date===reportDate)
     && holeMatches
-    && sourceMatches;
+    && sourceMatches
+    && programMatches;
 }
 function optionalNumber(text){
   const raw=String(text||'').trim().replace(/[$,]/g,'');
@@ -598,8 +607,74 @@ function renderApprovalLog(record){
       +'</div>';
   }).join('');
 }
+function noteField(row,label){
+  const parts=String(row.notes||'').split('|').map(p=>p.trim());
+  const prefix=label.toLowerCase()+':';
+  const found=parts.find(p=>p.toLowerCase().startsWith(prefix));
+  return found?found.slice(found.indexOf(':')+1).trim():'';
+}
+function workDescription(row){return String(row.notes||'').split('|')[0].trim();}
+function isMccWeeklyRow(row){
+  const text=[row.contractor,row.source_file,row.rate_basis,row.notes,row.code].join(' ').toLowerCase();
+  return text.includes('mcc')&&(text.includes('.xlsx')||text.includes('weekly eos')||text.includes('mcc schedule')||String(row.code||'').startsWith('MCC_'));
+}
+function groupByKey(rows,keyFn){
+  const map=new Map();
+  rows.forEach(r=>{const key=keyFn(r);if(!map.has(key))map.set(key,[]);map.get(key).push(r);});
+  return [...map.entries()];
+}
+function renderMccWeeklyReport(rows,consumables,crew){
+  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.project||a.location||'').localeCompare(b.project||b.location||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
+  const totalCost=rows.reduce((s,r)=>s+num(r.line_cost),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const labourRows=rows.filter(r=>String(r.notes||'').includes('Charge type: Labour')||String(r.code||'').match(/OPERATOR|SUPERVISOR|LABOUR|TRADE|MANAGER/));
+  const equipmentRows=rows.filter(r=>String(r.notes||'').includes('Charge type: Equipment')||String(r.code||'').match(/EXCAVATOR|VEHICLE|TRUCK|LOADER|DOZER|GRADER|HIRE|BACKHOE/));
+  const unpricedRows=rows.filter(r=>r.line_cost==null||r.line_cost==='');
+  const totalHours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  const workstreams=[...new Set(rows.map(r=>r.project||r.location||noteField(r,'Workstream')).filter(Boolean))];
+  const people=[...new Set(rows.map(r=>noteField(r,'Created by')).filter(Boolean))];
+  const programs=[...new Set(rows.map(r=>r.program||noteField(r,'Program')).filter(Boolean))];
+  document.getElementById('title').textContent='MCC Weekly Earthworks - '+(programs.join(', ')||program||'Weekly activities');
+  document.getElementById('meta').innerHTML=[reportDate,workstreams.join(' / '),source].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
+  document.getElementById('flags').innerHTML=unpricedRows.length?'<span class="flag">'+unpricedRows.length+' unpriced row(s)</span>':'';
+  document.getElementById('kpi-depth').textContent='--';
+  document.getElementById('kpi-duration').textContent=totalHours.toFixed(2)+' h';
+  document.getElementById('kpi-cost').textContent=cur(totalCost);
+  document.getElementById('kpi-drilling-cost').textContent=cur(0);
+  document.getElementById('kpi-support-cost').textContent=cur(totalCost);
+  document.getElementById('kpi-consumable-cost').textContent=cur(relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0));
+  document.getElementById('kpi-costm').textContent='--';
+  document.getElementById('kpi-activities').textContent=rows.length;
+  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[r.program||'',r.project||r.location||'Unallocated'].join('|')).map(([key,items])=>{
+    const parts=key.split('|'),cost=items.reduce((s,r)=>s+num(r.line_cost),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+    return '<tr><td>'+esc((parts[0]?parts[0]+' - ':'')+(parts[1]||'Unallocated'))+'</td><td>'+items.length+' row(s)</td><td>'+hours.toFixed(2)+' h</td><td>10%</td><td>'+cur(cost)+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="empty">No weekly activity allocation found.</td></tr>';
+  const labourCost=labourRows.reduce((s,r)=>s+num(r.line_cost),0),equipmentCost=equipmentRows.reduce((s,r)=>s+num(r.line_cost),0);
+  document.getElementById('timeline').innerHTML='<div class="weekly-summary">'
+    +'<div class="weekly-card"><div class="weekly-card-title">Labour</div><div class="weekly-card-value">'+cur(labourCost)+'</div><div class="weekly-card-meta">'+labourRows.length+' priced line(s)</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Equipment</div><div class="weekly-card-value">'+cur(equipmentCost)+'</div><div class="weekly-card-meta">'+equipmentRows.length+' priced line(s)</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">People</div><div class="weekly-card-value">'+people.length+'</div><div class="weekly-card-meta">'+esc(people.join(', ')||'No names recorded')+'</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Workstreams</div><div class="weekly-card-value">'+workstreams.length+'</div><div class="weekly-card-meta">'+esc(workstreams.join(' / ')||'Unallocated')+'</div></div>'
+    +'</div>';
+  const descriptions=[...new Set(rows.map(workDescription).filter(Boolean))];
+  document.getElementById('notes').innerHTML=descriptions.length?'<ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'No work descriptions recorded.';
+  const activityTable=document.getElementById('activity-body').closest('table');
+  activityTable.querySelector('thead').innerHTML='<tr><th>Time</th><th>Program</th><th>Workstream</th><th>Person</th><th>Role</th><th>Hours</th><th>Work Performed</th><th>Cost</th></tr>';
+  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(noteField(r,'Created by'))+'</td><td>'+esc(noteField(r,'Role'))+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td style="font-weight:800;color:#0f172a;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No weekly activities found.</td></tr>';
+  const equipmentTable=document.getElementById('equipment-body').closest('table');
+  equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Program</th><th>Workstream</th><th>Hours/Qty</th><th>Schedule</th><th>Rate</th><th>Total</th></tr>';
+  const equipmentDisplay=rows.filter(r=>noteField(r,'Equipment')||String(r.notes||'').includes('Charge type: Equipment'));
+  document.getElementById('equipment-body').innerHTML=equipmentDisplay.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(noteField(r,'Equipment')||equipmentName(r))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+esc(r.rate_basis||'')+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#0f172a;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
+  const relatedCrew=crew.filter(belongsToThisReport);
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
+  const pdf=document.getElementById('pdf-btn');
+  pdf.style.display=source?'inline-flex':'none';
+  pdf.onclick=()=>{if(source)window.open(API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor),'_blank');};
+}
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  if(rows.some(isMccWeeklyRow))return renderMccWeeklyReport(rows,consumables,crew);
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const equipmentRows=rows.filter(isEquipmentRow);
   const activityRows=rows.filter(r=>!isEquipmentRow(r));
