@@ -1505,7 +1505,6 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
-        <button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)"><span class="drawer-nav-label">Costing</span><span class="drawer-nav-meta">Actuals</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
         <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span class="drawer-nav-label">Schedule of Rates</span><span class="drawer-nav-meta">Pricing</span></button>
@@ -3035,7 +3034,6 @@ function triggerPageLoad(page){
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
-  if(page==='costing')      loadCosting();
   if(page==='purchase-orders') loadPOs();
   if(page==='tenements')    loadTenements();
   if(page==='invoices')     loadInvoices();
