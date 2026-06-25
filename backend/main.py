@@ -38,6 +38,7 @@ CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
     ("MCC Earthworks",     "MCC"),
+    ("MCC Group",          "MCC"),
     ("King Konstruct",     "KK"),
     ("Weatherfords",       "WFD"),
     ("Epiroc",             "EPI"),
@@ -1910,6 +1911,173 @@ def parse_coreplan_plod_csv(content, filename, contractor):
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
+MCC_WEEKLY_HEADERS = {
+    "Created by",
+    "Shift Time Start",
+    "Shift Time End",
+    "Site Location",
+    "Job Description - Role",
+    "Job Description - Location",
+    "Job Description - Hours",
+    "Job Description - Description of Work Performed",
+}
+
+
+def _excel_dt(value):
+    if value is None:
+        return "", ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%d/%m/%Y"), value.strftime("%H:%M")
+    return str(value), ""
+
+
+def _decimal_hours_to_time(hours):
+    try:
+        total = int(round(float(hours) * 60))
+    except Exception:
+        return ""
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def mcc_program_from_location(text):
+    s = (text or "").lower()
+    if "arg-002" in s or "gas riser" in s:
+        return "Gas Riser"
+    if "arg-003" in s or "sis" in s:
+        return "SIS"
+    if "arg-005" in s or "exploration" in s:
+        return "Exploration"
+    return ""
+
+
+def mcc_hole_from_text(text):
+    s = text or ""
+    patterns = [
+        r"\bIB[-\s]?(\d{2})[-\s]?(\d{3})\b",
+        r"\bIB\s?(\d{2})[-\s]?(\d{2})\b",
+        r"\bGR[-\s]?(\d{1,2})\b",
+        r"\bSISMG\d{2}[-\s]?\d{2}[A-Z0-9]*\b",
+        r"\bMG\d{2}[-\s]?\d{2}[A-Z0-9]*\b",
+    ]
+    for pat in patterns:
+        m = re.search(pat, s, re.I)
+        if not m:
+            continue
+        raw = m.group(0).upper().replace(" ", "-")
+        if raw.startswith("IB") and len(m.groups()) >= 2:
+            second = m.group(2)
+            if len(second) == 2:
+                second = second.zfill(3)
+            return f"IB-{m.group(1)}-{second}"
+        return raw.replace("--", "-")
+    return ""
+
+
+def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
+    try:
+        from openpyxl import load_workbook
+    except Exception as e:
+        raise ValueError(f"openpyxl is not available: {e}")
+
+    wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
+    acts, crew, seen, source_lines = [], [], set(), []
+    header = {"date": "", "hole_num": "", "site_name": "", "contractor": contractor}
+
+    for ws in wb.worksheets:
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            continue
+        headers = [str(v or "").strip() for v in rows[0]]
+        if not MCC_WEEKLY_HEADERS.issubset(set(headers)):
+            continue
+        idx = {h: i for i, h in enumerate(headers)}
+        for raw in rows[1:]:
+            def cell(name):
+                i = idx.get(name, -1)
+                return raw[i] if i >= 0 and i < len(raw) else None
+
+            created_by = cell("Created by")
+            start = cell("Shift Time Start")
+            end = cell("Shift Time End")
+            site = cell("Site Location")
+            role = cell("Job Description - Role")
+            location = cell("Job Description - Location")
+            hours = cell("Job Description - Hours")
+            description = cell("Job Description - Description of Work Performed")
+            equipment = cell("Job Description - Equipment")
+            smu_start = cell("Job Description - SMU Start")
+            smu_finish = cell("Job Description - SMU Finish")
+            smu_total = cell("Job Description - SMU Total")
+            if not any([created_by, start, end, site, role, location, hours, description, equipment]):
+                continue
+
+            date, time_from = _excel_dt(start)
+            _, time_to = _excel_dt(end)
+            program = mcc_program_from_location(location)
+            hole = mcc_hole_from_text(" ".join([str(description or ""), str(location or "")]))
+            source_key = (date, time_from, time_to, str(created_by or ""), str(location or ""), str(description or ""), str(equipment or ""))
+            if source_key in seen:
+                continue
+            seen.add(source_key)
+
+            notes_parts = [
+                str(description or "").strip(),
+                f"Role: {role}" if role else "",
+                f"Program: {program}" if program else "",
+                f"Workstream: {location}" if location else "",
+                f"Equipment: {equipment}" if equipment else "",
+                f"SMU: {smu_start} to {smu_finish} ({smu_total})" if equipment and (smu_start is not None or smu_finish is not None or smu_total is not None) else "",
+                f"Created by: {created_by}" if created_by else "",
+            ]
+            row = {
+                "source_file": filename,
+                "contractor": contractor,
+                "date": date,
+                "hole_num": hole,
+                "site_name": str(site or "").strip() or hole,
+                "location": str(location or "").strip(),
+                "drill_rig": str(equipment or "").strip(),
+                "client": "ARGO",
+                "contract": str(location or "").strip(),
+                "shift": "",
+                "time_from": time_from,
+                "time_to": time_to,
+                "total_time": _decimal_hours_to_time(hours),
+                "bit_type": "",
+                "diameter": "",
+                "metres_from": None,
+                "metres_to": None,
+                "total_metres": None,
+                "code": "H_Active",
+                "notes": " | ".join(p for p in notes_parts if p),
+                "rate_year": date[-4:] if len(date) >= 4 else "",
+                "unit_rate": None,
+                "quantity": float(hours) if hours not in (None, "") else None,
+                "line_cost": None,
+                "rate_basis": "MCC weekly EOS import - unpriced",
+                "po_id": None,
+            }
+            acts.append(row)
+            if created_by:
+                crew.append({
+                    "source_file": filename,
+                    "contractor": contractor,
+                    "date": date,
+                    "hole_num": hole,
+                    "site_name": row["site_name"],
+                    "role": str(role or ""),
+                    "name": str(created_by or ""),
+                    "hours": str(hours or ""),
+                })
+            if not header["date"] and date:
+                header.update({"date": date, "site_name": row["site_name"], "hole_num": hole, "contractor": contractor})
+            source_lines.append(f"{date} {created_by or ''} {location or ''} {description or ''}")
+
+    if not acts:
+        raise ValueError("No MCC weekly EOS rows found in workbook")
+    return header, acts, [], crew, "\n".join(source_lines[:500])
+
+
 @app.get("/")
 def root():
     return {"status": "ok", "app": "DrillOps API v3", "contractors": [c[0] for c in CONTRACTORS]}
@@ -1921,10 +2089,18 @@ def get_contractors():
     with get_conn() as conn:
         with conn.cursor() as cur:
             for name, code in CONTRACTORS:
+                programs = "Exploration,Gas Riser,SIS" if name == "MCC Group" else "Exploration"
                 cur.execute("""
                     INSERT INTO contractors (name, short_code, program)
-                    VALUES (%s, %s, 'Exploration') ON CONFLICT (name) DO NOTHING
-                """, (name, code))
+                    VALUES (%s, %s, %s) ON CONFLICT (name) DO NOTHING
+                """, (name, code, programs))
+            cur.execute("""
+                UPDATE contractors
+                SET short_code = COALESCE(NULLIF(short_code, ''), 'MCC'),
+                    program = 'Exploration,Gas Riser,SIS'
+                WHERE name = 'MCC Group'
+                  AND COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
+            """)
             cur.execute("SELECT * FROM contractors ORDER BY program, name")
             rows = [dict(r) for r in cur.fetchall()]
         conn.commit()
@@ -2558,6 +2734,52 @@ async def import_pdf(
 ):
     filename = file.filename
     content = await file.read()
+    if filename.lower().endswith(".xlsx"):
+        try:
+            contractor = "MCC Group"
+            header, acts, cons, crew, source_text = parse_mcc_weekly_xlsx(content, filename, contractor)
+        except Exception as e:
+            raise HTTPException(400, f"Could not read MCC weekly XLSX: {e}")
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
+                if acts:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO activities
+                        (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                         client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                         metres_from,metres_to,total_metres,code,notes,
+                         rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                        VALUES
+                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                         %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                         %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                         %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                         %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                    """, acts)
+                if crew:
+                    psycopg2.extras.execute_batch(cur, """
+                        INSERT INTO crew (source_file,contractor,date,hole_num,site_name,role,name,hours)
+                        VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(role)s,%(name)s,%(hours)s)
+                    """, crew)
+                cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                            (filename, contractor))
+                cur.execute("""
+                    INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                    VALUES (%s, %s, 'mcc_weekly_xlsx', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                """, (filename, contractor, psycopg2.Binary(content)))
+            conn.commit()
+
+        return {"status":"imported","filename":filename,"rows":len(acts),
+                "contractor":contractor,
+                "total_cost":0,
+                "consumables":0,"crew":len(crew),
+                "import_check":{"status":"ok","summary":"MCC Group weekly end-of-shift XLSX imported. Rows are unpriced and separated by ARG workstream/program.","warnings":[]}}
+
     if filename.lower().endswith(".csv"):
         try:
             header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, "Mitchells Drilling")
