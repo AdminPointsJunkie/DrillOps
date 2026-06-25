@@ -2411,12 +2411,23 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
 let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
 
+function contractorPrograms(c) {
+  const raw = c && (c.programs || c.program);
+  const list = Array.isArray(raw) ? raw : String(raw || 'Exploration').split(',');
+  const programs = list.map(function(p){return String(p).trim();}).filter(Boolean);
+  return programs.length ? programs : ['Exploration'];
+}
+
 function contractorProgram(c) {
-  return (c && c.program) || 'Exploration';
+  return contractorPrograms(c).join(', ');
+}
+
+function contractorInProgram(c, program) {
+  return !program || contractorPrograms(c).includes(program);
 }
 
 function filteredContractors() {
-  return CONTRACTORS.filter(function(c){ return !activeProgram || contractorProgram(c) === activeProgram; });
+  return CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
 }
 
 async function fetchContractors(){
@@ -2490,7 +2501,7 @@ function renderContractorsPage(){
         </div>
       </div>
       <div class="contractor-item-actions">
-        <select class="drawer-input" style="width:130px;padding:5px 8px;font-size:11px;" onclick="event.stopPropagation()" onchange="updateContractorProgram('${c.name.replace(/'/g,"\\'")}',this.value)">${PROJECT_PROGRAMS.map(function(p){return '<option value="'+p+'"'+(p===contractorProgram(c)?' selected':'')+'>'+p+'</option>';}).join('')}</select>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;max-width:270px;" onclick="event.stopPropagation()">${PROJECT_PROGRAMS.map(function(p){return '<label style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--muted);"><input type="checkbox" '+(contractorPrograms(c).includes(p)?'checked':'')+' onchange="toggleContractorProgram(\''+c.name.replace(/'/g,"\\'")+'\',\''+p+'\',this.checked)"> '+p+'</label>';}).join('')}</div>
         ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':`<button class="icon-btn" onclick="event.stopPropagation();removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Remove</button>`}
       </div>
     </div>`).join('');
@@ -2507,20 +2518,20 @@ async function addContractor(){
   const programEl=document.getElementById('page-new-con-program');
   const name=nameEl.value.trim();
   const code=codeEl.value.trim().toUpperCase();
-  const program=(programEl&&programEl.value)||activeProgram||'Exploration';
+  const programs=[(programEl&&programEl.value)||activeProgram||'Exploration'];
   if(!name){toast('Contractor name required','err');return;}
   try{
     const res=await fetch(`${API}/contractors`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),program})
+      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),programs})
     });
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to add','err');return;}
     const d=await res.json();
     // Update local list
     const existing=CONTRACTORS.find(c=>c.name===name);
-    if(existing)Object.assign(existing,{short_code:d.short_code,program:d.program||program});
-    else CONTRACTORS.push({name,short_code:d.short_code,program:d.program||program});
+    if(existing)Object.assign(existing,{short_code:d.short_code,program:d.program||programs.join(',')});
+    else CONTRACTORS.push({name,short_code:d.short_code,program:d.program||programs.join(',')});
     sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     nameEl.value='';
     codeEl.value='';
@@ -2552,23 +2563,37 @@ async function removeContractorByName(name){
   if(idx>=0) return removeContractor(idx);
 }
 
-async function updateContractorProgram(name, program){
+async function updateContractorPrograms(name, programs){
   const c=CONTRACTORS.find(function(item){return item.name===name;});
   if(!c)return;
   try{
     const res=await fetch(`${API}/contractors/${encodeURIComponent(name)}`,{
       method:'PATCH',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({program})
+      body:JSON.stringify({programs})
     });
     if(!res.ok)throw new Error(await res.text());
-    c.program=program;
+    c.program=programs.join(',');
     sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
     buildContractorSwitcher();
     renderDrawerContractors();
     renderContractorsPage();
-    toast(name+' moved to '+program);
+    toast(name+' programs updated');
   }catch(e){toast('Failed to update contractor program','err');}
+}
+
+async function updateContractorProgram(name, program){
+  return updateContractorPrograms(name, [program]);
+}
+
+async function toggleContractorProgram(name, program, checked){
+  const c=CONTRACTORS.find(function(item){return item.name===name;});
+  if(!c)return;
+  let programs=contractorPrograms(c);
+  if(checked && !programs.includes(program))programs.push(program);
+  if(!checked)programs=programs.filter(function(p){return p!==program;});
+  if(!programs.length)programs=['Exploration'];
+  await updateContractorPrograms(name, programs);
 }
 
 // Wire up clear buttons (drawer + sidebar)

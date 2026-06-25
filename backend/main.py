@@ -1939,7 +1939,11 @@ async def add_contractor(request: Request):
         raise HTTPException(400, "Invalid JSON body")
     name = payload.get("name", "").strip()
     code = payload.get("short_code", "").strip().upper() or name[:3].upper()
-    program = str(payload.get("program", "Exploration") or "Exploration").strip() or "Exploration"
+    raw_program = payload.get("programs", payload.get("program", "Exploration"))
+    if isinstance(raw_program, list):
+        program = ",".join(str(p).strip() for p in raw_program if str(p).strip()) or "Exploration"
+    else:
+        program = str(raw_program or "Exploration").strip() or "Exploration"
     if not name:
         raise HTTPException(400, "name is required")
     try:
@@ -1967,7 +1971,13 @@ async def update_contractor(name: str, request: Request):
     safe = {}
     if "short_code" in payload:
         safe["short_code"] = str(payload.get("short_code") or "").strip().upper()
-    if "program" in payload:
+    if "programs" in payload:
+        raw_program = payload.get("programs")
+        if isinstance(raw_program, list):
+            safe["program"] = ",".join(str(p).strip() for p in raw_program if str(p).strip()) or "Exploration"
+        else:
+            safe["program"] = str(raw_program or "Exploration").strip() or "Exploration"
+    elif "program" in payload:
         safe["program"] = str(payload.get("program") or "Exploration").strip() or "Exploration"
     if not safe:
         raise HTTPException(400, "No valid fields")
