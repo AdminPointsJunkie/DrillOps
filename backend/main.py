@@ -1194,7 +1194,7 @@ def minimum_shift_activity_subtotal(row: dict, rows: list[dict]) -> float:
         if allianz_minimum_shift_group_key(other) != key:
             continue
         code = other.get("code") or ""
-        if code == "H_Min_Shift" or SUPPORT_EQUIPMENT_CODE_RE.search(code) or code in {"MOB", "DEMOB"}:
+        if code == "H_Min_Shift" or code.startswith("E_") or SUPPORT_EQUIPMENT_CODE_RE.search(code) or code in {"MOB", "DEMOB"}:
             continue
         try:
             line_cost = float(other.get("line_cost") or 0)
@@ -3299,6 +3299,8 @@ async def import_pdf(
 
         # Price consumables
         for c in cons:
+            if contractor == "Mitchells Drilling" and c.get("line_cost") is not None:
+                continue
             product = (c.get("consumable") or c.get("type") or "").strip().upper()
             price = cr_lookup.get(product) or cr_lookup.get(product.replace(" ",""))
             if price is None:
@@ -3311,7 +3313,7 @@ async def import_pdf(
                 except: pass
                 c["unit_price"] = price
                 c["line_cost"] = round(price * qty, 2)
-            else:
+            elif c.get("line_cost") is None:
                 c["unit_price"] = None
                 c["line_cost"] = None
 
@@ -6272,6 +6274,8 @@ def reprice_activities(contractor: str = Query(...)):
                 for crow in cons_rows:
                     if row_is_in_locked_sheet(crow, locked_keys):
                         cons_locked_skipped += 1
+                        continue
+                    if contractor == "Mitchells Drilling" and crow.get("line_cost") is not None:
                         continue
                     product = (crow.get("consumable") or crow.get("type") or "").strip()
                     product_upper = product.upper()
