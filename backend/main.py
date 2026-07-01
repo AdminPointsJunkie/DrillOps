@@ -3715,6 +3715,15 @@ def sync_allianz_minimum_shift_topups(contractor: str):
     return {"deleted": len(existing_topups), "inserted": len(topups), "adjusted": adjusted}
 
 
+@app.on_event("startup")
+def repair_minimum_shift_rows_on_startup():
+    for contractor in MINIMUM_SHIFT_RULES:
+        try:
+            sync_allianz_minimum_shift_topups(contractor)
+        except Exception as exc:
+            print(f"minimum shift repair failed for {contractor}: {exc}")
+
+
 @app.post("/imports/cleanup-coreplan-doubleups")
 async def cleanup_coreplan_doubleups(request: Request):
     payload = await request.json()
