@@ -1233,10 +1233,23 @@ def adjust_imported_minimum_shift_rows(rows: list[dict], contractor: str = "", e
     return adjusted
 
 
+def explicit_pcd_range_label(value: str) -> str:
+    text = str(value or "").upper()
+    compact = re.sub(r"[\s/\-–]+", "_", text)
+    if PCD_LARGE_LABEL.upper() in text or "175_305MM" in compact:
+        return PCD_LARGE_LABEL
+    if PCD_MEDIUM_LABEL.upper() in text or "125_175MM" in compact:
+        return PCD_MEDIUM_LABEL
+    if PCD_SMALL_LABEL.upper() in text or "99_125MM" in compact:
+        return PCD_SMALL_LABEL
+    return ""
+
+
 def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -> str:
     text = f"{bit_type or ''} {code or ''} {notes or ''}".upper()
-    compact = re.sub(r"[\s/-]+", "_", text)
+    compact = re.sub(r"[\s/\-–]+", "_", text)
     tokens = set(re.findall(r"[A-Z0-9.]+", text))
+    mm_ranges = [(float(a), float(b)) for a, b in re.findall(r"\b(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*MM\b", text)]
     mm_values = [float(v) for v in re.findall(r"(\d+(?:\.\d+)?)\s*MM\b", text)]
     inch_values = []
     for whole, numerator, denominator in re.findall(r"\b(\d+)\s+(\d+)/(\d+)\b", text):
@@ -1265,19 +1278,28 @@ def normalise_drilling_bit_key(bit_type: str, code: str = "", notes: str = "") -
             return "BLADE_M"
         return "BLADE_S"
     if "PCD" in text or "CHIP" in text or "OPEN_HOLE" in text:
+        explicit = explicit_pcd_range_label(text)
+        if explicit:
+            return explicit
+        if "7_10_INCH" in compact:
+            return PCD_LARGE_LABEL
+        if "5_7_INCH" in compact:
+            return PCD_MEDIUM_LABEL
+        if "3_1_2_5_INCH" in compact:
+            return PCD_SMALL_LABEL
+        if any(lo >= 175 and hi <= 305 for lo, hi in mm_ranges):
+            return PCD_LARGE_LABEL
+        if any(125 <= lo < 175 and hi <= 175 for lo, hi in mm_ranges):
+            return PCD_MEDIUM_LABEL
+        if any(99 <= lo < 125 and hi <= 125 for lo, hi in mm_ranges):
+            return PCD_SMALL_LABEL
         if any(mm >= 175 for mm in mm_values):
             return PCD_LARGE_LABEL
         if any(125 <= mm < 175 for mm in mm_values):
             return PCD_MEDIUM_LABEL
         if any(99 <= mm < 125 for mm in mm_values):
             return PCD_SMALL_LABEL
-        if PCD_LARGE_LABEL.upper() in text or "175_305MM" in compact or "7_10_INCH" in compact:
-            return PCD_LARGE_LABEL
-        if PCD_MEDIUM_LABEL.upper() in text or "125_175MM" in compact or "5_7_INCH" in compact:
-            return PCD_MEDIUM_LABEL
-        if PCD_SMALL_LABEL.upper() in text or "99_125MM" in compact or "3_1_2_5_INCH" in compact:
-            return PCD_SMALL_LABEL
-        if "175" in text or "305" in text or "PCD_L" in compact or "L" in tokens:
+        if "305" in text or "PCD_L" in compact or "L" in tokens:
             return PCD_LARGE_LABEL
         if "125" in text or "PCD_M" in compact or "M" in tokens:
             return PCD_MEDIUM_LABEL
@@ -2569,9 +2591,12 @@ def drilling_schedule_segments(row, rate_context):
     years += ["2026", "2025"]
     for ty in years:
         segments = []
+        explicit_bit = explicit_pcd_range_label(f"{row.get('bit_type') or ''} {row.get('diameter') or ''} {row.get('notes') or ''} {row.get('code') or ''}")
         bands = [
             rate for rate in rate_context["drilling"]
-            if rate["year"] == ty and rate["bit_type"] == bit
+            if rate["year"] == ty
+            and rate["bit_type"] == bit
+            and (not explicit_bit or explicit_pcd_range_label(rate.get("bit_type")) == explicit_bit)
         ]
         for rate in sorted(bands, key=lambda r: (r["depth_from"], r["depth_to"])):
             seg_from = max(start, rate["depth_from"])
