@@ -714,6 +714,16 @@ def init_db():
                     conn.rollback()
 
             # ── Invoice line items ────────────────────────────────────────────
+            try:
+                cur.execute("""
+                    UPDATE invoices
+                    SET project='Ironbark'
+                    WHERE source_file LIKE 'manual:%%'
+                      AND (project IS NULL OR project='' OR project IN ('Exploration','Gas Riser','SIS'))
+                """)
+            except Exception:
+                conn.rollback()
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoice_lines (
                     id              SERIAL PRIMARY KEY,
