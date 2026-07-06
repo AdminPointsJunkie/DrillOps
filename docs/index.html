@@ -2071,6 +2071,31 @@ tbody td[contenteditable=true]:focus {
         <div class="kpi"><div class="kpi-label">In Query</div><div class="kpi-value" id="inv-kpi-query">—</div></div>
       </div>
 
+      <div class="table-wrap" style="margin-bottom:16px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Manual invoice line</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Add invoice data without importing a PDF.</div>
+          </div>
+          <button class="btn-primary" type="button" onclick="createManualInvoice()">Add manual line</button>
+        </div>
+        <div class="filter-body open" style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:14px;">
+          <div class="filter-group"><label>Contractor</label><select id="manual-inv-contractor"></select></div>
+          <div class="filter-group"><label>Project</label><select id="manual-inv-project"><option value="Exploration">Exploration</option><option value="Gas Riser">Gas Riser</option><option value="SIS">SIS</option></select></div>
+          <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
+          <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
+          <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
+          <div class="filter-group"><label>Status</label><select id="manual-inv-status"><option>Unpaid</option><option>Paid</option><option>Query</option><option>Rejected</option></select></div>
+          <div class="filter-group" style="grid-column:span 2;"><label>Description</label><input id="manual-inv-description" placeholder="Line description"></div>
+          <div class="filter-group"><label>Category</label><select id="manual-inv-category"><option value="">Auto</option><option>labour</option><option>equipment</option><option>active</option><option>standby</option><option>travel</option><option>setup</option><option>consumable</option><option>other</option></select></div>
+          <div class="filter-group"><label>Qty</label><input id="manual-inv-qty" type="number" step="0.01" value="1" oninput="updateManualInvoiceTotals()"></div>
+          <div class="filter-group"><label>Unit Price</label><input id="manual-inv-unit" type="number" step="0.01" oninput="updateManualInvoiceTotals()"></div>
+          <div class="filter-group"><label>Subtotal</label><input id="manual-inv-amount" type="number" step="0.01" oninput="updateManualInvoiceTotals(true)"></div>
+          <div class="filter-group"><label>GST</label><input id="manual-inv-gst" type="number" step="0.01"></div>
+          <div class="filter-group"><label>Total AUD</label><input id="manual-inv-total" type="number" step="0.01"></div>
+        </div>
+      </div>
+
       <!-- Main table -->
       <div class="table-wrap">
         <div class="table-toolbar">
@@ -5606,8 +5631,111 @@ if(invFileInput && invImportBtn && invDropZone) {
   });
 }
 
+function populateManualInvoiceForm(){
+  var csel = document.getElementById('manual-inv-contractor');
+  if(csel){
+    var current = csel.value || activeContractor;
+    csel.innerHTML = CONTRACTORS.map(function(c){
+      return '<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>';
+    }).join('');
+    csel.value = current && CONTRACTORS.some(function(c){ return c.name === current; }) ? current : activeContractor;
+  }
+  var psel = document.getElementById('manual-inv-project');
+  if(psel) psel.value = activeProgram || 'Exploration';
+  var date = document.getElementById('manual-inv-date');
+  if(date && !date.value) date.value = new Date().toISOString().slice(0,10);
+}
+
+function manualInvoiceNumber(id){
+  var el = document.getElementById(id);
+  var n = parseFloat(String((el && el.value) || '').replace(/[$,]/g,''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function updateManualInvoiceTotals(amountEdited){
+  var qty = manualInvoiceNumber('manual-inv-qty') || 1;
+  var unit = manualInvoiceNumber('manual-inv-unit');
+  var amountEl = document.getElementById('manual-inv-amount');
+  var amount = manualInvoiceNumber('manual-inv-amount');
+  if(!amountEdited && unit > 0){
+    amount = Number((qty * unit).toFixed(2));
+    if(amountEl) amountEl.value = amount.toFixed(2);
+  }
+  var gst = Number((amount * 0.1).toFixed(2));
+  var total = Number((amount + gst).toFixed(2));
+  var gstEl = document.getElementById('manual-inv-gst');
+  var totalEl = document.getElementById('manual-inv-total');
+  if(gstEl) gstEl.value = amount ? gst.toFixed(2) : '';
+  if(totalEl) totalEl.value = amount ? total.toFixed(2) : '';
+}
+
+function clearManualInvoiceForm(){
+  ['manual-inv-number','manual-inv-po','manual-inv-description','manual-inv-unit','manual-inv-amount','manual-inv-gst','manual-inv-total'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  var qty = document.getElementById('manual-inv-qty');
+  if(qty) qty.value = '1';
+  var status = document.getElementById('manual-inv-status');
+  if(status) status.value = 'Unpaid';
+  var category = document.getElementById('manual-inv-category');
+  if(category) category.value = '';
+  populateManualInvoiceForm();
+}
+
+async function createManualInvoice(){
+  populateManualInvoiceForm();
+  updateManualInvoiceTotals();
+  var status = (document.getElementById('manual-inv-status') || {}).value || 'Unpaid';
+  var total = manualInvoiceNumber('manual-inv-total');
+  var payload = {
+    contractor: (document.getElementById('manual-inv-contractor') || {}).value || activeContractor,
+    project: (document.getElementById('manual-inv-project') || {}).value || activeProgram || 'Exploration',
+    invoice_number: ((document.getElementById('manual-inv-number') || {}).value || '').trim(),
+    invoice_date: ((document.getElementById('manual-inv-date') || {}).value || '').trim(),
+    po_reference: ((document.getElementById('manual-inv-po') || {}).value || '').trim(),
+    status: status,
+    description: ((document.getElementById('manual-inv-description') || {}).value || '').trim(),
+    category: (document.getElementById('manual-inv-category') || {}).value || '',
+    quantity: manualInvoiceNumber('manual-inv-qty') || 1,
+    unit_price: manualInvoiceNumber('manual-inv-unit'),
+    amount: manualInvoiceNumber('manual-inv-amount'),
+    gst: manualInvoiceNumber('manual-inv-gst'),
+    total_aud: total,
+    amount_paid: status === 'Paid' ? total : 0,
+    amount_due: status === 'Paid' ? 0 : total
+  };
+  if(!payload.invoice_number || !payload.description){
+    toast('Invoice number and description are required','err');
+    return;
+  }
+  if(payload.total_aud <= 0){
+    toast('Enter a subtotal or unit price before adding the line','err');
+    return;
+  }
+  try{
+    var res = await fetch(API+'/invoices/manual', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error(await res.text());
+    toast('Manual invoice line added');
+    clearManualInvoiceForm();
+    if(payload.contractor !== activeContractor){
+      activeContractor = payload.contractor;
+      sessionStorage.setItem('drillops_contractor', activeContractor);
+      buildContractorSwitcher();
+    }
+    await loadInvoices();
+  }catch(e){
+    toast('Manual invoice failed: '+((e && e.message) || 'not saved'),'err');
+  }
+}
+
 async function loadInvoices(){
   try{
+    populateManualInvoiceForm();
     var res = await fetch(API+'/invoices?contractor='+encodeURIComponent(activeContractor));
     if(!res.ok) return;
     invoicesData = await res.json();
@@ -5667,6 +5795,7 @@ function renderInvoices(rows){
     }).join('');
     var accounted = (parseInt(r.exact_matches || 0) || 0) + (parseInt(r.close_matches || 0) || 0);
     var lineSummary = r.line_count ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+accounted+'/'+r.line_count+' accounted</div>' : '';
+    var hasPdf = r.source_file && String(r.source_file).indexOf('manual:') !== 0;
     return '<tr data-inv-id="'+r.id+'"'+(Number(r.id)===Number(selectedInvoiceBreakdownId)?' class="active"':'')+'>'
       +'<td contenteditable="true" data-col="invoice_number" style="color:var(--accent);font-weight:700;">'+esc(r.invoice_number||'')+'</td>'
       +'<td contenteditable="true" data-col="contractor" style="font-size:12px;">'+esc(r.contractor||'')+'</td>'
@@ -5683,7 +5812,7 @@ function renderInvoices(rows){
       +'<td contenteditable="true" data-col="query_notes" class="multiline-cell" style="font-size:11px;color:var(--muted);">'+esc(r.query_notes||'')+'</td>'
       +'<td style="font-size:11px;color:var(--muted);text-align:center;">v'+(r.version||1)+'</td>'
       +'<td style="display:flex;gap:4px;align-items:center;">'
-        +(r.id?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
+        +(r.id&&hasPdf?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
         +(r.id?'<button onclick="loadInvoiceBreakdown('+r.id+')" style="background:transparent;border:1.5px solid var(--border);color:var(--text2);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">Breakdown</button>':'')
         +lineSummary
         +'<button onclick="deleteInvoice('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;">\u2715</button>'

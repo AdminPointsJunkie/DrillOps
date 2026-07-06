@@ -5847,6 +5847,126 @@ async def import_invoice(
     }
 
 
+@app.post("/invoices/manual")
+async def create_manual_invoice(request: Request):
+    payload = await request.json()
+    contractor = str(payload.get("contractor") or "").strip() or "Allianz Drilling"
+    invoice_number = str(payload.get("invoice_number") or "").strip()
+    description = str(payload.get("description") or "").strip()
+    if not invoice_number:
+        raise HTTPException(400, "invoice_number is required")
+    if not description:
+        raise HTTPException(400, "description is required")
+
+    def num(value, default=0.0):
+        try:
+            if value is None or value == "":
+                return default
+            return float(str(value).replace("$", "").replace(",", "").strip())
+        except Exception:
+            return default
+
+    quantity = num(payload.get("quantity"), 1.0) or 1.0
+    unit_price = num(payload.get("unit_price"), 0.0)
+    amount = num(payload.get("amount"), 0.0)
+    if amount == 0 and unit_price:
+        amount = round(quantity * unit_price, 2)
+    if unit_price == 0 and quantity:
+        unit_price = round(amount / quantity, 2) if amount else 0.0
+    gst = num(payload.get("gst"), round(amount * 0.1, 2) if amount else 0.0)
+    total_aud = num(payload.get("total_aud"), round(amount + gst, 2))
+    amount_paid = num(payload.get("amount_paid"), 0.0)
+    amount_due = num(payload.get("amount_due"), round(max(0, total_aud - amount_paid), 2))
+    status = str(payload.get("status") or ("Paid" if amount_due == 0 and total_aud > 0 else "Unpaid")).strip()
+    category = str(payload.get("category") or categorise_invoice_line(description)).strip() or "other"
+
+    inv = {
+        "invoice_number": invoice_number,
+        "invoice_date": str(payload.get("invoice_date") or "").strip(),
+        "due_date": str(payload.get("due_date") or "").strip(),
+        "po_reference": str(payload.get("po_reference") or "").strip(),
+        "project": str(payload.get("project") or "").strip(),
+        "client": str(payload.get("client") or "Argo Coal Management Pty Ltd").strip(),
+        "abn": str(payload.get("abn") or "").strip(),
+        "subtotal": amount,
+        "gst": gst,
+        "total_aud": total_aud,
+        "amount_paid": amount_paid,
+        "amount_due": amount_due,
+        "status": status,
+    }
+    line = {
+        "description": description,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "gst_rate": str(payload.get("gst_rate") or "10%").strip(),
+        "amount": amount,
+        "category": category,
+        "line_date": str(payload.get("line_date") or inv["invoice_date"]).strip(),
+        "site_name": str(payload.get("site_name") or "").strip(),
+        "hole_num": str(payload.get("hole_num") or "").strip(),
+        "activity_code": str(payload.get("activity_code") or category).strip(),
+        "unit": str(payload.get("unit") or "each").strip(),
+        "chargeable": payload.get("chargeable", True),
+        "source_category": str(payload.get("source_category") or "manual").strip(),
+    }
+
+    source_file = f"manual:{contractor}:{invoice_number}"
+    match_summary = {}
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO invoices
+                    (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
+                     project,client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
+                    RETURNING id
+                """, (source_file, contractor, inv["invoice_number"], inv["invoice_date"],
+                      inv["due_date"], inv["po_reference"], inv["project"], inv["client"], inv["abn"],
+                      inv["subtotal"], inv["gst"], inv["total_aud"], inv["amount_paid"], inv["amount_due"], inv["status"]))
+                invoice_id = cur.fetchone()["id"]
+                cur.execute("""
+                    INSERT INTO invoice_lines
+                    (invoice_id,contractor,invoice_number,description,quantity,unit_price,gst_rate,amount,category,
+                     line_date,site_name,hole_num,activity_code,unit,chargeable,source_category)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (invoice_id, contractor, inv["invoice_number"], line["description"], line["quantity"],
+                      line["unit_price"], line["gst_rate"], line["amount"], line["category"], line["line_date"],
+                      line["site_name"], line["hole_num"], line["activity_code"], line["unit"], line["chargeable"],
+                      line["source_category"]))
+                try:
+                    match_invoice_to_eos(cur, invoice_id, contractor, inv["po_reference"])
+                except Exception:
+                    pass
+                cur.execute("""
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact,
+                        SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close,
+                        SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS no_eos,
+                        SUM(CASE WHEN match_status='invoice_over_eos' THEN 1 ELSE 0 END) AS over,
+                        SUM(CASE WHEN match_status='invoice_under_eos' THEN 1 ELSE 0 END) AS under,
+                        SUM(COALESCE(amount,0)) AS invoiced,
+                        SUM(COALESCE(matched_eos_cost,0)) AS matched_eos,
+                        SUM(COALESCE(variance,0)) AS variance
+                    FROM invoice_lines WHERE invoice_id=%s
+                """, (invoice_id,))
+                match_summary = dict(cur.fetchone() or {})
+            conn.commit()
+        return {
+            "status": "created",
+            "id": invoice_id,
+            "invoice_number": inv["invoice_number"],
+            "contractor": contractor,
+            "total_aud": inv["total_aud"],
+            "line_count": 1,
+            "match_summary": match_summary,
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+
 @app.get("/invoices")
 def get_invoices(contractor: str = Query(...)):
     try:
