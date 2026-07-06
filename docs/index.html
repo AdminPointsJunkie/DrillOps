@@ -351,6 +351,14 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .collapse-btn{display:inline-flex;align-items:center;gap:6px;}
 .collapse-arrow{font-size:10px;transition:transform 0.15s;}
 .collapsible-table:not(.collapsed) .collapse-arrow{transform:rotate(90deg);}
+body.period-print-prep{background:#fff!important;}
+body.period-print-prep #page-reports{display:block!important;width:1068px!important;max-width:1068px!important;margin:0!important;padding:0!important;background:#fff!important;}
+body.period-print-prep .period-report{border:none!important;box-shadow:none!important;border-radius:0!important;margin:0!important;overflow:visible!important;}
+body.period-print-prep .period-report-head{display:none!important;}
+body.period-print-prep .period-report-body{padding:0!important;}
+body.period-print-prep .period-print-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;border-bottom:1.5px solid #1f2d3a!important;padding-bottom:7px!important;margin-bottom:9px!important;}
+body.period-print-prep .period-map-card{padding:6px!important;margin-bottom:8px!important;}
+body.period-print-prep .period-map{height:250px!important;}
 
 @media print{
   @page{size:A4 landscape;margin:8mm;}
@@ -3996,15 +4004,25 @@ function setPeriodText(id,value){
   if(el)el.textContent=value;
 }
 
-function printPeriodReport(){
+function waitForPrintPrep(ms){
+  return new Promise(function(resolve){ setTimeout(resolve,ms); });
+}
+
+async function preparePeriodMapForPrint(){
+  if(typeof document==='undefined')return;
+  document.body.classList.add('period-print-prep');
+  await waitForPrintPrep(120);
+  fitPeriodMapToBounds(true);
+  await waitForPrintPrep(260);
+  fitPeriodMapToBounds(true);
+  await waitForPrintPrep(260);
+}
+
+async function printPeriodReport(){
   renderPeriodReport();
-  setTimeout(function(){
-    fitPeriodMapToBounds();
-    setTimeout(function(){
-      fitPeriodMapToBounds();
-      window.print();
-    }, 250);
-  }, 900);
+  await waitForPrintPrep(700);
+  await preparePeriodMapForPrint();
+  window.print();
 }
 
 function renderPeriodMap(activeHoles){
@@ -4050,9 +4068,9 @@ function renderPeriodMap(activeHoles){
   setTimeout(fitPeriodMapToBounds,80);
 }
 
-function fitPeriodMapToBounds(){
+function fitPeriodMapToBounds(printMode){
   if(!periodMap||!periodMapBounds||!periodMapBounds.isValid())return;
-  periodMap.invalidateSize();
+  periodMap.invalidateSize({pan:false});
   const sw=periodMapBounds.getSouthWest();
   const ne=periodMapBounds.getNorthEast();
   const latSpan=Math.abs(ne.lat-sw.lat);
@@ -4062,16 +4080,21 @@ function fitPeriodMapToBounds(){
     return;
   }
   periodMap.fitBounds(periodMapBounds,{
-    paddingTopLeft:[90,48],
-    paddingBottomRight:[180,48],
+    paddingTopLeft:printMode?[150,54]:[90,48],
+    paddingBottomRight:printMode?[150,54]:[180,48],
     maxZoom:16
   });
 }
 
 if(typeof window!=='undefined'){
   window.addEventListener('beforeprint',function(){
-    fitPeriodMapToBounds();
-    setTimeout(fitPeriodMapToBounds,120);
+    fitPeriodMapToBounds(true);
+    setTimeout(function(){fitPeriodMapToBounds(true);},120);
+    setTimeout(function(){fitPeriodMapToBounds(true);},320);
+  });
+  window.addEventListener('afterprint',function(){
+    if(document&&document.body)document.body.classList.remove('period-print-prep');
+    setTimeout(function(){fitPeriodMapToBounds(false);},120);
   });
 }
 
