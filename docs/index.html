@@ -302,7 +302,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-print-logo{height:54px;width:auto;object-fit:contain;}
 .period-print-title{font-size:22px;font-weight:850;color:var(--text);line-height:1.15;}
 .period-print-subtitle{font-size:11px;color:var(--muted);margin-top:5px;}
-.period-kpis{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.period-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;}
 .period-kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
@@ -313,6 +313,11 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-mini-table th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px;border-bottom:1px solid var(--border);text-align:left;}
 .period-mini-table td{padding:8px;border-bottom:1px solid #eef2f7;color:var(--text2);vertical-align:top;}
 .period-mini-table .num{text-align:right;font-family:var(--font-mono);white-space:nowrap;}
+.period-support-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:14px;break-inside:avoid;}
+.period-support-total{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.period-support-card{border:1px solid var(--border);border-radius:7px;background:#fff;padding:10px 12px;}
+.period-support-card .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
+.period-support-card .value{font-size:18px;font-weight:800;color:var(--text);}
 .period-issues{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text2);min-height:120px;}
 .period-issues ul{margin:0;padding-left:18px;}
 .period-bar-chart{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:10px;}
@@ -1715,6 +1720,8 @@ tbody td[contenteditable=true]:focus {
             <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub">Whole hole budget</div></div>
             <div class="period-kpi"><div class="label">Drilling Budget</div><div class="value" id="period-drilling-budget">--</div><div class="sub">Schedule drilling only</div></div>
             <div class="period-kpi"><div class="label">Drilling Spend</div><div class="value" id="period-actual-total">--</div><div class="sub">Drilling charged total</div></div>
+            <div class="period-kpi"><div class="label">Support Costs</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Earthworks / support / misc</div></div>
+            <div class="period-kpi"><div class="label">Total Spent</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + support costs</div></div>
             <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
             <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
             <div class="period-kpi"><div class="label">Holes</div><div class="value" id="period-holes">--</div><div class="sub" id="period-holes-sub">Completed vs planned</div></div>
@@ -1727,6 +1734,8 @@ tbody td[contenteditable=true]:focus {
               <div id="period-cost-breakdown"></div>
             </div>
           </div>
+          <div class="period-section-title">Support Costs - Earthworks, Support &amp; Misc Invoices</div>
+          <div id="period-support-invoices"></div>
           <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
             <span>Standby Reasons</span>
             <button class="btn-csv collapse-btn" type="button" onclick="togglePanel('period-standby-panel','period-standby-toggle-label','detail')"><span class="collapse-arrow">▶</span><span id="period-standby-toggle-label">Show detail</span></button>
@@ -2854,7 +2863,7 @@ function removeUserAccount(index){
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[];
+let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodSupportInvoicesData=[];
 let dailyReportsData=[], selectedDailyReportKey=null;
 let reportApprovalsByKey={};
 let reportLocksByKey={};
@@ -3781,18 +3790,32 @@ async function loadReportsPage(){
     const suffix='contractor='+encodeURIComponent(drillingContractor);
     const results=await Promise.all([
       fetch(API+'/activities?'+suffix).then(function(r){return r.ok?r.json():[];}),
-      fetch(API+'/consumables?'+suffix).then(function(r){return r.ok?r.json():[];})
+      fetch(API+'/consumables?'+suffix).then(function(r){return r.ok?r.json():[];}),
+      loadPeriodSupportInvoices()
     ]);
     activitiesData=results[0]||[];
     consumablesData=results[1]||[];
+    periodSupportInvoicesData=results[2]||[];
     await ensureReportBoreholes();
     activitiesData=filterRowsForActiveProgram(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
+    periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
   }catch(e){
     if(shell)shell.textContent='Report data could not be loaded.';
     toast('Report load failed: '+(e.message||e),'err');
   }
+}
+
+async function loadPeriodSupportInvoices(){
+  const contractors=filteredContractors().filter(function(c){return contractorCategory(c)!=='Drilling';});
+  const rows=await Promise.all(contractors.map(function(c){
+    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
+  }));
+  return rows.flat().map(function(r){
+    const c=contractorByName(r.contractor);
+    return Object.assign({},r,{contractor_category:contractorCategory(c)});
+  });
 }
 
 function periodFilteredRows(){
@@ -3817,6 +3840,37 @@ function periodFilteredConsumables(){
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });
+}
+
+function invoiceReportIso(inv){
+  const iso=isoFromReportDate(inv.invoice_date||'');
+  if(iso)return iso;
+  const m=String(inv.billing_month||'').match(/^(\d{1,2})\/(\d{4})$/);
+  return m?m[2]+'-'+String(m[1]).padStart(2,'0')+'-01':'';
+}
+
+function invoiceMatchesPeriod(inv,period){
+  const iso=invoiceReportIso(inv);
+  if(iso){
+    if(period.from&&iso<period.from)return false;
+    if(period.to&&iso>period.to)return false;
+  }
+  if(period.project&&inv.project&&inv.project!==period.project)return false;
+  return true;
+}
+
+function supportSectionForInvoice(inv){
+  const cat=String(inv.contractor_category||'').toLowerCase();
+  const text=[inv.contractor,inv.project,inv.notes,inv.source_file,inv.po_reference,inv.invoice_number].join(' ').toLowerCase();
+  if(cat==='earthworks'||text.match(/earth|civil|dozer|excavat|grader|pad|track|king|konstruct|chms/))return 'Earthworks';
+  if(cat==='geological support'||text.match(/fortem|geophys|wireline|logging|geolog|weatherford/))return 'Geophysical / Geological Support';
+  if(cat==='labour'||text.match(/mcc|labour|labor|support/))return 'Support';
+  return 'MISC';
+}
+
+function periodFilteredSupportInvoices(){
+  const period=selectedPeriod();
+  return (periodSupportInvoicesData||[]).filter(function(inv){return invoiceMatchesPeriod(inv,period);});
 }
 
 function periodHoleMetrics(rows,consumables,activeHoles,holes){
@@ -3861,6 +3915,7 @@ function renderPeriodReport(){
   const holes=holeLookup();
   const rows=periodFilteredRows();
   const consumables=periodFilteredConsumables();
+  const supportInvoices=periodFilteredSupportInvoices();
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
   const projectHoles=(bhData||[]).filter(function(b){return !period.project||b.project===period.project;});
@@ -3872,6 +3927,8 @@ function renderPeriodReport(){
   const metrics=periodHoleMetrics(rows,consumables,activeHoles,holes);
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
   const totalDrillingCost=actualTotal;
+  const supportCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const totalSpent=totalDrillingCost+supportCost;
   const drillingBudgetTotal=metrics.reduce(function(s,r){return s+r.drillingBudget;},0);
   const variance=drillingBudgetTotal-totalDrillingCost;
   const penetration=drillHours>0?totalMetres/drillHours:0;
@@ -3893,6 +3950,9 @@ function renderPeriodReport(){
   setPeriodText('period-budget-total',cur(budgetTotal));
   setPeriodText('period-drilling-budget',cur(drillingBudgetTotal));
   setPeriodText('period-actual-total',cur(totalDrillingCost));
+  setPeriodText('period-support-total',cur(supportCost));
+  setPeriodText('period-support-sub',supportInvoices.length+' support invoice'+(supportInvoices.length===1?'':'s'));
+  setPeriodText('period-total-spent',cur(totalSpent));
   const varianceEl=document.getElementById('period-variance');
   if(varianceEl){
     varianceEl.textContent=cur(Math.abs(variance));
@@ -3911,6 +3971,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
+  renderPeriodSupportInvoices(supportInvoices);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles);
 }
@@ -4091,6 +4152,41 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
     +'<table class="period-mini-table"><thead><tr><th>Code</th><th>Group</th><th>Occurrences</th><th>Value</th></tr></thead><tbody>'
     +(codes.map(function(r){return '<tr><td>'+esc(r.code)+'</td><td>'+esc(r.group)+'</td><td class="num">'+r.count+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="4">No activity codes in period.</td></tr>')
     +'</tbody></table>';
+}
+
+function renderPeriodSupportInvoices(invoices){
+  const el=document.getElementById('period-support-invoices');
+  if(!el)return;
+  const rows=(invoices||[]).slice().sort(function(a,b){
+    return (invoiceReportIso(b)||'').localeCompare(invoiceReportIso(a)||'') || String(a.contractor||'').localeCompare(String(b.contractor||''));
+  });
+  const totals={Earthworks:0,Support:0,'Geophysical / Geological Support':0,MISC:0};
+  rows.forEach(function(inv){
+    const section=supportSectionForInvoice(inv);
+    totals[section]=(totals[section]||0)+numVal(inv.total_aud);
+  });
+  const total=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const cards=['Earthworks','Support','Geophysical / Geological Support','MISC'].map(function(label){
+    return '<div class="period-support-card"><div class="label">'+esc(label)+'</div><div class="value">'+cur(totals[label]||0)+'</div></div>';
+  }).join('');
+  const body=rows.map(function(inv){
+    return '<tr>'
+      +'<td><b>'+esc(supportSectionForInvoice(inv))+'</b></td>'
+      +'<td>'+esc(inv.contractor||'')+'</td>'
+      +'<td>'+esc(inv.invoice_number||'')+'</td>'
+      +'<td>'+esc(inv.invoice_date||inv.billing_month||'')+'</td>'
+      +'<td>'+esc(inv.project||'')+'</td>'
+      +'<td>'+esc(inv.po_reference||'')+'</td>'
+      +'<td>'+esc(inv.status||'')+'</td>'
+      +'<td class="num"><b>'+cur(inv.total_aud)+'</b></td>'
+      +'</tr>';
+  }).join('');
+  el.innerHTML='<div class="period-support-panel">'
+    +'<div class="period-support-total">'+cards+'</div>'
+    +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
+    +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support or Misc invoices in this period.</td></tr>')
+    +'<tr><td colspan="7"><b>Total support invoices</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
+    +'</tbody></table></div>';
 }
 
 function cleanStandbyReason(row){
