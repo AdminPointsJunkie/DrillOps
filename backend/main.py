@@ -37,7 +37,6 @@ if not DATABASE_URL:
 CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
-    ("MCC Earthworks",     "MCC"),
     ("MCC Group",          "MCC"),
     ("King Konstruct",     "KK"),
     ("Weatherfords",       "WFD"),
@@ -49,7 +48,6 @@ CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support
 DEFAULT_CONTRACTOR_CATEGORIES = {
     "Allianz Drilling": "Drilling",
     "Mitchells Drilling": "Drilling",
-    "MCC Earthworks": "Earthworks",
     "MCC Group": "Labour",
     "King Konstruct": "Earthworks",
     "Weatherfords": "Misc",
@@ -952,7 +950,7 @@ def seed_2025_rates():
 
 def seed_mcc_2026_rates():
     rows = []
-    for contractor in ("MCC Group", "MCC Earthworks"):
+    for contractor in ("MCC Group",):
         for code, desc, rate, unit, group, _aliases in MCC_SCHEDULE_RATES:
             rows.append((contractor, "2026", code, f"{desc} ({group}; MCC schedule {MCC_SCHEDULE_DATE})", rate, unit))
     with get_conn() as conn:
@@ -969,8 +967,17 @@ def seed_mcc_2026_rates():
         conn.commit()
 
 
+def remove_legacy_mcc_earthworks_seed():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM contractors WHERE name='MCC Earthworks'")
+            cur.execute("DELETE FROM hourly_rates WHERE contractor='MCC Earthworks'")
+        conn.commit()
+
+
 seed_2025_rates()
 seed_mcc_2026_rates()
+remove_legacy_mcc_earthworks_seed()
 repair_mcc_weekly_activity_costs()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
