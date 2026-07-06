@@ -4150,12 +4150,19 @@ async def delete_activity_reports(request: Request):
                     "hole_num": hole_num,
                     "source_file": source_file,
                 }
-                where = """
-                    contractor=%(contractor)s
-                    AND COALESCE(date,'')=%(date)s
-                    AND COALESCE(hole_num,'')=%(hole_num)s
-                    AND COALESCE(source_file,'')=%(source_file)s
-                """
+                if source_file and not hole_num:
+                    where = """
+                        contractor=%(contractor)s
+                        AND COALESCE(date,'')=%(date)s
+                        AND COALESCE(source_file,'')=%(source_file)s
+                    """
+                else:
+                    where = """
+                        contractor=%(contractor)s
+                        AND COALESCE(date,'')=%(date)s
+                        AND COALESCE(hole_num,'')=%(hole_num)s
+                        AND COALESCE(source_file,'')=%(source_file)s
+                    """
                 for table, counter in (
                     ("activities", "activities"),
                     ("consumables", "consumables"),

@@ -2975,7 +2975,13 @@ function activityCategory(row){
   return 'Other';
 }
 function reportKeyFor(row){
-  return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.hole_num||'No hole',row.source_file||'Manual entry'].join('|');
+  if(row.source_file){
+    return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.source_file].join('|');
+  }
+  return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
+}
+function reportRecordHole(report){
+  return report&&report.recordHole!=null?report.recordHole:(report&&report.hole)||'';
 }
 function reportIdFor(group,index){
   const file=group.sourceFile||'';
@@ -2983,7 +2989,7 @@ function reportIdFor(group,index){
   return 'DR-'+String(index+1).padStart(4,'0');
 }
 function reportStatus(group){
-  const saved=getStoredReportApproval(group.date,group.hole,group.sourceFile);
+  const saved=getStoredReportApproval(group.date,reportRecordHole(group),group.sourceFile);
   if(saved&&saved.status==='approved')return {label:'Approved',cls:'status-ok'};
   if(saved&&saved.status==='rejected')return {label:'Rejected',cls:'status-warn'};
   if(saved&&saved.status==='query')return {label:'Query',cls:'status-warn'};
@@ -3043,10 +3049,11 @@ function groupDailyReports(rows){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
+    if(r.hole_num)g.holeSet.add(r.hole_num);
     g.activityCost+=parseFloat(r.line_cost)||0;
     g.metres+=parseFloat(r.total_metres)||0;
     const hrs=parseDurationHours(r.total_time);
@@ -3064,13 +3071,16 @@ function groupDailyReports(rows){
     consumablesByKey.set(key,(consumablesByKey.get(key)||0)+(parseFloat(c.line_cost)||0));
   });
   groups.forEach(function(g,i){
+    const holes=[...g.holeSet].filter(Boolean);
+    if(holes.length>1)g.hole=holes.length+' holes';
+    else if(holes.length===1)g.hole=holes[0];
     g.consumableCost=consumablesByKey.get(g.key)||0;
     g.cost=g.activityCost+g.consumableCost;
     g.id=reportIdFor(g,i);
     g.driller=crewData.filter(function(c){
       return (!c.contractor||c.contractor===g.contractor)
         && c.date===g.date
-        && c.hole_num===g.hole
+        && (g.sourceFile?(!c.source_file||c.source_file===g.sourceFile):c.hole_num===g.hole)
         && (!g.sourceFile||!c.source_file||c.source_file===g.sourceFile)
         && String(c.role||'').toLowerCase().includes('drill');
     }).map(function(c){return c.name;})[0]||'';
@@ -4081,7 +4091,8 @@ function renderPeriodProgress(rows,activeHoles,projectHoles){
 
 
 function renderReportStatusSelect(report){
-  const status=(getStoredReportApproval(report.date,report.hole,report.sourceFile)||{}).status||'pending';
+  const hole=reportRecordHole(report);
+  const status=(getStoredReportApproval(report.date,hole,report.sourceFile)||{}).status||'pending';
   const cls=status==='approved'?'approved':status==='rejected'?'rejected':status==='query'?'query':'';
   return '<select class="status-select '+cls+'" data-report-key="'+attr(report.key)+'" onclick="event.stopPropagation()" onchange="changeReportApprovalFromList(this)">'
     +'<option value="pending" '+(status==='pending'?'selected':'')+'>ⓘ Client Approval Pending</option>'
@@ -4092,7 +4103,7 @@ function renderReportStatusSelect(report){
 }
 
 function renderReportLockStatus(report){
-  const lock=getStoredReportLock(report.date,report.hole,report.sourceFile);
+  const lock=getStoredReportLock(report.date,reportRecordHole(report),report.sourceFile);
   const locked=!!(lock&&lock.locked);
   const title=locked?(lock.reason||'Locked from recalculation'):'Not locked';
   return '<span title="'+attr(title)+'" style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;border:1px solid '+(locked?'#bdc9ff':'#d8e0ea')+';background:'+(locked?'#eef2ff':'#f8fafc')+';color:'+(locked?'#243b80':'#647285')+';">'+(locked?'Locked':'Open')+'</span>';
@@ -4102,14 +4113,15 @@ async function changeReportApprovalFromList(select){
   const report=dailyReportsData.find(function(r){return r.key===select.dataset.reportKey;});
   if(!report)return;
   const status=select.value;
-  const key=reportApprovalRecordKey(activeContractor,report.date,report.hole,report.sourceFile);
+  const hole=reportRecordHole(report);
+  const key=reportApprovalRecordKey(activeContractor,report.date,hole,report.sourceFile);
   if(status==='pending'){
     try{
-      const p=new URLSearchParams({contractor:activeContractor,date:report.date||'',hole:report.hole||'',source:report.sourceFile||''});
+      const p=new URLSearchParams({contractor:activeContractor,date:report.date||'',hole:hole,source:report.sourceFile||''});
       const res=await fetch(API+'/report-approvals?'+p.toString(),{method:'DELETE'});
       if(!res.ok)throw new Error(await res.text());
       delete reportApprovalsByKey[key];
-      localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,report.hole,report.sourceFile));
+      localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,hole,report.sourceFile));
       renderDailyReportSummary(activitiesData);
       toast('Client decision cleared');
     }catch(e){
@@ -4136,7 +4148,7 @@ async function changeReportApprovalFromList(select){
       body:JSON.stringify({
         contractor:activeContractor,
         date:report.date||'',
-        hole:report.hole||'',
+        hole:hole,
         source:report.sourceFile||'',
         status:status,
         reason:reason.trim(),
@@ -4149,7 +4161,7 @@ async function changeReportApprovalFromList(select){
     const saved=await res.json();
     reportApprovalsByKey[key]=saved;
     if(saved.lock){
-      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,report.hole,report.sourceFile)]=saved.lock;
+      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,hole,report.sourceFile)]=saved.lock;
     }
     renderDailyReportSummary(activitiesData);
     toast('Client decision saved');
@@ -4205,13 +4217,14 @@ async function bulkSetReportLocks(locked){
   let done=0;
   try{
     for(const report of reports){
+      const hole=reportRecordHole(report);
       const res=await fetch(API+'/activity-sheet-locks',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           contractor:activeContractor,
           date:report.date||'',
-          hole:report.hole||'',
+          hole:hole,
           source:report.sourceFile||'',
           locked:locked,
           reason:reason
@@ -4219,7 +4232,7 @@ async function bulkSetReportLocks(locked){
       });
       if(!res.ok)throw new Error(await res.text());
       const saved=await res.json();
-      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,report.hole,report.sourceFile)]=saved;
+      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,hole,report.sourceFile)]=saved;
       done++;
     }
     renderDailyReportSummary(activitiesData);
@@ -4246,7 +4259,7 @@ async function bulkDeleteReports(){
     const payload={
       contractor:activeContractor,
       reports:reports.map(function(r){
-        return {date:r.date||'',hole:r.hole||'',source:r.sourceFile||''};
+        return {date:r.date||'',hole:reportRecordHole(r),source:r.sourceFile||''};
       })
     };
     let res=await fetch(API+'/activity-reports/delete',{
@@ -4293,7 +4306,7 @@ function dailyReportUrl(report){
     contractor:activeContractor,
     program:activeProgram||'',
     date:report.date||'',
-    hole:report.hole||'',
+    hole:reportRecordHole(report),
     source:report.sourceFile||'',
     title:report.id||'Daily report'
   });
