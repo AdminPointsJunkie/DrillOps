@@ -372,6 +372,8 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
   .period-kpi .sub{font-size:8.5px!important;margin-top:2px!important;}
   .period-section-title{margin:7px 0 4px!important;font-size:9.5px!important;}
   .period-bar-chart,.period-visual-card,.period-map-card,.period-issues,.period-support-panel{break-inside:avoid!important;}
+  #period-standby-panel,#period-standby-panel .period-bar-chart{break-inside:avoid!important;}
+  #period-standby-panel.collapsed .tbl-scroll{display:block!important;}
   .period-map-card{padding:6px!important;margin-bottom:8px!important;}
   .period-map{height:250px!important;}
   .period-map,.period-map *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
@@ -3998,7 +4000,10 @@ function printPeriodReport(){
   renderPeriodReport();
   setTimeout(function(){
     fitPeriodMapToBounds();
-    window.print();
+    setTimeout(function(){
+      fitPeriodMapToBounds();
+      window.print();
+    }, 250);
   }, 900);
 }
 
@@ -4048,9 +4053,18 @@ function renderPeriodMap(activeHoles){
 function fitPeriodMapToBounds(){
   if(!periodMap||!periodMapBounds||!periodMapBounds.isValid())return;
   periodMap.invalidateSize();
+  const sw=periodMapBounds.getSouthWest();
+  const ne=periodMapBounds.getNorthEast();
+  const latSpan=Math.abs(ne.lat-sw.lat);
+  const lngSpan=Math.abs(ne.lng-sw.lng);
+  if(latSpan<0.015&&lngSpan<0.015){
+    periodMap.setView(periodMapBounds.getCenter(),16,{animate:false});
+    return;
+  }
   periodMap.fitBounds(periodMapBounds,{
-    padding:[70,36],
-    maxZoom:15
+    paddingTopLeft:[90,48],
+    paddingBottomRight:[180,48],
+    maxZoom:16
   });
 }
 
