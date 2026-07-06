@@ -38,6 +38,7 @@ CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
     ("MCC Group",          "MCC"),
+    ("CHMS",               "CHMS"),
     ("King Konstruct",     "KK"),
     ("Weatherfords",       "WFD"),
     ("Epiroc",             "EPI"),
@@ -49,6 +50,7 @@ DEFAULT_CONTRACTOR_CATEGORIES = {
     "Allianz Drilling": "Drilling",
     "Mitchells Drilling": "Drilling",
     "MCC Group": "Labour",
+    "CHMS": "Earthworks",
     "King Konstruct": "Earthworks",
     "Weatherfords": "Misc",
     "Epiroc": "Misc",
@@ -5326,6 +5328,89 @@ def parse_mcc_group_invoice_pdf(text: str, filename: str) -> dict:
     }
 
 
+def parse_chms_quote_invoice_pdf(text: str, filename: str) -> dict:
+    def find(pattern, default=""):
+        m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        return m.group(1).strip() if m else default
+
+    def money(pattern):
+        raw = find(pattern)
+        try:
+            return float(raw.replace(",", "")) if raw else 0.0
+        except Exception:
+            return 0.0
+
+    header = re.search(r"Quote number\s+Issue date\s+Expiry date\s+(\d+)\s+(\d{1,2}/\d{1,2}/\d{4})\s+(\d{1,2}/\d{1,2}/\d{4})", text, re.I)
+    quote_number = header.group(1) if header else find(r"Quote no:\s*(\d+)")
+    issue_date = header.group(2) if header else ""
+    expiry_date = header.group(3) if header else ""
+    invoice_number = f"Quote-{quote_number}" if quote_number else os.path.splitext(filename)[0]
+    client = find(r"Bill to\s+Ship to\s+(.+?)\s+Peak Downs", "Argo Coal Management Pty Ltd")
+    abn = find(r"\bABN:\s*([\d\s]+)")
+    subtotal = money(r"Subtotal\s*\(exc\. tax\)\s*\$([\d,]+\.\d{2})")
+    gst = money(r"\bTax\s*\$([\d,]+\.\d{2})")
+    total_aud = money(r"Total amount\s*\$([\d,]+\.\d{2})")
+    if not total_aud:
+        total_aud = money(r"Total amount:\s*\$([\d,]+\.\d{2})")
+
+    raw_lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    line_re = re.compile(
+        r"^(?P<item>[A-Z]+(?:\s*-\s*[A-Z]+)?)\s+(?P<desc>.+?)\s+Qty\s+"
+        r"(?P<qty>[\d,]+(?:\.\d+)?)\s+(?P<unit>[\d,]+\.\d{2})\s+GST\s+(?P<amount>[\d,]+\.\d{2})$",
+        re.I,
+    )
+    lines = []
+    for idx, raw in enumerate(raw_lines):
+        m = line_re.match(raw)
+        if not m:
+            continue
+        item = m.group("item").strip()
+        desc = m.group("desc").strip()
+        if idx + 1 < len(raw_lines):
+            continuation = raw_lines[idx + 1].strip()
+            if continuation and not re.search(r"\b(Subtotal|Tax|Total|Quote|Bill to|Item ID)\b", continuation, re.I) and " Qty " not in continuation:
+                desc = f"{desc} {continuation}"
+        qty = float(m.group("qty").replace(",", ""))
+        unit_price = float(m.group("unit").replace(",", ""))
+        amount = float(m.group("amount").replace(",", ""))
+        full_desc = f"{item} - {desc}"
+        category = "labour" if item.upper().startswith("LAB") else ("equipment" if item.upper().startswith("EQUIP") else categorise_invoice_line(full_desc))
+        lines.append({
+            "description": full_desc,
+            "quantity": qty,
+            "unit_price": unit_price,
+            "gst_rate": "10%",
+            "amount": amount,
+            "category": category,
+            "unit": "Qty",
+            "source_category": item,
+        })
+
+    if subtotal == 0 and lines:
+        subtotal = round(sum(l["amount"] for l in lines), 2)
+    if gst == 0 and subtotal:
+        gst = round(subtotal * 0.1, 2)
+    if total_aud == 0 and subtotal:
+        total_aud = round(subtotal + gst, 2)
+
+    return {
+        "invoice_number": invoice_number,
+        "invoice_date": issue_date,
+        "due_date": expiry_date,
+        "po_reference": "",
+        "project": invoice_project_from_text(text, filename),
+        "client": client,
+        "abn": abn,
+        "subtotal": subtotal,
+        "gst": gst,
+        "total_aud": total_aud,
+        "amount_paid": 0,
+        "amount_due": total_aud,
+        "status": "Unpaid",
+        "lines": lines,
+    }
+
+
 def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
     """Parse an Allianz-style tax invoice PDF.
     Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
@@ -5342,6 +5427,9 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
 
     if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
         return parse_mcc_group_invoice_pdf(text, filename)
+
+    if "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
+        return parse_chms_quote_invoice_pdf(text, filename)
 
     def find(pattern, default=""):
         m = re.search(pattern, text, re.IGNORECASE)
@@ -5662,6 +5750,15 @@ async def import_invoice(
 
     if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
         contractor = "MCC Group"
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status": "skipped", "filename": filename}
+
+    if "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
+        contractor = "CHMS"
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
