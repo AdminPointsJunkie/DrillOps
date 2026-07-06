@@ -5885,7 +5885,7 @@ async def create_manual_invoice(request: Request):
         "invoice_date": str(payload.get("invoice_date") or "").strip(),
         "due_date": str(payload.get("due_date") or "").strip(),
         "po_reference": str(payload.get("po_reference") or "").strip(),
-        "project": str(payload.get("project") or "").strip(),
+        "project": str(payload.get("project") or "Ironbark").strip() or "Ironbark",
         "client": str(payload.get("client") or "Argo Coal Management Pty Ltd").strip(),
         "abn": str(payload.get("abn") or "").strip(),
         "subtotal": amount,
@@ -5989,8 +5989,8 @@ def get_invoices(contractor: str = Query(...)):
                             SELECT COUNT(*) AS line_count,
                                    SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact_matches,
                                    SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close_matches,
-                                   SUM(CASE WHEN match_status LIKE '%over%' THEN 1 ELSE 0 END) AS over_count,
-                                   SUM(CASE WHEN match_status LIKE '%under%' THEN 1 ELSE 0 END) AS under_count,
+                                   SUM(CASE WHEN match_status LIKE '%%over%%' THEN 1 ELSE 0 END) AS over_count,
+                                   SUM(CASE WHEN match_status LIKE '%%under%%' THEN 1 ELSE 0 END) AS under_count,
                                    SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
                             FROM invoice_lines WHERE invoice_id=%s
                         """, (inv["id"],))

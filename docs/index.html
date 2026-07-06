@@ -2100,7 +2100,8 @@ tbody td[contenteditable=true]:focus {
         </div>
         <div class="filter-body open" style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:14px;">
           <div class="filter-group"><label>Contractor</label><select id="manual-inv-contractor"></select></div>
-          <div class="filter-group"><label>Project</label><select id="manual-inv-project"><option value="Exploration">Exploration</option><option value="Gas Riser">Gas Riser</option><option value="SIS">SIS</option></select></div>
+          <div class="filter-group"><label>Program</label><select id="manual-inv-program" onchange="populateManualInvoiceForm(true)"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select></div>
+          <div class="filter-group"><label>Project</label><select id="manual-inv-project"><option value="Ironbark">Ironbark</option></select></div>
           <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
           <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
           <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
@@ -5667,7 +5668,7 @@ if(invFileInput && invImportBtn && invDropZone) {
   });
 }
 
-function populateManualInvoiceForm(){
+function populateManualInvoiceForm(programChanged){
   var csel = document.getElementById('manual-inv-contractor');
   if(csel){
     var current = csel.value || activeContractor;
@@ -5676,8 +5677,20 @@ function populateManualInvoiceForm(){
     }).join('');
     csel.value = current && CONTRACTORS.some(function(c){ return c.name === current; }) ? current : activeContractor;
   }
+  var programSel = document.getElementById('manual-inv-program');
+  var program = (programSel && programSel.value) || activeProgram || 'Exploration';
+  if(programSel) programSel.value = program;
   var psel = document.getElementById('manual-inv-project');
-  if(psel) psel.value = activeProgram || 'Exploration';
+  if(psel){
+    var currentProject = psel.value || 'Ironbark';
+    var names = knownProjectNames().filter(function(name){ return projectProgramForName(name) === program; });
+    if(!names.length) names = knownProjectNames();
+    psel.innerHTML = names.map(function(name){
+      return '<option value="'+attr(name)+'">'+esc(name)+'</option>';
+    }).join('');
+    if(programChanged || !names.includes(currentProject)) currentProject = names.includes('Ironbark') ? 'Ironbark' : (names[0] || '');
+    psel.value = currentProject;
+  }
   var date = document.getElementById('manual-inv-date');
   if(date && !date.value) date.value = new Date().toISOString().slice(0,10);
 }
@@ -5726,7 +5739,8 @@ async function createManualInvoice(){
   var total = manualInvoiceNumber('manual-inv-total');
   var payload = {
     contractor: (document.getElementById('manual-inv-contractor') || {}).value || activeContractor,
-    project: (document.getElementById('manual-inv-project') || {}).value || activeProgram || 'Exploration',
+    project: (document.getElementById('manual-inv-project') || {}).value || 'Ironbark',
+    program: (document.getElementById('manual-inv-program') || {}).value || activeProgram || 'Exploration',
     invoice_number: ((document.getElementById('manual-inv-number') || {}).value || '').trim(),
     invoice_date: ((document.getElementById('manual-inv-date') || {}).value || '').trim(),
     po_reference: ((document.getElementById('manual-inv-po') || {}).value || '').trim(),
@@ -5757,12 +5771,9 @@ async function createManualInvoice(){
     });
     if(!res.ok) throw new Error(await res.text());
     toast('Manual invoice line added');
+    var csel = document.getElementById('inv-contractor-filter');
+    if(csel) csel.value = payload.contractor;
     clearManualInvoiceForm();
-    if(payload.contractor !== activeContractor){
-      activeContractor = payload.contractor;
-      sessionStorage.setItem('drillops_contractor', activeContractor);
-      buildContractorSwitcher();
-    }
     await loadInvoices();
   }catch(e){
     toast('Manual invoice failed: '+((e && e.message) || 'not saved'),'err');
@@ -5772,9 +5783,14 @@ async function createManualInvoice(){
 async function loadInvoices(){
   try{
     populateManualInvoiceForm();
-    var res = await fetch(API+'/invoices?contractor='+encodeURIComponent(activeContractor));
-    if(!res.ok) return;
-    invoicesData = await res.json();
+    var invoiceContractors = filteredContractors().map(function(c){ return c.name; });
+    if(activeContractor && !invoiceContractors.includes(activeContractor)) invoiceContractors.push(activeContractor);
+    var results = await Promise.all(invoiceContractors.map(function(name){
+      return fetch(API+'/invoices?contractor='+encodeURIComponent(name))
+        .then(function(r){ return r.ok ? r.json() : []; })
+        .catch(function(){ return []; });
+    }));
+    invoicesData = results.flat();
     if(!Array.isArray(invoicesData)) invoicesData = [];
     invoicesData = invoicesData.filter(function(r){ return rowMatchesActiveProgram(r); });
 
@@ -7408,6 +7424,17 @@ function projectProgramForName(name) {
       return pn && (raw.includes(pn) || pn.includes(raw));
     });
   return match ? projectProgram(match) : 'Exploration';
+}
+
+function knownProjectNames(){
+  var names = ['Ironbark'];
+  (projects||[]).forEach(function(p){ if(p&&p.name) names.push(p.name); });
+  (bhData||[]).forEach(function(b){ if(b&&b.project) names.push(b.project); });
+  return Array.from(new Set(names.filter(Boolean))).sort(function(a,b){
+    if(a === 'Ironbark') return -1;
+    if(b === 'Ironbark') return 1;
+    return a.localeCompare(b);
+  });
 }
 
 async function fetchProjects() {
