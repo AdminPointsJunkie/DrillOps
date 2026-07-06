@@ -78,6 +78,8 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:16px;paddi
 /* Contractor switcher */
 #contractor-switcher{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px 0;}
 #contractor-switcher::-webkit-scrollbar{display:none;}
+body.hide-contractor-switcher #contractor-switcher{display:none!important;}
+body.hide-contractor-switcher .header-meta{display:none!important;}
 .con-btn{padding:5px 12px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:20px;transition:all 0.15s;white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
 .con-btn:hover{border-color:var(--accent);color:var(--accent);}
 .con-btn.active{border-color:var(--accent);color:#fff;background:var(--accent);}
@@ -2497,6 +2499,9 @@ const API = window.location.hostname==='localhost'||window.location.hostname==='
   ? 'http://localhost:8000' : 'https://api.drillops.com.au';
 
 // Contractors — loaded from backend, stored locally
+const PLANNING_CONTRACTOR = 'Company';
+function boreholePlanningContractor(){return PLANNING_CONTRACTOR;}
+
 let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || 'null') ||
   [{name:'Allianz Drilling',short_code:'ALZ',category:'Drilling'},{name:'Mitchells Drilling',short_code:'MIT',category:'Drilling'},
    {name:'MCC Group',short_code:'MCC',category:'Labour',program:'Exploration,Gas Riser,SIS'},{name:'King Konstruct',short_code:'KK',category:'Earthworks'},
@@ -2584,6 +2589,7 @@ function drawerNav(btn){
   const page=btn.dataset.page;
   const pageEl=document.getElementById(`page-${page}`);
   if(!pageEl){toast('Page not found: '+page,'err');closeDrawer();return;}
+  updateContractorSwitcherVisibility(page);
   // Sync sidebar nav
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2923,6 +2929,11 @@ function numberFromAny(){
 function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
 function selectAll(id){const s=document.getElementById(id);if(s)[...s.options].forEach(o=>o.selected=true);}
 function isPageActive(page){return document.getElementById('page-'+page)?.classList.contains('active');}
+function pageUsesContractorSwitcher(page){return page==='activities';}
+function updateContractorSwitcherVisibility(page){
+  if(typeof document==='undefined'||!document.body)return;
+  document.body.classList.toggle('hide-contractor-switcher', !pageUsesContractorSwitcher(page));
+}
 function setProgramControls(){
   const global=document.getElementById('global-program-select');
   if(global)global.value=activeProgram;
@@ -3068,9 +3079,9 @@ function activityCategory(row){
 }
 function reportKeyFor(row){
   if(row.source_file){
-    return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.source_file].join('|');
+    return [row.contractor||reportDrillingContractor()||'No contractor',row.date||'No date',row.source_file].join('|');
   }
-  return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
+  return [row.contractor||reportDrillingContractor()||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
 }
 function reportRecordHole(report){
   return report&&report.recordHole!=null?report.recordHole:(report&&report.hole)||'';
@@ -3099,18 +3110,19 @@ function reportLockRecordKey(contractor,date,hole,source){
   return [contractor||'',date||'',hole||'',source||''].join('|');
 }
 function getStoredReportApproval(date,hole,source){
-  const key=reportApprovalRecordKey(activeContractor,date,hole,source);
+  const contractor=reportDrillingContractor();
+  const key=reportApprovalRecordKey(contractor,date,hole,source);
   if(reportApprovalsByKey[key])return reportApprovalsByKey[key];
-  try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(activeContractor,date,hole,source))||'null');}
+  try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(contractor,date,hole,source))||'null');}
   catch(e){return null;}
 }
 function getStoredReportLock(date,hole,source){
-  const key=reportLockRecordKey(activeContractor,date,hole,source);
+  const key=reportLockRecordKey(reportDrillingContractor(),date,hole,source);
   return reportLocksByKey[key]||null;
 }
 async function loadReportApprovals(dates){
   reportApprovalsByKey={};
-  const p=new URLSearchParams({contractor:activeContractor});
+  const p=new URLSearchParams({contractor:reportDrillingContractor()});
   if(dates)p.set('dates',dates);
   try{
     const rows=await fetch(API+'/report-approvals?'+p.toString()).then(function(r){return r.ok?r.json():[];});
@@ -3124,7 +3136,7 @@ async function loadReportApprovals(dates){
 }
 async function loadReportLocks(dates){
   reportLocksByKey={};
-  const p=new URLSearchParams({contractor:activeContractor});
+  const p=new URLSearchParams({contractor:reportDrillingContractor()});
   if(dates)p.set('dates',dates);
   try{
     const rows=await fetch(API+'/activity-sheet-locks?'+p.toString()).then(function(r){return r.ok?r.json():[];});
@@ -3141,7 +3153,7 @@ function groupDailyReports(rows){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
@@ -3267,11 +3279,13 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     pageEl.classList.add('active');
+    updateContractorSwitcherVisibility(page);
     triggerPageLoad(page);
   });
 });
 
 function triggerPageLoad(page){
+  updateContractorSwitcherVisibility(page);
   // Always reload fresh data when switching tabs — no caching
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
@@ -4324,14 +4338,15 @@ async function changeReportApprovalFromList(select){
   if(!report)return;
   const status=select.value;
   const hole=reportRecordHole(report);
-  const key=reportApprovalRecordKey(activeContractor,report.date,hole,report.sourceFile);
+  const contractor=reportDrillingContractor();
+  const key=reportApprovalRecordKey(contractor,report.date,hole,report.sourceFile);
   if(status==='pending'){
     try{
-      const p=new URLSearchParams({contractor:activeContractor,date:report.date||'',hole:hole,source:report.sourceFile||''});
+      const p=new URLSearchParams({contractor:contractor,date:report.date||'',hole:hole,source:report.sourceFile||''});
       const res=await fetch(API+'/report-approvals?'+p.toString(),{method:'DELETE'});
       if(!res.ok)throw new Error(await res.text());
       delete reportApprovalsByKey[key];
-      localStorage.removeItem(reportApprovalStorageKey(activeContractor,report.date,hole,report.sourceFile));
+      localStorage.removeItem(reportApprovalStorageKey(contractor,report.date,hole,report.sourceFile));
       renderDailyReportSummary(activitiesData);
       toast('Client decision cleared');
     }catch(e){
@@ -4356,7 +4371,7 @@ async function changeReportApprovalFromList(select){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        contractor:activeContractor,
+        contractor:contractor,
         date:report.date||'',
         hole:hole,
         source:report.sourceFile||'',
@@ -4371,7 +4386,7 @@ async function changeReportApprovalFromList(select){
     const saved=await res.json();
     reportApprovalsByKey[key]=saved;
     if(saved.lock){
-      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,hole,report.sourceFile)]=saved.lock;
+      reportLocksByKey[reportLockRecordKey(contractor,report.date,hole,report.sourceFile)]=saved.lock;
     }
     renderDailyReportSummary(activitiesData);
     toast('Client decision saved');
@@ -4416,6 +4431,7 @@ function updateBulkReportSelection(){
 async function bulkSetReportLocks(locked){
   const reports=selectedReportRows();
   if(!reports.length){toast('Select reports first','warn');return;}
+  const contractor=reportDrillingContractor();
   const reason=locked
     ? (prompt('Bulk lock note', 'Bulk locked to protect reviewed/custom changes.')||'')
     : (prompt('Bulk unlock note', 'Bulk unlocked for recalculation.')||'');
@@ -4432,7 +4448,7 @@ async function bulkSetReportLocks(locked){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          contractor:activeContractor,
+          contractor:contractor,
           date:report.date||'',
           hole:hole,
           source:report.sourceFile||'',
@@ -4442,7 +4458,7 @@ async function bulkSetReportLocks(locked){
       });
       if(!res.ok)throw new Error(await res.text());
       const saved=await res.json();
-      reportLocksByKey[reportLockRecordKey(activeContractor,report.date,hole,report.sourceFile)]=saved;
+      reportLocksByKey[reportLockRecordKey(contractor,report.date,hole,report.sourceFile)]=saved;
       done++;
     }
     renderDailyReportSummary(activitiesData);
@@ -4456,6 +4472,7 @@ async function bulkSetReportLocks(locked){
 async function bulkDeleteReports(){
   const reports=selectedReportRows();
   if(!reports.length){toast('Select reports first','warn');return;}
+  const contractor=reportDrillingContractor();
   const label=reports.slice(0,5).map(function(r){return (r.id||r.date||'Report')+' '+(r.hole||'');}).join('\\n');
   const more=reports.length>5?'\\n...and '+(reports.length-5)+' more':'';
   if(!confirm('Delete '+reports.length+' selected activity report(s) and their database rows?\\n\\n'+label+more+'\\n\\nThis cannot be undone.'))return;
@@ -4467,7 +4484,7 @@ async function bulkDeleteReports(){
   if(unlockBtn)unlockBtn.disabled=true;
   try{
     const payload={
-      contractor:activeContractor,
+      contractor:contractor,
       reports:reports.map(function(r){
         return {date:r.date||'',hole:reportRecordHole(r),source:r.sourceFile||''};
       })
@@ -4513,7 +4530,7 @@ function closeDailyReportDetail(){
 
 function dailyReportUrl(report){
   const params=new URLSearchParams({
-    contractor:activeContractor,
+    contractor:reportDrillingContractor(),
     program:activeProgram||'',
     date:report.date||'',
     hole:reportRecordHole(report),
@@ -4548,7 +4565,7 @@ function openGraphicalRangeReport(){
     if(!to)to=dates[dates.length-1]||'';
   }
   if(!from||!to){toast('Select a start and end date first','warn');return;}
-  const params=new URLSearchParams({contractor:activeContractor,from:from,to:to});
+  const params=new URLSearchParams({contractor:reportDrillingContractor(),from:from,to:to});
   window.open('range-report.html?'+params.toString(),'_blank','noopener');
 }
 
@@ -6389,7 +6406,7 @@ function displayHoleId(bh) {
 async function loadBoreholes() {
   let dbData = [];
   try {
-    const res = await fetch(API+'/boreholes?contractor='+encodeURIComponent(activeContractor));
+    const res = await fetch(API+'/boreholes?contractor='+encodeURIComponent(boreholePlanningContractor()));
     if(res.ok) dbData = await res.json();
   } catch(e) {}
 
@@ -6480,7 +6497,7 @@ const BOREHOLE_DB_DETAIL_FIELDS = new Set([
 ]);
 
 function boreholeDetailsExtraKey() {
-  return 'drillops_borehole_details_extra_'+activeContractor;
+  return 'drillops_borehole_details_extra_'+boreholePlanningContractor();
 }
 
 function getBoreholeDetailsExtras() {
@@ -6517,7 +6534,7 @@ function syncBoreholeDetailsProjectFilter(rows) {
 
 function boreholeDetailUrl(b) {
   const p = new URLSearchParams({
-    contractor: activeContractor,
+    contractor: boreholePlanningContractor(),
     hole: b.hole_id || '',
     site: b.site_id || ''
   });
@@ -6633,7 +6650,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
   try {
     const res = await fetch(API+'/boreholes/'+encodeURIComponent(oldHoleId), {
       method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,[col]:val})
+      body:JSON.stringify({contractor:boreholePlanningContractor(),[col]:val})
     });
     if(!res.ok) throw new Error(await res.text());
     toast('Saved');
@@ -6935,7 +6952,7 @@ async function saveScheduleDetail() {
     toast('End date must be after start date','err');
     return;
   }
-  const payload = {contractor:activeContractor, assigned_rig:rig, scheduled_start:start, scheduled_end:end, days_budgeted:days, status:status, notes:notes};
+  const payload = {contractor:boreholePlanningContractor(), assigned_rig:rig, scheduled_start:start, scheduled_end:end, days_budgeted:days, status:status, notes:notes};
   try {
     const res = await fetch(API+'/boreholes/'+encodeURIComponent(selectedScheduleHoleId), {
       method:'PATCH',
@@ -7101,7 +7118,7 @@ async function setBhStatus(holeId, status) {
   try {
     const res = await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
       method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,status:status})
+      body:JSON.stringify({contractor:boreholePlanningContractor(),status:status})
     });
     if(!res.ok) throw new Error(await res.text());
     toast('✓ '+holeId+' → '+status);
@@ -7181,7 +7198,7 @@ function renderBhTable(rows) {
       try {
         const res = await fetch(API+'/boreholes/'+encodeURIComponent(holeId), {
           method:'PATCH', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({contractor:activeContractor,[col]:val})
+          body:JSON.stringify({contractor:boreholePlanningContractor(),[col]:val})
         });
         if(!res.ok) throw new Error(await res.text());
         toast('✓ Saved');
@@ -7235,7 +7252,7 @@ async function addBorehole() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor, boreholes:[newBh]})
+      body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
     ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-drilling-budget','add-bh-notes'].forEach(function(id){
@@ -7250,7 +7267,7 @@ async function addBorehole() {
 async function deleteBorehole(holeId) {
   if(!confirm('Delete borehole '+holeId+'? This cannot be undone.')) return;
   try {
-    await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(activeContractor), {method:'DELETE'});
+    await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(boreholePlanningContractor()), {method:'DELETE'});
     bhData = bhData.filter(function(b){return b.hole_id!==holeId;});
     toast(holeId+' deleted','warn');
     renderBhTable(bhData);
@@ -7316,7 +7333,7 @@ function importBhCSV(input) {
     try {
       const res = await fetch(API+'/boreholes/import_budget', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contractor:activeContractor, boreholes:boreholes})
+        body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:boreholes})
       });
       if(!res.ok) { toast('Import failed','err'); return; }
       const d = await res.json();
@@ -7360,7 +7377,7 @@ async function importBudgetToDb() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor, boreholes:bhData})
+      body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:bhData})
     });
     if(!res.ok) { toast('Failed to save','err'); return; }
     const d = await res.json();
@@ -7664,9 +7681,11 @@ function highlightBhRow(holeId) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 buildContractorSwitcher();
+updateContractorSwitcherVisibility(document.querySelector('.page.active')?.id?.replace('page-','')||'boreholes');
 (async()=>{
   await fetchContractors();
   buildContractorSwitcher();
+  updateContractorSwitcherVisibility(document.querySelector('.page.active')?.id?.replace('page-','')||'boreholes');
   await fetchProjects();
   await updateDbCount();
   await loadActivities();
