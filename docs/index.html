@@ -7573,13 +7573,15 @@ function importBhCSV(input) {
   const reader = new FileReader();
   reader.onload = async function(ev) {
     const text = ev.target.result;
-    const lines = text.split(String.fromCharCode(10)).map(function(l){return l.trim();}).filter(function(l){return l;});
-    const headers = lines[0].toLowerCase().split(',').map(function(h){return h.trim().replace(/[^a-z_]/g,'');});
+    const rows = parseSimpleCSV(text);
+    if(rows.length<2) { toast('No valid rows found','err'); return; }
+    const headers = rows[0].map(function(h){return String(h).toLowerCase().trim().replace(/[^a-z_]/g,'');});
     const boreholes = [];
     const errors = [];
-    for(let i=1;i<lines.length;i++) {
-      const vals = lines[i].split(',');
+    for(let i=1;i<rows.length;i++) {
+      const vals = rows[i];
       if(vals.length<2) continue;
+      if(vals.length!==headers.length) errors.push('Row '+(i+1)+': '+vals.length+' columns, expected '+headers.length);
       const row = {};
       headers.forEach(function(h,idx){row[h]=(vals[idx]||'').trim();});
       if(!row.hole_id) { errors.push('Row '+(i+1)+': missing hole_id'); continue; }
@@ -7616,7 +7618,7 @@ function importBhCSV(input) {
       });
       if(!res.ok) { toast('Import failed','err'); return; }
       const d = await res.json();
-      toast('✓ Imported '+d.count+' boreholes from CSV');
+      toast('Imported '+d.count+' boreholes from CSV'+(d.merged_by_site?' / merged '+d.merged_by_site+' by site':''));
       loadBoreholes();
     } catch(err) { toast('Import failed: '+err.message,'err'); }
   };

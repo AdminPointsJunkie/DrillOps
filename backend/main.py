@@ -6895,7 +6895,29 @@ async def import_budget(request: Request):
         b["_lng"] = lng if lng is not None else b.get("lng")
     with get_conn() as conn:
         with conn.cursor() as cur:
-            psycopg2.extras.execute_batch(cur, """
+            imported = 0
+            merged_by_site = 0
+            removed_placeholders = 0
+            for b in boreholes:
+                incoming_hole_id = str(b.get("hole_id") or "").strip()
+                site_id = str(b.get("site_id") or "").strip()
+                if not incoming_hole_id:
+                    continue
+                merge_hole_id = incoming_hole_id
+                if site_id:
+                    cur.execute("""
+                        SELECT hole_id
+                        FROM boreholes
+                        WHERE contractor=%s AND site_id=%s
+                        ORDER BY CASE WHEN hole_id<>%s THEN 0 ELSE 1 END, id
+                        LIMIT 1
+                    """, (contractor, site_id, incoming_hole_id))
+                    existing = cur.fetchone()
+                    if existing and existing.get("hole_id"):
+                        merge_hole_id = existing["hole_id"]
+                if merge_hole_id != incoming_hole_id:
+                    merged_by_site += 1
+                cur.execute("""
                 INSERT INTO boreholes
                 (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
                  bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
@@ -6918,8 +6940,8 @@ async def import_budget(request: Request):
                     geological_support_budget_total=EXCLUDED.geological_support_budget_total,
                     misc_budget_total=EXCLUDED.misc_budget_total,
                     budget_total=EXCLUDED.budget_total
-            """, [(contractor, b.get("project",""), b.get("planned_year",""),
-                   b.get("site_id",""), b["hole_id"], b.get("drill_order"),
+                """, (contractor, b.get("project",""), b.get("planned_year",""),
+                   site_id, merge_hole_id, b.get("drill_order"),
                    b.get("days") or b.get("days_budgeted"),
                    b.get("type") or b.get("bh_type"), b.get("bit_type"), b.get("purpose"),
                    b.get("easting"), b.get("northing"), b.get("rl"),
@@ -6931,9 +6953,21 @@ async def import_budget(request: Request):
                    b.get("geophysical_budget_total"),
                    b.get("geological_support_budget_total"),
                    b.get("misc_budget_total"),
-                   b.get("budget_total")) for b in boreholes])
+                   b.get("budget_total")))
+                imported += 1
+                if merge_hole_id != incoming_hole_id and site_id:
+                    cur.execute("""
+                        DELETE FROM boreholes
+                        WHERE contractor=%s AND site_id=%s AND hole_id=%s
+                    """, (contractor, site_id, incoming_hole_id))
+                    removed_placeholders += cur.rowcount
         conn.commit()
-    return {"status": "imported", "count": len(boreholes)}
+    return {
+        "status": "imported",
+        "count": imported,
+        "merged_by_site": merged_by_site,
+        "removed_placeholders": removed_placeholders,
+    }
 
 
 @app.patch("/boreholes/{hole_id}")
