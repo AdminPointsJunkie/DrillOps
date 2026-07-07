@@ -304,23 +304,25 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-print-logo{height:44px;width:auto;object-fit:contain;clip-path:inset(2px 0 2px 0);}
 .period-print-title{font-size:22px;font-weight:850;color:var(--text);line-height:1.15;}
 .period-print-subtitle{font-size:11px;color:var(--muted);margin-top:5px;}
-.period-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.period-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px;}
 .period-kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
 .period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.period-kpi-holes .value{font-size:24px;color:#1f5f8b;}
 .period-layout{display:block;margin-bottom:14px;}
-.period-section-title{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;}
+.period-section-title{font-size:12px;font-weight:850;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
 .period-mini-table{width:100%;border-collapse:collapse;font-size:12px;}
 .period-mini-table th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px;border-bottom:1px solid var(--border);text-align:left;}
 .period-mini-table td{padding:8px;border-bottom:1px solid #eef2f7;color:var(--text2);vertical-align:top;}
 .period-mini-table .num{text-align:right;font-family:var(--font-mono);white-space:nowrap;}
 .period-support-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:14px;break-inside:avoid;}
-.period-support-total{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.period-support-total{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:12px;}
 .period-support-card{border:1px solid var(--border);border-radius:7px;background:#fff;padding:10px 12px;}
 .period-support-card .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-support-card .value{font-size:18px;font-weight:800;color:var(--text);}
 .period-support-card .sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.period-support-card .variance{font-size:10px;font-weight:800;margin-top:5px;}
 .period-issues{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text2);min-height:120px;}
 .period-issues ul{margin:0;padding-left:18px;}
 .period-bar-chart{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:10px;}
@@ -364,7 +366,9 @@ body.period-print-prep .period-map-card{padding:6px!important;margin-bottom:8px!
 body.period-print-prep .period-map{height:250px!important;}
 
 @media print{
-  @page{size:A4 landscape;margin:8mm;}
+  @page{size:A4 landscape;margin:8mm 8mm 12mm;
+    @bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:8.5px;color:#64748b;}
+  }
   body{background:#fff!important;}
   body *{visibility:hidden!important;}
   #page-reports,#page-reports *{visibility:visible!important;}
@@ -373,16 +377,18 @@ body.period-print-prep .period-map{height:250px!important;}
   .period-report-head,.period-report-actions,.period-report-title,.period-report-meta,.page:not(#page-reports){display:none!important;}
   .period-report-body{padding:0!important;}
   .period-print-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;border-bottom:1.5px solid #1f2d3a!important;padding-bottom:7px!important;margin-bottom:9px!important;}
-  .period-print-title{font-size:18px!important;line-height:1.1!important;}
+  .period-print-title{font-size:21px!important;line-height:1.1!important;}
   .period-print-subtitle{font-size:9.5px!important;margin-top:3px!important;}
   .period-print-logo{height:36px!important;max-width:170px!important;clip-path:inset(2px 0 2px 0)!important;}
-  .period-kpis{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:6px!important;margin-bottom:8px!important;}
+  .period-kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important;margin-bottom:9px!important;}
   .period-kpi{padding:6px 8px!important;break-inside:avoid!important;border-radius:5px!important;}
   .period-kpi .label{font-size:8.5px!important;margin-bottom:3px!important;}
-  .period-kpi .value{font-size:13.5px!important;}
+  .period-kpi .value{font-size:14.5px!important;}
+  .period-kpi-holes .value{font-size:18px!important;}
   .period-kpi .sub{font-size:8.5px!important;margin-top:2px!important;}
-  .period-section-title{margin:7px 0 4px!important;font-size:9.5px!important;}
-  .period-bar-chart,.period-visual-card,.period-map-card,.period-issues,.period-support-panel{break-inside:avoid!important;}
+  .period-section-title{margin:9px 0 5px!important;font-size:10.5px!important;}
+  .period-print-section-start{break-before:page!important;page-break-before:always!important;}
+  .period-bar-chart,.period-visual-card,.period-map-card,.period-issues{break-inside:avoid!important;}
   #period-standby-panel,#period-standby-panel .period-bar-chart{break-inside:avoid!important;}
   #period-standby-panel.collapsed .tbl-scroll{display:block!important;}
   .period-map-card{padding:6px!important;margin-bottom:8px!important;}
@@ -392,7 +398,7 @@ body.period-print-prep .period-map{height:250px!important;}
   .tbl-scroll{max-height:none!important;overflow:visible!important;}
   .period-mini-table{font-size:9.5px!important;}
   .period-mini-table th,.period-mini-table td{padding:4px 5px!important;}
-  .period-support-panel{padding:8px!important;margin-bottom:8px!important;}
+  .period-support-panel{padding:8px!important;margin-bottom:8px!important;break-inside:auto!important;}
   .period-support-total{gap:6px!important;margin-bottom:8px!important;}
   .period-support-card{padding:7px 9px!important;border-radius:5px!important;}
   .period-support-card .label{font-size:8.5px!important;margin-bottom:3px!important;}
@@ -1779,13 +1785,12 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Headline Figures</div>
           <div class="period-kpis">
             <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
-            <div class="period-kpi"><div class="label">Drilling Budget</div><div class="value" id="period-drilling-budget">--</div><div class="sub">Schedule drilling only</div></div>
-            <div class="period-kpi"><div class="label">Drilling Spend</div><div class="value" id="period-actual-total">--</div><div class="sub">Drilling charged total</div></div>
+            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling charged / scheduled budget</div></div>
             <div class="period-kpi"><div class="label">Support Costs</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Earthworks / support / misc</div></div>
             <div class="period-kpi"><div class="label">Total Spent</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + support costs</div></div>
             <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
             <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
-            <div class="period-kpi"><div class="label">Holes</div><div class="value" id="period-holes">--</div><div class="sub" id="period-holes-sub">Completed vs planned</div></div>
+            <div class="period-kpi period-kpi-holes"><div class="label">Holes Drilled / Planned</div><div class="value" id="period-holes">--</div><div class="sub" id="period-holes-sub">Completed vs planned</div></div>
             <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
             <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
           </div>
@@ -1795,7 +1800,7 @@ tbody td[contenteditable=true]:focus {
               <div id="period-cost-breakdown"></div>
             </div>
           </div>
-          <div class="period-section-title">Support Costs - Earthworks, Support &amp; Misc Invoices</div>
+          <div class="period-section-title period-print-section-start">Project Budget by Contractor</div>
           <div id="period-support-invoices"></div>
           <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
             <span>Standby Reasons</span>
@@ -1806,7 +1811,7 @@ tbody td[contenteditable=true]:focus {
               <div id="period-standby-reasons"></div>
             </div>
           </div>
-          <div class="period-section-title">Cost Per Hole &amp; Drilling Performance</div>
+          <div class="period-section-title period-print-section-start">Cost Per Hole &amp; Drilling Performance</div>
           <div class="period-visual-grid" id="period-hole-graphics"></div>
           <div class="period-section-title">Hole Detail Table</div>
           <div class="tbl-scroll" style="max-height:320px;">
@@ -4142,8 +4147,13 @@ function renderPeriodReport(){
   setPeriodText('period-print-meta',projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today);
   setPeriodText('period-budget-total',cur(budgetTotal));
   setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':'Borehole budget fallback');
-  setPeriodText('period-drilling-budget',cur(drillingBudgetTotal));
-  setPeriodText('period-actual-total',cur(totalDrillingCost));
+  const drillingSummaryEl=document.getElementById('period-drilling-summary');
+  if(drillingSummaryEl){
+    drillingSummaryEl.textContent=cur(totalDrillingCost)+' / '+cur(drillingBudgetTotal);
+    drillingSummaryEl.className='value '+(drillingBudgetTotal&&totalDrillingCost>drillingBudgetTotal?'variance-neg':'');
+  }
+  const drillVariance=drillingBudgetTotal-totalDrillingCost;
+  setPeriodText('period-drilling-sub',(drillingBudgetTotal?'Spent vs budget; ':'Drilling spend; ')+(drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'no budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
   setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
@@ -4155,8 +4165,8 @@ function renderPeriodReport(){
   setPeriodText('period-variance-sub',variance>=0?'Under total budget':'Over total budget');
   setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
   setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
-  setPeriodText('period-holes',completed.toLocaleString());
-  setPeriodText('period-holes-sub',completed+' completed / '+planned+' report holes; '+activeHoles.length+' active with costs; '+projectHoles.length+' in full plan');
+  setPeriodText('period-holes',completed.toLocaleString()+' / '+planned.toLocaleString());
+  setPeriodText('period-holes-sub',completed+' completed; '+Math.max(0,planned-completed)+' remaining; '+activeHoles.length+' active with costs');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
   setPeriodText('period-extra-costs','Drilling only');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
@@ -4165,7 +4175,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
-  renderPeriodSupportInvoices(supportInvoices,budgetTotals);
+  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles);
 }
@@ -4397,7 +4407,26 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
     +'</tbody></table>';
 }
 
-function renderPeriodSupportInvoices(invoices,budgetTotals){
+function contractorSummaryKey(value){
+  const raw=String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const aliases={
+    allianzdrilling:'allianz',
+    allianz:'allianz',
+    mitchellsdrilling:'mitchells',
+    mitchells:'mitchells',
+    stantect:'stantec',
+    stantec:'stantec',
+    geogas:'geogas',
+    geochempet:'geochempet',
+    fortem:'fortem',
+    epirocweatherford:'epiroc',
+    weatherford:'epiroc',
+    weatherfords:'epiroc'
+  };
+  return aliases[raw]||raw||'unassigned';
+}
+
+function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
   const rows=(invoices||[]).slice().sort(function(a,b){
@@ -4410,20 +4439,67 @@ function renderPeriodSupportInvoices(invoices,budgetTotals){
   });
   const total=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const budgetBySection=(budgetTotals&&budgetTotals.bySection)||{};
-  const sections=Array.from(new Set(['Earthworks','Support','Geophysical / Geological Support','Lab Testing','MISC']
-    .concat(Object.keys(totals)).concat(Object.keys(budgetBySection)))).filter(function(label){
-      return label!=='Drilling'&&((totals[label]||0)>0||(budgetBySection[label]||0)>0||['Earthworks','Geophysical / Geological Support','MISC'].includes(label));
+  const contractorBudgetRows=(budgetTotals&&budgetTotals.rows)||[];
+  const contractorMap=new Map();
+  function ensureContractor(label,section){
+    const display=String(label||section||'Unassigned').trim()||'Unassigned';
+    const key=contractorSummaryKey(display);
+    if(!contractorMap.has(key))contractorMap.set(key,{label:display,sections:new Set(),budget:0,spent:0,invoices:0});
+    const item=contractorMap.get(key);
+    if(section)item.sections.add(section);
+    return item;
+  }
+  contractorBudgetRows.forEach(function(r){
+    const section=normalBudgetSection(r.section,r.vendor);
+    const item=ensureContractor(r.vendor||section,section);
+    item.budget+=numVal(r.budget_amount);
+  });
+  const drillingBudgetRows=contractorBudgetRows.filter(function(r){return normalBudgetSection(r.section,r.vendor)==='Drilling';});
+  const drillingBudget=drillingBudgetRows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
+  if(drillingBudgetRows.length){
+    drillingBudgetRows.forEach(function(r){
+      const section=normalBudgetSection(r.section,r.vendor);
+      const item=ensureContractor(r.vendor||reportDrillingContractor()||section,section);
+      const share=drillingBudget>0?numVal(r.budget_amount)/drillingBudget:1/drillingBudgetRows.length;
+      item.spent+=numVal(drillingSpend)*share;
     });
-  const cards=sections.slice(0,6).map(function(label){
-    const budget=budgetBySection[label]||0;
-    const invoiced=totals[label]||0;
-    return '<div class="period-support-card"><div class="label">'+esc(label)+'</div><div class="value">'+cur(invoiced)+'</div><div class="sub">Budget '+cur(budget)+'</div></div>';
+  }else if(numVal(drillingSpend)>0){
+    ensureContractor(reportDrillingContractor()||'Drilling','Drilling').spent+=numVal(drillingSpend);
+  }
+  rows.forEach(function(inv){
+    const section=supportSectionForInvoice(inv);
+    if(section==='Drilling')return;
+    const item=ensureContractor(inv.contractor||section,section);
+    item.spent+=numVal(inv.total_aud);
+    item.invoices+=1;
+  });
+  const contractorCards=Array.from(contractorMap.values()).filter(function(item){
+    return item.budget>0||item.spent>0;
+  }).sort(function(a,b){
+    const ad=a.sections.has('Drilling')?0:1;
+    const bd=b.sections.has('Drilling')?0:1;
+    return ad-bd||b.budget-a.budget||a.label.localeCompare(b.label);
+  }).map(function(item){
+    const variance=item.budget-item.spent;
+    const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
+    return '<div class="period-support-card">'
+      +'<div class="label">'+esc(item.label)+'</div>'
+      +'<div class="value">'+cur(item.spent)+' / '+cur(item.budget)+'</div>'
+      +'<div class="sub">Spent vs budget | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+'</div>'
+      +'<div class="variance '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+' '+(variance>=0?'under':'over')+'</div>'
+      +'</div>';
   }).join('');
-  const budgetRows=sections.map(function(label){
+  const sectionActuals=Object.assign({},totals);
+  sectionActuals.Drilling=numVal(drillingSpend);
+  const sections=Array.from(new Set(['Drilling','Earthworks','Support','Geophysical / Geological Support','Lab Testing','MISC']
+    .concat(Object.keys(totals)).concat(Object.keys(budgetBySection)))).filter(function(label){
+      return (sectionActuals[label]||0)>0||(budgetBySection[label]||0)>0||['Drilling','Earthworks','Geophysical / Geological Support','Lab Testing','MISC'].includes(label);
+    });
+  const sectionRows=sections.map(function(label){
     const budget=budgetBySection[label]||0;
-    const invoiced=totals[label]||0;
-    const variance=budget-invoiced;
-    return '<tr><td><b>'+esc(label)+'</b></td><td class="num">'+cur(budget)+'</td><td class="num">'+cur(invoiced)+'</td><td class="num '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+'</td></tr>';
+    const spent=sectionActuals[label]||0;
+    const variance=budget-spent;
+    return '<tr><td><b>'+esc(label)+'</b></td><td class="num">'+cur(budget)+'</td><td class="num">'+cur(spent)+'</td><td class="num '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+'</td></tr>';
   }).join('');
   const body=rows.map(function(inv){
     return '<tr>'
@@ -4438,9 +4514,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals){
       +'</tr>';
   }).join('');
   el.innerHTML='<div class="period-support-panel">'
-    +'<div class="period-support-total">'+cards+'</div>'
-    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>Invoiced</th><th>Variance</th></tr></thead><tbody>'
-    +(budgetRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project support budgets recorded.</td></tr>')
+    +'<div class="period-support-total">'+(contractorCards||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
+    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>Spent</th><th>Variance</th></tr></thead><tbody>'
+    +(sectionRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project budgets recorded.</td></tr>')
     +'</tbody></table>'
     +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
     +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
