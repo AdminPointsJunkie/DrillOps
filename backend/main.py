@@ -4249,6 +4249,7 @@ def get_activities(
     sites:  Optional[str] = Query(None),
     codes:  Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    missing_codes: bool = Query(False),
 ):
     conds = ["contractor=%(contractor)s"]
     params = {"contractor": contractor}
@@ -4264,6 +4265,8 @@ def get_activities(
     if codes and codes.strip():
         cl = [c.strip() for c in codes.split(",") if c.strip()]
         if cl: conds.append("code=ANY(%(codes)s)"); params["codes"] = cl
+    if missing_codes:
+        conds.append("(code IS NULL OR TRIM(code)='')")
     if search:
         conds.append("(notes ILIKE %(search)s OR code ILIKE %(search)s)")
         params["search"] = f"%{search}%"

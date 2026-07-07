@@ -1878,6 +1878,7 @@ tbody td[contenteditable=true]:focus {
           <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
+            <button class="btn-csv" id="missing-code-btn" onclick="toggleMissingCodeRows()">Missing codes</button>
             <button class="btn-csv" onclick="addActivityRow()">+ Add row</button>
             <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
           </div>
@@ -2935,6 +2936,7 @@ let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodSupportInvoicesData=[], projectBudgetsData=[];
+let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let reportApprovalsByKey={};
 let reportLocksByKey={};
@@ -3530,6 +3532,8 @@ function resetFilters(){
   document.getElementById('f-search').value='';
   const reportSearch=document.getElementById('report-search');
   if(reportSearch)reportSearch.value='';
+  activityMissingCodesOnly=false;
+  updateMissingCodeButton();
   loadActivities();
 }
 
@@ -3547,6 +3551,21 @@ function toggleActFilters(){
 
 function toggleActivityLog(){
   togglePanel('activity-log-panel','activity-log-toggle-label');
+}
+
+function updateMissingCodeButton(){
+  const btn=document.getElementById('missing-code-btn');
+  if(!btn)return;
+  btn.classList.toggle('active',activityMissingCodesOnly);
+  btn.textContent=activityMissingCodesOnly?'All rows':'Missing codes';
+}
+
+function toggleMissingCodeRows(){
+  activityMissingCodesOnly=!activityMissingCodesOnly;
+  updateMissingCodeButton();
+  const panel=document.getElementById('activity-log-panel');
+  if(activityMissingCodesOnly&&panel&&panel.classList.contains('collapsed'))toggleActivityLog();
+  loadActivities();
 }
 
 function togglePanel(panelId,labelId,labelWord){
@@ -3570,6 +3589,7 @@ async function loadActivities(){
   if(sites)p.set('sites',sites);
   if(codes)p.set('codes',codes);
   if(search)p.set('search',search);
+  if(activityMissingCodesOnly)p.set('missing_codes','true');
   try{
     activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
     await loadDailyReportRelatedData(dates);
@@ -3650,6 +3670,7 @@ async function loadDailyReportRelatedData(dates){
 }
 
 function renderActivities(rows){
+  updateMissingCodeButton();
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
@@ -3667,7 +3688,7 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="metres_from" data-numeric="true">${fmt(r.metres_from)}</td>
       <td contenteditable="true" data-col="metres_to" data-numeric="true">${fmt(r.metres_to)}</td>
       <td contenteditable="true" data-col="total_metres" data-numeric="true" data-cost-trigger="true">${fmt(r.total_metres)}</td>
-      <td contenteditable="true" data-col="code" data-cost-trigger="true">${esc(r.code)}</td>
+      <td contenteditable="true" data-col="code" data-cost-trigger="true" data-missing-code="${String(r.code||'').trim()?'false':'true'}" style="${String(r.code||'').trim()?'':'color:var(--red);font-weight:800;'}">${esc(String(r.code||'').trim()||'Missing_Code')}</td>
       <td contenteditable="true" data-col="notes">${esc(r.notes)}</td>
       <td contenteditable="true" data-col="unit_rate" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.unit_rate!=null?r.unit_rate.toFixed(2):''}</td>
       <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
@@ -3706,9 +3727,15 @@ function renderActivities(rows){
   const scheduleRepriceCols=new Set(['date','time_from','time_to','total_time','bit_type','diameter','metres_from','metres_to','total_metres','code','notes']);
 
   tbody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('focus',()=>{
+      if(cell.dataset.col==='code'&&cell.dataset.missingCode==='true'&&cell.textContent.trim()==='Missing_Code'){
+        cell.textContent='';
+      }
+    });
     cell.addEventListener('blur',async()=>{
       const row=cell.closest('tr');const id=row.dataset.id;const col=cell.dataset.col;
       let val=cell.textContent.trim();
+      if(col==='code'&&cell.dataset.missingCode==='true'&&val==='Missing_Code')val='';
       if(cell.dataset.numeric)val=val===''?null:parseFloat(val);
       if(col==='unit_rate'||col==='quantity'){
         const ur=parseFloat(row.querySelector('[data-col="unit_rate"]').textContent)||0;
@@ -3816,7 +3843,13 @@ function holeLookup(){
   return map;
 }
 
+function rowIsDrillerEarthworksSupport(row){
+  const text=[row.code,row.activity_code,row.notes,row.rate_basis,row.bit_type,row.diameter].join(' ').toLowerCase();
+  return text.match(/water\s*cart|water\s*truck|backhoe|loader|excavat|earthworks|earth works|pad prep|track work/);
+}
+
 function activityMethod(row,bh){
+  if(rowIsDrillerEarthworksSupport(row))return 'Non-drilling / Earthworks';
   const text=[row.bit_type,row.code,row.activity_code,row.notes,bh&&bh.bh_type,bh&&bh.type,bh&&bh.bit_type].join(' ').toLowerCase();
   if(text.match(/\bpcd\b|chip|rc|open hole/))return 'Chipped / RC';
   if(text.match(/core|coring|hq|nq|pq|dd/))return 'Core';
@@ -4301,11 +4334,12 @@ function reportActivityCode(row,holes){
   const raw=String(row.code||row.activity_code||'').trim();
   if(raw)return raw;
   const text=[row.notes,row.rate_basis,row.bit_type,row.diameter].join(' ').toLowerCase();
+  if(text.match(/water\s*cart|water\s*truck/))return 'D_Water_Cart';
+  if(text.match(/backhoe|loader|excavat/))return 'D_Backhoe';
   if(numVal(row.total_metres)>0){
     const method=activityMethod(row,holes.get(rowHole(row)));
     return method==='Chipped / RC'?'Drill_Chip_or_Open_hole':'Drill_Core';
   }
-  if(text.match(/water cart|water truck/))return 'D_Water_Cart';
   if(text.match(/standby|wait|delay|fatigue/))return 'H_Standby';
   if(text.match(/travel/))return 'H_Crew_Travel';
   if(text.match(/surface|setup|set up/))return 'H_Surface_Setup';
@@ -4316,14 +4350,20 @@ function reportActivityCode(row,holes){
   return 'Missing_Code';
 }
 
+function reportCodeGroup(row,code){
+  if(code==='Missing_Code')return 'Needs Coding';
+  if(rowIsDrillerEarthworksSupport(row)||String(code||'').toLowerCase().match(/water|backhoe|loader|excavat|earth/))return 'Non-drilling / Earthworks';
+  if(rowIsStandby(row))return 'Standby';
+  return 'Chargeable / Other';
+}
+
 function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal){
   const el=document.getElementById('period-cost-breakdown');
   if(!el)return;
   const codeMap=new Map();
   rows.forEach(function(r){
     const code=reportActivityCode(r,holes);
-    const standby=rowIsStandby(r);
-    const group=code==='Missing_Code'?'Needs Coding':(standby?'Standby':'Chargeable / Other');
+    const group=reportCodeGroup(r,code);
     const key=group+'|'+code;
     if(!codeMap.has(key))codeMap.set(key,{code:code,group:group,count:0,value:0});
     const item=codeMap.get(key);
