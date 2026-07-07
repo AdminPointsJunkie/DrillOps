@@ -3844,8 +3844,12 @@ function holeLookup(){
 }
 
 function rowIsDrillerEarthworksSupport(row){
-  const text=[row.code,row.activity_code,row.notes,row.rate_basis,row.bit_type,row.diameter].join(' ').toLowerCase();
-  return text.match(/water\s*cart|water\s*truck|backhoe|loader|excavat|earthworks|earth works|pad prep|track work/);
+  const code=String(row.code||row.activity_code||'').trim().toLowerCase();
+  const text=[row.notes,row.rate_basis,row.bit_type,row.diameter].join(' ').toLowerCase();
+  if(code){
+    return /^d[\s_-]/.test(code)&&code.match(/water\s*cart|backhoe|loader|excavat|earthworks|earth works/);
+  }
+  return text.match(/water\s*cart|backhoe|loader|excavat/);
 }
 
 function activityMethod(row,bh){
@@ -4352,7 +4356,7 @@ function reportActivityCode(row,holes){
 
 function reportCodeGroup(row,code){
   if(code==='Missing_Code')return 'Needs Coding';
-  if(rowIsDrillerEarthworksSupport(row)||String(code||'').toLowerCase().match(/water|backhoe|loader|excavat|earth/))return 'Non-drilling / Earthworks';
+  if(rowIsDrillerEarthworksSupport(row))return 'Non-drilling / Earthworks';
   if(rowIsStandby(row))return 'Standby';
   return 'Chargeable / Other';
 }
