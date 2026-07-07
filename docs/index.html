@@ -1785,7 +1785,7 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Headline Figures</div>
           <div class="period-kpis">
             <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
-            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling charged / scheduled budget</div></div>
+            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
             <div class="period-kpi"><div class="label">Support Costs</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Earthworks / support / misc</div></div>
             <div class="period-kpi"><div class="label">Total Spent</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + support costs</div></div>
             <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
@@ -2940,7 +2940,7 @@ function removeUserAccount(index){
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodSupportInvoicesData=[], projectBudgetsData=[];
+let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[];
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let reportApprovalsByKey={};
@@ -3858,7 +3858,7 @@ function rowIsDrillerEarthworksSupport(row){
 }
 
 function activityMethod(row,bh){
-  if(rowIsDrillerEarthworksSupport(row))return 'Non-drilling / Earthworks';
+  if(rowIsDrillerEarthworksSupport(row))return 'Drilling provider earthworks';
   const text=[row.bit_type,row.code,row.activity_code,row.notes,bh&&bh.bh_type,bh&&bh.type,bh&&bh.bit_type].join(' ').toLowerCase();
   if(text.match(/\bpcd\b|chip|rc|open hole/))return 'Chipped / RC';
   if(text.match(/core|coring|hq|nq|pq|dd/))return 'Core';
@@ -3933,7 +3933,8 @@ function buildPeriodProjectOptions(){
 function selectedPeriod(){
   let from=document.getElementById('period-range-from')?.value||'';
   let to=document.getElementById('period-range-to')?.value||'';
-  const dates=(activitiesData||[]).map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+  const source=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
+  const dates=(source||[]).map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
   const fromEl=document.getElementById('period-range-from');
   const toEl=document.getElementById('period-range-to');
   if(!from&&dates.length){from=dates[0];if(fromEl)fromEl.value=from;}
@@ -3946,20 +3947,20 @@ async function loadReportsPage(){
   if(shell)shell.textContent='Loading report data...';
   try{
     const drillingContractor=reportDrillingContractor();
-    const suffix='contractor='+encodeURIComponent(drillingContractor);
+    const suffix='contractor='+encodeURIComponent(drillingContractor)+'&_='+Date.now();
     const results=await Promise.all([
-      fetch(API+'/activities?'+suffix).then(function(r){return r.ok?r.json():[];}),
-      fetch(API+'/consumables?'+suffix).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/activities?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/consumables?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
       loadPeriodSupportInvoices(),
-      fetch(API+'/project-budgets?contractor=Company').then(function(r){return r.ok?r.json():[];})
+      fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];})
     ]);
-    activitiesData=results[0]||[];
-    consumablesData=results[1]||[];
+    periodReportActivitiesData=results[0]||[];
+    periodReportConsumablesData=results[1]||[];
+    activitiesData=periodReportActivitiesData;
+    consumablesData=periodReportConsumablesData;
     periodSupportInvoicesData=results[2]||[];
     projectBudgetsData=results[3]||[];
     await ensureReportBoreholes();
-    activitiesData=filterRowsForActiveProgram(activitiesData);
-    consumablesData=filterRowsForActiveProgram(consumablesData);
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
   }catch(e){
@@ -3970,8 +3971,9 @@ async function loadReportsPage(){
 
 async function loadPeriodSupportInvoices(){
   const contractors=filteredContractors().filter(function(c){return contractorCategory(c)!=='Drilling';});
+  const stamp=Date.now();
   const rows=await Promise.all(contractors.map(function(c){
-    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
+    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
   }));
   return rows.flat().map(function(r){
     const c=contractorByName(r.contractor);
@@ -3982,10 +3984,12 @@ async function loadPeriodSupportInvoices(){
 function periodFilteredRows(){
   const period=selectedPeriod();
   const holes=holeLookup();
-  return (activitiesData||[]).filter(function(r){
+  const source=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
+  return (source||[]).filter(function(r){
     const iso=reportIso(r.date);
     if(period.from&&(!iso||iso<period.from))return false;
     if(period.to&&(!iso||iso>period.to))return false;
+    if(!period.project&&!rowMatchesActiveProgram(r))return false;
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });
@@ -3994,10 +3998,12 @@ function periodFilteredRows(){
 function periodFilteredConsumables(){
   const period=selectedPeriod();
   const holes=holeLookup();
-  return (consumablesData||[]).filter(function(r){
+  const source=(periodReportConsumablesData&&periodReportConsumablesData.length)?periodReportConsumablesData:consumablesData;
+  return (source||[]).filter(function(r){
     const iso=reportIso(r.date);
     if(period.from&&(!iso||iso<period.from))return false;
     if(period.to&&(!iso||iso>period.to))return false;
+    if(!period.project&&!rowMatchesActiveProgram(r))return false;
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });
@@ -4153,7 +4159,7 @@ function renderPeriodReport(){
     drillingSummaryEl.className='value '+(drillingBudgetTotal&&totalDrillingCost>drillingBudgetTotal?'variance-neg':'');
   }
   const drillVariance=drillingBudgetTotal-totalDrillingCost;
-  setPeriodText('period-drilling-sub',(drillingBudgetTotal?'Spent vs budget; ':'Drilling spend; ')+(drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'no budget loaded'));
+  setPeriodText('period-drilling-sub',(drillingBudgetTotal?'Includes provider earthworks; ':'Includes provider earthworks; ')+(drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'no budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
   setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
@@ -4168,7 +4174,7 @@ function renderPeriodReport(){
   setPeriodText('period-holes',completed.toLocaleString()+' / '+planned.toLocaleString());
   setPeriodText('period-holes-sub',completed+' completed; '+Math.max(0,planned-completed)+' remaining; '+activeHoles.length+' active with costs');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
-  setPeriodText('period-extra-costs','Drilling only');
+  setPeriodText('period-extra-costs','Includes provider earthworks');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
   renderPeriodMap(activeHoles);
@@ -4367,7 +4373,7 @@ function reportActivityCode(row,holes){
 
 function reportCodeGroup(row,code){
   if(code==='Missing_Code')return 'Needs Coding';
-  if(rowIsDrillerEarthworksSupport(row))return 'Non-drilling / Earthworks';
+  if(rowIsDrillerEarthworksSupport(row))return 'Drilling provider earthworks';
   if(rowIsStandby(row))return 'Standby';
   return 'Chargeable / Other';
 }
