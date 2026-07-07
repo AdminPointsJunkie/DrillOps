@@ -1665,7 +1665,7 @@ tbody td[contenteditable=true]:focus {
             <div style="display:grid;grid-template-columns:1fr 90px 150px 130px auto;gap:8px;margin-top:12px;">
               <input class="drawer-input" id="page-new-con-name" placeholder="Contractor name"/>
               <input class="drawer-input" id="page-new-con-code" placeholder="Code"/>
-              <select class="drawer-input" id="page-new-con-category"><option>Drilling</option><option>Earthworks</option><option>Labour</option><option>Geological Support</option><option>Misc</option></select>
+              <select class="drawer-input" id="page-new-con-category"><option>Drilling</option><option>Earthworks</option><option>Labour</option><option>Geological Support</option><option>Lab Testing</option><option>Misc</option></select>
               <select class="drawer-input" id="page-new-con-program"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select>
               <button class="btn-primary" onclick="addContractor()">Add</button>
             </div>
@@ -1739,7 +1739,7 @@ tbody td[contenteditable=true]:focus {
         <div class="tbl-scroll" style="max-height:520px;">
           <table>
             <thead>
-              <tr><th>Program</th><th>Project</th><th>Section</th><th>Vendor / Contractor</th><th>Budget</th><th>Allocation</th><th>Notes</th><th></th></tr>
+              <tr><th>Program</th><th>Project</th><th>Section</th><th>Contractor</th><th>Category</th><th>Budget</th><th>Allocation</th><th>Notes</th><th></th></tr>
             </thead>
             <tbody id="project-budget-body"></tbody>
           </table>
@@ -1811,7 +1811,7 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Hole Detail Table</div>
           <div class="tbl-scroll" style="max-height:320px;">
             <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Mitchells $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
               <tbody id="period-hole-body"></tbody>
             </table>
           </div>
@@ -2369,7 +2369,7 @@ tbody td[contenteditable=true]:focus {
         <div class="kpi warn"><div class="kpi-label">In Progress</div><div class="kpi-value" id="bh-kpi-inprog">—</div></div>
         <div class="kpi"><div class="kpi-label">Planned</div><div class="kpi-value" id="bh-kpi-planned">—</div></div>
         <div class="kpi"><div class="kpi-label">Total Budget</div><div class="kpi-value" id="bh-kpi-budget">—</div><div class="kpi-sub" id="bh-kpi-days">— days</div></div>
-        <div class="kpi"><div class="kpi-label">Mitchells Drilling</div><div class="kpi-value" id="bh-kpi-actual">—</div><div class="kpi-sub" id="bh-kpi-variance" style="font-weight:600;"></div></div>
+        <div class="kpi"><div class="kpi-label">Drilling Spend</div><div class="kpi-value" id="bh-kpi-actual">—</div><div class="kpi-sub" id="bh-kpi-variance" style="font-weight:600;"></div></div>
       </div>
 
       <!-- Map + controls row -->
@@ -2469,7 +2469,7 @@ tbody td[contenteditable=true]:focus {
             <thead><tr>
               <th>#</th><th>Project</th><th>Year</th><th>Site ID</th><th>Hole ID</th><th>Type</th><th>Bit</th><th>Purpose</th>
               <th>Easting</th><th>Northing</th><th>RL</th><th>Chip Depth</th><th>EOH Depth</th><th>Total Core</th><th>Seam Tk</th>
-              <th>Days</th><th>Status</th><th>Total Budget $</th><th>Drilling Budget $</th><th>Mitchells Drilling $</th><th>Total EOS $</th><th>Drilling Variance</th><th>Notes</th><th></th>
+              <th>Days</th><th>Status</th><th>Total Budget $</th><th>Drilling Budget $</th><th>Drilling Spend $</th><th>Total EOS $</th><th>Drilling Variance</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="bh-body"></tbody>
           </table>
@@ -2544,10 +2544,13 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'MCC Group',short_code:'MCC',category:'Labour',program:'Exploration,Gas Riser,SIS'},{name:'King Konstruct',short_code:'KK',category:'Earthworks'},
    {name:'CHMS',short_code:'CHMS',category:'Earthworks'},
    {name:'Weatherfords',short_code:'WFD',category:'Geological Support'},
-   {name:'Epiroc',short_code:'EPI',category:'Misc'},{name:'Fortem',short_code:'FOR',category:'Geological Support'}];
+   {name:'Epiroc',short_code:'EPI',category:'Geological Support'},{name:'Fortem',short_code:'FOR',category:'Geological Support'},
+   {name:'GEOGAS',short_code:'GEO',category:'Lab Testing'},{name:'Geochempet',short_code:'GCP',category:'Lab Testing'},
+   {name:'STANTEC',short_code:'STN',category:'Lab Testing'},{name:'SIGRA',short_code:'SIG',category:'Lab Testing'},
+   {name:'Earth Works',short_code:'EW',category:'Earthworks'}];
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
-const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Misc'];
+const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Lab Testing','Misc'];
 let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
 
 function contractorPrograms(c) {
@@ -2565,8 +2568,10 @@ function contractorCategory(c) {
   if(c&&c.category)return c.category;
   const name=String(c&&c.name||'').toLowerCase();
   if(name.includes('drill'))return 'Drilling';
-  if(name.includes('earth')||name.includes('mcc')||name.includes('king')||name.includes('konstruct'))return 'Earthworks';
+  if(name.includes('earth')||name.includes('king')||name.includes('konstruct')||name.includes('chms'))return 'Earthworks';
+  if(name.includes('mcc'))return 'Labour';
   if(name.includes('fortem')||name.includes('weatherford')||name.includes('geophys')||name.includes('geolog'))return 'Geological Support';
+  if(name.includes('geogas')||name.includes('sigra')||name.includes('geochem')||name.includes('stantec')||name.includes('stantect')||name.includes('lab'))return 'Lab Testing';
   return 'Misc';
 }
 
@@ -3831,12 +3836,27 @@ function rowIsMitchellsDrillingCost(row){
   return code.indexOf('Drill_')===0||['H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods'].includes(code);
 }
 
+function normalizeProjectName(value){
+  return String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ');
+}
+
+function projectNamesMatch(left,right){
+  const a=normalizeProjectName(left),b=normalizeProjectName(right);
+  if(!a||!b)return false;
+  return a===b||a.includes(b)||b.includes(a);
+}
+
 function rowMatchesPeriodProject(row,holes,project){
   if(!project)return true;
   const bh=holes.get(rowHole(row));
-  if((bh&&bh.project||'')===project)return true;
+  if(projectNamesMatch((bh&&bh.project)||'',project))return true;
+  if(projectNamesMatch(row.project,project))return true;
   const text=[row.project,row.site_name,row.hole_num,row.source_file,row.notes].join(' ').toLowerCase();
   return project.toLowerCase()==='ironbark'&&text.includes('ironbark');
+}
+
+function boreholeIsComplete(b){
+  return String((b&&b.status)||'').trim().toLowerCase().indexOf('complete')===0;
 }
 
 function buildPeriodProjectOptions(){
@@ -3940,16 +3960,16 @@ function invoiceMatchesPeriod(inv,period){
     if(period.from&&iso<period.from)return false;
     if(period.to&&iso>period.to)return false;
   }
-  if(period.project&&inv.project&&inv.project!==period.project)return false;
+  if(period.project&&!projectNamesMatch(inv.project,period.project))return false;
   return true;
 }
 
 function supportSectionForInvoice(inv){
   const cat=String(inv.contractor_category||'').toLowerCase();
   const text=[inv.contractor,inv.project,inv.notes,inv.source_file,inv.po_reference,inv.invoice_number].join(' ').toLowerCase();
+  if(cat==='drilling')return 'Drilling';
   if(cat==='earthworks'||text.match(/earth|civil|dozer|excavat|grader|pad|track|king|konstruct|chms/))return 'Earthworks';
-  if(text.match(/geogas|sigra|gas/))return 'Gas / Testing';
-  if(text.match(/geochem/))return 'Geochemistry';
+  if(cat==='lab testing'||text.match(/geogas|sigra|gas|geochem|lab test|assay|stantec|stantect/))return 'Lab Testing';
   if(cat==='geological support'||text.match(/fortem|geophys|wireline|logging|geolog|weatherford/))return 'Geophysical / Geological Support';
   if(cat==='labour'||text.match(/mcc|labour|labor|support/))return 'Support';
   return 'MISC';
@@ -3963,7 +3983,7 @@ function periodFilteredSupportInvoices(){
 function periodFilteredBudgetRows(period){
   return (projectBudgetsData||[]).filter(function(r){
     if(activeProgram&&r.program&&r.program!==activeProgram)return false;
-    if(period.project&&r.project!==period.project)return false;
+    if(period.project&&!projectNamesMatch(r.project,period.project))return false;
     if(!period.project&&!budgetMatchesActiveProgram(r))return false;
     return true;
   });
@@ -4037,7 +4057,7 @@ function renderPeriodReport(){
   const supportInvoices=periodFilteredSupportInvoices();
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
-  const projectHoles=(bhData||[]).filter(function(b){return !period.project||b.project===period.project;});
+  const projectHoles=(bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);});
   const activityCost=rows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const actualTotal=activityCost+consumableCost;
@@ -4058,7 +4078,7 @@ function renderPeriodReport(){
     if(method==='Core')coreMetres+=numVal(r.total_metres);
     else if(method==='Chipped / RC')chippedMetres+=numVal(r.total_metres);
   });
-  const completed=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()==='complete';}).length;
+  const completed=projectHoles.filter(boreholeIsComplete).length;
   const planned=projectHoles.length||activeHoles.length;
   const extrasCost=rows.filter(rowIsExtra).reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const avgCost=totalMetres>0?totalDrillingCost/totalMetres:0;
@@ -4082,10 +4102,10 @@ function renderPeriodReport(){
   setPeriodText('period-variance-sub',variance>=0?'Under total budget':'Over total budget');
   setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
   setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
-  setPeriodText('period-holes',activeHoles.length.toLocaleString());
-  setPeriodText('period-holes-sub',completed+' completed / '+planned+' planned');
+  setPeriodText('period-holes',completed.toLocaleString());
+  setPeriodText('period-holes-sub',completed+' completed / '+planned+' planned; '+activeHoles.length+' active in period');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
-  setPeriodText('period-extra-costs','Mitchells drilling only');
+  setPeriodText('period-extra-costs','Drilling only');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
   renderPeriodMap(activeHoles);
@@ -4247,7 +4267,7 @@ function renderPeriodHoleGraphics(metrics){
     const over=m.drillingBudget>0&&m.drillingCharged>m.drillingBudget;
     return '<div class="period-hole-bar">'
       +'<div class="period-hole-label" title="'+attr(m.id)+'">'+esc(m.id)+'</div>'
-      +'<div class="period-hole-track" title="Mitchells '+attr(cur(m.drillingCharged))+' / Drill budget '+attr(cur(m.drillingBudget))+'"><div class="period-hole-fill cost '+(over?'over':'')+'" style="width:'+Math.min(100,(m.drillingCharged/maxCost)*100).toFixed(1)+'%"></div></div>'
+      +'<div class="period-hole-track" title="Drilling '+attr(cur(m.drillingCharged))+' / Drill budget '+attr(cur(m.drillingBudget))+'"><div class="period-hole-fill cost '+(over?'over':'')+'" style="width:'+Math.min(100,(m.drillingCharged/maxCost)*100).toFixed(1)+'%"></div></div>'
       +'<div class="period-hole-value">'+cur(m.drillingCharged)+'</div>'
       +'</div>';
   }).join('');
@@ -4258,8 +4278,27 @@ function renderPeriodHoleGraphics(metrics){
       +'<div class="period-hole-value">'+(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--')+'</div>'
       +'</div>';
   }).join('');
-  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Mitchells Drilling Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#1f5f8b"></i>Mitchells drilling</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
+  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Drilling Spend Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#1f5f8b"></i>Drilling spend</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
     +'<div class="period-visual-card"><div class="period-visual-title">Penetration Rate</div><div class="period-hole-bars">'+penBars+'</div><div class="period-legend"><span><i style="background:#2563eb"></i>Metres per drilling hour</span></div></div>';
+}
+
+function reportActivityCode(row,holes){
+  const raw=String(row.code||row.activity_code||'').trim();
+  if(raw)return raw;
+  const text=[row.notes,row.rate_basis,row.bit_type,row.diameter].join(' ').toLowerCase();
+  if(numVal(row.total_metres)>0){
+    const method=activityMethod(row,holes.get(rowHole(row)));
+    return method==='Chipped / RC'?'Drill_Chip_or_Open_hole':'Drill_Core';
+  }
+  if(text.match(/water cart|water truck/))return 'D_Water_Cart';
+  if(text.match(/standby|wait|delay|fatigue/))return 'H_Standby';
+  if(text.match(/travel/))return 'H_Crew_Travel';
+  if(text.match(/surface|setup|set up/))return 'H_Surface_Setup';
+  if(text.match(/trip|rod/))return 'H_Tripping_Rods';
+  if(text.match(/cement/))return 'H_Rig_Cementing';
+  if(text.match(/repair|breakdown/))return 'H_Repairs';
+  if(text.match(/flush|circulat/))return 'H_Circulation_Flush';
+  return 'Missing_Code';
 }
 
 function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal){
@@ -4267,10 +4306,11 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
   if(!el)return;
   const codeMap=new Map();
   rows.forEach(function(r){
-    const code=String(r.code||r.activity_code||'Uncoded').trim()||'Uncoded';
+    const code=reportActivityCode(r,holes);
     const standby=rowIsStandby(r);
-    const key=(standby?'Standby':'Charge')+'|'+code;
-    if(!codeMap.has(key))codeMap.set(key,{code:code,group:standby?'Standby':'Chargeable / Other',count:0,value:0});
+    const group=code==='Missing_Code'?'Needs Coding':(standby?'Standby':'Chargeable / Other');
+    const key=group+'|'+code;
+    if(!codeMap.has(key))codeMap.set(key,{code:code,group:group,count:0,value:0});
     const item=codeMap.get(key);
     item.count+=1;
     item.value+=numVal(r.line_cost);
@@ -4308,14 +4348,14 @@ function renderPeriodSupportInvoices(invoices,budgetTotals){
   const rows=(invoices||[]).slice().sort(function(a,b){
     return (invoiceReportIso(b)||'').localeCompare(invoiceReportIso(a)||'') || String(a.contractor||'').localeCompare(String(b.contractor||''));
   });
-  const totals={Earthworks:0,Support:0,'Geophysical / Geological Support':0,'Gas / Testing':0,Geochemistry:0,MISC:0};
+  const totals={Earthworks:0,Support:0,'Geophysical / Geological Support':0,'Lab Testing':0,MISC:0};
   rows.forEach(function(inv){
     const section=supportSectionForInvoice(inv);
     totals[section]=(totals[section]||0)+numVal(inv.total_aud);
   });
   const total=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const budgetBySection=(budgetTotals&&budgetTotals.bySection)||{};
-  const sections=Array.from(new Set(['Earthworks','Support','Geophysical / Geological Support','Gas / Testing','Geochemistry','MISC']
+  const sections=Array.from(new Set(['Earthworks','Support','Geophysical / Geological Support','Lab Testing','MISC']
     .concat(Object.keys(totals)).concat(Object.keys(budgetBySection)))).filter(function(label){
       return label!=='Drilling'&&((totals[label]||0)>0||(budgetBySection[label]||0)>0||['Earthworks','Geophysical / Geological Support','MISC'].includes(label));
     });
@@ -4348,7 +4388,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals){
     +(budgetRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project support budgets recorded.</td></tr>')
     +'</tbody></table>'
     +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
-    +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support or Misc invoices in this period.</td></tr>')
+    +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
     +'<tr><td colspan="7"><b>Total support invoices</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
     +'</tbody></table></div>';
 }
@@ -4398,8 +4438,9 @@ function renderPeriodStandbyReasons(rows){
 function renderPeriodProgress(rows,activeHoles,projectHoles){
   const el=document.getElementById('period-progress-issues');
   if(!el)return;
-  const completed=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()==='complete';}).map(function(b){return b.hole_id;});
-  const carried=activeHoles.filter(function(b){return String(b.status||'').toLowerCase()!=='complete';}).map(function(b){return b.hole_id;});
+  const completed=projectHoles.filter(boreholeIsComplete).map(function(b){return b.hole_id;});
+  const activeSet=new Set((activeHoles||[]).map(function(b){return b.hole_id;}));
+  const carried=projectHoles.filter(function(b){return String(b.status||'').toLowerCase()!=='complete'&&activeSet.has(b.hole_id);}).map(function(b){return b.hole_id;});
   const notes=Array.from(new Set(rows.map(function(r){return r.notes||'';}).filter(function(n){return n&&String(n).toLowerCase().match(/delay|standby|fatigue|lost|breakdown|repair|access|issue|move|ground/);}))).slice(0,4);
   const items=[
     {label:'Completed',value:completed.length||0},
@@ -5456,7 +5497,7 @@ async function addConsumableRate(){
 async function syncContractRates(){
   const year=activeRateYear||'2025';
   const btn=document.getElementById('sync-contract-rates-btn');
-  if(!['Allianz Drilling','Mitchells Drilling'].includes(activeContractor)){toast('Contract sync is only available for Allianz and Mitchells','err');return;}
+  if(!['Allianz Drilling','Mitchells Drilling'].includes(activeContractor)){toast('Contract sync is only available for configured drilling contractors','err');return;}
   if(!confirm('Replace '+activeContractor+' drilling/hourly rates for '+year+' with the contract rate template? You can edit the rows after syncing.'))return;
   btn.disabled=true;
   btn.textContent='Syncing contract...';
@@ -7191,7 +7232,7 @@ function renderBhMap() {
       +'</div>'
       +(budget>0?'<div style="font-size:12px;margin-bottom:4px;">Budget: <b>$'+budget.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
       +(drillingBudget>0?'<div style="font-size:12px;margin-bottom:4px;">Drilling budget: <b>$'+drillingBudget.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
-      +(drilling>0?'<div style="font-size:12px;margin-bottom:4px;">Mitchells drilling: <b style="color:'+(drilling>drillingBudget&&drillingBudget>0?'#dc2626':'#16a34a')+'">$'+drilling.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
+      +(drilling>0?'<div style="font-size:12px;margin-bottom:4px;">Drilling spend: <b style="color:'+(drilling>drillingBudget&&drillingBudget>0?'#dc2626':'#16a34a')+'">$'+drilling.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
       +(eos>0?'<div style="font-size:12px;margin-bottom:8px;">Total EOS: <b style="color:var(--accent)">$'+eos.toLocaleString('en-AU',{maximumFractionDigits:0})+'</b></div>':'')
       +'<span style="background:'+col+'22;color:'+col+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">'+b.status+'</span>'
       +'<div style="margin-top:10px;display:flex;gap:6px;">'
@@ -7592,13 +7633,43 @@ function knownProjectNames(){
   });
 }
 
+function contractorForVendor(vendor){
+  const raw=String(vendor||'').trim();
+  if(!raw)return null;
+  const norm=raw.toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const aliases={
+    allianz:'Allianz Drilling',
+    mitchells:'Mitchells Drilling',
+    mitchellsdrilling:'Mitchells Drilling',
+    weatherford:'Weatherfords',
+    weatherfords:'Weatherfords',
+    epirocweatherford:'Epiroc',
+    earthworks:'Earth Works',
+    earthwork:'Earth Works',
+    stantect:'STANTEC'
+  };
+  const alias=aliases[norm];
+  if(alias)return contractorByName(alias);
+  return CONTRACTORS.find(function(c){
+    const cn=String(c.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+    const code=String(c.short_code||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+    return cn===norm||code===norm||cn.includes(norm)||norm.includes(cn);
+  })||null;
+}
+
 function normalBudgetSection(value,vendor){
+  const contractor=contractorForVendor(vendor);
+  const cat=contractorCategory(contractor).toLowerCase();
+  if(cat==='drilling')return 'Drilling';
+  if(cat==='earthworks')return 'Earthworks';
+  if(cat==='geological support')return 'Geophysical / Geological Support';
+  if(cat==='lab testing')return 'Lab Testing';
+  if(cat==='labour')return 'Support';
   const text=String((value||'')+' '+(vendor||'')).toLowerCase();
   if(text.match(/drill|allianz|mitchell/))return 'Drilling';
   if(text.match(/earth|civil|dozer|excavat|grader|pad|track/))return 'Earthworks';
   if(text.match(/fortem|geolog|geophys|logging|weatherford|epiroc|stant|wireline/))return 'Geophysical / Geological Support';
-  if(text.match(/geogas|sigra|gas/))return 'Gas / Testing';
-  if(text.match(/geochem/))return 'Geochemistry';
+  if(text.match(/geogas|sigra|gas|geochem|lab test|assay/))return 'Lab Testing';
   return value||'MISC';
 }
 
@@ -7610,10 +7681,10 @@ function buildProjectBudgetSelectors(){
   const programSel=document.getElementById('budget-program-filter');
   const projectSel=document.getElementById('budget-project-filter');
   if(programSel){
-    const current=programSel.value||activeProgram;
+    const current=programSel.options.length?programSel.value:activeProgram;
     const programs=Array.from(new Set(PROJECT_PROGRAMS.concat((projects||[]).map(projectProgram),(projectBudgetsData||[]).map(function(r){return r.program||'';})))).filter(Boolean);
     programSel.innerHTML='<option value="">All Programs</option>'+programs.map(function(p){return '<option value="'+attr(p)+'">'+esc(p)+'</option>';}).join('');
-    programSel.value=programs.includes(current)?current:'';
+    programSel.value=current===''?'':(programs.includes(current)?current:'');
   }
   if(projectSel){
     const current=projectSel.value;
@@ -7650,12 +7721,36 @@ function projectBudgetFilteredRows(){
   });
 }
 
+function budgetProgramOptions(current){
+  const programs=Array.from(new Set(PROJECT_PROGRAMS.concat((projects||[]).map(projectProgram),(projectBudgetsData||[]).map(function(r){return r.program||'';})))).filter(Boolean);
+  return programs.map(function(p){return '<option value="'+attr(p)+'" '+(p===(current||'')?'selected':'')+'>'+esc(p)+'</option>';}).join('');
+}
+
+function budgetProjectOptions(current){
+  return knownProjectNames().map(function(name){
+    return '<option value="'+attr(name)+'" '+(name===(current||'')?'selected':'')+'>'+esc(name)+'</option>';
+  }).join('');
+}
+
+function budgetContractorOptions(current){
+  const names=[];
+  (CONTRACTORS||[]).forEach(function(c){if(c&&c.name)names.push(c.name);});
+  (projectBudgetsData||[]).forEach(function(r){if(r&&r.vendor)names.push(r.vendor);});
+  const unique=Array.from(new Set(names.filter(Boolean))).sort();
+  if(current&&!unique.includes(current))unique.unshift(current);
+  return unique.map(function(name){return '<option value="'+attr(name)+'" '+(name===(current||'')?'selected':'')+'>'+esc(name)+'</option>';}).join('');
+}
+
+function budgetRowCategory(row){
+  return normalBudgetSection(row.section,row.vendor);
+}
+
 function renderProjectBudgets(){
   buildProjectBudgetSelectors();
   const rows=projectBudgetFilteredRows();
   const body=document.getElementById('project-budget-body');
   const total=rows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
-  const drilling=rows.filter(function(r){return normalBudgetSection(r.section,r.vendor)==='Drilling';}).reduce(function(s,r){return s+numVal(r.budget_amount);},0);
+  const drilling=rows.filter(function(r){return budgetRowCategory(r)==='Drilling';}).reduce(function(s,r){return s+numVal(r.budget_amount);},0);
   setPeriodText('budget-kpi-total',cur(total));
   setPeriodText('budget-kpi-drilling',cur(drilling));
   setPeriodText('budget-kpi-support',cur(total-drilling));
@@ -7663,15 +7758,17 @@ function renderProjectBudgets(){
   setPeriodText('budget-row-count',rows.length.toLocaleString());
   if(!body)return;
   if(!rows.length){
-    body.innerHTML='<tr><td colspan="8"><div class="empty-state">No project budgets recorded.</div></td></tr>';
+    body.innerHTML='<tr><td colspan="9"><div class="empty-state">No project budgets recorded.</div></td></tr>';
     return;
   }
   body.innerHTML=rows.map(function(r){
+    const category=budgetRowCategory(r);
     return '<tr data-budget-id="'+attr(r.id)+'">'
-      +'<td contenteditable="true" data-col="program">'+esc(r.program||'Exploration')+'</td>'
-      +'<td contenteditable="true" data-col="project">'+esc(r.project||'')+'</td>'
+      +'<td><select data-col="program" onchange="saveProjectBudgetSelect(this)">'+budgetProgramOptions(r.program||'Exploration')+'</select></td>'
+      +'<td><select data-col="project" onchange="saveProjectBudgetSelect(this)">'+budgetProjectOptions(r.project||'')+'</select></td>'
       +'<td contenteditable="true" data-col="section">'+esc(r.section||'')+'</td>'
-      +'<td contenteditable="true" data-col="vendor">'+esc(r.vendor||'')+'</td>'
+      +'<td><select data-col="vendor" onchange="saveProjectBudgetSelect(this)">'+budgetContractorOptions(r.vendor||'')+'</select></td>'
+      +'<td><span class="flag-pill">'+esc(category)+'</span></td>'
       +'<td contenteditable="true" data-col="budget_amount" data-num="true" style="font-weight:800;color:var(--accent);">'+(numVal(r.budget_amount)?numVal(r.budget_amount).toLocaleString('en-AU',{maximumFractionDigits:2}):'')+'</td>'
       +'<td contenteditable="true" data-col="allocation">'+esc(r.allocation||'Project level')+'</td>'
       +'<td contenteditable="true" data-col="notes">'+esc(r.notes||'')+'</td>'
@@ -7682,6 +7779,27 @@ function renderProjectBudgets(){
     cell.addEventListener('blur',saveProjectBudgetCell);
     cell.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();cell.blur();}});
   });
+}
+
+async function saveProjectBudgetSelect(select){
+  const tr=select.closest('tr');
+  const id=tr?.dataset.budgetId;
+  const col=select.dataset.col;
+  if(!id||!col)return;
+  try{
+    const res=await fetch(API+'/project-budgets/'+encodeURIComponent(id),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({[col]:select.value})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const row=projectBudgetsData.find(function(r){return Number(r.id)===Number(id);});
+    if(row)row[col]=select.value;
+    renderProjectBudgets();
+    toast('Budget saved');
+  }catch(err){
+    toast('Budget save failed','err');
+  }
 }
 
 async function saveProjectBudgetCell(e){
@@ -7715,7 +7833,7 @@ async function addProjectBudgetRow(){
     const res=await fetch(API+'/project-budgets',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:'Company',program:program,project:project,section:'MISC',vendor:'',budget_amount:0,allocation:'Project level'})
+      body:JSON.stringify({contractor:'Company',program:program,project:project,section:'MISC',vendor:(CONTRACTORS[0]||{}).name||'',budget_amount:0,allocation:'Project level'})
     });
     if(!res.ok)throw new Error(await res.text());
     await loadProjectBudgets();
@@ -7725,14 +7843,14 @@ async function addProjectBudgetRow(){
 
 async function seedCarboroughBudgets(){
   const rows=[
-    {section:'Geophysical / Geological Support',vendor:'FORTEM',budget_amount:197920},
-    {section:'Gas / Testing',vendor:'GEOGAS',budget_amount:90144},
-    {section:'Geochemistry',vendor:'Geochempet',budget_amount:13320},
-    {section:'Geophysical / Geological Support',vendor:'STANTECT',budget_amount:34800},
+    {section:'Geological Support',vendor:'Fortem',budget_amount:197920},
+    {section:'Lab Testing - Gas',vendor:'GEOGAS',budget_amount:90144},
+    {section:'Lab Testing - Geochempet',vendor:'Geochempet',budget_amount:13320},
+    {section:'Lab Testing - Geotech',vendor:'STANTEC',budget_amount:34800},
     {section:'Earthworks',vendor:'EARTH WORKS',budget_amount:79570},
-    {section:'Geophysical / Geological Support',vendor:'EPIROC/WEATHERFORD',budget_amount:73942},
-    {section:'Drilling',vendor:'ALLIANZ',budget_amount:918744},
-    {section:'Gas / Testing',vendor:'SIGRA',budget_amount:373000}
+    {section:'Geophysical Logging',vendor:'Epiroc',budget_amount:73942},
+    {section:'Drilling',vendor:'Allianz Drilling',budget_amount:918744},
+    {section:'Stress Testing',vendor:'SIGRA',budget_amount:373000}
   ].map(function(r){return Object.assign({contractor:'Company',program:'Exploration',project:'Carborough Downs',allocation:'Project level'},r);});
   try{
     const res=await fetch(API+'/project-budgets',{
@@ -7776,9 +7894,9 @@ function parseSimpleCSV(text){
 
 function projectBudgetTemplateRows(){
   return [
-    ['program','project','section','vendor','budget_amount','allocation','notes'],
-    ['Exploration','Carborough Downs','Geophysical / Geological Support','FORTEM','197920','Project level',''],
-    ['Exploration','Carborough Downs','Drilling','ALLIANZ','918744','Project level','']
+    ['program','project','section','contractor','budget_amount','allocation','notes'],
+    ['Exploration','Carborough Downs','Geological Support','Fortem','197920','Project level',''],
+    ['Exploration','Carborough Downs','Drilling','Allianz Drilling','918744','Project level','']
   ];
 }
 
@@ -7803,10 +7921,12 @@ async function importProjectBudgetCSV(input){
     const budgets=rows.slice(1).map(function(row){
       const obj={contractor:'Company'};
       headers.forEach(function(h,i){obj[h]=row[i]||'';});
+      const rowContractor=obj.contractor;
       obj.program=obj.program||activeProgram||'Exploration';
       obj.project=obj.project||document.getElementById('budget-project-filter')?.value||'';
       obj.section=obj.section||obj.category||'MISC';
-      obj.vendor=obj.vendor||obj.contractor_vendor||'';
+      obj.vendor=obj.vendor||obj.contractor_vendor||obj.budget_contractor||obj.contractor_name||(rowContractor&&rowContractor!=='Company'?rowContractor:'');
+      obj.contractor='Company';
       obj.budget_amount=numberFromAny(obj.budget_amount,obj.budget,obj.amount)||0;
       obj.allocation=obj.allocation||'Project level';
       return obj;

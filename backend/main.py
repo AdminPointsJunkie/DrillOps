@@ -43,18 +43,28 @@ CONTRACTORS = [
     ("Weatherfords",       "WFD"),
     ("Epiroc",             "EPI"),
     ("Fortem",             "FOR"),
+    ("GEOGAS",             "GEO"),
+    ("Geochempet",         "GCP"),
+    ("STANTEC",            "STN"),
+    ("SIGRA",              "SIG"),
+    ("Earth Works",        "EW"),
 ]
 
-CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support", "Misc"]
+CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support", "Lab Testing", "Misc"]
 DEFAULT_CONTRACTOR_CATEGORIES = {
     "Allianz Drilling": "Drilling",
     "Mitchells Drilling": "Drilling",
     "MCC Group": "Labour",
     "CHMS": "Earthworks",
     "King Konstruct": "Earthworks",
-    "Weatherfords": "Misc",
-    "Epiroc": "Misc",
-    "Fortem": "Misc",
+    "Weatherfords": "Geological Support",
+    "Epiroc": "Geological Support",
+    "Fortem": "Geological Support",
+    "GEOGAS": "Lab Testing",
+    "Geochempet": "Lab Testing",
+    "STANTEC": "Lab Testing",
+    "SIGRA": "Lab Testing",
+    "Earth Works": "Earthworks",
 }
 
 CONTRACTOR_REFERENCE_TABLES = [
