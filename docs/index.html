@@ -1766,7 +1766,7 @@ tbody td[contenteditable=true]:focus {
         <div class="period-report-body">
           <div class="period-print-header">
             <div>
-              <div class="period-print-title">Ironbark No.1 - Exploration Drilling Report</div>
+              <div class="period-print-title" id="period-print-title">Period Drilling Report</div>
               <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
             </div>
             <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
@@ -4137,6 +4137,7 @@ function renderPeriodReport(){
   const projectLabel=period.project||'All Projects';
   const drillingContractor=reportDrillingContractor();
   const today=new Date().toLocaleDateString('en-AU');
+  setPeriodText('period-print-title',projectLabel+' - '+activeProgramLabel()+' Drilling Report');
   shell.textContent=projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
   setPeriodText('period-print-meta',projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today);
   setPeriodText('period-budget-total',cur(budgetTotal));
@@ -4387,12 +4388,7 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
   }
   const codes=Array.from(codeMap.values()).sort(function(a,b){return a.group.localeCompare(b.group)||b.value-a.value;});
   const types=Array.from(typeMap.values()).sort(function(a,b){return b.value-a.value;});
-  const max=Math.max(budgetTotal,actualTotal,1);
-  el.innerHTML='<div class="period-bar-chart">'
-    +'<div class="period-bar-row"><div>Drill Budget</div><div class="period-bar-track"><div class="period-bar-fill" style="width:'+Math.min(100,(budgetTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(budgetTotal)+'</div></div>'
-    +'<div class="period-bar-row"><div>Drill Spend</div><div class="period-bar-track"><div class="period-bar-fill actual" style="width:'+Math.min(100,(actualTotal/max)*100).toFixed(1)+'%"></div></div><div class="num">'+cur(actualTotal)+'</div></div>'
-    +'</div>'
-    +'<table class="period-mini-table"><thead><tr><th>Type</th><th>Metres</th><th>Value</th></tr></thead><tbody>'
+  el.innerHTML='<table class="period-mini-table"><thead><tr><th>Type</th><th>Metres</th><th>Value</th></tr></thead><tbody>'
     +(types.map(function(r){return '<tr><td>'+esc(r.type)+'</td><td class="num">'+(r.metres?r.metres.toFixed(1):'--')+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="3">No costs in period.</td></tr>')
     +'</tbody></table>'
     +'<div class="period-section-title">Codes and Recurrences</div>'
