@@ -1816,7 +1816,7 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Hole Detail Table</div>
           <div class="tbl-scroll" style="max-height:320px;">
             <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+              <thead><tr><th>Hole ID</th><th>Purpose</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
               <tbody id="period-hole-body"></tbody>
             </table>
           </div>
@@ -4298,13 +4298,14 @@ function renderPeriodHoleTable(metrics){
   const tbody=document.getElementById('period-hole-body');
   if(!tbody)return;
   if(!metrics.length){
-    tbody.innerHTML='<tr><td colspan="13"><div class="empty-state">No holes active in the selected period.</div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="14"><div class="empty-state">No holes active in the selected period.</div></td></tr>';
     return;
   }
   tbody.innerHTML=metrics.map(function(m){
     const b=m.borehole||{};
     return '<tr>'
       +'<td><b>'+esc(m.id)+'</b></td>'
+      +'<td>'+esc(b.purpose||'--')+'</td>'
       +'<td class="num">'+(m.plannedMetres?m.plannedMetres.toFixed(1):'--')+'</td>'
       +'<td class="num">'+m.actualMetres.toFixed(1)+'</td>'
       +'<td class="num">'+cur(m.drillingBudget)+'</td>'
@@ -4432,6 +4433,24 @@ function contractorSummaryKey(value){
   return aliases[raw]||raw||'unassigned';
 }
 
+function reportForecastLabel(item){
+  const sections=Array.from(item.sections||[]);
+  if(sections.includes('Drilling'))return 'Drilling';
+  return item.label||sections.join(' / ')||'Unassigned';
+}
+
+function reportForecastAssumption(item){
+  const text=(reportForecastLabel(item)+' '+Array.from(item.sections||[]).join(' ')).toLowerCase();
+  if(text.includes('drilling'))return 0.60;
+  if(text.includes('sigra'))return 1.00;
+  if(text.includes('allianz')&&text.includes('earth'))return 0;
+  return 0.50;
+}
+
+function pct(value){
+  return Math.round((Number.isFinite(value)?value:0)*100)+'%';
+}
+
 function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
@@ -4485,7 +4504,8 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
     const ad=a.sections.has('Drilling')?0:1;
     const bd=b.sections.has('Drilling')?0:1;
     return ad-bd||b.budget-a.budget||a.label.localeCompare(b.label);
-  }).map(function(item){
+  });
+  const contractorCardHtml=contractorCards.map(function(item){
     const variance=item.budget-item.spent;
     const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
     return '<div class="period-support-card">'
@@ -4494,6 +4514,44 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
       +'<div class="sub">Spent vs budget | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+'</div>'
       +'<div class="variance '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+' '+(variance>=0?'under':'over')+'</div>'
       +'</div>';
+  }).join('');
+  const forecastRows=contractorCards.map(function(item){
+    const assumption=reportForecastAssumption(item);
+    const forecastCost=item.budget*assumption;
+    const forecastVariance=forecastCost-item.spent;
+    const spentPct=item.budget>0?item.spent/item.budget:0;
+    return '<tr>'
+      +'<td><b>'+esc(reportForecastLabel(item))+'</b></td>'
+      +'<td class="num">'+cur(item.spent)+'</td>'
+      +'<td class="num">'+cur(item.budget)+'</td>'
+      +'<td class="num">'+(item.budget>0?pct(spentPct):'--')+'</td>'
+      +'<td class="num">'+pct(assumption)+'</td>'
+      +'<td class="num">'+cur(forecastCost)+'</td>'
+      +'<td class="num '+(forecastVariance>=0?'variance-pos':'variance-neg')+'">'+(forecastVariance<0?'-':'')+cur(Math.abs(forecastVariance))+'</td>'
+      +'</tr>';
+  }).join('');
+  const topVarianceRows=contractorCards.map(function(item){
+    const assumption=reportForecastAssumption(item);
+    const forecastCost=item.budget*assumption;
+    const forecastVariance=forecastCost-item.spent;
+    return {
+      label:reportForecastLabel(item),
+      spent:item.spent,
+      budget:item.budget,
+      assumption:assumption,
+      forecastCost:forecastCost,
+      forecastVariance:forecastVariance
+    };
+  }).filter(function(item){
+    return item.forecastVariance<0;
+  }).sort(function(a,b){
+    return Math.abs(b.forecastVariance)-Math.abs(a.forecastVariance);
+  }).slice(0,5).map(function(item){
+    return '<tr>'
+      +'<td><b>'+esc(item.label)+'</b></td>'
+      +'<td class="num variance-neg">-'+cur(Math.abs(item.forecastVariance))+'</td>'
+      +'<td>'+esc('Spent '+cur(item.spent)+' against forecast '+cur(item.forecastCost)+' ('+pct(item.assumption)+' of '+cur(item.budget)+' budget).')+'</td>'
+      +'</tr>';
   }).join('');
   const sectionActuals=Object.assign({},totals);
   sectionActuals.Drilling=numVal(drillingSpend);
@@ -4520,7 +4578,15 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
       +'</tr>';
   }).join('');
   el.innerHTML='<div class="period-support-panel">'
-    +'<div class="period-support-total">'+(contractorCards||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
+    +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
+    +'<div class="period-section-title">Forecast Summary</div>'
+    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Activity</th><th>Total spent</th><th>Total budget</th><th>% of budget spent</th><th>Forecast assumption</th><th>Forecasted cost</th><th>Forecast variance</th></tr></thead><tbody>'
+    +(forecastRows||'<tr><td colspan="7" style="padding:14px;color:var(--muted);text-align:center;">No contractor budget forecast data.</td></tr>')
+    +'</tbody></table>'
+    +'<div class="period-section-title">Top Variances</div>'
+    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Activity</th><th>Forecast variance</th><th>Expanded detail</th></tr></thead><tbody>'
+    +(topVarianceRows||'<tr><td colspan="3" style="padding:14px;color:var(--muted);text-align:center;">No forecast overruns in this period.</td></tr>')
+    +'</tbody></table>'
     +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>Spent</th><th>Variance</th></tr></thead><tbody>'
     +(sectionRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project budgets recorded.</td></tr>')
     +'</tbody></table>'
