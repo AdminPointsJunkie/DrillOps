@@ -72,6 +72,7 @@ CONTRACTOR_REFERENCE_TABLES = [
     "activity_sheet_locks",
     "minimum_shift_topup_preferences",
     "projects",
+    "project_budgets",
     "invoices",
     "invoice_lines",
     "invoice_imports",
@@ -685,6 +686,37 @@ def init_db():
                 conn.rollback()
 
             # ── Invoices ──────────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS project_budgets (
+                    id            SERIAL PRIMARY KEY,
+                    contractor    TEXT NOT NULL DEFAULT 'Company',
+                    program       TEXT DEFAULT 'Exploration',
+                    project       TEXT NOT NULL,
+                    section       TEXT NOT NULL,
+                    vendor        TEXT,
+                    budget_amount FLOAT DEFAULT 0,
+                    allocation    TEXT DEFAULT 'Project level',
+                    notes         TEXT,
+                    updated_at    TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(contractor, project, section, vendor)
+                )
+            """)
+            for col, typedef in [
+                ("contractor", "TEXT NOT NULL DEFAULT 'Company'"),
+                ("program", "TEXT DEFAULT 'Exploration'"),
+                ("project", "TEXT"),
+                ("section", "TEXT"),
+                ("vendor", "TEXT"),
+                ("budget_amount", "FLOAT DEFAULT 0"),
+                ("allocation", "TEXT DEFAULT 'Project level'"),
+                ("notes", "TEXT"),
+                ("updated_at", "TIMESTAMP DEFAULT NOW()"),
+            ]:
+                try:
+                    cur.execute(f"ALTER TABLE project_budgets ADD COLUMN IF NOT EXISTS {col} {typedef}")
+                except Exception:
+                    conn.rollback()
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
                     id              SERIAL PRIMARY KEY,
@@ -7025,6 +7057,123 @@ def delete_project(project_id: int):
 
 # ── Gemini Vision OCR for handwritten drill logs ──────────────────────────────
 
+# Project budgets
+def clean_project_budget_row(row: dict, contractor_default: str = "Company") -> dict:
+    project = str(row.get("project") or "").strip()
+    section = str(row.get("section") or row.get("category") or "").strip()
+    if not project:
+        raise HTTPException(400, "project is required")
+    if not section:
+        raise HTTPException(400, "section is required")
+    try:
+        amount = float(str(row.get("budget_amount", row.get("budget", 0)) or 0).replace("$", "").replace(",", ""))
+    except Exception:
+        amount = 0.0
+    return {
+        "contractor": str(row.get("contractor") or contractor_default or "Company").strip() or "Company",
+        "program": str(row.get("program") or "Exploration").strip() or "Exploration",
+        "project": project,
+        "section": section,
+        "vendor": str(row.get("vendor") or row.get("contractor_vendor") or "").strip(),
+        "budget_amount": amount,
+        "allocation": str(row.get("allocation") or "Project level").strip() or "Project level",
+        "notes": str(row.get("notes") or "").strip(),
+    }
+
+
+@app.get("/project-budgets")
+def get_project_budgets(
+    contractor: str = Query("Company"),
+    project: Optional[str] = Query(None),
+    program: Optional[str] = Query(None),
+):
+    where = ["contractor=%s"]
+    params = [contractor]
+    if project:
+        where.append("project=%s")
+        params.append(project)
+    if program:
+        where.append("program=%s")
+        params.append(program)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT *
+                FROM project_budgets
+                WHERE {' AND '.join(where)}
+                ORDER BY program, project, section, vendor
+            """, params)
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.post("/project-budgets")
+async def upsert_project_budgets(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    contractor = str(payload.get("contractor") or "Company").strip() or "Company"
+    rows = payload.get("budgets", payload.get("rows", None))
+    if rows is None:
+        rows = [payload]
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(400, "No budget rows provided")
+    cleaned = [clean_project_budget_row(dict(r), contractor) for r in rows]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for row in cleaned:
+                cur.execute("""
+                    INSERT INTO project_budgets
+                    (contractor, program, project, section, vendor, budget_amount, allocation, notes, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                    ON CONFLICT (contractor, project, section, vendor)
+                    DO UPDATE SET
+                        program=EXCLUDED.program,
+                        budget_amount=EXCLUDED.budget_amount,
+                        allocation=EXCLUDED.allocation,
+                        notes=EXCLUDED.notes,
+                        updated_at=NOW()
+                """, (
+                    row["contractor"], row["program"], row["project"], row["section"], row["vendor"],
+                    row["budget_amount"], row["allocation"], row["notes"],
+                ))
+        conn.commit()
+    return {"status": "saved", "count": len(cleaned)}
+
+
+@app.patch("/project-budgets/{budget_id}")
+async def update_project_budget(budget_id: int, request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    safe = {"contractor", "program", "project", "section", "vendor", "budget_amount", "allocation", "notes"}
+    update = {k: payload[k] for k in safe if k in payload}
+    if not update:
+        return {"status": "unchanged"}
+    if "budget_amount" in update:
+        try:
+            update["budget_amount"] = float(str(update["budget_amount"] or 0).replace("$", "").replace(",", ""))
+        except Exception:
+            update["budget_amount"] = 0.0
+    set_clause = ", ".join([f"{k}=%s" for k in update.keys()] + ["updated_at=NOW()"])
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE project_budgets SET {set_clause} WHERE id=%s", list(update.values()) + [budget_id])
+        conn.commit()
+    return {"status": "updated"}
+
+
+@app.delete("/project-budgets/{budget_id}")
+def delete_project_budget(budget_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM project_budgets WHERE id=%s", (budget_id,))
+        conn.commit()
+    return {"status": "deleted"}
+
+
+# Gemini Vision OCR
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 GEMINI_PROMPT = """You are reading a scanned handwritten drilling End-of-Shift report (DEPCO Drill Log format).
