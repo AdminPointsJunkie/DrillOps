@@ -332,6 +332,12 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-bar-fill.actual{background:#dc2626;}
 .period-map-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:14px;break-inside:avoid;}
 .period-map{height:440px;border:1px solid #dfe5ec;border-radius:6px;background:#eef2f7;overflow:hidden;}
+.period-map-print{height:250px;border:1px solid #dfe5ec;border-radius:6px;background:#eef2f7;overflow:hidden;position:relative;display:none;}
+.period-map-print img{position:absolute;user-select:none;pointer-events:none;}
+.period-map-print .print-map-overlay{opacity:0.86;}
+.print-map-marker{position:absolute;width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.45);transform:translate(-50%,-50%);}
+.print-map-label{position:absolute;transform:translate(9px,-50%);font-size:10px;font-weight:800;color:#1f2d3a;background:rgba(255,255,255,0.75);padding:1px 3px;border-radius:3px;text-shadow:0 1px 0 #fff;white-space:nowrap;}
+.print-map-attribution{position:absolute;right:4px;bottom:3px;background:rgba(255,255,255,0.75);font-size:10px;color:#1f5f8b;padding:1px 3px;}
 .period-map-empty{height:120px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;border:1px dashed var(--border);border-radius:6px;background:#fff;}
 .period-visual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;}
 .period-visual-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;min-height:150px;}
@@ -365,7 +371,8 @@ body.period-print-prep .period-report-head{display:none!important;}
 body.period-print-prep .period-report-body{padding:0!important;}
 body.period-print-prep .period-print-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;border-bottom:1.5px solid #1f2d3a!important;padding-bottom:7px!important;margin-bottom:9px!important;}
 body.period-print-prep .period-map-card{padding:6px!important;margin-bottom:8px!important;}
-body.period-print-prep .period-map{height:250px!important;}
+body.period-print-prep .period-map{display:none!important;}
+body.period-print-prep .period-map-print{display:block!important;height:250px!important;}
 
 @media print{
   @page{size:A4 landscape;margin:8mm 8mm 12mm;
@@ -394,8 +401,9 @@ body.period-print-prep .period-map{height:250px!important;}
   #period-standby-panel,#period-standby-panel .period-bar-chart{break-inside:avoid!important;}
   #period-standby-panel.collapsed .tbl-scroll{display:block!important;}
   .period-map-card{padding:6px!important;margin-bottom:8px!important;}
-  .period-map{height:250px!important;}
-  .period-map,.period-map *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  .period-map{display:none!important;}
+  .period-map-print{display:block!important;height:250px!important;}
+  .period-map-print,.period-map-print *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   .period-visual-card,.period-visual-card *,.period-hole-track,.period-hole-fill,.period-legend i{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   .period-visual-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
   .period-hole-track{background:#e5eaf1!important;border:1px solid #d9e0ea!important;box-sizing:border-box!important;}
@@ -1790,6 +1798,7 @@ tbody td[contenteditable=true]:focus {
           <div class="period-section-title">Boreholes In Drilling Period</div>
           <div class="period-map-card">
             <div id="period-map" class="period-map"></div>
+            <div id="period-map-print" class="period-map-print" aria-hidden="true"></div>
             <div id="period-map-empty" class="period-map-empty" style="display:none;">No mapped boreholes in this period.</div>
           </div>
           <div class="period-section-title">Headline Figures</div>
@@ -4219,8 +4228,10 @@ async function preparePeriodMapForPrint(){
   document.body.classList.add('period-print-prep');
   await waitForPrintPrep(120);
   fitPeriodMapToBounds(true);
+  renderPeriodPrintMap();
   await waitForPrintPrep(260);
   fitPeriodMapToBounds(true);
+  renderPeriodPrintMap();
   await waitForPrintPrep(260);
 }
 
@@ -4241,11 +4252,15 @@ function renderPeriodMap(activeHoles){
   }).filter(function(b){return Number.isFinite(b.lat)&&Number.isFinite(b.lng);});
   if(!mapped.length){
     el.style.display='none';
+    periodMapPrintHoles=[];
+    const printEl=document.getElementById('period-map-print');
+    if(printEl)printEl.innerHTML='';
     if(empty)empty.style.display='flex';
     periodMapBounds=null;
     if(periodMap){periodMap.remove();periodMap=null;periodMapMarkers=[];periodMapOverlays=[];}
     return;
   }
+  periodMapPrintHoles=mapped;
   el.style.display='block';
   if(empty)empty.style.display='none';
   if(!periodMap){
@@ -4272,6 +4287,59 @@ function renderPeriodMap(activeHoles){
   });
   periodMapBounds=L.latLngBounds(mapped.map(function(b){return[b.lat,b.lng];}));
   setTimeout(fitPeriodMapToBounds,80);
+  setTimeout(renderPeriodPrintMap,140);
+}
+
+function renderPeriodPrintMap(){
+  const el=document.getElementById('period-map-print');
+  if(!el||typeof L==='undefined'||!periodMapBounds||!periodMapBounds.isValid()||!periodMapPrintHoles.length)return;
+  const width=Math.max(1,Math.round(el.clientWidth||el.getBoundingClientRect().width||1060));
+  const height=Math.max(1,Math.round(el.clientHeight||250));
+  const sw0=L.CRS.EPSG3857.latLngToPoint(periodMapBounds.getSouthWest(),0);
+  const ne0=L.CRS.EPSG3857.latLngToPoint(periodMapBounds.getNorthEast(),0);
+  const spanX=Math.max(0.0001,Math.abs(ne0.x-sw0.x));
+  const spanY=Math.max(0.0001,Math.abs(sw0.y-ne0.y));
+  const fitScale=Math.min((width-180)/spanX,(height-70)/spanY);
+  const zoom=Math.max(1,Math.min(16,Math.floor(Math.log(Math.max(1,fitScale))/Math.log(2))));
+  const center=periodMapBounds.getCenter();
+  const tileSize=256;
+  const centerPoint=L.CRS.EPSG3857.latLngToPoint(center,zoom);
+  const origin=L.point(centerPoint.x-width/2,centerPoint.y-height/2);
+  const minTileX=Math.floor(origin.x/tileSize);
+  const maxTileX=Math.floor((origin.x+width)/tileSize);
+  const minTileY=Math.floor(origin.y/tileSize);
+  const maxTileY=Math.floor((origin.y+height)/tileSize);
+  const maxTile=Math.pow(2,zoom);
+  let html='';
+  for(let x=minTileX;x<=maxTileX;x++){
+    for(let y=minTileY;y<=maxTileY;y++){
+      if(y<0||y>=maxTile)continue;
+      const wrappedX=((x%maxTile)+maxTile)%maxTile;
+      const left=Math.round(x*tileSize-origin.x);
+      const top=Math.round(y*tileSize-origin.y);
+      html+='<img alt="" src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+zoom+'/'+y+'/'+wrappedX+'" style="left:'+left+'px;top:'+top+'px;width:'+tileSize+'px;height:'+tileSize+'px;">';
+    }
+  }
+  periodMapOverlayAssets(periodMapPrintHoles).forEach(function(asset){
+    const nw=L.CRS.EPSG3857.latLngToPoint(L.latLng(asset.bounds[1][0],asset.bounds[0][1]),zoom);
+    const se=L.CRS.EPSG3857.latLngToPoint(L.latLng(asset.bounds[0][0],asset.bounds[1][1]),zoom);
+    const left=nw.x-origin.x;
+    const top=nw.y-origin.y;
+    const overlayWidth=se.x-nw.x;
+    const overlayHeight=se.y-nw.y;
+    html+='<img class="print-map-overlay" alt="" src="'+attr(asset.path)+'" style="left:'+left.toFixed(1)+'px;top:'+top.toFixed(1)+'px;width:'+overlayWidth.toFixed(1)+'px;height:'+overlayHeight.toFixed(1)+'px;">';
+  });
+  periodMapPrintHoles.forEach(function(b){
+    const point=L.CRS.EPSG3857.latLngToPoint(L.latLng(b.lat,b.lng),zoom);
+    const left=point.x-origin.x;
+    const top=point.y-origin.y;
+    const label=displayHoleId(b)||b.hole_id||b.site_id||'Hole';
+    const col=getBhColor(b);
+    html+='<div class="print-map-marker" style="left:'+left.toFixed(1)+'px;top:'+top.toFixed(1)+'px;background:'+attr(col)+'"></div>'
+      +'<div class="print-map-label" style="left:'+left.toFixed(1)+'px;top:'+top.toFixed(1)+'px;">'+esc(label)+'</div>';
+  });
+  html+='<div class="print-map-attribution">Esri</div>';
+  el.innerHTML=html;
 }
 
 function fitPeriodMapToBounds(printMode){
@@ -4294,9 +4362,11 @@ function fitPeriodMapToBounds(printMode){
 
 if(typeof window!=='undefined'){
   window.addEventListener('beforeprint',function(){
+    if(document&&document.body)document.body.classList.add('period-print-prep');
     fitPeriodMapToBounds(true);
+    renderPeriodPrintMap();
     setTimeout(function(){fitPeriodMapToBounds(true);},120);
-    setTimeout(function(){fitPeriodMapToBounds(true);},320);
+    setTimeout(function(){fitPeriodMapToBounds(true);renderPeriodPrintMap();},320);
   });
   window.addEventListener('afterprint',function(){
     if(document&&document.body)document.body.classList.remove('period-print-prep');
@@ -6794,6 +6864,7 @@ let periodMap = null;
 let periodMapMarkers = [];
 let periodMapOverlays = [];
 let periodMapBounds = null;
+let periodMapPrintHoles = [];
 let boreholesCsvData = [];
 let boreholeDetailsCsvData = [];
 
