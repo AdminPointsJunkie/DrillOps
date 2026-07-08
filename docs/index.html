@@ -4316,7 +4316,7 @@ function periodMapOverlayAssets(activeHoles){
 function periodHoleNeedsCoding(metric){
   const status=String((metric&&metric.borehole&&metric.borehole.status)||'').trim().toLowerCase();
   if(status.indexOf('complete')!==0)return false;
-  return Number(metric.actualMetres||0)<=0||Number(metric.drillingCharged||0)<=0;
+  return Number(metric.drillingCharged||0)<=0;
 }
 
 function renderPeriodHoleTable(metrics){
@@ -4329,7 +4329,7 @@ function renderPeriodHoleTable(metrics){
   tbody.innerHTML=metrics.map(function(m){
     const b=m.borehole||{};
     const needsCoding=periodHoleNeedsCoding(m);
-    const noMetres=needsCoding&&Number(m.actualMetres||0)<=0;
+    const noMetres=Number(m.actualMetres||0)<=0;
     const noDrillingCost=needsCoding&&Number(m.drillingCharged||0)<=0;
     const noTotalCost=needsCoding&&Number(m.charged||0)<=0;
     const notCoded='<span class="not-coded-text">Not Coded</span>';
@@ -4341,8 +4341,8 @@ function renderPeriodHoleTable(metrics){
       +'<td class="num">'+cur(m.drillingBudget)+'</td>'
       +'<td class="num">'+(noDrillingCost?notCoded:cur(m.drillingCharged))+'</td>'
       +'<td class="num">'+(noTotalCost?notCoded:cur(m.charged))+'</td>'
-      +'<td class="num">'+(noMetres?notCoded:(m.costPerMetre>0?cur(m.costPerMetre):'--'))+'</td>'
-      +'<td class="num">'+(noMetres?notCoded:(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--'))+'</td>'
+      +'<td class="num">'+(needsCoding?notCoded:(m.costPerMetre>0?cur(m.costPerMetre):'--'))+'</td>'
+      +'<td class="num">'+(needsCoding?notCoded:(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--'))+'</td>'
       +'<td class="num '+(needsCoding?'not-coded-text':(m.variance>=0?'variance-pos':'variance-neg'))+'">'+(needsCoding?'Not Coded':cur(Math.abs(m.variance)))+'</td>'
       +'<td>'+esc(b.bh_type||b.type||b.bit_type||'--')+'</td>'
       +'<td>'+esc(m.start||'--')+'</td>'
@@ -4365,7 +4365,7 @@ function renderPeriodHoleGraphics(metrics){
   });
   const rankedPen=metrics.slice().filter(function(m){return m.penetration>0;}).sort(function(a,b){return b.penetration-a.penetration;}).slice(0,10);
   metrics.forEach(function(m){
-    if(periodHoleNeedsCoding(m)&&Number(m.actualMetres||0)<=0&&!rankedPen.some(function(row){return row.id===m.id;}))rankedPen.push(m);
+    if(periodHoleNeedsCoding(m)&&!rankedPen.some(function(row){return row.id===m.id;}))rankedPen.push(m);
   });
   const maxCost=Math.max(1,...rankedCost.map(function(m){return Math.max(m.drillingCharged,m.drillingBudget);}));
   const maxPen=Math.max(1,...rankedPen.map(function(m){return m.penetration;}));
@@ -4384,14 +4384,13 @@ function renderPeriodHoleGraphics(metrics){
   }).join('');
   const penBars=(rankedPen.length?rankedPen:metrics.slice(0,10)).map(function(m){
     const needsCoding=periodHoleNeedsCoding(m);
-    const noMetres=needsCoding&&Number(m.actualMetres||0)<=0;
-    const title=noMetres?'Not Coded - completed hole has no actual metres':m.actualMetres.toFixed(1)+' m / '+m.drillHours.toFixed(1)+' h';
-    const value=noMetres?'Not Coded':(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--');
-    const width=noMetres?0:Math.min(100,((m.penetration||0)/maxPen)*100);
+    const title=needsCoding?'Not Coded - completed hole has no matched drilling charge':m.actualMetres.toFixed(1)+' m / '+m.drillHours.toFixed(1)+' h';
+    const value=needsCoding?'Not Coded':(m.penetration>0?m.penetration.toFixed(2)+' m/h':'--');
+    const width=needsCoding?0:Math.min(100,((m.penetration||0)/maxPen)*100);
     return '<div class="period-hole-bar">'
       +'<div class="period-hole-label" title="'+attr(m.id)+'">'+esc(m.id)+'</div>'
-      +'<div class="period-hole-track" title="'+attr(title)+'"><div class="period-hole-fill '+(noMetres?'not-coded':'')+'" style="width:'+width.toFixed(1)+'%"></div></div>'
-      +'<div class="period-hole-value '+(noMetres?'not-coded-text':'')+'">'+value+'</div>'
+      +'<div class="period-hole-track" title="'+attr(title)+'"><div class="period-hole-fill '+(needsCoding?'not-coded':'')+'" style="width:'+width.toFixed(1)+'%"></div></div>'
+      +'<div class="period-hole-value '+(needsCoding?'not-coded-text':'')+'">'+value+'</div>'
       +'</div>';
   }).join('');
   el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Drilling Spend Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#1f5f8b"></i>Drilling spend</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
