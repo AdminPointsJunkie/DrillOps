@@ -3928,6 +3928,31 @@ function boreholeIsComplete(b){
   return String((b&&b.status)||'').trim().toLowerCase().indexOf('complete')===0;
 }
 
+function uniqueBoreholesById(rows){
+  const byId=new Map();
+  (rows||[]).forEach(function(b){
+    const id=String((b&&b.hole_id)||'').trim();
+    if(id&&!byId.has(id))byId.set(id,b);
+  });
+  return Array.from(byId.values());
+}
+
+function periodPlannedBoreholes(rows){
+  const holes=uniqueBoreholesById(rows);
+  const hasNamedHole=holes.some(function(b){
+    const id=String((b&&b.hole_id)||'').trim();
+    const site=String((b&&b.site_id)||'').trim();
+    return id&&(!site||id!==site);
+  });
+  if(!hasNamedHole)return holes;
+  return holes.filter(function(b){
+    const id=String((b&&b.hole_id)||'').trim();
+    const site=String((b&&b.site_id)||'').trim();
+    const status=String((b&&b.status)||'').trim().toLowerCase();
+    return !(id&&site&&id===site&&status==='planned');
+  });
+}
+
 function periodRelevantProjectHoles(projectHoles,activeHoles){
   const byId=new Map();
   (projectHoles||[]).concat(activeHoles||[]).forEach(function(b){
@@ -4146,7 +4171,7 @@ function renderPeriodReport(){
   const supportInvoices=periodFilteredSupportInvoices();
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
-  const projectHoles=(bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);});
+  const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
   const reportHoles=periodRelevantProjectHoles(projectHoles,activeHoles);
   const activityCost=rows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
@@ -4168,8 +4193,8 @@ function renderPeriodReport(){
     if(method==='Core')coreMetres+=numVal(r.total_metres);
     else if(method==='Chipped / RC')chippedMetres+=numVal(r.total_metres);
   });
-  const completed=reportHoles.filter(boreholeIsComplete).length;
-  const planned=reportHoles.length||activeHoles.length;
+  const completed=(projectHoles.length?projectHoles:reportHoles).filter(boreholeIsComplete).length;
+  const planned=projectHoles.length||reportHoles.length||activeHoles.length;
   const extrasCost=rows.filter(rowIsExtra).reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const avgCost=totalMetres>0?totalDrillingCost/totalMetres:0;
   const projectLabel=period.project||'All Projects';
