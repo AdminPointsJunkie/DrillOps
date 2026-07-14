@@ -4321,10 +4321,9 @@ async def delete_activity_reports(request: Request):
                     "hole_num": hole_num,
                     "source_file": source_file,
                 }
-                if source_file and not hole_num:
+                if source_file:
                     where = """
                         contractor=%(contractor)s
-                        AND COALESCE(date,'')=%(date)s
                         AND COALESCE(source_file,'')=%(source_file)s
                     """
                 else:
@@ -4342,12 +4341,18 @@ async def delete_activity_reports(request: Request):
                     cur.execute(f"DELETE FROM {table} WHERE {where}", row_params)
                     totals[counter] += max(cur.rowcount, 0)
 
-                meta_where = """
-                    contractor=%(contractor)s
-                    AND COALESCE(report_date,'')=%(report_date)s
-                    AND COALESCE(hole_num,'')=%(hole_num)s
-                    AND COALESCE(source_file,'')=%(source_file)s
-                """
+                if source_file:
+                    meta_where = """
+                        contractor=%(contractor)s
+                        AND COALESCE(source_file,'')=%(source_file)s
+                    """
+                else:
+                    meta_where = """
+                        contractor=%(contractor)s
+                        AND COALESCE(report_date,'')=%(report_date)s
+                        AND COALESCE(hole_num,'')=%(hole_num)s
+                        AND COALESCE(source_file,'')=%(source_file)s
+                    """
                 for table, counter in (
                     ("report_approvals", "approvals"),
                     ("activity_sheet_locks", "locks"),
