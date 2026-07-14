@@ -3180,20 +3180,33 @@ PARSED CREW:
 
 def infer_report_contractor(selected_contractor: str, filename: str = "", header: dict = None, source_text: str = "") -> str:
     header = header or {}
-    haystack = " ".join([
-        selected_contractor or "",
+    report_haystack = " ".join([
         filename or "",
         header.get("drill_rig") or "",
         header.get("contract") or "",
         header.get("client") or "",
         source_text[:4000] if source_text else "",
     ]).upper()
+    filename_upper = str(filename or "").upper().strip()
     rig = str(header.get("drill_rig") or "").upper().strip()
-    if "MITCHELL" in haystack or "COREPLAN" in haystack or rig in {"IB652C"}:
-        return "Mitchells Drilling"
-    if "ALLIANZ" in haystack or rig.startswith(("ADR", "ALZ")):
+    # Report identity is stronger evidence than the upload card selected in the UI.
+    # In particular, ADR001 PDFs must never be filed under Mitchells accidentally.
+    if filename_upper.startswith("ADR001") or rig.startswith(("ADR", "ALZ")) or "ALLIANZ" in report_haystack:
         return "Allianz Drilling"
+    if rig in {"IB652C"} or "MITCHELL" in report_haystack or "COREPLAN" in report_haystack:
+        return "Mitchells Drilling"
     return selected_contractor or "Allianz Drilling"
+
+
+def apply_import_activity_scope(rows: list[dict], contractor: str) -> list[dict]:
+    """Ensure imported activity rows participate in program/project filtering."""
+    default_program = "Exploration" if contractor != "MCC Group" else ""
+    for row in rows:
+        if not str(row.get("program") or "").strip():
+            row["program"] = default_program
+        if "project" not in row:
+            row["project"] = None
+    return rows
 
 
 @app.post("/import")
@@ -3267,18 +3280,19 @@ async def import_pdf(
         acts = restore_coreplan_activity_line_costs(acts)
         acts = adjust_imported_minimum_shift_rows(acts, contractor)
         acts = apply_allianz_minimum_shift_topups_to_rows(acts)
+        acts = apply_import_activity_scope(acts, contractor)
 
         with get_conn() as conn:
             with conn.cursor() as cur:
                 if acts:
                     psycopg2.extras.execute_batch(cur, """
                         INSERT INTO activities
-                        (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                        (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
                          client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                          metres_from,metres_to,total_metres,code,notes,
                          rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
                         VALUES
-                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
                          %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                          %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                          %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
@@ -3324,6 +3338,7 @@ async def import_pdf(
         acts = parse_activities(text, header, filename, contractor)
     cons = parse_consumables(text, header, filename, contractor)
     crew = parse_crew(text, header, filename, contractor)
+    acts = apply_import_activity_scope(acts, contractor)
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -3489,12 +3504,12 @@ async def import_pdf(
             if acts:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
-                    (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                    (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
                      client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                      metres_from,metres_to,total_metres,code,notes,
                      rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
                     VALUES
-                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
                      %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                      %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                      %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
@@ -7404,18 +7419,20 @@ async def import_ocr_pdf(
             "line_cost": None, "rate_basis": None, "po_id": None,
         })
 
+    rows = apply_import_activity_scope(rows, contractor)
+
     # Save to database
     with get_conn() as conn:
         with conn.cursor() as cur:
             if rows:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
-                    (source_file,contractor,date,hole_num,site_name,location,drill_rig,
+                    (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
                      client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
                      metres_from,metres_to,total_metres,code,notes,
                      rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
                     VALUES
-                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
                      %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
                      %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
                      %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
