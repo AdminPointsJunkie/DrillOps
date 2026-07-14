@@ -17,6 +17,8 @@ main{max-width:1540px;margin:0 auto;padding:18px;}
 .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 button,.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;cursor:pointer;}
 button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+button:disabled{cursor:not-allowed;opacity:.45;background:#f8fafc;color:#7b8794;border-color:#d8e0ea;}
+.report-nav-position{display:inline-flex;align-items:center;padding:0 2px;color:var(--muted);font-size:11px;font-weight:750;white-space:nowrap;}
 select,textarea{border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-size:12px;}
 select{padding:8px 10px;font-weight:650;}
 textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
@@ -96,6 +98,9 @@ tr.saving td{background:#fff7e6;}
         <span class="approval-status" id="approval-status" style="display:none;"></span>
       </div>
       <div class="actions">
+        <button id="report-back-btn" type="button" disabled>&larr; Back</button>
+        <span class="report-nav-position" id="report-nav-position">1 of 1</span>
+        <button id="report-next-btn" type="button" disabled>Next &rarr;</button>
         <button id="pdf-btn" type="button">PDF</button>
         <button id="lock-btn" type="button">Lock sheet</button>
         <a class="btn" href="index.html">Reports list</a>
@@ -179,6 +184,7 @@ const reportDate=params.get('date')||'';
 const hole=params.get('hole')||'';
 const source=params.get('source')||'';
 const title=params.get('title')||'Daily report';
+const navigationToken=params.get('nav')||'';
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
 const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
@@ -384,6 +390,88 @@ async function saveReportEquipmentEdit(cell){
   }
 }
 async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
+function reportNavigationDateKey(value){
+  const text=String(value||'').trim();
+  const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return Date.UTC(parseInt(dm[3]),parseInt(dm[2])-1,parseInt(dm[1]));
+  const parsed=Date.parse(text);
+  return Number.isFinite(parsed)?parsed:0;
+}
+function navigationReportsFromRows(rows){
+  const reports=new Map();
+  (rows||[]).forEach(function(row){
+    if(row.contractor&&row.contractor!==contractor)return;
+    if(program&&row.program&&row.program!==program)return;
+    const rowSource=String(row.source_file||'');
+    const rowHole=String(row.hole_num||'');
+    const key=rowSource
+      ? [row.contractor||contractor,row.date||'',rowSource].join('|')
+      : [row.contractor||contractor,row.date||'',rowHole,'Manual entry'].join('|');
+    if(!reports.has(key)){
+      reports.set(key,{
+        key:key,
+        contractor:row.contractor||contractor,
+        program:row.program||program,
+        date:row.date||'',
+        hole:rowSource?'':rowHole,
+        displayHole:rowHole,
+        source:rowSource,
+        title:rowSource?rowSource.replace(/\.[^.]+$/,'').slice(0,34):('Daily report '+(row.date||rowHole||''))
+      });
+    }
+  });
+  return [...reports.values()].sort(function(a,b){
+    return reportNavigationDateKey(b.date)-reportNavigationDateKey(a.date)
+      ||String(a.displayHole||a.hole).localeCompare(String(b.displayHole||b.hole));
+  });
+}
+function storedNavigationReports(){
+  if(!navigationToken)return [];
+  try{
+    const saved=JSON.parse(localStorage.getItem('drillops-report-navigation:'+navigationToken)||'null');
+    return saved&&Array.isArray(saved.reports)?saved.reports:[];
+  }catch(e){return [];}
+}
+function currentNavigationIndex(reports){
+  return reports.findIndex(function(report){
+    if(source)return report.source===source&&report.date===reportDate;
+    return !report.source&&report.date===reportDate&&String(report.hole||'')===String(hole||'');
+  });
+}
+function reportNavigationUrl(report){
+  const nextParams=new URLSearchParams({
+    contractor:report.contractor||contractor,
+    program:report.program||program,
+    date:report.date||'',
+    hole:report.hole||'',
+    source:report.source||'',
+    title:report.title||'Daily report'
+  });
+  if(navigationToken)nextParams.set('nav',navigationToken);
+  return 'report.html?'+nextParams.toString();
+}
+function renderReportNavigation(reports){
+  const back=document.getElementById('report-back-btn');
+  const next=document.getElementById('report-next-btn');
+  const position=document.getElementById('report-nav-position');
+  const index=currentNavigationIndex(reports);
+  const hasCurrent=index>=0;
+  back.disabled=!hasCurrent||index===0;
+  next.disabled=!hasCurrent||index===reports.length-1;
+  position.textContent=hasCurrent?(index+1)+' of '+reports.length:'1 of 1';
+  back.onclick=back.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index-1]);};
+  next.onclick=next.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index+1]);};
+}
+async function initReportNavigation(){
+  let reports=storedNavigationReports();
+  if(currentNavigationIndex(reports)<0){
+    try{
+      const allRows=await fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor));
+      reports=navigationReportsFromRows(allRows);
+    }catch(e){reports=[];}
+  }
+  renderReportNavigation(reports);
+}
 async function loadReportData(){
   const actParams=new URLSearchParams({contractor});
   if(reportDate)actParams.set('dates',reportDate);
@@ -411,6 +499,7 @@ async function loadReport(){
   await initLockControls();
   await initMinimumShiftControls();
   await loadReportData();
+  await initReportNavigation();
 }
 function emptyApprovalRecord(){return {status:'',reason:'',log:[]};}
 function approvalParams(){
