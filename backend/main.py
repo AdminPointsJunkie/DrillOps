@@ -7392,7 +7392,7 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
             "maxOutputTokens": 16384,
             "responseFormat": {
                 "text": {
-                    "mimeType": "application/json",
+                    "mimeType": "APPLICATION_JSON",
                     "schema": GEMINI_OCR_RESPONSE_SCHEMA,
                 }
             },
