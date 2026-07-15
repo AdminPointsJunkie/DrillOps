@@ -7430,8 +7430,9 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
 async def import_ocr_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="DEPCO Drilling"),
+    ocr_data: Optional[str] = Form(default=None),
 ):
-    """Import a handwritten drill log PDF using Gemini Vision OCR."""
+    """Import a handwritten drill log PDF using reviewed or fresh Gemini OCR data."""
     filename = file.filename
     content = await file.read()
 
@@ -7443,13 +7444,27 @@ async def import_ocr_pdf(
             if cur.fetchone():
                 return {"status": "skipped", "filename": filename}
 
-    # OCR with Gemini
-    try:
-        data = await ocr_with_gemini(content)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(422, f"OCR failed: {str(e)}")
+    if ocr_data is not None:
+        if len(ocr_data) > 1_000_000:
+            raise HTTPException(400, "Reviewed OCR data is too large")
+        try:
+            data = json.loads(ocr_data)
+        except json.JSONDecodeError as e:
+            raise HTTPException(400, f"Reviewed OCR data is invalid: {str(e)}")
+        if not isinstance(data, dict) or not isinstance(data.get("activities"), list):
+            raise HTTPException(400, "Reviewed OCR data must contain an activities list")
+        if len(data["activities"]) > 500:
+            raise HTTPException(400, "Reviewed OCR data contains too many activities")
+        if any(not isinstance(activity, dict) for activity in data["activities"]):
+            raise HTTPException(400, "Each reviewed OCR activity must be an object")
+    else:
+        # Keep direct API compatibility, but the UI normally previews and reviews first.
+        try:
+            data = await ocr_with_gemini(content)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(422, f"OCR failed: {str(e)}")
 
     # Convert to activity rows
     activities = data.get("activities", [])

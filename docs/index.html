@@ -1659,7 +1659,7 @@ tbody td[contenteditable=true]:focus {
             <div style="font-size:28px;margin-bottom:4px;">&#x1F916;</div>
             <p>Drop handwritten PDFs</p>
           </div>
-          <button id="ocr-import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Read &amp; Import</button>
+          <button id="ocr-import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Read &amp; Preview</button>
           <div id="ocr-import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:160px;overflow-y:auto;"></div>
         </div>
         <!-- Tax Invoices -->
@@ -1675,6 +1675,7 @@ tbody td[contenteditable=true]:focus {
           <div id="inv-import-log-sidebar" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
       </div>
+      <div id="ocr-preview-panel" style="display:none;margin-top:14px;"></div>
     </section>
 
     <!-- Contractors & User Accounts -->
@@ -6150,12 +6151,16 @@ invSidebarBtn.addEventListener('click', async()=>{
 var ocrFileInput = document.getElementById('ocr-file-input');
 var ocrImportBtn = document.getElementById('ocr-import-btn');
 var ocrPendingFiles = [];
+var ocrPreviewIndex = 0;
+var ocrCurrentFile = null;
+var ocrCurrentData = null;
+var ocrReviewActive = false;
 
 if(ocrFileInput) {
   ocrFileInput.addEventListener('change', function(e) {
     ocrPendingFiles = [].slice.call(e.target.files);
     ocrImportBtn.disabled = ocrPendingFiles.length === 0;
-    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Import';
+    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read & Preview ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Preview';
   });
 }
 
@@ -6163,47 +6168,175 @@ if(document.getElementById('ocr-drop-zone')) {
   document.getElementById('ocr-drop-zone').addEventListener('dragover', function(e) { e.preventDefault(); });
   document.getElementById('ocr-drop-zone').addEventListener('drop', function(e) {
     e.preventDefault();
+    if (ocrReviewActive) return;
     ocrPendingFiles = [].slice.call(e.dataTransfer.files).filter(function(f) { return f.name.endsWith('.pdf'); });
     ocrImportBtn.disabled = ocrPendingFiles.length === 0;
-    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Import';
+    ocrImportBtn.textContent = ocrPendingFiles.length > 0 ? 'AI Read & Preview ' + ocrPendingFiles.length + ' file(s)' : 'AI Read & Preview';
   });
 }
 
-if(ocrImportBtn) {
-  ocrImportBtn.addEventListener('click', async function() {
-    if (!ocrPendingFiles.length) return;
-    ocrImportBtn.disabled = true;
-    ocrImportBtn.innerHTML = '<span class="spinner"></span>AI reading...';
-    var log = document.getElementById('ocr-import-log');
-    log.innerHTML = '';
+function ocrInput(value, field, rowIndex) {
+  var rowAttr = rowIndex === undefined ? '' : ' data-ocr-row="' + rowIndex + '"';
+  return '<input type="text" data-ocr-field="' + field + '"' + rowAttr + ' value="' + attr(value == null ? '' : value) + '" style="width:100%;min-width:72px;padding:6px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);">';
+}
 
-    for (var fi = 0; fi < ocrPendingFiles.length; fi++) {
-      var file = ocrPendingFiles[fi];
-      log.innerHTML += '<div style="color:var(--accent);">\u23f3 Reading ' + file.name + ' with Gemini AI...</div>';
-      var fd = new FormData();
-      fd.append('file', file);
-      fd.append('contractor', activeContractor);
-      try {
-        var res = await fetch(API + '/import/ocr', { method: 'POST', body: fd });
-        var d = await res.json();
-        if (d.status === 'imported') {
-          log.innerHTML += '<div style="color:var(--green);">\u2713 ' + (d.hole_num || file.name) + ' \u2014 ' + d.date + ' \u2014 ' + d.rows + ' activities extracted</div>';
-        } else if (d.status === 'skipped') {
-          log.innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + file.name + ' already imported</div>';
-        } else {
-          log.innerHTML += '<div style="color:var(--red);">\u2717 ' + file.name + ': ' + (d.detail || 'Unknown error') + '</div>';
-        }
-      } catch (err) {
-        log.innerHTML += '<div style="color:var(--red);">\u2717 ' + file.name + ': ' + err.message + '</div>';
+function readOcrPreviewData() {
+  var panel = document.getElementById('ocr-preview-panel');
+  var reviewed = Object.assign({}, ocrCurrentData || {});
+  panel.querySelectorAll('[data-ocr-header]').forEach(function(input) {
+    reviewed[input.getAttribute('data-ocr-header')] = input.value.trim();
+  });
+  reviewed.activities = [].slice.call(panel.querySelectorAll('tbody tr[data-ocr-activity]')).map(function(row) {
+    var activity = {};
+    row.querySelectorAll('[data-ocr-field]').forEach(function(input) {
+      var field = input.getAttribute('data-ocr-field');
+      var value = input.value.trim();
+      if (field === 'metres_from' || field === 'metres_to' || field === 'total_metres') {
+        activity[field] = value === '' || !isFinite(Number(value)) ? null : Number(value);
+      } else {
+        activity[field] = value;
       }
-    }
+    });
+    return activity;
+  });
+  return reviewed;
+}
 
-    ocrImportBtn.textContent = 'AI Read & Import';
-    ocrImportBtn.disabled = false;
-    ocrPendingFiles = [];
-    if (ocrFileInput) ocrFileInput.value = '';
-    await updateDbCount();
-    toast('\u2713 OCR import complete');
+function renderOcrPreview() {
+  var panel = document.getElementById('ocr-preview-panel');
+  var data = ocrCurrentData || {};
+  var fields = [
+    ['hole_num', 'Hole number'], ['date', 'Date (DD/MM/YYYY)'], ['client', 'Client'],
+    ['location', 'Location'], ['rig_no', 'Rig'], ['shift', 'Shift'], ['driller', 'Driller']
+  ];
+  var html = '<div style="border:1.5px solid var(--accent);border-radius:var(--radius-sm);padding:14px;background:#fff;">'
+    + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;">'
+    + '<div><strong>Review before import</strong><div style="font-size:11px;color:var(--muted);margin-top:3px;">' + esc(ocrCurrentFile ? ocrCurrentFile.name : '') + ' \u00b7 File ' + (ocrPreviewIndex + 1) + ' of ' + ocrPendingFiles.length + '</div></div>'
+    + '<span style="font-size:11px;color:#a05a00;background:#fff7e6;padding:4px 7px;border-radius:4px;">Nothing saved yet</span></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;">';
+  fields.forEach(function(item) {
+    html += '<label style="font-size:10px;color:var(--muted);">' + item[1]
+      + '<input type="text" data-ocr-header="' + item[0] + '" value="' + attr(data[item[0]] == null ? '' : data[item[0]]) + '" style="display:block;width:100%;margin-top:3px;padding:7px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);"></label>';
+  });
+  html += '</div><div style="font-size:11px;font-weight:600;margin-bottom:6px;">Activities (' + ((data.activities || []).length) + ')</div>'
+    + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Comments</th><th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th></th></tr></thead><tbody>';
+  (data.activities || []).forEach(function(activity, index) {
+    html += '<tr data-ocr-activity="' + index + '"><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index) + '</td>'
+      + '<td>' + ocrInput(activity.time_from, 'time_from', index) + '</td><td>' + ocrInput(activity.time_to, 'time_to', index) + '</td>'
+      + '<td>' + ocrInput(activity.total_time, 'total_time', index) + '</td><td>' + ocrInput(activity.metres_from, 'metres_from', index) + '</td>'
+      + '<td>' + ocrInput(activity.metres_to, 'metres_to', index) + '</td><td>' + ocrInput(activity.total_metres, 'total_metres', index) + '</td>'
+      + '<td><button type="button" data-remove-ocr-row="' + index + '" title="Remove row" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:16px;">\u00d7</button></td></tr>';
+  });
+  html += '</tbody></table></div><div style="display:flex;justify-content:space-between;gap:8px;margin-top:12px;flex-wrap:wrap;">'
+    + '<button type="button" id="ocr-add-row" style="padding:7px 10px;background:#fff;border:1px solid var(--border);border-radius:4px;cursor:pointer;">+ Add activity</button>'
+    + '<div style="display:flex;gap:8px;"><button type="button" id="ocr-skip-preview" style="padding:8px 12px;background:#fff;border:1px solid var(--border);border-radius:4px;cursor:pointer;">Skip file</button>'
+    + '<button type="button" id="ocr-confirm-import" style="padding:8px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;">Import reviewed data</button></div></div></div>';
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+
+  panel.onclick = function(e) {
+    var removeButton = e.target.closest('[data-remove-ocr-row]');
+    if (removeButton) {
+      ocrCurrentData = readOcrPreviewData();
+      ocrCurrentData.activities.splice(parseInt(removeButton.getAttribute('data-remove-ocr-row'), 10), 1);
+      renderOcrPreview();
+    }
+  };
+  document.getElementById('ocr-add-row').onclick = function() {
+    ocrCurrentData = readOcrPreviewData();
+    ocrCurrentData.activities.push({comments:'',time_from:'',time_to:'',total_time:'',metres_from:null,metres_to:null,total_metres:null});
+    renderOcrPreview();
+  };
+  document.getElementById('ocr-skip-preview').onclick = function() {
+    document.getElementById('ocr-import-log').innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + esc(ocrCurrentFile.name) + ' skipped</div>';
+    ocrPreviewIndex++;
+    previewNextOcrFile();
+  };
+  document.getElementById('ocr-confirm-import').onclick = importReviewedOcrFile;
+}
+
+async function importReviewedOcrFile() {
+  var button = document.getElementById('ocr-confirm-import');
+  var log = document.getElementById('ocr-import-log');
+  ocrCurrentData = readOcrPreviewData();
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span>Importing...';
+  document.getElementById('ocr-skip-preview').disabled = true;
+  document.getElementById('ocr-add-row').disabled = true;
+  document.querySelectorAll('[data-remove-ocr-row]').forEach(function(removeButton) { removeButton.disabled = true; });
+  var fd = new FormData();
+  fd.append('file', ocrCurrentFile);
+  fd.append('contractor', activeContractor);
+  fd.append('ocr_data', JSON.stringify(ocrCurrentData));
+  try {
+    var res = await fetch(API + '/import/ocr', {method:'POST', body:fd});
+    var d = await res.json();
+    if (!res.ok) throw new Error(d.detail || 'Import failed');
+    if (d.status === 'imported') {
+      log.innerHTML += '<div style="color:var(--green);">\u2713 ' + esc(d.hole_num || ocrCurrentFile.name) + ' \u2014 ' + esc(d.date) + ' \u2014 ' + d.rows + ' reviewed activities imported</div>';
+    } else {
+      log.innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + esc(ocrCurrentFile.name) + ' already imported</div>';
+    }
+  } catch (err) {
+    log.innerHTML += '<div style="color:var(--red);">\u2717 ' + esc(ocrCurrentFile.name) + ': ' + esc(err.message) + '</div>';
+    button.disabled = false;
+    button.textContent = 'Retry reviewed import';
+    document.getElementById('ocr-skip-preview').disabled = false;
+    document.getElementById('ocr-add-row').disabled = false;
+    document.querySelectorAll('[data-remove-ocr-row]').forEach(function(removeButton) { removeButton.disabled = false; });
+    return;
+  }
+  ocrPreviewIndex++;
+  await updateDbCount();
+  previewNextOcrFile();
+}
+
+function finishOcrPreviews() {
+  document.getElementById('ocr-preview-panel').style.display = 'none';
+  document.getElementById('ocr-preview-panel').innerHTML = '';
+  ocrPendingFiles = [];
+  ocrCurrentFile = null;
+  ocrCurrentData = null;
+  ocrReviewActive = false;
+  if (ocrFileInput) ocrFileInput.value = '';
+  if (ocrFileInput) ocrFileInput.disabled = false;
+  ocrImportBtn.textContent = 'AI Read & Preview';
+  ocrImportBtn.disabled = true;
+}
+
+async function previewNextOcrFile() {
+  if (ocrPreviewIndex >= ocrPendingFiles.length) {
+    finishOcrPreviews();
+    return;
+  }
+  ocrCurrentFile = ocrPendingFiles[ocrPreviewIndex];
+  ocrImportBtn.innerHTML = '<span class="spinner"></span>AI reading...';
+  var log = document.getElementById('ocr-import-log');
+  log.innerHTML += '<div style="color:var(--accent);">\u23f3 Previewing ' + esc(ocrCurrentFile.name) + ' with Gemini AI...</div>';
+  var fd = new FormData();
+  fd.append('file', ocrCurrentFile);
+  try {
+    var res = await fetch(API + '/import/ocr/preview', {method:'POST', body:fd});
+    var d = await res.json();
+    if (!res.ok) throw new Error(d.detail || 'Preview failed');
+    ocrCurrentData = d.ocr_data || {activities:[]};
+    renderOcrPreview();
+  } catch (err) {
+    log.innerHTML += '<div style="color:var(--red);">\u2717 ' + esc(ocrCurrentFile.name) + ': ' + esc(err.message) + '</div>';
+    ocrPreviewIndex++;
+    previewNextOcrFile();
+  }
+}
+
+if(ocrImportBtn) {
+  ocrImportBtn.addEventListener('click', function() {
+    if (!ocrPendingFiles.length) return;
+    ocrReviewActive = true;
+    ocrImportBtn.disabled = true;
+    if (ocrFileInput) ocrFileInput.disabled = true;
+    document.getElementById('ocr-import-log').innerHTML = '';
+    ocrPreviewIndex = 0;
+    previewNextOcrFile();
   });
 }
 
