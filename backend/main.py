@@ -34,6 +34,14 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is not set.")
 
+# Keep the production model configurable so future model migrations do not
+# require touching every Gemini-powered workflow.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash"
+
+
+def gemini_generate_content_url(api_key: str) -> str:
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+
 CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
@@ -2914,7 +2922,7 @@ SCHEDULE:
 ROWS:
 {json.dumps(compact_rows, indent=2, default=str)}
 """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -2967,7 +2975,7 @@ CONSUMABLE SCHEDULE:
 IMPORTED CONSUMABLES:
 {json.dumps(compact_rows, indent=2, default=str)}
 """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -3154,7 +3162,7 @@ PARSED CONSUMABLES:
 PARSED CREW:
 {json.dumps(compact_crew, indent=2, default=str)}
 """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.environ.get('GEMINI_API_KEY')}"
+    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -6370,7 +6378,7 @@ Provide your audit as JSON with this exact structure:
 
 Return ONLY valid JSON. No markdown fences. No text outside the JSON object."""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = gemini_generate_content_url(GEMINI_API_KEY)
     gemini_payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192}
@@ -7308,7 +7316,7 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
     b64_image = base64.b64encode(img_bytes).decode('utf-8')
 
     # Call Gemini API
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = gemini_generate_content_url(GEMINI_API_KEY)
 
     payload = {
         "contents": [{
