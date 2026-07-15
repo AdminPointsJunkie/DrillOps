@@ -10,6 +10,7 @@ import base64
 import json
 import csv
 from contextlib import contextmanager
+from functools import lru_cache
 from io import BytesIO
 from io import StringIO
 from threading import BoundedSemaphore
@@ -6964,13 +6965,17 @@ async def recalculate_database_from_rates(request: Request):
 
 # ── Borehole Planning ─────────────────────────────────────────────────────────
 
+@lru_cache(maxsize=1)
+def agd84_amg55_transformer():
+    from pyproj import Transformer
+    return Transformer.from_crs("EPSG:20355", "EPSG:4326", always_xy=True)
+
+
 def agd84_amg55_to_wgs84(easting, northing):
     if easting in (None, "", 0) or northing in (None, "", 0):
         return None, None
     try:
-        from pyproj import Transformer
-        transformer = Transformer.from_crs("EPSG:20355", "EPSG:4326", always_xy=True)
-        lng, lat = transformer.transform(float(easting), float(northing))
+        lng, lat = agd84_amg55_transformer().transform(float(easting), float(northing))
         if 110 <= lng <= 155 and -45 <= lat <= -10:
             return lat, lng
     except Exception:
