@@ -6,6 +6,7 @@ Multi-contractor: every query is filtered by contractor
 
 import re
 import os
+import asyncio
 import base64
 import json
 import csv
@@ -4414,11 +4415,45 @@ async def delete_activity_reports(request: Request):
                             (contractor, source_file),
                         )
                         totals["imported_files"] += max(cur.rowcount, 0)
+
+                        # Multi-page OCR reports share one stored original PDF.
+                        # Keep it until the final page report has been deleted.
+                        stored_source = original_ocr_source_filename(source_file)
+                        page_prefix = f"{stored_source}#page="
+                        batch_params = {
+                            "contractor": contractor,
+                            "stored_source": stored_source,
+                            "page_prefix": page_prefix,
+                        }
                         cur.execute(
-                            "DELETE FROM source_files WHERE contractor=%s AND filename=%s",
-                            (contractor, source_file),
+                            """
+                            SELECT EXISTS (
+                              SELECT 1 FROM activities
+                              WHERE contractor=%(contractor)s
+                                AND (source_file=%(stored_source)s OR LEFT(source_file, LENGTH(%(page_prefix)s))=%(page_prefix)s)
+                              UNION ALL
+                              SELECT 1 FROM consumables
+                              WHERE contractor=%(contractor)s
+                                AND (source_file=%(stored_source)s OR LEFT(source_file, LENGTH(%(page_prefix)s))=%(page_prefix)s)
+                              UNION ALL
+                              SELECT 1 FROM crew
+                              WHERE contractor=%(contractor)s
+                                AND (source_file=%(stored_source)s OR LEFT(source_file, LENGTH(%(page_prefix)s))=%(page_prefix)s)
+                              UNION ALL
+                              SELECT 1 FROM imported_files
+                              WHERE contractor=%(contractor)s
+                                AND (filename=%(stored_source)s OR LEFT(filename, LENGTH(%(page_prefix)s))=%(page_prefix)s)
+                            ) AS batch_still_used
+                            """,
+                            batch_params,
                         )
-                        totals["source_files"] += max(cur.rowcount, 0)
+                        batch_still_used = bool(cur.fetchone()["batch_still_used"])
+                        if not batch_still_used:
+                            cur.execute(
+                                "DELETE FROM source_files WHERE contractor=%s AND filename=%s",
+                                (contractor, stored_source),
+                            )
+                            totals["source_files"] += max(cur.rowcount, 0)
                 totals["reports"] += 1
         conn.commit()
     return {"status": "deleted", **totals}
@@ -7351,79 +7386,174 @@ GEMINI_OCR_RESPONSE_SCHEMA = {
 }
 
 
-async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
-    """Send a PDF page image to Gemini Vision and extract structured data."""
-    if not GEMINI_API_KEY:
-        raise HTTPException(500, "GEMINI_API_KEY not configured on server")
+OCR_PAGE_SUFFIX_RE = re.compile(r"#page=(\d+)$")
 
-    # Convert PDF to image using pdfplumber
-    from PIL import Image
-    import io
 
+def ocr_page_source_filename(filename: str, page_number: int) -> str:
+    """Give every page after page one an independently deletable report ID."""
+    if page_number <= 1:
+        return filename
+    return f"{filename}#page={page_number}"
+
+
+def original_ocr_source_filename(source_file: str) -> str:
+    """Return the stored original PDF name for an OCR page report ID."""
+    return OCR_PAGE_SUFFIX_RE.sub("", source_file or "")
+
+
+def pdf_page_count(pdf_bytes: bytes) -> int:
     with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
-        if not pdf.pages:
-            raise HTTPException(400, "PDF has no pages")
-        page = pdf.pages[0]
-        # Render page to image
-        img = page.to_image(resolution=300)
-        img_buffer = io.BytesIO()
-        img.original.save(img_buffer, format='PNG')
-        img_bytes = img_buffer.getvalue()
+        count = len(pdf.pages)
+    if not count:
+        raise HTTPException(400, "PDF has no pages")
+    return count
 
-    b64_image = base64.b64encode(img_bytes).decode('utf-8')
 
-    # Call Gemini API
-    url = gemini_generate_content_url(GEMINI_API_KEY)
-
-    payload = {
-        "contents": [{
-            "parts": [
-                {"text": GEMINI_PROMPT},
-                {
-                    "inline_data": {
-                        "mime_type": "image/png",
-                        "data": b64_image
-                    }
-                }
-            ]
-        }],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 16384,
-            "responseFormat": {
-                "text": {
-                    "mimeType": "APPLICATION_JSON",
-                    "schema": GEMINI_OCR_RESPONSE_SCHEMA,
-                }
-            },
-        }
-    }
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(url, json=payload)
-
-    if resp.status_code != 200:
-        raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-
-    result = resp.json()
+def parse_gemini_ocr_result(result: dict, page_number: int) -> dict:
     try:
         text = gemini_response_text(result)
-        # Clean up - remove markdown fences if present
-        text = text.strip()
+        # Clean up legacy markdown fences if the API ever returns them.
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
         if text.endswith("```"):
             text = text[:-3]
         text = text.strip()
-        if text.startswith("json"):
+        if text.lower().startswith("json"):
             text = text[4:].strip()
         return json.loads(text)
     except (KeyError, IndexError, json.JSONDecodeError) as e:
         finish_reason = result.get("candidates", [{}])[0].get("finishReason", "unknown")
         raise HTTPException(
             422,
-            f"Could not parse Gemini response ({finish_reason}): {str(e)}",
+            f"Could not parse Gemini response for page {page_number} ({finish_reason}): {str(e)}",
         )
+
+
+async def ocr_with_gemini(
+    pdf_bytes: bytes,
+    page_numbers: Optional[set[int]] = None,
+) -> list[dict]:
+    """OCR selected PDF pages independently and return one report per page."""
+    if not GEMINI_API_KEY:
+        raise HTTPException(500, "GEMINI_API_KEY not configured on server")
+
+    # Render selected pages before making network calls so the PDF is closed.
+    import io
+
+    rendered_pages = []
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        if not pdf.pages:
+            raise HTTPException(400, "PDF has no pages")
+        requested = page_numbers or set(range(1, len(pdf.pages) + 1))
+        invalid = sorted(n for n in requested if n < 1 or n > len(pdf.pages))
+        if invalid:
+            raise HTTPException(400, f"Invalid PDF page number(s): {invalid}")
+        for page_number, page in enumerate(pdf.pages, start=1):
+            if page_number not in requested:
+                continue
+            img = page.to_image(resolution=300)
+            img_buffer = io.BytesIO()
+            img.original.save(img_buffer, format="PNG")
+            rendered_pages.append((page_number, img_buffer.getvalue()))
+
+    # Call Gemini API with bounded concurrency so large scan batches complete
+    # promptly without flooding the service.
+    url = gemini_generate_content_url(GEMINI_API_KEY)
+    semaphore = asyncio.Semaphore(4)
+
+    async def read_page(client, page_number, img_bytes):
+        b64_image = base64.b64encode(img_bytes).decode("utf-8")
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": GEMINI_PROMPT},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": b64_image,
+                        }
+                    },
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 16384,
+                "responseFormat": {
+                    "text": {
+                        "mimeType": "APPLICATION_JSON",
+                        "schema": GEMINI_OCR_RESPONSE_SCHEMA,
+                    }
+                },
+            },
+        }
+
+        async with semaphore:
+            for attempt in range(3):
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    return {
+                        "page_number": page_number,
+                        "data": parse_gemini_ocr_result(resp.json(), page_number),
+                    }
+                retryable = resp.status_code == 429 or resp.status_code >= 500
+                if retryable and attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise HTTPException(
+                    502,
+                    f"Gemini API error on page {page_number}: {resp.status_code} - {resp.text[:200]}",
+                )
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        reports = await asyncio.gather(*(
+            read_page(client, page_number, img_bytes)
+            for page_number, img_bytes in rendered_pages
+        ))
+    return sorted(reports, key=lambda report: report["page_number"])
+
+
+def ocr_report_activity_rows(data: dict, source_file: str, contractor: str) -> list[dict]:
+    """Convert one OCR page report into database activity rows."""
+    rows = []
+    for activity in data.get("activities", []):
+        total_time = activity.get("total_time", "")
+        if total_time is not None and isinstance(total_time, (int, float)):
+            hours = int(total_time)
+            minutes = int((total_time - hours) * 60)
+            total_time = f"{hours}:{minutes:02d}"
+
+        def optional_float(value):
+            return float(value) if value not in (None, "") else None
+
+        rows.append({
+            "source_file": source_file,
+            "contractor": contractor,
+            "date": data.get("date", ""),
+            "hole_num": data.get("hole_num", ""),
+            "site_name": data.get("location", ""),
+            "location": data.get("location", ""),
+            "drill_rig": data.get("rig_no", ""),
+            "client": data.get("client", ""),
+            "contract": "",
+            "shift": data.get("shift", "Day"),
+            "time_from": activity.get("time_from", ""),
+            "time_to": activity.get("time_to", ""),
+            "total_time": total_time,
+            "bit_type": "",
+            "diameter": "",
+            "metres_from": optional_float(activity.get("metres_from")),
+            "metres_to": optional_float(activity.get("metres_to")),
+            "total_metres": optional_float(activity.get("total_metres")),
+            "code": "",
+            "notes": activity.get("comments", ""),
+            "rate_year": None,
+            "unit_rate": None,
+            "quantity": None,
+            "line_cost": None,
+            "rate_basis": None,
+            "po_id": None,
+        })
+    return apply_import_activity_scope(rows, contractor)
 
 
 @app.post("/import/ocr")
@@ -7431,70 +7561,66 @@ async def import_ocr_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="DEPCO Drilling"),
 ):
-    """Import a handwritten drill log PDF using Gemini Vision OCR."""
+    """Import every page of a handwritten drill log PDF using Gemini Vision OCR."""
     filename = file.filename
     content = await file.read()
 
-    # Check if already imported
+    try:
+        page_count = pdf_page_count(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Could not read PDF: {str(e)}")
+
+    page_sources = {
+        page_number: ocr_page_source_filename(filename, page_number)
+        for page_number in range(1, page_count + 1)
+    }
+
+    # Treat each page as an independent report so deleted pages can be reimported.
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                        (filename, contractor))
-            if cur.fetchone():
-                return {"status": "skipped", "filename": filename}
+            cur.execute(
+                "SELECT filename FROM imported_files WHERE contractor=%s AND filename=ANY(%s)",
+                (contractor, list(page_sources.values())),
+            )
+            existing_sources = {row["filename"] for row in cur.fetchall()}
 
-    # OCR with Gemini
+    pending_pages = {
+        page_number
+        for page_number, source_file in page_sources.items()
+        if source_file not in existing_sources
+    }
+    if not pending_pages:
+        return {
+            "status": "skipped",
+            "filename": filename,
+            "page_count": page_count,
+            "pages_skipped": page_count,
+        }
+
     try:
-        data = await ocr_with_gemini(content)
+        ocr_reports = await ocr_with_gemini(content, pending_pages)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(422, f"OCR failed: {str(e)}")
 
-    # Convert to activity rows
-    activities = data.get("activities", [])
-    hole_num = data.get("hole_num", "")
-    date_str = data.get("date", "")
-    location = data.get("location", "")
-    driller = data.get("driller", "")
-    shift = data.get("shift", "Day")
-    site_name = location
-
     rows = []
-    for act in activities:
-        time_from = act.get("time_from", "")
-        time_to = act.get("time_to", "")
-        total_time = act.get("total_time", "")
-
-        # Normalise total_time to H:MM
-        if total_time and isinstance(total_time, (int, float)):
-            h = int(total_time)
-            m = int((total_time - h) * 60)
-            total_time = f"{h}:{m:02d}"
-
-        metres_from = act.get("metres_from")
-        metres_to = act.get("metres_to")
-        total_metres = act.get("total_metres")
-        comments = act.get("comments", "")
-
-        rows.append({
-            "source_file": filename, "contractor": contractor,
-            "date": date_str, "hole_num": hole_num,
-            "site_name": site_name, "location": location,
-            "drill_rig": data.get("rig_no", ""), "client": data.get("client", ""),
-            "contract": "", "shift": shift,
-            "time_from": time_from, "time_to": time_to,
-            "total_time": total_time,
-            "bit_type": "", "diameter": "",
-            "metres_from": float(metres_from) if metres_from else None,
-            "metres_to": float(metres_to) if metres_to else None,
-            "total_metres": float(total_metres) if total_metres else None,
-            "code": "", "notes": comments,
-            "rate_year": None, "unit_rate": None, "quantity": None,
-            "line_cost": None, "rate_basis": None, "po_id": None,
+    report_summaries = []
+    for report in ocr_reports:
+        page_number = report["page_number"]
+        data = report["data"]
+        page_rows = ocr_report_activity_rows(data, page_sources[page_number], contractor)
+        rows.extend(page_rows)
+        report_summaries.append({
+            "page_number": page_number,
+            "source_file": page_sources[page_number],
+            "hole_num": data.get("hole_num", ""),
+            "date": data.get("date", ""),
+            "activities": len(page_rows),
+            "ocr_data": data,
         })
-
-    rows = apply_import_activity_scope(rows, contractor)
 
     # Save to database
     with get_conn() as conn:
@@ -7513,22 +7639,30 @@ async def import_ocr_pdf(
                      %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
                      %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
                 """, rows)
-            cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                        (filename, contractor))
+            psycopg2.extras.execute_batch(
+                cur,
+                "INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                [(page_sources[page_number], contractor) for page_number in sorted(pending_pages)],
+            )
             cur.execute("""
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                 VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
             """, (filename, contractor, psycopg2.Binary(content)))
         conn.commit()
 
+    first_report = report_summaries[0] if report_summaries else {}
     return {
         "status": "imported",
         "filename": filename,
-        "ocr_data": data,
+        "ocr_data": first_report.get("ocr_data", {}),
+        "reports": report_summaries,
         "rows": len(rows),
-        "hole_num": hole_num,
-        "date": date_str,
+        "hole_num": first_report.get("hole_num", ""),
+        "date": first_report.get("date", ""),
         "contractor": contractor,
+        "page_count": page_count,
+        "pages_imported": len(report_summaries),
+        "pages_skipped": len(existing_sources),
     }
 
 
@@ -7538,20 +7672,40 @@ async def preview_ocr_pdf(
 ):
     """Preview OCR results without saving — for testing."""
     content = await file.read()
-    data = await ocr_with_gemini(content)
-    return {"ocr_data": data, "activity_count": len(data.get("activities", []))}
+    reports = await ocr_with_gemini(content)
+    summaries = [
+        {
+            "page_number": report["page_number"],
+            "ocr_data": report["data"],
+            "activity_count": len(report["data"].get("activities", [])),
+        }
+        for report in reports
+    ]
+    return {
+        "ocr_data": summaries[0]["ocr_data"] if len(summaries) == 1 else [r["ocr_data"] for r in summaries],
+        "reports": summaries,
+        "page_count": len(summaries),
+        "activity_count": sum(r["activity_count"] for r in summaries),
+    }
 
 
 @app.get("/source_files/{filename}")
 def get_source_file(filename: str, contractor: Optional[str] = Query(None)):
     """Return a stored source PDF for viewing."""
     from fastapi.responses import Response
+    stored_filename = original_ocr_source_filename(filename)
     with get_conn() as conn:
         with conn.cursor() as cur:
             if contractor:
-                cur.execute("SELECT pdf_data FROM source_files WHERE filename=%s AND contractor=%s", (filename, contractor))
+                cur.execute(
+                    "SELECT pdf_data FROM source_files WHERE filename=%s AND contractor=%s",
+                    (stored_filename, contractor),
+                )
             else:
-                cur.execute("SELECT pdf_data FROM source_files WHERE filename=%s LIMIT 1", (filename,))
+                cur.execute(
+                    "SELECT pdf_data FROM source_files WHERE filename=%s LIMIT 1",
+                    (stored_filename,),
+                )
             row = cur.fetchone()
             if not row or not row["pdf_data"]:
                 raise HTTPException(404, "Source file not found")
