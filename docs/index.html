@@ -6190,9 +6190,6 @@ if(ocrImportBtn) {
           var pageText = (d.page_count || 1) > 1 ? (d.pages_imported + '/' + d.page_count + ' pages \u2014 ') : '';
           var skippedText = d.pages_skipped ? (' \u2014 ' + d.pages_skipped + ' already imported') : '';
           log.innerHTML += '<div style="color:var(--green);">\u2713 ' + (d.hole_num || file.name) + ' \u2014 ' + d.date + ' \u2014 ' + pageText + d.rows + ' activities extracted' + skippedText + '</div>';
-        } else if (d.status === 'partial') {
-          var failedList = (d.failed_pages || []).map(function(p) { return 'page ' + p.page_number; }).join(', ');
-          log.innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + file.name + ': imported ' + d.pages_imported + '/' + d.page_count + ' pages; retry ' + failedList + '</div>';
         } else if (d.status === 'skipped') {
           var skippedPages = (d.page_count || 1) > 1 ? ' (' + d.page_count + ' pages)' : '';
           log.innerHTML += '<div style="color:var(--yellow);">\u26a0 ' + file.name + skippedPages + ' already imported</div>';
