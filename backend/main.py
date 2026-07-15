@@ -7389,7 +7389,13 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
         }],
         "generationConfig": {
             "temperature": 0.1,
-            "maxOutputTokens": 16384,
+            # Gemini 3.5 Flash can spend much of this allowance on thinking.
+            # OCR is structured extraction, so keep thinking low and allow the
+            # model's full output capacity for the JSON response.
+            "maxOutputTokens": 65536,
+            "thinkingConfig": {
+                "thinkingLevel": "low",
+            },
             "responseFormat": {
                 "text": {
                     "mimeType": "APPLICATION_JSON",
@@ -7399,31 +7405,35 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
         }
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(url, json=payload)
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        for attempt in range(2):
+            resp = await client.post(url, json=payload)
+            if resp.status_code != 200:
+                raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
 
-    if resp.status_code != 200:
-        raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
+            result = resp.json()
+            try:
+                text = gemini_response_text(result)
+                # Clean up - remove markdown fences if present
+                text = text.strip()
+                if text.startswith("```"):
+                    text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                text = text.strip()
+                if text.startswith("json"):
+                    text = text[4:].strip()
+                return json.loads(text)
+            except (KeyError, IndexError, json.JSONDecodeError) as e:
+                finish_reason = result.get("candidates", [{}])[0].get("finishReason", "unknown")
+                if finish_reason == "MAX_TOKENS" and attempt == 0:
+                    continue
+                raise HTTPException(
+                    422,
+                    f"Could not parse Gemini response ({finish_reason}): {str(e)}",
+                )
 
-    result = resp.json()
-    try:
-        text = gemini_response_text(result)
-        # Clean up - remove markdown fences if present
-        text = text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        if text.startswith("json"):
-            text = text[4:].strip()
-        return json.loads(text)
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        finish_reason = result.get("candidates", [{}])[0].get("finishReason", "unknown")
-        raise HTTPException(
-            422,
-            f"Could not parse Gemini response ({finish_reason}): {str(e)}",
-        )
+    raise HTTPException(422, "Gemini OCR did not return a complete response")
 
 
 @app.post("/import/ocr")
