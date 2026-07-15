@@ -7433,35 +7433,30 @@ async def ocr_with_gemini(
     pdf_bytes: bytes,
     page_numbers: Optional[set[int]] = None,
 ) -> list[dict]:
-    """OCR selected PDF pages independently and return one report per page."""
+    """Split and OCR selected PDF pages sequentially, one report at a time."""
     if not GEMINI_API_KEY:
         raise HTTPException(500, "GEMINI_API_KEY not configured on server")
 
-    # Render selected pages before making network calls so the PDF is closed.
+    page_count = pdf_page_count(pdf_bytes)
+    requested = sorted(page_numbers or set(range(1, page_count + 1)))
+    invalid = [n for n in requested if n < 1 or n > page_count]
+    if invalid:
+        raise HTTPException(400, f"Invalid PDF page number(s): {invalid}")
+
     import io
 
-    rendered_pages = []
-    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
-        if not pdf.pages:
-            raise HTTPException(400, "PDF has no pages")
-        requested = page_numbers or set(range(1, len(pdf.pages) + 1))
-        invalid = sorted(n for n in requested if n < 1 or n > len(pdf.pages))
-        if invalid:
-            raise HTTPException(400, f"Invalid PDF page number(s): {invalid}")
-        for page_number, page in enumerate(pdf.pages, start=1):
-            if page_number not in requested:
-                continue
+    def render_page(page_number: int) -> bytes:
+        with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+            page = pdf.pages[page_number - 1]
             img = page.to_image(resolution=300)
             img_buffer = io.BytesIO()
             img.original.save(img_buffer, format="PNG")
-            rendered_pages.append((page_number, img_buffer.getvalue()))
+            return img_buffer.getvalue()
 
-    # Call Gemini API with bounded concurrency so large scan batches complete
-    # promptly without flooding the service.
     url = gemini_generate_content_url(GEMINI_API_KEY)
-    semaphore = asyncio.Semaphore(4)
-
-    async def read_page(client, page_number, img_bytes):
+    async def read_page(client, page_number):
+        # Only one split page is held in memory or sent to Gemini at a time.
+        img_bytes = render_page(page_number)
         b64_image = base64.b64encode(img_bytes).decode("utf-8")
         payload = {
             "contents": [{
@@ -7477,7 +7472,7 @@ async def ocr_with_gemini(
             }],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 16384,
+                "maxOutputTokens": 32768,
                 "responseFormat": {
                     "text": {
                         "mimeType": "APPLICATION_JSON",
@@ -7487,29 +7482,27 @@ async def ocr_with_gemini(
             },
         }
 
-        async with semaphore:
-            for attempt in range(3):
-                resp = await client.post(url, json=payload)
-                if resp.status_code == 200:
-                    return {
-                        "page_number": page_number,
-                        "data": parse_gemini_ocr_result(resp.json(), page_number),
-                    }
-                retryable = resp.status_code == 429 or resp.status_code >= 500
-                if retryable and attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
-                    continue
-                raise HTTPException(
-                    502,
-                    f"Gemini API error on page {page_number}: {resp.status_code} - {resp.text[:200]}",
-                )
+        for attempt in range(3):
+            resp = await client.post(url, json=payload)
+            if resp.status_code == 200:
+                return {
+                    "page_number": page_number,
+                    "data": parse_gemini_ocr_result(resp.json(), page_number),
+                }
+            retryable = resp.status_code == 429 or resp.status_code >= 500
+            if retryable and attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise HTTPException(
+                502,
+                f"Gemini API error on page {page_number}: {resp.status_code} - {resp.text[:200]}",
+            )
 
+    reports = []
     async with httpx.AsyncClient(timeout=60.0) as client:
-        reports = await asyncio.gather(*(
-            read_page(client, page_number, img_bytes)
-            for page_number, img_bytes in rendered_pages
-        ))
-    return sorted(reports, key=lambda report: report["page_number"])
+        for page_number in requested:
+            reports.append(await read_page(client, page_number))
+    return reports
 
 
 def ocr_report_activity_rows(data: dict, source_file: str, contractor: str) -> list[dict]:
@@ -7556,6 +7549,43 @@ def ocr_report_activity_rows(data: dict, source_file: str, contractor: str) -> l
     return apply_import_activity_scope(rows, contractor)
 
 
+def save_ocr_page_import(
+    content: bytes,
+    original_filename: str,
+    source_file: str,
+    contractor: str,
+    rows: list[dict],
+    store_original: bool,
+) -> None:
+    """Commit one split OCR page independently from every other page."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if rows:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO activities
+                    (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
+                     client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                     metres_from,metres_to,total_metres,code,notes,
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                    VALUES
+                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
+                     %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                     %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                     %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                """, rows)
+            cur.execute(
+                "INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                (source_file, contractor),
+            )
+            if store_original:
+                cur.execute("""
+                    INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                    VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                """, (original_filename, contractor, psycopg2.Binary(content)))
+        conn.commit()
+
+
 @app.post("/import/ocr")
 async def import_ocr_pdf(
     file: UploadFile = File(...),
@@ -7599,70 +7629,61 @@ async def import_ocr_pdf(
             "pages_skipped": page_count,
         }
 
-    try:
-        ocr_reports = await ocr_with_gemini(content, pending_pages)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(422, f"OCR failed: {str(e)}")
-
-    rows = []
     report_summaries = []
-    for report in ocr_reports:
-        page_number = report["page_number"]
-        data = report["data"]
-        page_rows = ocr_report_activity_rows(data, page_sources[page_number], contractor)
-        rows.extend(page_rows)
-        report_summaries.append({
-            "page_number": page_number,
-            "source_file": page_sources[page_number],
-            "hole_num": data.get("hole_num", ""),
-            "date": data.get("date", ""),
-            "activities": len(page_rows),
-            "ocr_data": data,
-        })
-
-    # Save to database
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            if rows:
-                psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO activities
-                    (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
-                     client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
-                     metres_from,metres_to,total_metres,code,notes,
-                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
-                    VALUES
-                    (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
-                     %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
-                     %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
-                     %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
-                     %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
-                """, rows)
-            psycopg2.extras.execute_batch(
-                cur,
-                "INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                [(page_sources[page_number], contractor) for page_number in sorted(pending_pages)],
+    failed_pages = []
+    rows_imported = 0
+    original_stored = False
+    for page_number in sorted(pending_pages):
+        try:
+            report = (await ocr_with_gemini(content, {page_number}))[0]
+            data = report["data"]
+            source_file = page_sources[page_number]
+            page_rows = ocr_report_activity_rows(data, source_file, contractor)
+            save_ocr_page_import(
+                content,
+                filename,
+                source_file,
+                contractor,
+                page_rows,
+                store_original=not original_stored,
             )
-            cur.execute("""
-                INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
-            """, (filename, contractor, psycopg2.Binary(content)))
-        conn.commit()
+            original_stored = True
+            rows_imported += len(page_rows)
+            report_summaries.append({
+                "page_number": page_number,
+                "source_file": source_file,
+                "hole_num": data.get("hole_num", ""),
+                "date": data.get("date", ""),
+                "activities": len(page_rows),
+                "ocr_data": data,
+            })
+        except HTTPException as e:
+            failed_pages.append({"page_number": page_number, "error": str(e.detail)})
+        except Exception as e:
+            failed_pages.append({"page_number": page_number, "error": f"OCR failed: {str(e)}"})
 
     first_report = report_summaries[0] if report_summaries else {}
+    if failed_pages and report_summaries:
+        status = "partial"
+    elif failed_pages:
+        status = "failed"
+    else:
+        status = "imported"
     return {
-        "status": "imported",
+        "status": status,
         "filename": filename,
         "ocr_data": first_report.get("ocr_data", {}),
         "reports": report_summaries,
-        "rows": len(rows),
+        "rows": rows_imported,
         "hole_num": first_report.get("hole_num", ""),
         "date": first_report.get("date", ""),
         "contractor": contractor,
         "page_count": page_count,
         "pages_imported": len(report_summaries),
         "pages_skipped": len(existing_sources),
+        "pages_failed": len(failed_pages),
+        "failed_pages": failed_pages,
+        "detail": failed_pages[0]["error"] if status == "failed" else "",
     }
 
 
