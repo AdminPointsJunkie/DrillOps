@@ -42,6 +42,16 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash").strip() or "ge
 def gemini_generate_content_url(api_key: str) -> str:
     return f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
+
+def gemini_response_text(result: dict) -> str:
+    """Join every text part returned by Gemini into one response body."""
+    parts = result["candidates"][0]["content"]["parts"]
+    return "".join(
+        part.get("text", "")
+        for part in parts
+        if isinstance(part, dict) and not part.get("thought", False)
+    ).strip()
+
 CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
@@ -7293,6 +7303,53 @@ IMPORTANT RULES:
 - Return ONLY valid JSON, no markdown, no explanation
 """
 
+GEMINI_OCR_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "log_number": {"type": ["string", "null"]},
+        "client": {"type": ["string", "null"]},
+        "location": {"type": ["string", "null"]},
+        "hole_num": {"type": ["string", "null"]},
+        "date": {"type": ["string", "null"]},
+        "day": {"type": ["string", "null"]},
+        "shift": {"type": ["string", "null"]},
+        "start_time": {"type": ["string", "null"]},
+        "finish_time": {"type": ["string", "null"]},
+        "travel_hours": {"type": ["string", "number", "null"]},
+        "driller": {"type": ["string", "null"]},
+        "offsider1": {"type": ["string", "null"]},
+        "offsider2": {"type": ["string", "null"]},
+        "rig_no": {"type": ["string", "null"]},
+        "drill_rig": {"type": ["string", "null"]},
+        "activities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "comments": {"type": ["string", "null"]},
+                    "time_from": {"type": ["string", "null"]},
+                    "time_to": {"type": ["string", "null"]},
+                    "total_time": {"type": ["string", "number", "null"]},
+                    "metres_from": {"type": ["number", "null"]},
+                    "metres_to": {"type": ["number", "null"]},
+                    "total_metres": {"type": ["number", "null"]},
+                },
+                "required": [
+                    "comments", "time_from", "time_to", "total_time",
+                    "metres_from", "metres_to", "total_metres",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": [
+        "log_number", "client", "location", "hole_num", "date", "day",
+        "shift", "start_time", "finish_time", "travel_hours", "driller",
+        "offsider1", "offsider2", "rig_no", "drill_rig", "activities",
+    ],
+    "additionalProperties": False,
+}
+
 
 async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
     """Send a PDF page image to Gemini Vision and extract structured data."""
@@ -7332,7 +7389,13 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
         }],
         "generationConfig": {
             "temperature": 0.1,
-            "maxOutputTokens": 4096
+            "maxOutputTokens": 16384,
+            "responseFormat": {
+                "text": {
+                    "mimeType": "application/json",
+                    "schema": GEMINI_OCR_RESPONSE_SCHEMA,
+                }
+            },
         }
     }
 
@@ -7344,7 +7407,7 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
 
     result = resp.json()
     try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        text = gemini_response_text(result)
         # Clean up - remove markdown fences if present
         text = text.strip()
         if text.startswith("```"):
@@ -7356,7 +7419,11 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
             text = text[4:].strip()
         return json.loads(text)
     except (KeyError, IndexError, json.JSONDecodeError) as e:
-        raise HTTPException(422, f"Could not parse Gemini response: {str(e)}")
+        finish_reason = result.get("candidates", [{}])[0].get("finishReason", "unknown")
+        raise HTTPException(
+            422,
+            f"Could not parse Gemini response ({finish_reason}): {str(e)}",
+        )
 
 
 @app.post("/import/ocr")
