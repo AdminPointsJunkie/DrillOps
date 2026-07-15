@@ -6267,6 +6267,7 @@ async function importReviewedOcrFile() {
   var fd = new FormData();
   fd.append('file', ocrCurrentFile);
   fd.append('contractor', activeContractor);
+  fd.append('program', activeProgram || '');
   fd.append('ocr_data', JSON.stringify(ocrCurrentData));
   try {
     var res = await fetch(API + '/import/ocr', {method:'POST', body:fd});

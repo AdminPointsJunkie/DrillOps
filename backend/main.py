@@ -3216,9 +3216,11 @@ def infer_report_contractor(selected_contractor: str, filename: str = "", header
     return selected_contractor or "Allianz Drilling"
 
 
-def apply_import_activity_scope(rows: list[dict], contractor: str) -> list[dict]:
+def apply_import_activity_scope(rows: list[dict], contractor: str, program: str = "") -> list[dict]:
     """Ensure imported activity rows participate in program/project filtering."""
-    default_program = "Exploration" if contractor != "MCC Group" else ""
+    default_program = str(program or "").strip()
+    if not default_program:
+        default_program = "Exploration" if contractor != "MCC Group" else ""
     for row in rows:
         if not str(row.get("program") or "").strip():
             row["program"] = default_program
@@ -7440,6 +7442,7 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
 async def import_ocr_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="DEPCO Drilling"),
+    program: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
     """Import a handwritten drill log PDF using reviewed or fresh Gemini OCR data."""
@@ -7519,7 +7522,7 @@ async def import_ocr_pdf(
             "line_cost": None, "rate_basis": None, "po_id": None,
         })
 
-    rows = apply_import_activity_scope(rows, contractor)
+    rows = apply_import_activity_scope(rows, contractor, program)
 
     # Save to database
     with get_conn() as conn:
