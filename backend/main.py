@@ -9,14 +9,17 @@ import os
 import base64
 import json
 import csv
+from contextlib import contextmanager
 from io import BytesIO
 from io import StringIO
+from threading import BoundedSemaphore
 from typing import Optional
 
 import pdfplumber
 import pandas as pd
 import psycopg2
 import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -107,8 +110,50 @@ CONTRACTOR_REFERENCE_TABLES = [
 ]
 
 
+DB_POOL_MIN = max(1, int(os.environ.get("DB_POOL_MIN", "1")))
+DB_POOL_MAX = max(DB_POOL_MIN, int(os.environ.get("DB_POOL_MAX", "5")))
+DB_POOL_ACQUIRE_TIMEOUT = max(1, int(os.environ.get("DB_POOL_ACQUIRE_TIMEOUT", "30")))
+
+_db_pool = ThreadedConnectionPool(
+    DB_POOL_MIN,
+    DB_POOL_MAX,
+    DATABASE_URL,
+    cursor_factory=psycopg2.extras.RealDictCursor,
+    connect_timeout=10,
+    application_name="drillops-api",
+)
+_db_pool_slots = BoundedSemaphore(DB_POOL_MAX)
+
+
+@contextmanager
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    """Borrow a PostgreSQL connection and return it to the shared pool."""
+    if not _db_pool_slots.acquire(timeout=DB_POOL_ACQUIRE_TIMEOUT):
+        raise RuntimeError("Database connection pool is busy; please retry")
+
+    conn = None
+    discard = False
+    try:
+        conn = _db_pool.getconn()
+        yield conn
+        conn.commit()
+    except Exception:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except (psycopg2.InterfaceError, psycopg2.OperationalError):
+                discard = True
+        raise
+    finally:
+        if conn is not None:
+            discard = discard or bool(conn.closed)
+            _db_pool.putconn(conn, close=discard)
+        _db_pool_slots.release()
+
+
+@app.on_event("shutdown")
+def close_db_pool():
+    _db_pool.closeall()
 
 
 PCD_SMALL_LABEL = "PCD or Blade 99-125mm"
@@ -4592,8 +4637,10 @@ def get_analytics(contractor: str = Query(...), hole: Optional[str] = Query(None
         if hole and hole != "all":
             q += " AND hole_num=%(hole)s"; p["hole"] = hole
 
-        with psycopg2.connect(DATABASE_URL) as conn:
-            df = pd.read_sql(q, conn, params=p)
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(q, p)
+                df = pd.DataFrame(cur.fetchall())
 
         if df.empty:
             return {"kpis":{},"daily_categories":[],"drill_runs":[],"anomalies":[],"heatmap":[]}
