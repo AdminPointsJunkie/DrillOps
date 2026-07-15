@@ -867,6 +867,14 @@ def init_db():
                     PRIMARY KEY (filename, contractor)
                 )
             """)
+            for index_sql in [
+                "CREATE INDEX IF NOT EXISTS idx_activities_contractor_date ON activities (contractor, date)",
+                "CREATE INDEX IF NOT EXISTS idx_consumables_contractor_date ON consumables (contractor, date)",
+                "CREATE INDEX IF NOT EXISTS idx_crew_contractor_date ON crew (contractor, date)",
+                "CREATE INDEX IF NOT EXISTS idx_report_approvals_contractor_date ON report_approvals (contractor, report_date)",
+                "CREATE INDEX IF NOT EXISTS idx_activity_locks_contractor_date ON activity_sheet_locks (contractor, report_date)",
+            ]:
+                cur.execute(index_sql)
         conn.commit()
 
 
@@ -4355,6 +4363,93 @@ def get_activities(
         with conn.cursor() as cur:
             cur.execute(q, params)
             return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/activity-report-data")
+def get_activity_report_data(
+    contractor: str = Query(...),
+    dates: Optional[str] = Query(None),
+    holes: Optional[str] = Query(None),
+    sites: Optional[str] = Query(None),
+    codes: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    missing_codes: bool = Query(False),
+):
+    """Load the complete Activity Reports view with one database round trip."""
+    params = {"contractor": contractor}
+    activity_conds = ["a.contractor=%(contractor)s"]
+    related_conds = ["contractor=%(contractor)s"]
+    approval_conds = ["contractor=%(contractor)s"]
+
+    date_list = [d.strip() for d in (dates or "").split(",") if d.strip()]
+    if date_list:
+        params["dates"] = date_list
+        activity_conds.append("a.date=ANY(%(dates)s)")
+        related_conds.append("date=ANY(%(dates)s)")
+        approval_conds.append("report_date=ANY(%(dates)s)")
+
+    hole_list = [h.strip() for h in (holes or "").split(",") if h.strip()]
+    if hole_list:
+        params["holes"] = hole_list
+        activity_conds.append("a.hole_num=ANY(%(holes)s)")
+
+    site_list = [s.strip() for s in (sites or "").split(",") if s.strip()]
+    if site_list:
+        params["sites"] = site_list
+        activity_conds.append("a.site_name=ANY(%(sites)s)")
+
+    code_list = [c.strip() for c in (codes or "").split(",") if c.strip()]
+    if code_list:
+        params["codes"] = code_list
+        activity_conds.append("a.code=ANY(%(codes)s)")
+
+    if missing_codes:
+        activity_conds.append("(a.code IS NULL OR TRIM(a.code)='')")
+    if search:
+        params["search"] = f"%{search}%"
+        activity_conds.append("(a.notes ILIKE %(search)s OR a.code ILIKE %(search)s)")
+
+    query = f"""
+        SELECT
+          COALESCE((
+            SELECT jsonb_agg(to_jsonb(a) ORDER BY a.date, a.time_from, a.id)
+            FROM activities a
+            WHERE {' AND '.join(activity_conds)}
+          ), '[]'::jsonb) AS activities,
+          COALESCE((
+            SELECT jsonb_agg(to_jsonb(c) ORDER BY c.date, c.id)
+            FROM consumables c
+            WHERE {' AND '.join('c.' + condition if condition.startswith('contractor') or condition.startswith('date') else condition for condition in related_conds)}
+          ), '[]'::jsonb) AS consumables,
+          COALESCE((
+            SELECT jsonb_agg(to_jsonb(cr) ORDER BY cr.date, cr.id)
+            FROM crew cr
+            WHERE {' AND '.join('cr.' + condition if condition.startswith('contractor') or condition.startswith('date') else condition for condition in related_conds)}
+          ), '[]'::jsonb) AS crew,
+          COALESCE((
+            SELECT jsonb_agg(to_jsonb(ra) ORDER BY ra.updated_at DESC)
+            FROM report_approvals ra
+            WHERE {' AND '.join('ra.' + condition if condition.startswith('contractor') or condition.startswith('report_date') else condition for condition in approval_conds)}
+          ), '[]'::jsonb) AS report_approvals,
+          COALESCE((
+            SELECT jsonb_agg(to_jsonb(al) ORDER BY al.updated_at DESC)
+            FROM activity_sheet_locks al
+            WHERE {' AND '.join('al.' + condition if condition.startswith('contractor') or condition.startswith('report_date') else condition for condition in approval_conds)}
+          ), '[]'::jsonb) AS activity_sheet_locks
+    """
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            bundle = dict(cur.fetchone())
+
+    bundle["report_approvals"] = [
+        report_approval_response(row) for row in bundle.get("report_approvals", [])
+    ]
+    bundle["activity_sheet_locks"] = [
+        activity_sheet_lock_response(row) for row in bundle.get("activity_sheet_locks", [])
+    ]
+    return bundle
 
 
 @app.post("/activity-reports/delete")

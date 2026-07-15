@@ -3193,6 +3193,20 @@ function getStoredReportLock(date,hole,source){
   const key=reportLockRecordKey(reportDrillingContractor(),date,hole,source);
   return reportLocksByKey[key]||null;
 }
+function applyActivityReportBundle(bundle){
+  bundle=bundle||{};
+  activitiesData=bundle.activities||[];
+  consumablesData=bundle.consumables||[];
+  crewData=bundle.crew||[];
+  reportApprovalsByKey={};
+  (bundle.report_approvals||[]).forEach(function(r){
+    reportApprovalsByKey[reportApprovalRecordKey(r.contractor,r.report_date,r.hole_num,r.source_file)]=r;
+  });
+  reportLocksByKey={};
+  (bundle.activity_sheet_locks||[]).forEach(function(r){
+    reportLocksByKey[reportLockRecordKey(r.contractor,r.report_date,r.hole_num,r.source_file)]=r;
+  });
+}
 async function loadReportApprovals(dates){
   reportApprovalsByKey={};
   const p=new URLSearchParams({contractor:reportDrillingContractor()});
@@ -3616,10 +3630,9 @@ async function loadActivities(){
   if(search)p.set('search',search);
   if(activityMissingCodesOnly)p.set('missing_codes','true');
   try{
-    activitiesData=await fetch(API+'/activities?'+p).then(function(r){return r.json();});
-    await loadDailyReportRelatedData(dates);
-    await loadReportApprovals(dates);
-    await loadReportLocks(dates);
+    const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    applyActivityReportBundle(await response.json());
     await ensureReportBoreholes();
     activitiesData=filterRowsForActiveProgram(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
@@ -4002,17 +4015,17 @@ async function loadReportsPage(){
     const drillingContractor=reportDrillingContractor();
     const suffix='contractor='+encodeURIComponent(drillingContractor)+'&_='+Date.now();
     const results=await Promise.all([
-      fetch(API+'/activities?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
-      fetch(API+'/consumables?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/activity-report-data?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}),
       loadPeriodSupportInvoices(),
       fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];})
     ]);
-    periodReportActivitiesData=results[0]||[];
-    periodReportConsumablesData=results[1]||[];
+    applyActivityReportBundle(results[0]);
+    periodReportActivitiesData=activitiesData;
+    periodReportConsumablesData=consumablesData;
     activitiesData=periodReportActivitiesData;
     consumablesData=periodReportConsumablesData;
-    periodSupportInvoicesData=results[2]||[];
-    projectBudgetsData=results[3]||[];
+    periodSupportInvoicesData=results[1]||[];
+    projectBudgetsData=results[2]||[];
     await ensureReportBoreholes();
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
