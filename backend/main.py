@@ -7623,69 +7623,39 @@ def get_cost_centre_forecast(
             exploration_contractors = [dict(row) for row in cur.fetchall()]
 
             cur.execute("""
-                SELECT CAST(SUBSTRING(a.date,6,2) AS INTEGER) AS month,
-                       COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned') AS contractor,
-                       COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350') AS expense_gl,
-                       SUM(COALESCE(a.line_cost,0)) AS amount
-                FROM activities a
-                LEFT JOIN contractors c ON c.name=a.contractor
-                WHERE a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                  AND SUBSTRING(a.date,1,4)=%s
-                  AND COALESCE(a.program,'')='Exploration'
-                  AND COALESCE(c.category,'')='Drilling'
-                  AND (
-                    COALESCE(a.project,'') ILIKE '%%Ironbark%%'
-                    OR COALESCE(a.hole_num,'') ILIKE 'IB%%'
-                    OR COALESCE(a.site_name,'') ILIKE 'IB%%'
-                  )
-                GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER),
-                         COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned'),
-                         COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350')
-            """, (str(year),))
-            for row in cur.fetchall():
-                add_contractor_actual(
-                    row["month"],
-                    row["contractor"],
-                    row["expense_gl"],
-                    row["amount"],
-                    "Ironbark DrillOps EOS",
+                WITH received_invoices AS (
+                  SELECT
+                    CASE
+                      WHEN i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN CAST(SUBSTRING(i.invoice_date,6,2) AS INTEGER)
+                      WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
+                      WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
+                    END AS month,
+                    CASE
+                      WHEN i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN CAST(SUBSTRING(i.invoice_date,1,4) AS INTEGER)
+                      WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',3) AS INTEGER)
+                      WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',2) AS INTEGER)
+                    END AS invoice_year,
+                    COALESCE(NULLIF(BTRIM(i.contractor), ''), 'Unassigned') AS contractor,
+                    COALESCE(
+                      NULLIF(BTRIM(c.expense_gl), ''),
+                      CASE
+                        WHEN COALESCE(c.category,'')='Drilling' THEN '4350'
+                        WHEN COALESCE(c.category,'') IN ('Earthworks','Labour') THEN '4250'
+                        ELSE '4200'
+                      END
+                    ) AS expense_gl,
+                    COALESCE(i.total_aud,0) AS amount
+                  FROM invoices i
+                  LEFT JOIN contractors c ON c.name=i.contractor
+                  WHERE COALESCE(i.project,'') ILIKE '%%Ironbark%%'
+                    AND COALESCE(i.status,'') <> 'Rejected'
                 )
-
-            cur.execute("""
-                SELECT
-                  CASE
-                    WHEN i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN CAST(SUBSTRING(i.invoice_date,6,2) AS INTEGER)
-                    WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
-                    WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
-                  END AS month,
-                  COALESCE(NULLIF(BTRIM(i.contractor), ''), 'Unassigned') AS contractor,
-                  COALESCE(
-                    NULLIF(BTRIM(c.expense_gl), ''),
-                    CASE
-                      WHEN COALESCE(c.category,'') IN ('Earthworks','Labour') THEN '4250'
-                      ELSE '4200'
-                    END
-                  ) AS expense_gl,
-                  SUM(COALESCE(i.total_aud,0)) AS amount
-                FROM invoices i
-                LEFT JOIN contractors c ON c.name=i.contractor
-                WHERE COALESCE(i.project,'') ILIKE '%%Ironbark%%'
-                  AND COALESCE(c.category,'') <> 'Drilling'
-                  AND (
-                    (i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND SUBSTRING(i.invoice_date,1,4)=%s)
-                    OR (i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.invoice_date,'/',3)=%s)
-                    OR (i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.billing_month,'/',2)=%s)
-                  )
-                GROUP BY month,
-                  COALESCE(NULLIF(BTRIM(i.contractor), ''), 'Unassigned'),
-                  COALESCE(
-                    NULLIF(BTRIM(c.expense_gl), ''),
-                    CASE
-                      WHEN COALESCE(c.category,'') IN ('Earthworks','Labour') THEN '4250'
-                      ELSE '4200'
-                    END
-                  )
-            """, (str(year), str(year), str(year)))
+                SELECT month, contractor, expense_gl, SUM(amount) AS amount
+                FROM received_invoices
+                WHERE invoice_year=%s
+                GROUP BY month, contractor, expense_gl
+                ORDER BY month, contractor
+            """, (year,))
             for row in cur.fetchall():
                 if row["month"]:
                     add_contractor_actual(
@@ -7693,7 +7663,7 @@ def get_cost_centre_forecast(
                         row["contractor"],
                         row["expense_gl"],
                         row["amount"],
-                        "Ironbark DrillOps invoices",
+                        "Invoices Received",
                     )
 
             # Remaining 4350 is driven by the unfinished Ironbark borehole plan.

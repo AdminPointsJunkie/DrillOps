@@ -1848,7 +1848,7 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">F07 Three-GL Baseline</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">4200 + 4250 + 4350 only</div></div>
-        <div class="kpi"><div class="kpi-label">July Accrued to Date</div><div class="kpi-value" id="ccf-july-accrued">--</div><div class="kpi-sub" id="ccf-asof">Live DrillOps + manual accrual</div></div>
+        <div class="kpi"><div class="kpi-label">July Accrued to Date</div><div class="kpi-value" id="ccf-july-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices Received + manual accrual</div></div>
         <div class="kpi"><div class="kpi-label">Remaining Drilling Plan</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">Open Ironbark holes</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
       </div>
@@ -1866,7 +1866,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Green rows are created automatically for active Exploration contractors and use each contractor's saved Expense GL. Yellow rows are closed Finance actuals and any live accrual balance that cannot be assigned to a contractor line. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days. Future 4200 and 4250 support costs retain the F07 mix only while drilling is active, are prorated in the final drilling month, and stop afterward.</div>
+        <div class="ccf-finance-note">Green rows are created automatically for active Exploration contractors, use each contractor's saved Expense GL, and take monthly actuals from Invoices Received. Yellow rows reconcile those invoice lines to closed Finance actuals and any manual accrual balance. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days. Future 4200 and 4250 support costs retain the F07 mix only while drilling is active, are prorated in the final drilling month, and stop afterward.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -1899,7 +1899,7 @@ tbody td[contenteditable=true]:focus {
         </div>
         <div class="tbl-scroll" style="max-height:520px;">
           <table class="period-mini-table">
-            <thead><tr><th>Month</th><th>GL category</th><th>F07 baseline</th><th>DrillOps actual</th><th>Default forecast</th><th>Manual accrual</th><th>Reforecast override</th><th>Calculated reforecast</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Month</th><th>GL category</th><th>F07 baseline</th><th>Invoices received</th><th>Default forecast</th><th>Manual accrual</th><th>Reforecast override</th><th>Calculated reforecast</th><th>Notes</th></tr></thead>
             <tbody id="ccf-detail-body"></tbody>
           </table>
         </div>
@@ -8598,8 +8598,9 @@ function costCentreSpreadsheetRows(){
     return ['4200','4250','4350'].includes(String(contractor.expense_gl||''));
   }).map(function(contractor){
     const expense=String(contractor.expense_gl||'4200')+' - '+({4200:'Consulting Services',4250:'Contractors',4350:'Drilling Services'}[contractor.expense_gl]||'Assigned contractor GL');
-    const monthly=Array(12).fill(0);
-    monthly[currentMonthIndex]=numVal(contractorActuals[(currentMonthIndex+1)+':'+contractor.name]);
+    const monthly=Array.from({length:12},function(_,monthIndex){
+      return numVal(contractorActuals[(monthIndex+1)+':'+contractor.name]);
+    });
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
       commentary:contractor.name,monthly:monthly,actualLine:false,contractorLine:true
@@ -8607,20 +8608,24 @@ function costCentreSpreadsheetRows(){
   });
   const contractorTotalsByExpense={};
   contractorRows.forEach(function(row){
-    contractorTotalsByExpense[row.expense]=numVal(contractorTotalsByExpense[row.expense])+numVal(row.monthly[currentMonthIndex]);
+    if(!contractorTotalsByExpense[row.expense])contractorTotalsByExpense[row.expense]=Array(12).fill(0);
+    row.monthly.forEach(function(value,index){
+      contractorTotalsByExpense[row.expense][index]+=numVal(value);
+    });
   });
   const actualRows=COST_CENTRE_GLS.map(function(expense){
     const account=expense.slice(0,4);
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
-      commentary:'Finance actuals / live accrual - '+account,
+      commentary:'Finance actual reconciliation / manual accrual - '+account,
       monthly:Array.from({length:12},function(_,index){
         const row=source.find(function(item){return item.category===expense&&item.month===index+1;});
         if(!row)return 0;
-        if(index<6)return numVal(row.finance_actual);
+        const contractorTotal=numVal((contractorTotalsByExpense[expense]||[])[index]);
+        if(index<6)return numVal(row.finance_actual)-contractorTotal;
         if(index===currentMonthIndex){
-          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row)-numVal(contractorTotalsByExpense[expense]);
-          return costCentreLiveActual(row)+numVal(row.manual_accrual)-numVal(contractorTotalsByExpense[expense]);
+          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row)-contractorTotal;
+          return costCentreLiveActual(row)+numVal(row.manual_accrual)-contractorTotal;
         }
         return 0;
       }),
@@ -8703,7 +8708,7 @@ async function copyCostCentreSpreadsheetRows(){
 
 async function loadCostCentreForecast(){
   const note=document.getElementById('ccf-source-note');
-  if(note)note.textContent='Refreshing Finance baseline and live DrillOps actuals...';
+  if(note)note.textContent='Refreshing Finance baseline and Invoices Received actuals...';
   try{
     const res=await fetch(API+'/cost-centre-forecast?site=IB&cost_centre=TECEXP&year=2026&_='+Date.now(),{cache:'no-store'});
     if(!res.ok)throw new Error(await res.text());
@@ -8779,8 +8784,8 @@ function renderCostCentreForecast(){
   const varianceText=variance>=0?cur(variance)+' below F07':cur(Math.abs(variance))+' above F07';
   const sourceNote=document.getElementById('ccf-source-note');
   if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
-    +'Live invoices and EOS costs use the saved contractor Expense GL assignment. July DrillOps accrual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
-    +'January&ndash;June uses closed Finance actuals. July uses live Ironbark invoices/EOS plus manual accrual, plus drilling scheduled after the as-of date. The F07 4200/4250 support forecast runs only while drilling is active, is prorated through the final drill day'+(plan.latest_forecast_end?' ('+esc(plan.latest_forecast_end)+')':'')+', and is $0 afterward. 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' already recorded against their budgets. '
+    +'Received Ironbark invoices use the saved contractor Expense GL assignment and populate the contractor rows by Invoice Date, falling back to Billing Month when no usable invoice date is recorded. July invoice sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
+    +'January&ndash;June remains reconciled to closed Finance actuals. July uses Invoices Received plus manual accrual and drilling scheduled after the as-of date. EOS costs are used only to reduce the remaining borehole budgets, not as financial actuals. The F07 4200/4250 support forecast runs only while drilling is active, is prorated through the final drill day'+(plan.latest_forecast_end?' ('+esc(plan.latest_forecast_end)+')':'')+', and is $0 afterward. 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' EOS cost already recorded against their budgets. '
     +(numVal(plan.forecast_after_year)>0?cur(plan.forecast_after_year)+' of drilling falls after 2026 based on the current sequence. ':'')
     +esc(plan.allocation_method||'')+(plan.missing_budget_holes?' '+plan.missing_budget_holes+' open hole(s) have no drilling budget and contribute $0 until budgeted.':'')+' Carborough Downs is excluded and will be forecast separately.';
 }
