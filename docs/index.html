@@ -312,18 +312,24 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-kpi-holes .value{font-size:24px;color:#1f5f8b;}
 .ccf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;}
 .ccf-head p{margin:5px 0 0;color:var(--muted);font-size:12px;max-width:760px;line-height:1.5;}
+.ccf-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
 .ccf-badge{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#fff4d6;color:#8a5b00;font-size:11px;font-weight:800;border:1px solid #f0d38a;white-space:nowrap;}
 .kpi-row.ccf-kpi-row{grid-template-columns:repeat(4,minmax(0,1fr));}
+.ccf-chart-scroll{overflow-x:auto;padding-bottom:2px;}
+.ccf-chart-canvas{min-width:720px;}
 .ccf-visual-row{display:grid;grid-template-columns:54px minmax(220px,1fr) 110px 110px;gap:10px;align-items:center;margin:8px 0;font-size:11px;}
+.ccf-visual-head{margin-top:0;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;}
+.ccf-visual-head span:nth-child(n+3){text-align:right;}
 .ccf-bars{display:grid;gap:3px;}
 .ccf-track{height:8px;border-radius:999px;background:#e7edf3;overflow:hidden;}
 .ccf-bar{height:100%;border-radius:999px;min-width:0;}
 .ccf-bar.baseline{background:#9bb8cf;}
 .ccf-bar.reforecast{background:#d39a2c;}
+.ccf-bar.negative{background:#c44b47;}
 .ccf-money{text-align:right;font-family:var(--font-mono);font-weight:700;}
 .ccf-legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:8px;}
 .ccf-legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0;}
-.ccf-legend .baseline::before{background:#9bb8cf;}.ccf-legend .reforecast::before{background:#d39a2c;}
+.ccf-legend .baseline::before{background:#9bb8cf;}.ccf-legend .reforecast::before{background:#d39a2c;}.ccf-legend .negative::before{background:#c44b47;}
 .ccf-input{width:118px;padding:6px 7px;border:1px solid var(--border);border-radius:5px;font:11px var(--font-mono);text-align:right;background:#fff;}
 .ccf-note-input{width:100%;min-width:220px;padding:6px 7px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:#fff;}
 .ccf-source-note{padding:11px 13px;border-left:3px solid var(--accent);background:#f6f9fc;color:var(--muted);font-size:11px;line-height:1.5;margin-top:12px;}
@@ -844,6 +850,8 @@ tbody td[contenteditable=true]:focus {
     grid-template-columns:1fr;
   }
   .kpi-row.ccf-kpi-row { grid-template-columns:1fr; }
+  .ccf-head { flex-direction:column; }
+  .ccf-head-actions { width:100%;justify-content:flex-start; }
   main { padding:14px; }
 }
 
@@ -1799,7 +1807,7 @@ tbody td[contenteditable=true]:focus {
           <h2 class="section-title" style="margin-bottom:0;">IB Technical Services &mdash; Exploration Forecast</h2>
           <p>High-level TECEXP cost-centre view. Finance actuals and the F07 baseline remain separate from live DrillOps accruals and editable reforecast assumptions.</p>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div class="ccf-head-actions">
           <span class="ccf-badge">Program hold assumed Aug&ndash;Dec 2026</span>
           <button class="btn-primary" type="button" onclick="loadCostCentreForecast()">Refresh actuals</button>
         </div>
@@ -1812,8 +1820,13 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="chart-title">Monthly F07 Baseline vs Reforecast ($)</div>
-        <div class="ccf-legend"><span class="baseline">F07 baseline</span><span class="reforecast">Current reforecast</span></div>
-        <div id="ccf-month-visual"></div>
+        <div class="ccf-chart-scroll">
+          <div class="ccf-chart-canvas">
+            <div class="ccf-legend"><span class="baseline">F07 baseline</span><span class="reforecast">Current reforecast</span><span class="negative">Negative value</span></div>
+            <div class="ccf-visual-row ccf-visual-head"><span>Month</span><span></span><span>F07 baseline</span><span>Reforecast</span></div>
+            <div id="ccf-month-visual"></div>
+          </div>
+        </div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar"><div class="table-count">2026 monthly summary</div></div>
@@ -8420,14 +8433,16 @@ function renderCostCentreForecast(){
   setPeriodText('ccf-variance-total',cur(baselineTotal-reforecastTotal));
   setPeriodText('ccf-asof','As at '+costCentreForecastData.as_of+' | DrillOps + manual accrual');
 
-  const maxValue=Math.max(1,...months.map(function(m){return Math.max(m.baseline,m.reforecast);}));
+  const maxValue=Math.max(1,...months.map(function(m){return Math.max(Math.abs(m.baseline),Math.abs(m.reforecast));}));
   const visual=document.getElementById('ccf-month-visual');
   if(visual)visual.innerHTML=months.map(function(m){
+    const baselineWidth=Math.min(100,Math.abs(m.baseline)/maxValue*100).toFixed(2);
+    const reforecastWidth=Math.min(100,Math.abs(m.reforecast)/maxValue*100).toFixed(2);
     return '<div class="ccf-visual-row">'
       +'<b>'+COST_CENTRE_MONTHS[m.month-1]+'</b>'
       +'<div class="ccf-bars">'
-        +'<div class="ccf-track"><div class="ccf-bar baseline" style="width:'+(m.baseline/maxValue*100).toFixed(2)+'%"></div></div>'
-        +'<div class="ccf-track"><div class="ccf-bar reforecast" style="width:'+(m.reforecast/maxValue*100).toFixed(2)+'%"></div></div>'
+        +'<div class="ccf-track"><div class="ccf-bar baseline'+(m.baseline<0?' negative':'')+'" style="width:'+baselineWidth+'%"></div></div>'
+        +'<div class="ccf-track"><div class="ccf-bar reforecast'+(m.reforecast<0?' negative':'')+'" style="width:'+reforecastWidth+'%"></div></div>'
       +'</div>'
       +'<div class="ccf-money">'+cur(m.baseline)+'</div>'
       +'<div class="ccf-money">'+cur(m.reforecast)+'</div>'
