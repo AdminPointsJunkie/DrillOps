@@ -9,6 +9,7 @@ import os
 import base64
 import json
 import csv
+from math import ceil
 from contextlib import contextmanager
 from functools import lru_cache
 from io import BytesIO
@@ -7571,7 +7572,6 @@ def get_cost_centre_forecast(
     from datetime import datetime, timedelta, timezone
 
     brisbane_today = datetime.now(timezone(timedelta(hours=10))).date()
-    current_month = brisbane_today.month if brisbane_today.year == year else (0 if brisbane_today.year < year else 12)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -7663,6 +7663,7 @@ def get_cost_centre_forecast(
             # deducted so that it is not counted once in July and again in the plan.
             cur.execute("""
                 SELECT b.hole_id, b.site_id, b.status, b.scheduled_start,
+                       b.drill_order, b.days_budgeted, b.assigned_rig,
                        b.drilling_budget_total,
                        COALESCE(SUM(CASE WHEN COALESCE(ac.category,'')='Drilling'
                            THEN COALESCE(a.line_cost,0) ELSE 0 END),0) AS drilling_actual
@@ -7695,52 +7696,64 @@ def get_cost_centre_forecast(
             "site_id": hole.get("site_id"),
             "status": hole.get("status") or "Planned",
             "scheduled_start": hole.get("scheduled_start"),
+            "drill_order": hole.get("drill_order"),
+            "days_budgeted": float(hole.get("days_budgeted") or 0),
+            "assigned_rig": hole.get("assigned_rig") or "Unassigned",
             "drilling_budget": round(budget, 2),
             "drilling_actual": round(actual, 2),
             "deducted_actual": round(deducted_actual, 2),
             "remaining_drilling": round(remaining, 2),
         })
 
-    future_months = list(range(max(current_month + 1, 1), 13))
-    plan_forecast = {}
-    scheduled_by_month = {month: 0.0 for month in future_months}
-    unphased_remaining = 0.0
-    scheduled_holes = 0
-    for hole in plan_rows:
-        remaining = float(hole["remaining_drilling"] or 0)
-        scheduled_month = None
-        raw_start = str(hole.get("scheduled_start") or "").strip()
+    # Schedule open holes in Borehole Planning order. Each assigned rig has a
+    # separate cursor, allowing rigs to operate in parallel. A hole's remaining
+    # budget is spread evenly over its remaining drill days and calendar months.
+    schedule_base = brisbane_today + timedelta(days=1)
+    rig_cursors = {}
+    plan_forecast_cents = {}
+
+    def parse_plan_date(raw_value):
+        raw = str(raw_value or "").strip()
         for date_format in ("%Y-%m-%d", "%d/%m/%Y"):
             try:
-                parsed = datetime.strptime(raw_start[:10], date_format)
-                if parsed.year == year and parsed.month in future_months:
-                    scheduled_month = parsed.month
-                break
+                return datetime.strptime(raw[:10], date_format).date()
             except (TypeError, ValueError):
                 continue
-        if scheduled_month:
-            scheduled_by_month[scheduled_month] += remaining
-            scheduled_holes += 1
-        else:
-            unphased_remaining += remaining
+        return None
 
-    drilling_baseline = {
-        int(row["month"]): float(row.get("baseline_amount") or 0)
-        for row in rows
-        if row.get("category") == "4350 - Drilling Services" and int(row["month"]) in future_months
-    }
-    weight_total = sum(max(drilling_baseline.get(month, 0), 0) for month in future_months)
-    allocated = 0.0
-    for index, month in enumerate(future_months):
-        if index == len(future_months) - 1:
-            unphased_month = round(unphased_remaining - allocated, 2)
-        elif weight_total > 0:
-            unphased_month = round(unphased_remaining * max(drilling_baseline.get(month, 0), 0) / weight_total, 2)
-            allocated += unphased_month
+    for hole in plan_rows:
+        remaining = float(hole["remaining_drilling"] or 0)
+        rig = str(hole.get("assigned_rig") or "Unassigned").strip() or "Unassigned"
+        stored_start = parse_plan_date(hole.get("scheduled_start"))
+        start_date = max(schedule_base, rig_cursors.get(rig, schedule_base), stored_start or schedule_base)
+        budget_days = max(1, int(ceil(float(hole.get("days_budgeted") or 1))))
+        budget = float(hole.get("drilling_budget") or 0)
+        if budget > 0 and remaining < budget:
+            remaining_days = max(1, int(ceil(budget_days * remaining / budget)))
         else:
-            unphased_month = round(unphased_remaining / max(len(future_months), 1), 2)
-            allocated += unphased_month
-        plan_forecast[f"{month}:4350 - Drilling Services"] = round(scheduled_by_month.get(month, 0) + unphased_month, 2)
+            remaining_days = budget_days
+        end_date = start_date + timedelta(days=remaining_days - 1)
+        rig_cursors[rig] = end_date + timedelta(days=1)
+        hole["forecast_start"] = start_date.isoformat()
+        hole["forecast_end"] = end_date.isoformat()
+        hole["forecast_drill_days"] = remaining_days
+
+        total_cents = int(round(remaining * 100))
+        cents_per_day, extra_cents = divmod(total_cents, remaining_days)
+        for day_index in range(remaining_days):
+            spend_date = start_date + timedelta(days=day_index)
+            period = spend_date.strftime("%Y-%m")
+            day_cents = cents_per_day + (1 if day_index < extra_cents else 0)
+            plan_forecast_cents[period] = plan_forecast_cents.get(period, 0) + day_cents
+
+    plan_forecast_periods = {
+        f"{period}:4350 - Drilling Services": round(cents / 100, 2)
+        for period, cents in sorted(plan_forecast_cents.items())
+    }
+    plan_forecast = {
+        f"{month}:4350 - Drilling Services": round(plan_forecast_cents.get(f"{year}-{month:02d}", 0) / 100, 2)
+        for month in range(1, 13)
+    }
 
     remaining_total = round(sum(row["remaining_drilling"] for row in plan_rows), 2)
     plan_summary = {
@@ -7754,9 +7767,14 @@ def get_cost_centre_forecast(
         "drilling_actual_on_open_holes": round(sum(row["drilling_actual"] for row in plan_rows), 2),
         "drilling_actual_deducted": round(sum(row["deducted_actual"] for row in plan_rows), 2),
         "remaining_drilling_budget": remaining_total,
-        "scheduled_holes": scheduled_holes,
-        "unphased_holes": len(plan_rows) - scheduled_holes,
-        "allocation_method": "Scheduled start month where available; otherwise phased across the remaining year using the F07 4350 monthly profile.",
+        "forecast_in_year": round(sum(plan_forecast.values()), 2),
+        "forecast_after_year": round(remaining_total - sum(plan_forecast.values()), 2),
+        "scheduled_holes": len(plan_rows),
+        "unphased_holes": 0,
+        "missing_days_holes": sum(1 for row in plan_rows if float(row.get("days_budgeted") or 0) <= 0),
+        "first_forecast_start": min((row["forecast_start"] for row in plan_rows), default=None),
+        "latest_forecast_end": max((row["forecast_end"] for row in plan_rows), default=None),
+        "allocation_method": "Remaining drilling budgets are scheduled by Borehole Planning drill order and assigned rig from the day after the as-of date. Each hole occupies its remaining budgeted drill days, and spend is spread evenly across those calendar days and months.",
     }
 
     return {
@@ -7770,6 +7788,7 @@ def get_cost_centre_forecast(
         "live_actuals": live_actuals,
         "live_sources": live_sources,
         "plan_forecast": plan_forecast,
+        "plan_forecast_periods": plan_forecast_periods,
         "plan_summary": plan_summary,
         "plan_holes": plan_rows,
     }

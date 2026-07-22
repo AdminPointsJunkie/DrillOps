@@ -1865,7 +1865,21 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Yellow rows are closed Finance actuals and live July accruals that cannot be assigned to a Finance commentary line from the source transaction. August-December is split across the F07 activity lines and always reconciles to the three-GL reforecast.</div>
+        <div class="ccf-finance-note">Yellow rows are closed Finance actuals and live July accruals that cannot be assigned to a Finance commentary line from the source transaction. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days; other future activity lines retain the F07 mix. The detailed rows always reconcile to the three-GL reforecast.</div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Drilling spend schedule</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Forecast dates calculated from Borehole Planning drill order, assigned rig and remaining drill days.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table class="period-mini-table">
+            <thead><tr><th>Order</th><th>Hole</th><th>Rig</th><th>Status</th><th>Budgeted days</th><th>Remaining drill days</th><th>Forecast start</th><th>Forecast end</th><th>Remaining drilling</th></tr></thead>
+            <tbody id="ccf-drill-schedule-body"></tbody>
+          </table>
+        </div>
       </div>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="chart-title">Monthly F07 Baseline vs Reforecast ($)</div>
@@ -8509,7 +8523,7 @@ function costCentrePlanForecast(row){
 
 function costCentreDefaultForecast(row){
   if(row.month<=6)return numVal(row.finance_actual);
-  if(row.month===7)return costCentreLiveActual(row);
+  if(row.month===7)return costCentreLiveActual(row)+(row.category==='4350 - Drilling Services'?costCentrePlanForecast(row):0);
   if(row.category==='4350 - Drilling Services')return costCentrePlanForecast(row);
   return numVal(row.baseline_amount);
 }
@@ -8562,15 +8576,22 @@ function costCentreCategoryMonths(){
 
 function costCentreSpreadsheetRows(){
   const categoryMonths=costCentreCategoryMonths();
-  const asOf=String((costCentreForecastData&&costCentreForecastData.as_of)||'2026-07-01');
-  const asOfParts=asOf.split('-');
-  const cutoff=Number(asOfParts[0])===2026?Math.min(12,Math.max(1,Number(asOfParts[1])||7)):7;
+  const source=(costCentreForecastData&&costCentreForecastData.rows)||[];
   const actualRows=COST_CENTRE_GLS.map(function(expense){
     const account=expense.slice(0,4);
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
       commentary:'Finance actuals / live accrual - '+account,
-      monthly:(categoryMonths[expense]||[]).map(function(value,index){return index<cutoff?value:0;}),
+      monthly:Array.from({length:12},function(_,index){
+        const row=source.find(function(item){return item.category===expense&&item.month===index+1;});
+        if(!row)return 0;
+        if(index<6)return numVal(row.finance_actual);
+        if(index===6){
+          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row);
+          return costCentreLiveActual(row)+numVal(row.manual_accrual);
+        }
+        return 0;
+      }),
       actualLine:true
     };
   });
@@ -8578,7 +8599,7 @@ function costCentreSpreadsheetRows(){
     return {site:'IB',division:'TEC',costCentre:'TECEXP',expense:line.expense,commentary:line.commentary,monthly:Array(12).fill(0),actualLine:false};
   });
   COST_CENTRE_GLS.forEach(function(expense){
-    for(let month=cutoff;month<12;month++){
+    for(let month=6;month<12;month++){
       const candidates=planRows.filter(function(row){return row.expense===expense;});
       const profileIndex=month-6;
       const weights=candidates.map(function(row){
@@ -8586,7 +8607,8 @@ function costCentreSpreadsheetRows(){
         return profileIndex>=0?numVal(definition&&definition.profile[profileIndex]):0;
       });
       const weightTotal=weights.reduce(function(sum,value){return sum+value;},0);
-      const target=numVal((categoryMonths[expense]||[])[month]);
+      const actualRow=actualRows.find(function(row){return row.expense===expense;});
+      const target=numVal((categoryMonths[expense]||[])[month])-numVal(actualRow&&actualRow.monthly[month]);
       let allocated=0;
       candidates.forEach(function(row,index){
         let value=0;
@@ -8599,9 +8621,15 @@ function costCentreSpreadsheetRows(){
       });
     }
   });
+  const futurePeriods=(costCentreForecastData&&costCentreForecastData.plan_forecast_periods)||{};
+  const drillingPlan=planRows.find(function(row){return row.expense==='4350 - Drilling Services'&&row.commentary==='Exploration Drilling';});
+  if(drillingPlan)drillingPlan.future=[
+    numVal(futurePeriods['2027-01:4350 - Drilling Services']),
+    numVal(futurePeriods['2027-02:4350 - Drilling Services'])
+  ];
   return actualRows.concat(planRows).map(function(row){
     row.total=row.monthly.reduce(function(sum,value){return sum+value;},0);
-    row.future=[0,0];
+    if(!row.future)row.future=[0,0];
     return row;
   });
 }
@@ -8612,6 +8640,7 @@ function renderCostCentreSpreadsheetGrid(){
   const rows=costCentreSpreadsheetRows();
   const money=function(value){return Math.abs(numVal(value))<0.005?'-':numVal(value).toLocaleString('en-AU',{maximumFractionDigits:0});};
   const totals=Array.from({length:12},function(_,index){return rows.reduce(function(sum,row){return sum+row.monthly[index];},0);});
+  const futureTotals=Array.from({length:2},function(_,index){return rows.reduce(function(sum,row){return sum+numVal(row.future[index]);},0);});
   body.innerHTML=rows.map(function(row){
     return '<tr class="'+(row.actualLine?'ccf-actual-line':'')+'"><td class="identity">'+row.site+'</td><td class="identity">'+row.division+'</td><td class="identity">'+row.costCentre+'</td><td class="identity">'+esc(row.expense)+'</td><td class="identity commentary">'+esc(row.commentary)+'</td>'
       +row.monthly.map(function(value,index){return '<td class="num '+(index<7?'actual-period':'')+'">'+money(value)+'</td>';}).join('')
@@ -8619,7 +8648,8 @@ function renderCostCentreSpreadsheetGrid(){
       +row.future.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
   }).join('')+'<tr class="ccf-total-row"><td colspan="5">2026 REFORECAST TOTAL</td>'
     +totals.map(function(value,index){return '<td class="num '+(index<7?'actual-period':'')+'">'+money(value)+'</td>';}).join('')
-    +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0))+'</td><td class="num">-</td><td class="num">-</td></tr>';
+    +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0))+'</td>'
+    +futureTotals.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
 }
 
 async function copyCostCentreSpreadsheetRows(){
@@ -8662,10 +8692,20 @@ function renderCostCentreForecast(){
   setPeriodText('ccf-f07-total',cur(baselineTotal));
   setPeriodText('ccf-july-accrued',cur(julyAccrued));
   setPeriodText('ccf-plan-total',cur(plan.remaining_drilling_budget||0));
-  setPeriodText('ccf-plan-sub',(plan.hole_count||0)+' open Ironbark holes'+(plan.missing_budget_holes?' · '+plan.missing_budget_holes+' missing budget':''));
+  setPeriodText('ccf-plan-sub',(plan.hole_count||0)+' open Ironbark holes'+(plan.latest_forecast_end?' | through '+plan.latest_forecast_end:'')+(plan.missing_budget_holes?' | '+plan.missing_budget_holes+' missing budget':''));
   setPeriodText('ccf-reforecast-total',cur(reforecastTotal));
   setPeriodText('ccf-asof','As at '+costCentreForecastData.as_of+' | 4200 + 4250 + 4350');
   renderCostCentreSpreadsheetGrid();
+
+  const scheduleBody=document.getElementById('ccf-drill-schedule-body');
+  if(scheduleBody)scheduleBody.innerHTML=(costCentreForecastData.plan_holes||[]).map(function(hole){
+    return '<tr><td>'+esc(hole.drill_order==null?'--':hole.drill_order)+'</td><td><b>'+esc(hole.hole_id||hole.site_id||'--')+'</b></td>'
+      +'<td>'+esc(hole.assigned_rig||'Unassigned')+'</td><td>'+esc(hole.status||'Planned')+'</td>'
+      +'<td class="num">'+numVal(hole.days_budgeted).toLocaleString('en-AU',{maximumFractionDigits:1})+'</td>'
+      +'<td class="num">'+numVal(hole.forecast_drill_days).toLocaleString('en-AU',{maximumFractionDigits:0})+'</td>'
+      +'<td>'+esc(hole.forecast_start||'--')+'</td><td>'+esc(hole.forecast_end||'--')+'</td>'
+      +'<td class="num"><b>'+cur(hole.remaining_drilling)+'</b></td></tr>';
+  }).join('')||'<tr><td colspan="9">No open Ironbark holes in Borehole Planning.</td></tr>';
 
   const maxValue=Math.max(1,...months.map(function(m){return Math.max(Math.abs(m.baseline),Math.abs(m.reforecast));}));
   const visual=document.getElementById('ccf-month-visual');
@@ -8706,7 +8746,8 @@ function renderCostCentreForecast(){
   const sourceNote=document.getElementById('ccf-source-note');
   if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
     +'Live invoices and EOS costs use the saved contractor Expense GL assignment. July DrillOps accrual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
-    +'January&ndash;June uses closed Finance actuals. July uses live Ironbark invoices/EOS plus manual accrual. August&ndash;December retains the F07 4200/4250 support forecast, while 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' already recorded against their budgets. '
+    +'January&ndash;June uses closed Finance actuals. July uses live Ironbark invoices/EOS plus manual accrual, plus drilling scheduled after the as-of date. August&ndash;December retains the F07 4200/4250 support forecast, while 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' already recorded against their budgets. '
+    +(numVal(plan.forecast_after_year)>0?cur(plan.forecast_after_year)+' of drilling falls after 2026 based on the current sequence. ':'')
     +esc(plan.allocation_method||'')+(plan.missing_budget_holes?' '+plan.missing_budget_holes+' open hole(s) have no drilling budget and contribute $0 until budgeted.':'')+' Carborough Downs is excluded and will be forecast separately.';
 }
 
