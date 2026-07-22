@@ -1804,19 +1804,34 @@ tbody td[contenteditable=true]:focus {
     <section class="page" id="page-cost-centre-forecast">
       <div class="ccf-head">
         <div>
-          <h2 class="section-title" style="margin-bottom:0;">IB Technical Services &mdash; Exploration Forecast</h2>
-          <p>High-level TECEXP cost-centre view. Finance actuals and the F07 baseline remain separate from live DrillOps accruals and editable reforecast assumptions.</p>
+          <h2 class="section-title" style="margin-bottom:0;">Ironbark Exploration Forecast</h2>
+          <p>Ironbark-only TECEXP view for GL 4200 Consulting Services, 4250 Contractors and 4350 Drilling Services. Carborough Downs is excluded.</p>
         </div>
         <div class="ccf-head-actions">
-          <span class="ccf-badge">Program hold assumed Aug&ndash;Dec 2026</span>
+          <span class="ccf-badge">Ironbark only &middot; GL 4200 / 4250 / 4350</span>
           <button class="btn-primary" type="button" onclick="loadCostCentreForecast()">Refresh actuals</button>
         </div>
       </div>
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
-        <div class="kpi"><div class="kpi-label">F07 Full-year Forecast</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">Finance baseline</div></div>
+        <div class="kpi"><div class="kpi-label">F07 Three-GL Baseline</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">4200 + 4250 + 4350 only</div></div>
         <div class="kpi"><div class="kpi-label">July Accrued to Date</div><div class="kpi-value" id="ccf-july-accrued">--</div><div class="kpi-sub" id="ccf-asof">Live DrillOps + manual accrual</div></div>
+        <div class="kpi"><div class="kpi-label">Remaining Drilling Plan</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">Open Ironbark holes</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
-        <div class="kpi good"><div class="kpi-label">Reduction vs F07</div><div class="kpi-value" id="ccf-variance-total">--</div><div class="kpi-sub">Favourable forecast movement</div></div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Finance spreadsheet view</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Same column order as the F07 source, using the current reforecast values.</div>
+          </div>
+          <button class="btn-csv" type="button" onclick="copyCostCentreSpreadsheetRows()">Copy rows for Excel</button>
+        </div>
+        <div class="tbl-scroll">
+          <table class="period-mini-table">
+            <thead><tr><th>Site</th><th>Division</th><th>Cost Centre</th><th>Expense</th><th>Commentary</th><th>Jan-26</th><th>Feb-26</th><th>Mar-26</th><th>Apr-26</th><th>May-26</th><th>Jun-26</th><th>Jul-26</th><th>Aug-26</th><th>Sep-26</th><th>Oct-26</th><th>Nov-26</th><th>Dec-26</th><th>2026</th></tr></thead>
+            <tbody id="ccf-sheet-body"></tbody>
+          </table>
+        </div>
       </div>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="chart-title">Monthly F07 Baseline vs Reforecast ($)</div>
@@ -1832,7 +1847,7 @@ tbody td[contenteditable=true]:focus {
         <div class="table-toolbar"><div class="table-count">2026 monthly summary</div></div>
         <div class="tbl-scroll">
           <table class="period-mini-table">
-            <thead><tr><th>Month</th><th>Status</th><th>F07 baseline</th><th>Finance actual</th><th>DrillOps actual</th><th>Manual accrual</th><th>Reforecast</th><th>Variance</th></tr></thead>
+            <thead><tr><th>Month</th><th>Status</th><th>F07 baseline</th><th>Finance actual</th><th>DrillOps actual</th><th>Borehole plan</th><th>Manual accrual</th><th>Reforecast</th><th>Variance</th></tr></thead>
             <tbody id="ccf-month-body"></tbody>
           </table>
         </div>
@@ -1840,11 +1855,11 @@ tbody td[contenteditable=true]:focus {
       <div class="table-wrap">
         <div class="table-toolbar">
           <div class="table-count">July accrual and remaining 2026 assumptions</div>
-          <div style="font-size:11px;color:var(--muted);">Leave July reforecast blank to use DrillOps actual + manual accrual.</div>
+          <div style="font-size:11px;color:var(--muted);">Leave override blank to use actuals, the F07 support plan, or the remaining borehole plan.</div>
         </div>
         <div class="tbl-scroll" style="max-height:520px;">
           <table class="period-mini-table">
-            <thead><tr><th>Month</th><th>Category</th><th>F07 baseline</th><th>DrillOps actual</th><th>Manual accrual</th><th>Reforecast override</th><th>Calculated reforecast</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Month</th><th>GL category</th><th>F07 baseline</th><th>DrillOps actual</th><th>Default forecast</th><th>Manual accrual</th><th>Reforecast override</th><th>Calculated reforecast</th><th>Notes</th></tr></thead>
             <tbody id="ccf-detail-body"></tbody>
           </table>
         </div>
@@ -8380,30 +8395,89 @@ function buildProjectBudgetSelectors(){
 }
 
 const COST_CENTRE_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const COST_CENTRE_GLS=['4200 - Consulting Services','4250 - Contractors','4350 - Drilling Services'];
 
 function costCentreLiveActual(row){
   if(!costCentreForecastData)return 0;
   return numVal(costCentreForecastData.live_actuals[row.month+':'+row.category]);
 }
 
+function costCentrePlanForecast(row){
+  if(!costCentreForecastData)return 0;
+  return numVal((costCentreForecastData.plan_forecast||{})[row.month+':'+row.category]);
+}
+
+function costCentreDefaultForecast(row){
+  if(row.month<=6)return numVal(row.finance_actual);
+  if(row.month===7)return costCentreLiveActual(row);
+  if(row.category==='4350 - Drilling Services')return costCentrePlanForecast(row);
+  return numVal(row.baseline_amount);
+}
+
 function costCentreRowReforecast(row){
   if(row.month<=6)return numVal(row.finance_actual);
   if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return numVal(row.forecast_override);
-  return costCentreLiveActual(row)+numVal(row.manual_accrual);
+  return costCentreDefaultForecast(row)+numVal(row.manual_accrual);
 }
 
 function aggregateCostCentreMonths(){
-  const months=Array.from({length:12},function(_,i){return {month:i+1,baseline:0,finance:0,live:0,accrual:0,reforecast:0};});
+  const months=Array.from({length:12},function(_,i){return {month:i+1,baseline:0,finance:0,live:0,plan:0,accrual:0,reforecast:0};});
   ((costCentreForecastData&&costCentreForecastData.rows)||[]).forEach(function(row){
     const item=months[row.month-1];
     if(!item)return;
     item.baseline+=numVal(row.baseline_amount);
     item.finance+=numVal(row.finance_actual);
     item.live+=costCentreLiveActual(row);
+    item.plan+=costCentrePlanForecast(row);
     item.accrual+=numVal(row.manual_accrual);
     item.reforecast+=costCentreRowReforecast(row);
   });
   return months;
+}
+
+function costCentreSpreadsheetRows(){
+  const rows=(costCentreForecastData&&costCentreForecastData.rows)||[];
+  return COST_CENTRE_GLS.map(function(category){
+    const monthly=Array.from({length:12},function(_,index){
+      const row=rows.find(function(item){return item.category===category&&item.month===index+1;});
+      return row?costCentreRowReforecast(row):0;
+    });
+    return {
+      site:'IB',division:'TEC',costCentre:'TECEXP',expense:category,
+      commentary:category.startsWith('4350')?'Ironbark reforecast - Borehole Planning remainder':'Ironbark reforecast - F07 support plan',
+      monthly:monthly,total:monthly.reduce(function(sum,value){return sum+value;},0)
+    };
+  });
+}
+
+function renderCostCentreSpreadsheetGrid(){
+  const body=document.getElementById('ccf-sheet-body');
+  if(!body)return;
+  const rows=costCentreSpreadsheetRows();
+  const money=function(value){return numVal(value).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  const totals=Array.from({length:12},function(_,index){return rows.reduce(function(sum,row){return sum+row.monthly[index];},0);});
+  body.innerHTML=rows.map(function(row){
+    return '<tr><td>'+row.site+'</td><td>'+row.division+'</td><td>'+row.costCentre+'</td><td><b>'+esc(row.expense)+'</b></td><td>'+esc(row.commentary)+'</td>'
+      +row.monthly.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')
+      +'<td class="num"><b>'+money(row.total)+'</b></td></tr>';
+  }).join('')+'<tr><td colspan="5"><b>2026 REFORECAST TOTAL</b></td>'
+    +totals.map(function(value){return '<td class="num"><b>'+money(value)+'</b></td>';}).join('')
+    +'<td class="num"><b>'+money(totals.reduce(function(sum,value){return sum+value;},0))+'</b></td></tr>';
+}
+
+async function copyCostCentreSpreadsheetRows(){
+  const headers=['Site','Division','Cost Centre','Expense','Commentary','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26','Aug-26','Sep-26','Oct-26','Nov-26','Dec-26','2026'];
+  const lines=[headers].concat(costCentreSpreadsheetRows().map(function(row){
+    return [row.site,row.division,row.costCentre,row.expense,row.commentary].concat(row.monthly.map(function(value){return numVal(value).toFixed(2);}),[row.total.toFixed(2)]);
+  })).map(function(row){return row.join('\t');}).join('\n');
+  try{
+    await navigator.clipboard.writeText(lines);
+  }catch(e){
+    const textarea=document.createElement('textarea');
+    textarea.value=lines;textarea.style.position='fixed';textarea.style.opacity='0';document.body.appendChild(textarea);
+    textarea.select();document.execCommand('copy');textarea.remove();
+  }
+  toast('Three Ironbark TECEXP rows copied for Excel');
 }
 
 async function loadCostCentreForecast(){
@@ -8427,11 +8501,14 @@ function renderCostCentreForecast(){
   const reforecastTotal=months.reduce(function(s,m){return s+m.reforecast;},0);
   const july=months[6];
   const julyAccrued=july.live+july.accrual;
+  const plan=costCentreForecastData.plan_summary||{};
   setPeriodText('ccf-f07-total',cur(baselineTotal));
   setPeriodText('ccf-july-accrued',cur(julyAccrued));
+  setPeriodText('ccf-plan-total',cur(plan.remaining_drilling_budget||0));
+  setPeriodText('ccf-plan-sub',(plan.hole_count||0)+' open Ironbark holes'+(plan.missing_budget_holes?' · '+plan.missing_budget_holes+' missing budget':''));
   setPeriodText('ccf-reforecast-total',cur(reforecastTotal));
-  setPeriodText('ccf-variance-total',cur(baselineTotal-reforecastTotal));
-  setPeriodText('ccf-asof','As at '+costCentreForecastData.as_of+' | DrillOps + manual accrual');
+  setPeriodText('ccf-asof','As at '+costCentreForecastData.as_of+' | 4200 + 4250 + 4350');
+  renderCostCentreSpreadsheetGrid();
 
   const maxValue=Math.max(1,...months.map(function(m){return Math.max(Math.abs(m.baseline),Math.abs(m.reforecast));}));
   const visual=document.getElementById('ccf-month-visual');
@@ -8452,10 +8529,10 @@ function renderCostCentreForecast(){
   const monthBody=document.getElementById('ccf-month-body');
   if(monthBody)monthBody.innerHTML=months.map(function(m){
     const variance=m.baseline-m.reforecast;
-    const status=m.month<=6?'Finance actual':m.month===7?'July accrual':'Hold forecast';
+    const status=m.month<=6?'Finance actual':m.month===7?'Accrued actual':m.plan>0?'Borehole + F07 plan':'F07 support plan';
     return '<tr><td><b>'+COST_CENTRE_MONTHS[m.month-1]+'</b></td><td><span class="flag-pill">'+status+'</span></td>'
       +'<td class="num">'+cur(m.baseline)+'</td><td class="num">'+cur(m.finance)+'</td><td class="num">'+cur(m.live)+'</td>'
-      +'<td class="num">'+cur(m.accrual)+'</td><td class="num"><b>'+cur(m.reforecast)+'</b></td>'
+      +'<td class="num">'+cur(m.plan)+'</td><td class="num">'+cur(m.accrual)+'</td><td class="num"><b>'+cur(m.reforecast)+'</b></td>'
       +'<td class="num '+(variance>=0?'variance-pos':'variance-neg')+'">'+(variance<0?'-':'')+cur(Math.abs(variance))+'</td></tr>';
   }).join('');
 
@@ -8466,6 +8543,7 @@ function renderCostCentreForecast(){
     return '<tr data-forecast-id="'+row.id+'">'
       +'<td><b>'+COST_CENTRE_MONTHS[row.month-1]+'</b></td><td>'+esc(row.category)+'</td>'
       +'<td class="num">'+cur(row.baseline_amount)+'</td><td class="num">'+cur(costCentreLiveActual(row))+'</td>'
+      +'<td class="num">'+cur(costCentreDefaultForecast(row))+'</td>'
       +'<td><input class="ccf-input" type="number" step="0.01" value="'+attr(numVal(row.manual_accrual))+'" onchange="saveCostCentreForecastField(this,'+row.id+',\'manual_accrual\')"></td>'
       +'<td><input class="ccf-input" type="number" step="0.01" value="'+attr(override)+'" placeholder="Calculated" onchange="saveCostCentreForecastField(this,'+row.id+',\'forecast_override\')"></td>'
       +'<td class="num"><b>'+cur(costCentreRowReforecast(row))+'</b></td>'
@@ -8476,10 +8554,13 @@ function renderCostCentreForecast(){
   Object.keys(costCentreForecastData.live_sources||{}).filter(function(key){return key.startsWith('7:');}).forEach(function(key){
     (costCentreForecastData.live_sources[key]||[]).forEach(function(source){julySources.push(source.source+' '+cur(source.amount));});
   });
+  const variance=baselineTotal-reforecastTotal;
+  const varianceText=variance>=0?cur(variance)+' below F07':cur(Math.abs(variance))+' above F07';
   const sourceNote=document.getElementById('ccf-source-note');
-  if(sourceNote)sourceNote.innerHTML='<b>Source and treatment:</b> F07 IB TEC.xlsx supplies the Finance actuals through June and the F07 forecast baseline. '
+  if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
     +'July DrillOps accrual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
-    +'January&ndash;June reforecast uses closed Finance actuals; July uses live DrillOps actuals plus manual accrual unless overridden; August&ndash;December are set to zero for the program hold and remain editable.';
+    +'January&ndash;June uses closed Finance actuals. July uses live Ironbark invoices/EOS plus manual accrual. August&ndash;December retains the F07 4200/4250 support forecast, while 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' already recorded against their budgets. '
+    +esc(plan.allocation_method||'')+(plan.missing_budget_holes?' '+plan.missing_budget_holes+' open hole(s) have no drilling budget and contribute $0 until budgeted.':'')+' Carborough Downs is excluded and will be forecast separately.';
 }
 
 async function saveCostCentreForecastField(input,rowId,field){

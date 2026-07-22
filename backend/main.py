@@ -846,21 +846,33 @@ def init_db():
                 )
             """)
 
-            # F07 is a high-level Technical Services - Exploration forecast:
-            # Jan-Jun are Finance actuals and Jul-Dec are the forecast baseline.
+            # F07 is a high-level Ironbark Technical Services - Exploration forecast.
+            # This view is intentionally limited to the three TECEXP GLs requested by
+            # Finance: 4200 Consulting, 4250 Contractors and 4350 Drilling Services.
+            # Jan-Jun are Finance actuals and Jul-Dec are the F07 forecast baseline.
             f07_tec_exp = {
-                "Contractors & Consultants": [
-                    31003.66, 22771.50, 46547.63, -68316.00, 0.38, 44441.55,
-                    184687.00, 179687.00, 549476.00, 181418.00, 470418.00, 170418.00,
+                "4200 - Consulting Services": [
+                    12029.00, 22771.50, 46547.89, -68316.00, 0, 0,
+                    103177.00, 98177.00, 467966.00, 99908.00, 388908.00, 88908.00,
                 ],
-                "Drilling Services": [
+                "4250 - Contractors": [
+                    18974.66, 0, -0.26, 0, 0.38, 44441.55,
+                    81510.00, 81510.00, 81510.00, 81510.00, 81510.00, 81510.00,
+                ],
+                "4350 - Drilling Services": [
                     0, 0, 0, 0, 0, 129343.00,
                     267795.00, 267795.00, 267795.00, 267795.00, 267795.00, 357060.00,
                 ],
-                "Equipment and Tools": [90.00, 460.56, 608.80, 326.98, 12.38, 0, 0, 0, 0, 0, 0, 0],
-                "Materials": [10.00, 104.48, 90.20, 1618.46, 1371.68, 910.00, 0, 0, 0, 0, 0, 0],
-                "Other": [0, 112.73, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             }
+            cur.execute("""
+                DELETE FROM cost_centre_forecasts
+                WHERE site='IB' AND cost_centre='TECEXP' AND year=2026
+                  AND category NOT IN (
+                    '4200 - Consulting Services',
+                    '4250 - Contractors',
+                    '4350 - Drilling Services'
+                  )
+            """)
             for category, monthly_amounts in f07_tec_exp.items():
                 for month, amount in enumerate(monthly_amounts, start=1):
                     cur.execute("""
@@ -868,15 +880,23 @@ def init_db():
                         (site, division, cost_centre, program, year, month, category,
                          baseline_amount, finance_actual, manual_accrual,
                          forecast_override, notes, source_file)
-                        VALUES ('IB','TEC','TECEXP','Exploration',2026,%s,%s,%s,%s,0,%s,%s,'F07 IB TEC.xlsx')
-                        ON CONFLICT (site, cost_centre, year, month, category) DO NOTHING
+                        VALUES ('IB','TEC','TECEXP','Exploration',2026,%s,%s,%s,%s,0,NULL,'','F07 IB TEC.xlsx')
+                        ON CONFLICT (site, cost_centre, year, month, category) DO UPDATE SET
+                            baseline_amount=EXCLUDED.baseline_amount,
+                            finance_actual=EXCLUDED.finance_actual,
+                            source_file=EXCLUDED.source_file,
+                            forecast_override=CASE
+                                WHEN cost_centre_forecasts.notes='Program hold: no forward spend assumed'
+                                THEN NULL ELSE cost_centre_forecasts.forecast_override END,
+                            notes=CASE
+                                WHEN cost_centre_forecasts.notes='Program hold: no forward spend assumed'
+                                THEN '' ELSE cost_centre_forecasts.notes END,
+                            updated_at=NOW()
                     """, (
                         month,
                         category,
                         amount,
                         amount if month <= 6 else 0,
-                        0 if month >= 8 else None,
-                        "Program hold: no forward spend assumed" if month >= 8 else "",
                     ))
 
             cur.execute("""
@@ -7501,7 +7521,11 @@ def get_cost_centre_forecast(
     cost_centre: str = Query("TECEXP"),
     year: int = Query(2026),
 ):
-    """Return the Finance baseline plus live DrillOps costs for a cost centre."""
+    """Return the Ironbark three-GL Finance baseline, actuals and remaining plan."""
+    from datetime import datetime, timedelta, timezone
+
+    brisbane_today = datetime.now(timezone(timedelta(hours=10))).date()
+    current_month = brisbane_today.month if brisbane_today.year == year else (0 if brisbane_today.year < year else 12)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -7537,24 +7561,7 @@ def get_cost_centre_forecast(
                 GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER)
             """, (str(year),))
             for row in cur.fetchall():
-                add_actual(row["month"], "Drilling Services", row["amount"], "DrillOps EOS")
-
-            cur.execute("""
-                SELECT CAST(SUBSTRING(cn.date,6,2) AS INTEGER) AS month,
-                       SUM(COALESCE(cn.line_cost,0)) AS amount
-                FROM consumables cn
-                LEFT JOIN contractors c ON c.name=cn.contractor
-                WHERE cn.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                  AND SUBSTRING(cn.date,1,4)=%s
-                  AND COALESCE(c.category,'')='Drilling'
-                  AND (
-                    COALESCE(cn.hole_num,'') ILIKE 'IB%%'
-                    OR COALESCE(cn.site_name,'') ILIKE 'IB%%'
-                  )
-                GROUP BY CAST(SUBSTRING(cn.date,6,2) AS INTEGER)
-            """, (str(year),))
-            for row in cur.fetchall():
-                add_actual(row["month"], "Materials", row["amount"], "DrillOps consumables")
+                add_actual(row["month"], "4350 - Drilling Services", row["amount"], "Ironbark DrillOps EOS")
 
             cur.execute("""
                 SELECT
@@ -7563,6 +7570,11 @@ def get_cost_centre_forecast(
                     WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
                     WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
                   END AS month,
+                  CASE
+                    WHEN COALESCE(c.category,'') IN ('Earthworks','Labour')
+                    THEN '4250 - Contractors'
+                    ELSE '4200 - Consulting Services'
+                  END AS gl_category,
                   SUM(COALESCE(i.total_aud,0)) AS amount
                 FROM invoices i
                 LEFT JOIN contractors c ON c.name=i.contractor
@@ -7573,24 +7585,126 @@ def get_cost_centre_forecast(
                     OR (i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.invoice_date,'/',3)=%s)
                     OR (i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.billing_month,'/',2)=%s)
                   )
-                GROUP BY month
+                GROUP BY month, gl_category
             """, (str(year), str(year), str(year)))
             for row in cur.fetchall():
                 if row["month"]:
-                    add_actual(row["month"], "Contractors & Consultants", row["amount"], "DrillOps invoices")
+                    add_actual(row["month"], row["gl_category"], row["amount"], "Ironbark DrillOps invoices")
 
-    from datetime import datetime, timedelta, timezone
-    brisbane_today = datetime.now(timezone(timedelta(hours=10))).date().isoformat()
+            # Remaining 4350 is driven by the unfinished Ironbark borehole plan.
+            # Actual drilling already recorded against Planned/In Progress holes is
+            # deducted so that it is not counted once in July and again in the plan.
+            cur.execute("""
+                SELECT b.hole_id, b.site_id, b.status, b.scheduled_start,
+                       b.drilling_budget_total,
+                       COALESCE(SUM(CASE WHEN COALESCE(ac.category,'')='Drilling'
+                           THEN COALESCE(a.line_cost,0) ELSE 0 END),0) AS drilling_actual
+                FROM boreholes b
+                LEFT JOIN activities a ON
+                    a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                    AND SUBSTRING(a.date,1,4)=%s
+                    AND (
+                        a.hole_num=b.hole_id
+                        OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                    )
+                LEFT JOIN contractors ac ON ac.name=a.contractor
+                WHERE b.contractor='Company'
+                  AND COALESCE(b.project,'')='Ironbark'
+                  AND COALESCE(b.planned_year,'')=%s
+                  AND LOWER(COALESCE(b.status,'Planned')) NOT IN ('complete','cancelled')
+                GROUP BY b.id
+                ORDER BY b.drill_order NULLS LAST, b.hole_id
+            """, (str(year), str(year)))
+            plan_holes = [dict(row) for row in cur.fetchall()]
+
+    plan_rows = []
+    for hole in plan_holes:
+        budget = float(hole.get("drilling_budget_total") or 0)
+        actual = float(hole.get("drilling_actual") or 0)
+        remaining = max(budget - actual, 0) if budget > 0 else 0
+        deducted_actual = min(actual, budget) if budget > 0 else 0
+        plan_rows.append({
+            "hole_id": hole.get("hole_id"),
+            "site_id": hole.get("site_id"),
+            "status": hole.get("status") or "Planned",
+            "scheduled_start": hole.get("scheduled_start"),
+            "drilling_budget": round(budget, 2),
+            "drilling_actual": round(actual, 2),
+            "deducted_actual": round(deducted_actual, 2),
+            "remaining_drilling": round(remaining, 2),
+        })
+
+    future_months = list(range(max(current_month + 1, 1), 13))
+    plan_forecast = {}
+    scheduled_by_month = {month: 0.0 for month in future_months}
+    unphased_remaining = 0.0
+    scheduled_holes = 0
+    for hole in plan_rows:
+        remaining = float(hole["remaining_drilling"] or 0)
+        scheduled_month = None
+        raw_start = str(hole.get("scheduled_start") or "").strip()
+        for date_format in ("%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                parsed = datetime.strptime(raw_start[:10], date_format)
+                if parsed.year == year and parsed.month in future_months:
+                    scheduled_month = parsed.month
+                break
+            except (TypeError, ValueError):
+                continue
+        if scheduled_month:
+            scheduled_by_month[scheduled_month] += remaining
+            scheduled_holes += 1
+        else:
+            unphased_remaining += remaining
+
+    drilling_baseline = {
+        int(row["month"]): float(row.get("baseline_amount") or 0)
+        for row in rows
+        if row.get("category") == "4350 - Drilling Services" and int(row["month"]) in future_months
+    }
+    weight_total = sum(max(drilling_baseline.get(month, 0), 0) for month in future_months)
+    allocated = 0.0
+    for index, month in enumerate(future_months):
+        if index == len(future_months) - 1:
+            unphased_month = round(unphased_remaining - allocated, 2)
+        elif weight_total > 0:
+            unphased_month = round(unphased_remaining * max(drilling_baseline.get(month, 0), 0) / weight_total, 2)
+            allocated += unphased_month
+        else:
+            unphased_month = round(unphased_remaining / max(len(future_months), 1), 2)
+            allocated += unphased_month
+        plan_forecast[f"{month}:4350 - Drilling Services"] = round(scheduled_by_month.get(month, 0) + unphased_month, 2)
+
+    remaining_total = round(sum(row["remaining_drilling"] for row in plan_rows), 2)
+    plan_summary = {
+        "project": "Ironbark",
+        "hole_count": len(plan_rows),
+        "planned_holes": sum(1 for row in plan_rows if str(row["status"]).lower() == "planned"),
+        "in_progress_holes": sum(1 for row in plan_rows if str(row["status"]).lower() == "in progress"),
+        "budgeted_holes": sum(1 for row in plan_rows if row["drilling_budget"] > 0),
+        "missing_budget_holes": sum(1 for row in plan_rows if row["drilling_budget"] <= 0),
+        "gross_drilling_budget": round(sum(row["drilling_budget"] for row in plan_rows), 2),
+        "drilling_actual_on_open_holes": round(sum(row["drilling_actual"] for row in plan_rows), 2),
+        "drilling_actual_deducted": round(sum(row["deducted_actual"] for row in plan_rows), 2),
+        "remaining_drilling_budget": remaining_total,
+        "scheduled_holes": scheduled_holes,
+        "unphased_holes": len(plan_rows) - scheduled_holes,
+        "allocation_method": "Scheduled start month where available; otherwise phased across the remaining year using the F07 4350 monthly profile.",
+    }
+
     return {
         "site": site,
         "division": rows[0]["division"] if rows else "TEC",
         "cost_centre": cost_centre,
         "program": rows[0]["program"] if rows else "Exploration",
         "year": year,
-        "as_of": brisbane_today,
+        "as_of": brisbane_today.isoformat(),
         "rows": rows,
         "live_actuals": live_actuals,
         "live_sources": live_sources,
+        "plan_forecast": plan_forecast,
+        "plan_summary": plan_summary,
+        "plan_holes": plan_rows,
     }
 
 
