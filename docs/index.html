@@ -344,6 +344,7 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .ccf-finance-table td.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;min-width:74px;}
 .ccf-finance-table td.year-total{font-weight:850;background:#f7f8fa;border-left:2px solid #777;}
 .ccf-finance-table tr.ccf-actual-line td.identity{background:#fff2cc;}
+.ccf-finance-table tr.ccf-contractor-line td.identity{background:#e2f0d9;}
 .ccf-finance-table tr.ccf-total-row td{position:sticky;bottom:0;z-index:2;background:#e8edf3;font-weight:850;border-top:2px solid #67717c;}
 .ccf-finance-table tr.ccf-total-row td:first-child{text-align:right;}
 .ccf-finance-note{padding:8px 12px;background:#f8fafc;color:var(--muted);font-size:10px;line-height:1.45;border-top:1px solid var(--border);}
@@ -1865,7 +1866,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Yellow rows are closed Finance actuals and live July accruals that cannot be assigned to a Finance commentary line from the source transaction. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days. Future 4200 and 4250 support costs retain the F07 mix only while drilling is active, are prorated in the final drilling month, and stop afterward.</div>
+        <div class="ccf-finance-note">Green rows are created automatically for active Exploration contractors and use each contractor's saved Expense GL. Yellow rows are closed Finance actuals and any live accrual balance that cannot be assigned to a contractor line. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days. Future 4200 and 4250 support costs retain the F07 mix only while drilling is active, are prorated in the final drilling month, and stop afterward.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -8590,6 +8591,24 @@ function costCentreCategoryMonths(){
 function costCentreSpreadsheetRows(){
   const categoryMonths=costCentreCategoryMonths();
   const source=(costCentreForecastData&&costCentreForecastData.rows)||[];
+  const asOfParts=String((costCentreForecastData&&costCentreForecastData.as_of)||'').split('-').map(Number);
+  const currentMonthIndex=(asOfParts[1]>=1&&asOfParts[1]<=12)?asOfParts[1]-1:6;
+  const contractorActuals=(costCentreForecastData&&costCentreForecastData.contractor_actuals)||{};
+  const contractorRows=((costCentreForecastData&&costCentreForecastData.exploration_contractors)||[]).filter(function(contractor){
+    return ['4200','4250','4350'].includes(String(contractor.expense_gl||''));
+  }).map(function(contractor){
+    const expense=String(contractor.expense_gl||'4200')+' - '+({4200:'Consulting Services',4250:'Contractors',4350:'Drilling Services'}[contractor.expense_gl]||'Assigned contractor GL');
+    const monthly=Array(12).fill(0);
+    monthly[currentMonthIndex]=numVal(contractorActuals[(currentMonthIndex+1)+':'+contractor.name]);
+    return {
+      site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
+      commentary:contractor.name,monthly:monthly,actualLine:false,contractorLine:true
+    };
+  });
+  const contractorTotalsByExpense={};
+  contractorRows.forEach(function(row){
+    contractorTotalsByExpense[row.expense]=numVal(contractorTotalsByExpense[row.expense])+numVal(row.monthly[currentMonthIndex]);
+  });
   const actualRows=COST_CENTRE_GLS.map(function(expense){
     const account=expense.slice(0,4);
     return {
@@ -8599,9 +8618,9 @@ function costCentreSpreadsheetRows(){
         const row=source.find(function(item){return item.category===expense&&item.month===index+1;});
         if(!row)return 0;
         if(index<6)return numVal(row.finance_actual);
-        if(index===6){
-          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row);
-          return costCentreLiveActual(row)+numVal(row.manual_accrual);
+        if(index===currentMonthIndex){
+          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row)-numVal(contractorTotalsByExpense[expense]);
+          return costCentreLiveActual(row)+numVal(row.manual_accrual)-numVal(contractorTotalsByExpense[expense]);
         }
         return 0;
       }),
@@ -8621,7 +8640,8 @@ function costCentreSpreadsheetRows(){
       });
       const weightTotal=weights.reduce(function(sum,value){return sum+value;},0);
       const actualRow=actualRows.find(function(row){return row.expense===expense;});
-      const target=numVal((categoryMonths[expense]||[])[month])-numVal(actualRow&&actualRow.monthly[month]);
+      const contractorTotal=contractorRows.filter(function(row){return row.expense===expense;}).reduce(function(sum,row){return sum+numVal(row.monthly[month]);},0);
+      const target=numVal((categoryMonths[expense]||[])[month])-numVal(actualRow&&actualRow.monthly[month])-contractorTotal;
       let allocated=0;
       candidates.forEach(function(row,index){
         let value=0;
@@ -8640,7 +8660,7 @@ function costCentreSpreadsheetRows(){
     numVal(futurePeriods['2027-01:4350 - Drilling Services']),
     numVal(futurePeriods['2027-02:4350 - Drilling Services'])
   ];
-  return actualRows.concat(planRows).map(function(row){
+  return actualRows.concat(contractorRows,planRows).map(function(row){
     row.total=row.monthly.reduce(function(sum,value){return sum+value;},0);
     if(!row.future)row.future=[0,0];
     return row;
@@ -8655,7 +8675,8 @@ function renderCostCentreSpreadsheetGrid(){
   const totals=Array.from({length:12},function(_,index){return rows.reduce(function(sum,row){return sum+row.monthly[index];},0);});
   const futureTotals=Array.from({length:2},function(_,index){return rows.reduce(function(sum,row){return sum+numVal(row.future[index]);},0);});
   body.innerHTML=rows.map(function(row){
-    return '<tr class="'+(row.actualLine?'ccf-actual-line':'')+'"><td class="identity">'+row.site+'</td><td class="identity">'+row.division+'</td><td class="identity">'+row.costCentre+'</td><td class="identity">'+esc(row.expense)+'</td><td class="identity commentary">'+esc(row.commentary)+'</td>'
+    const rowClass=row.actualLine?'ccf-actual-line':(row.contractorLine?'ccf-contractor-line':'');
+    return '<tr class="'+rowClass+'"><td class="identity">'+row.site+'</td><td class="identity">'+row.division+'</td><td class="identity">'+row.costCentre+'</td><td class="identity">'+esc(row.expense)+'</td><td class="identity commentary">'+esc(row.commentary)+'</td>'
       +row.monthly.map(function(value,index){return '<td class="num '+(index<7?'actual-period':'')+'">'+money(value)+'</td>';}).join('')
       +'<td class="num year-total">'+money(row.total)+'</td>'
       +row.future.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';

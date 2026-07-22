@@ -7584,14 +7584,47 @@ def get_cost_centre_forecast(
 
             live_actuals = {}
             live_sources = {}
+            contractor_actuals = {}
+            contractor_actual_sources = {}
 
             def add_actual(month, category, amount, source):
                 key = f"{int(month)}:{category}"
                 live_actuals[key] = round(live_actuals.get(key, 0) + float(amount or 0), 2)
                 live_sources.setdefault(key, []).append({"source": source, "amount": round(float(amount or 0), 2)})
 
+            def add_contractor_actual(month, contractor, expense_gl, amount, source):
+                contractor_name = str(contractor or "Unassigned").strip() or "Unassigned"
+                category = contractor_gl_category(expense_gl)
+                key = f"{int(month)}:{contractor_name}"
+                contractor_actuals[key] = round(contractor_actuals.get(key, 0) + float(amount or 0), 2)
+                contractor_actual_sources.setdefault(key, []).append({
+                    "source": source,
+                    "expense_gl": str(expense_gl or "").strip(),
+                    "amount": round(float(amount or 0), 2),
+                })
+                add_actual(month, category, amount, source)
+
+            cur.execute("""
+                SELECT name, category, program,
+                       COALESCE(NULLIF(BTRIM(expense_gl), ''),
+                         CASE WHEN category='Drilling' THEN '4350'
+                              WHEN category IN ('Earthworks','Labour') THEN '4250'
+                              ELSE '4200' END
+                       ) AS expense_gl
+                FROM contractors
+                WHERE COALESCE(active, TRUE)=TRUE
+                  AND EXISTS (
+                    SELECT 1
+                    FROM unnest(string_to_array(COALESCE(program,''), ',')) AS assigned_program
+                    WHERE BTRIM(assigned_program)='Exploration'
+                  )
+                ORDER BY name
+            """)
+            exploration_contractors = [dict(row) for row in cur.fetchall()]
+
             cur.execute("""
                 SELECT CAST(SUBSTRING(a.date,6,2) AS INTEGER) AS month,
+                       COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned') AS contractor,
                        COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350') AS expense_gl,
                        SUM(COALESCE(a.line_cost,0)) AS amount
                 FROM activities a
@@ -7606,12 +7639,14 @@ def get_cost_centre_forecast(
                     OR COALESCE(a.site_name,'') ILIKE 'IB%%'
                   )
                 GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER),
+                         COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned'),
                          COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350')
             """, (str(year),))
             for row in cur.fetchall():
-                add_actual(
+                add_contractor_actual(
                     row["month"],
-                    contractor_gl_category(row["expense_gl"]),
+                    row["contractor"],
+                    row["expense_gl"],
                     row["amount"],
                     "Ironbark DrillOps EOS",
                 )
@@ -7623,6 +7658,7 @@ def get_cost_centre_forecast(
                     WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
                     WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
                   END AS month,
+                  COALESCE(NULLIF(BTRIM(i.contractor), ''), 'Unassigned') AS contractor,
                   COALESCE(
                     NULLIF(BTRIM(c.expense_gl), ''),
                     CASE
@@ -7641,6 +7677,7 @@ def get_cost_centre_forecast(
                     OR (i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.billing_month,'/',2)=%s)
                   )
                 GROUP BY month,
+                  COALESCE(NULLIF(BTRIM(i.contractor), ''), 'Unassigned'),
                   COALESCE(
                     NULLIF(BTRIM(c.expense_gl), ''),
                     CASE
@@ -7651,9 +7688,10 @@ def get_cost_centre_forecast(
             """, (str(year), str(year), str(year)))
             for row in cur.fetchall():
                 if row["month"]:
-                    add_actual(
+                    add_contractor_actual(
                         row["month"],
-                        contractor_gl_category(row["expense_gl"]),
+                        row["contractor"],
+                        row["expense_gl"],
                         row["amount"],
                         "Ironbark DrillOps invoices",
                     )
@@ -7787,6 +7825,9 @@ def get_cost_centre_forecast(
         "rows": rows,
         "live_actuals": live_actuals,
         "live_sources": live_sources,
+        "exploration_contractors": exploration_contractors,
+        "contractor_actuals": contractor_actuals,
+        "contractor_actual_sources": contractor_actual_sources,
         "plan_forecast": plan_forecast,
         "plan_forecast_periods": plan_forecast_periods,
         "plan_summary": plan_summary,
