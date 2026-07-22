@@ -89,6 +89,27 @@ DEFAULT_CONTRACTOR_CATEGORIES = {
     "Earth Works": "Earthworks",
 }
 
+CONTRACTOR_EXPENSE_GL_LABELS = {
+    "4200": "Consulting Services",
+    "4250": "Contractors",
+    "4350": "Drilling Services",
+}
+
+
+def default_contractor_expense_gl(category: str) -> str:
+    """Return the legacy category-derived GL used to initialise contractors."""
+    if category == "Drilling":
+        return "4350"
+    if category in ("Earthworks", "Labour"):
+        return "4250"
+    return "4200"
+
+
+def contractor_gl_category(expense_gl: str) -> str:
+    code = str(expense_gl or "").strip()
+    label = CONTRACTOR_EXPENSE_GL_LABELS.get(code, "Assigned contractor GL")
+    return f"{code} - {label}" if code else ""
+
 CONTRACTOR_REFERENCE_TABLES = [
     "activities",
     "consumables",
@@ -758,12 +779,14 @@ def init_db():
                     short_code TEXT,
                     category   TEXT DEFAULT 'Misc',
                     program    TEXT DEFAULT 'Exploration',
+                    expense_gl TEXT,
                     active     BOOLEAN DEFAULT TRUE
                 )
             """)
             try:
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Misc'")
+                cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS expense_gl TEXT")
                 cur.execute("UPDATE contractors SET program='Exploration' WHERE program IS NULL OR program=''")
                 cur.execute("UPDATE contractors SET category='Misc' WHERE category IS NULL OR category=''")
                 for con_name, con_category in DEFAULT_CONTRACTOR_CATEGORIES.items():
@@ -772,6 +795,15 @@ def init_db():
                         SET category=%s
                         WHERE name=%s AND (category IS NULL OR category='' OR category='Misc')
                     """, (con_category, con_name))
+                cur.execute("""
+                    UPDATE contractors
+                    SET expense_gl = CASE
+                        WHEN category='Drilling' THEN '4350'
+                        WHEN category IN ('Earthworks','Labour') THEN '4250'
+                        ELSE '4200'
+                    END
+                    WHERE expense_gl IS NULL OR BTRIM(expense_gl)=''
+                """)
             except Exception:
                 conn.rollback()
 
@@ -2709,17 +2741,22 @@ def get_contractors():
             for name, code in CONTRACTORS:
                 programs = "Exploration,Gas Riser,SIS" if name == "MCC Group" else "Exploration"
                 category = DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc")
+                expense_gl = default_contractor_expense_gl(category)
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, category, program)
-                    VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING
-                """, (name, code, category, programs))
+                    INSERT INTO contractors (name, short_code, category, program, expense_gl)
+                    VALUES (%s, %s, %s, %s, %s) ON CONFLICT (name) DO NOTHING
+                """, (name, code, category, programs, expense_gl))
             cur.execute("""
                 UPDATE contractors
                 SET short_code = COALESCE(NULLIF(short_code, ''), 'MCC'),
                     category = COALESCE(NULLIF(category, ''), 'Labour'),
-                    program = 'Exploration,Gas Riser,SIS'
+                    program = 'Exploration,Gas Riser,SIS',
+                    expense_gl = COALESCE(NULLIF(expense_gl, ''), '4250')
                 WHERE name = 'MCC Group'
-                  AND COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
+                  AND (
+                    COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
+                    OR COALESCE(expense_gl, '') = ''
+                  )
             """)
             cur.execute("SELECT * FROM contractors ORDER BY program, name")
             rows = [dict(r) for r in cur.fetchall()]
@@ -2738,6 +2775,9 @@ async def add_contractor(request: Request):
     category = str(payload.get("category") or "Misc").strip() or "Misc"
     if category not in CONTRACTOR_CATEGORIES:
         category = "Misc"
+    expense_gl = str(payload.get("expense_gl") or default_contractor_expense_gl(category)).strip()
+    if not re.fullmatch(r"\d{4}", expense_gl):
+        raise HTTPException(400, "expense_gl must be a four-digit account code")
     raw_program = payload.get("programs", payload.get("program", "Exploration"))
     if isinstance(raw_program, list):
         program = ",".join(str(p).strip() for p in raw_program if str(p).strip()) or "Exploration"
@@ -2749,14 +2789,15 @@ async def add_contractor(request: Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, category, program, active)
-                    VALUES (%s, %s, %s, %s, TRUE)
+                    INSERT INTO contractors (name, short_code, category, program, expense_gl, active)
+                    VALUES (%s, %s, %s, %s, %s, TRUE)
                     ON CONFLICT (name) DO UPDATE
                     SET short_code=EXCLUDED.short_code,
                         category=EXCLUDED.category,
-                        program=EXCLUDED.program
+                        program=EXCLUDED.program,
+                        expense_gl=EXCLUDED.expense_gl
                     RETURNING *
-                """, (name, code, category, program))
+                """, (name, code, category, program, expense_gl))
                 row = dict(cur.fetchone())
             conn.commit()
         row["status"] = "created"
@@ -2787,6 +2828,11 @@ async def update_contractor(name: str, request: Request):
     if "category" in payload:
         category = str(payload.get("category") or "Misc").strip() or "Misc"
         safe["category"] = category if category in CONTRACTOR_CATEGORIES else "Misc"
+    if "expense_gl" in payload:
+        expense_gl = str(payload.get("expense_gl") or "").strip()
+        if not re.fullmatch(r"\d{4}", expense_gl):
+            raise HTTPException(400, "expense_gl must be a four-digit account code")
+        safe["expense_gl"] = expense_gl
     if "programs" in payload:
         raw_program = payload.get("programs")
         if isinstance(raw_program, list):
@@ -7546,6 +7592,7 @@ def get_cost_centre_forecast(
 
             cur.execute("""
                 SELECT CAST(SUBSTRING(a.date,6,2) AS INTEGER) AS month,
+                       COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350') AS expense_gl,
                        SUM(COALESCE(a.line_cost,0)) AS amount
                 FROM activities a
                 LEFT JOIN contractors c ON c.name=a.contractor
@@ -7558,10 +7605,16 @@ def get_cost_centre_forecast(
                     OR COALESCE(a.hole_num,'') ILIKE 'IB%%'
                     OR COALESCE(a.site_name,'') ILIKE 'IB%%'
                   )
-                GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER)
+                GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER),
+                         COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350')
             """, (str(year),))
             for row in cur.fetchall():
-                add_actual(row["month"], "4350 - Drilling Services", row["amount"], "Ironbark DrillOps EOS")
+                add_actual(
+                    row["month"],
+                    contractor_gl_category(row["expense_gl"]),
+                    row["amount"],
+                    "Ironbark DrillOps EOS",
+                )
 
             cur.execute("""
                 SELECT
@@ -7570,11 +7623,13 @@ def get_cost_centre_forecast(
                     WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
                     WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
                   END AS month,
-                  CASE
-                    WHEN COALESCE(c.category,'') IN ('Earthworks','Labour')
-                    THEN '4250 - Contractors'
-                    ELSE '4200 - Consulting Services'
-                  END AS gl_category,
+                  COALESCE(
+                    NULLIF(BTRIM(c.expense_gl), ''),
+                    CASE
+                      WHEN COALESCE(c.category,'') IN ('Earthworks','Labour') THEN '4250'
+                      ELSE '4200'
+                    END
+                  ) AS expense_gl,
                   SUM(COALESCE(i.total_aud,0)) AS amount
                 FROM invoices i
                 LEFT JOIN contractors c ON c.name=i.contractor
@@ -7585,11 +7640,23 @@ def get_cost_centre_forecast(
                     OR (i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.invoice_date,'/',3)=%s)
                     OR (i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.billing_month,'/',2)=%s)
                   )
-                GROUP BY month, gl_category
+                GROUP BY month,
+                  COALESCE(
+                    NULLIF(BTRIM(c.expense_gl), ''),
+                    CASE
+                      WHEN COALESCE(c.category,'') IN ('Earthworks','Labour') THEN '4250'
+                      ELSE '4200'
+                    END
+                  )
             """, (str(year), str(year), str(year)))
             for row in cur.fetchall():
                 if row["month"]:
-                    add_actual(row["month"], row["gl_category"], row["amount"], "Ironbark DrillOps invoices")
+                    add_actual(
+                        row["month"],
+                        contractor_gl_category(row["expense_gl"]),
+                        row["amount"],
+                        "Ironbark DrillOps invoices",
+                    )
 
             # Remaining 4350 is driven by the unfinished Ironbark borehole plan.
             # Actual drilling already recorded against Planned/In Progress holes is

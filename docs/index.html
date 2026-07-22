@@ -1749,6 +1749,25 @@ tbody td[contenteditable=true]:focus {
         </div>
       </div>
 
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Contractor Cost Centre / Expense GL Assignment</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.55;">
+          <strong>TECEXP</strong> is the Ironbark Exploration cost centre. The four-digit value is the contractor's Expense GL account used by the forecast. The current TECEXP forecast displays 4200, 4250 and 4350; another Finance account such as 4300 can still be assigned here.
+        </p>
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr><th>Contractor</th><th>Category</th><th>Programs</th><th>Cost centre</th><th>Expense GL</th><th>Account</th><th></th></tr></thead>
+            <tbody id="contractor-gl-body"></tbody>
+          </table>
+        </div>
+        <datalist id="contractor-gl-options">
+          <option value="4200">Consulting Services</option>
+          <option value="4250">Contractors</option>
+          <option value="4300">Other Finance account</option>
+          <option value="4350">Drilling Services</option>
+        </datalist>
+      </div>
+
       <div class="account-settings-grid">
         <div class="chart-card">
           <div class="chart-title">Session Password</div>
@@ -2672,6 +2691,11 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
 const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Lab Testing','Misc'];
+const CONTRACTOR_GL_LABELS = {
+  '4200':'Consulting Services',
+  '4250':'Contractors',
+  '4350':'Drilling Services'
+};
 let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
 
 function contractorPrograms(c) {
@@ -2694,6 +2718,22 @@ function contractorCategory(c) {
   if(name.includes('fortem')||name.includes('weatherford')||name.includes('geophys')||name.includes('geolog'))return 'Geological Support';
   if(name.includes('geogas')||name.includes('sigra')||name.includes('geochem')||name.includes('stantec')||name.includes('stantect')||name.includes('lab'))return 'Lab Testing';
   return 'Misc';
+}
+
+function defaultContractorExpenseGl(c) {
+  const category=contractorCategory(c);
+  if(category==='Drilling')return '4350';
+  if(category==='Earthworks'||category==='Labour')return '4250';
+  return '4200';
+}
+
+function contractorExpenseGl(c) {
+  const gl=String(c&&c.expense_gl||'').trim();
+  return /^\d{4}$/.test(gl)?gl:defaultContractorExpenseGl(c);
+}
+
+function contractorGlLabel(gl) {
+  return CONTRACTOR_GL_LABELS[String(gl)]||'Other Finance account';
 }
 
 function contractorByName(name){
@@ -2800,6 +2840,59 @@ function renderContractorsPage(){
         ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':`<button class="icon-btn" onclick="event.stopPropagation();removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Remove</button>`}
       </div>
     </div>`).join('');
+  renderContractorGlAssignments();
+}
+
+function renderContractorGlAssignments(){
+  const body=document.getElementById('contractor-gl-body');
+  if(!body)return;
+  body.innerHTML=CONTRACTORS.slice().sort(function(a,b){return a.name.localeCompare(b.name);}).map(function(c){
+    const gl=contractorExpenseGl(c);
+    const inCurrentView=['4200','4250','4350'].includes(gl);
+    return `<tr data-contractor-name="${attr(c.name)}">
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${esc(contractorCategory(c))}</td>
+      <td>${esc(contractorProgram(c))}</td>
+      <td><span class="tenement-risk ok">TECEXP</span></td>
+      <td><input class="drawer-input contractor-gl-input" inputmode="numeric" maxlength="4" list="contractor-gl-options" value="${attr(gl)}" oninput="updateContractorGlLabel(this)" style="width:110px;"/></td>
+      <td class="contractor-gl-label">${esc(contractorGlLabel(gl))}${inCurrentView?'':' <span class="tenement-risk warn">Outside current forecast view</span>'}</td>
+      <td><button class="icon-btn" onclick="saveContractorGl(this)">Save</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateContractorGlLabel(input){
+  const gl=String(input.value||'').trim();
+  const cell=input.closest('tr')?.querySelector('.contractor-gl-label');
+  if(!cell)return;
+  const inCurrentView=['4200','4250','4350'].includes(gl);
+  cell.innerHTML=esc(contractorGlLabel(gl))+(inCurrentView?'':' <span class="tenement-risk warn">Outside current forecast view</span>');
+}
+
+async function saveContractorGl(button){
+  const row=button.closest('tr');
+  const name=row?.dataset.contractorName||'';
+  const input=row?.querySelector('.contractor-gl-input');
+  const expenseGl=String(input?.value||'').trim();
+  if(!/^\d{4}$/.test(expenseGl)){toast('Expense GL must be a four-digit account code','err');return;}
+  try{
+    button.disabled=true;
+    const res=await fetch(`${API}/contractors/${encodeURIComponent(name)}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expense_gl:expenseGl})
+    });
+    if(!res.ok){const e=await res.json().catch(()=>({detail:'Failed to save account'}));throw new Error(e.detail||'Failed to save account');}
+    const updated=await res.json();
+    const contractor=CONTRACTORS.find(function(c){return c.name===name;});
+    if(contractor)Object.assign(contractor,updated);
+    sessionStorage.setItem('drillops_contractors',JSON.stringify(CONTRACTORS));
+    renderContractorGlAssignments();
+    toast(name+' assigned to '+expenseGl);
+  }catch(e){
+    button.disabled=false;
+    toast(e.message||'Failed to save contractor account','err');
+  }
 }
 
 function renderDrawerContractors(){
@@ -2837,6 +2930,7 @@ function renderContractorsPage(){
         <button class="icon-btn" onclick="removeContractorByName('${c.name.replace(/'/g,"\\'")}')">Delete</button>
       </div>
     </div>`).join('');
+  renderContractorGlAssignments();
 }
 
 function toggleAddContractorForm(){
@@ -8558,7 +8652,7 @@ function renderCostCentreForecast(){
   const varianceText=variance>=0?cur(variance)+' below F07':cur(Math.abs(variance))+' above F07';
   const sourceNote=document.getElementById('ccf-source-note');
   if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
-    +'July DrillOps accrual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
+    +'Live invoices and EOS costs use the saved contractor Expense GL assignment. July DrillOps accrual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
     +'January&ndash;June uses closed Finance actuals. July uses live Ironbark invoices/EOS plus manual accrual. August&ndash;December retains the F07 4200/4250 support forecast, while 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' already recorded against their budgets. '
     +esc(plan.allocation_method||'')+(plan.missing_budget_holes?' '+plan.missing_budget_holes+' open hole(s) have no drilling budget and contribute $0 until budgeted.':'')+' Carborough Downs is excluded and will be forecast separately.';
 }
