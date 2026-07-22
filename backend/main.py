@@ -7707,7 +7707,7 @@ def get_cost_centre_forecast(
                 LEFT JOIN contractors c ON c.name=a.contractor
                 WHERE a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
                   AND SUBSTRING(a.date,1,4)=%s
-                  AND COALESCE(a.program,'')='Exploration'
+                  AND COALESCE(NULLIF(BTRIM(a.program), ''), 'Exploration')='Exploration'
                   AND COALESCE(c.category,'')='Drilling'
                   AND EXISTS (
                     SELECT 1
