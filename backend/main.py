@@ -7694,6 +7694,49 @@ def get_cost_centre_forecast(
                         "Invoices Received",
                     )
 
+            # Drilling Activity Reports provide the current incurred cost before
+            # an invoice is received. Add only the unbilled balance for each
+            # contractor/month so a later invoice replaces, rather than doubles,
+            # the operational accrual.
+            cur.execute("""
+                SELECT CAST(SUBSTRING(a.date,6,2) AS INTEGER) AS month,
+                       COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned') AS contractor,
+                       COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350') AS expense_gl,
+                       SUM(COALESCE(a.line_cost,0)) AS amount
+                FROM activities a
+                LEFT JOIN contractors c ON c.name=a.contractor
+                WHERE a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  AND SUBSTRING(a.date,1,4)=%s
+                  AND COALESCE(a.program,'')='Exploration'
+                  AND COALESCE(c.category,'')='Drilling'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM unnest(string_to_array(COALESCE(c.sites,'Ironbark'), ',')) AS assigned_site
+                    WHERE BTRIM(assigned_site)=%s
+                  )
+                  AND (
+                    COALESCE(a.project,'') ILIKE '%%Ironbark%%'
+                    OR COALESCE(a.hole_num,'') ILIKE 'IB%%'
+                    OR COALESCE(a.site_name,'') ILIKE 'IB%%'
+                  )
+                GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER),
+                         COALESCE(NULLIF(BTRIM(a.contractor), ''), 'Unassigned'),
+                         COALESCE(NULLIF(BTRIM(c.expense_gl), ''), '4350')
+                ORDER BY month, contractor
+            """, (str(year), forecast_project))
+            for row in cur.fetchall():
+                contractor_key = f"{int(row['month'])}:{row['contractor']}"
+                received_amount = float(contractor_actuals.get(contractor_key, 0) or 0)
+                unbilled_amount = max(float(row["amount"] or 0) - received_amount, 0)
+                if unbilled_amount > 0:
+                    add_contractor_actual(
+                        row["month"],
+                        row["contractor"],
+                        row["expense_gl"],
+                        unbilled_amount,
+                        "Activity Reports (unbilled)",
+                    )
+
             # Remaining 4350 is driven by the unfinished Ironbark borehole plan.
             # Actual drilling already recorded against Planned/In Progress holes is
             # deducted so that it is not counted once in July and again in the plan.
