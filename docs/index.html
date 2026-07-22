@@ -1108,7 +1108,7 @@ tbody td[contenteditable=true]:focus {
 }
 .contractor-edit-row {
   display:grid;
-  grid-template-columns:minmax(180px,1.5fr) 90px 150px minmax(230px,1.4fr) auto;
+  grid-template-columns:minmax(180px,1.5fr) 90px 150px minmax(210px,1.2fr) minmax(180px,1fr) auto;
   gap:8px;
   align-items:center;
   cursor:default;
@@ -1730,11 +1730,12 @@ tbody td[contenteditable=true]:focus {
           <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('contractor-panel-body').classList.toggle('open');">Contractors <span class="arrow">▼</span></button>
           <div class="filter-body open" id="contractor-panel-body" style="display:block;padding:14px;">
             <div class="contractor-panel-list" id="contractors-page-list"></div>
-            <div style="display:grid;grid-template-columns:1fr 90px 150px 130px auto;gap:8px;margin-top:12px;">
+            <div style="display:grid;grid-template-columns:1fr 90px 150px 130px 150px auto;gap:8px;margin-top:12px;">
               <input class="drawer-input" id="page-new-con-name" placeholder="Contractor name"/>
               <input class="drawer-input" id="page-new-con-code" placeholder="Code"/>
               <select class="drawer-input" id="page-new-con-category"><option>Drilling</option><option>Earthworks</option><option>Labour</option><option>Geological Support</option><option>Lab Testing</option><option>Misc</option></select>
               <select class="drawer-input" id="page-new-con-program"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select>
+              <select class="drawer-input" id="page-new-con-site"><option>Ironbark</option><option>Carborough Downs</option></select>
               <button class="btn-primary" onclick="addContractor()">Add</button>
             </div>
           </div>
@@ -1767,11 +1768,11 @@ tbody td[contenteditable=true]:focus {
       <div class="chart-card" style="margin-top:14px;">
         <div class="chart-title">Contractor Cost Centre / Expense GL Assignment</div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.55;">
-          <strong>TECEXP</strong> is the Ironbark Exploration cost centre. The four-digit value is the contractor's Expense GL account used by the forecast. The current TECEXP forecast displays 4200, 4250 and 4350; another Finance account such as 4300 can still be assigned here.
+          <strong>TECEXP</strong> is the Ironbark Exploration cost centre. Only contractors assigned to Ironbark appear in this forecast. The four-digit value is the contractor's Expense GL account used by the forecast. The current TECEXP forecast displays 4200, 4250 and 4350; another Finance account such as 4300 can still be assigned here.
         </p>
         <div class="tbl-scroll">
           <table>
-            <thead><tr><th>Contractor</th><th>Category</th><th>Programs</th><th>Cost centre</th><th>Expense GL</th><th>Account</th><th></th></tr></thead>
+            <thead><tr><th>Contractor</th><th>Category</th><th>Programs</th><th>Sites</th><th>Cost centre</th><th>Expense GL</th><th>Account</th><th></th></tr></thead>
             <tbody id="contractor-gl-body"></tbody>
           </table>
         </div>
@@ -2711,6 +2712,7 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'Earth Works',short_code:'EW',category:'Earthworks'}];
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
+const CONTRACTOR_SITES = ['Ironbark','Carborough Downs'];
 const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Lab Testing','Misc'];
 const CONTRACTOR_GL_LABELS = {
   '4200':'Consulting Services',
@@ -2728,6 +2730,17 @@ function contractorPrograms(c) {
 
 function contractorProgram(c) {
   return contractorPrograms(c).join(', ');
+}
+
+function contractorSites(c) {
+  const raw=c&&(c.sites||c.site);
+  const list=Array.isArray(raw)?raw:String(raw||'Ironbark').split(',');
+  const sites=list.map(function(site){return String(site).trim();}).filter(Boolean);
+  return sites.length?sites:['Ironbark'];
+}
+
+function contractorSite(c) {
+  return contractorSites(c).join(', ');
 }
 
 function contractorCategory(c) {
@@ -2874,6 +2887,7 @@ function renderContractorGlAssignments(){
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(contractorCategory(c))}</td>
       <td>${esc(contractorProgram(c))}</td>
+      <td>${esc(contractorSite(c))}</td>
       <td><span class="tenement-risk ok">TECEXP</span></td>
       <td><input class="drawer-input contractor-gl-input" inputmode="numeric" maxlength="4" list="contractor-gl-options" value="${attr(gl)}" oninput="updateContractorGlLabel(this)" style="width:110px;"/></td>
       <td class="contractor-gl-label">${esc(contractorGlLabel(gl))}${inCurrentView?'':' <span class="tenement-risk warn">Outside current forecast view</span>'}</td>
@@ -2944,7 +2958,8 @@ function renderContractorsPage(){
       <select class="drawer-input contractor-category-input" onclick="event.stopPropagation()">
         ${CONTRACTOR_CATEGORIES.map(function(cat){return '<option '+(contractorCategory(c)===cat?'selected':'')+'>'+esc(cat)+'</option>';}).join('')}
       </select>
-      <div class="contractor-program-checks" onclick="event.stopPropagation()">${PROJECT_PROGRAMS.map(function(p){return '<label><input type="checkbox" '+(contractorPrograms(c).includes(p)?'checked':'')+' value="'+attr(p)+'"> '+esc(p)+'</label>';}).join('')}</div>
+      <div class="contractor-program-checks contractor-program-values" onclick="event.stopPropagation()">${PROJECT_PROGRAMS.map(function(p){return '<label><input type="checkbox" '+(contractorPrograms(c).includes(p)?'checked':'')+' value="'+attr(p)+'"> '+esc(p)+'</label>';}).join('')}</div>
+      <div class="contractor-site-checks contractor-program-checks" onclick="event.stopPropagation()">${CONTRACTOR_SITES.map(function(site){return '<label><input type="checkbox" '+(contractorSites(c).includes(site)?'checked':'')+' value="'+attr(site)+'"> '+esc(site)+'</label>';}).join('')}</div>
       <div class="contractor-row-actions" onclick="event.stopPropagation()">
         ${c.name===activeContractor?'<span class="tenement-risk ok">Active</span>':''}
         <button class="icon-btn contractor-save-btn" onclick="saveContractorFromRow(this,'${c.name.replace(/'/g,"\\'")}')">Save</button>
@@ -2964,16 +2979,18 @@ async function addContractor(){
   const codeEl=document.getElementById('page-new-con-code')||document.getElementById('new-con-code');
   const categoryEl=document.getElementById('page-new-con-category');
   const programEl=document.getElementById('page-new-con-program');
+  const siteEl=document.getElementById('page-new-con-site');
   const name=nameEl.value.trim();
   const code=codeEl.value.trim().toUpperCase();
   const category=(categoryEl&&categoryEl.value)||'Misc';
   const programs=[(programEl&&programEl.value)||activeProgram||'Exploration'];
+  const sites=[(siteEl&&siteEl.value)||'Ironbark'];
   if(!name){toast('Contractor name required','err');return;}
   try{
     const res=await fetch(`${API}/contractors`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),category,programs})
+      body:JSON.stringify({name,short_code:code||name.slice(0,3).toUpperCase(),category,programs,sites})
     });
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to add','err');return;}
     const d=await res.json();
@@ -3042,14 +3059,16 @@ async function saveContractorFromRow(button, oldName){
   const newName=row.querySelector('.contractor-name-input').value.trim();
   const code=row.querySelector('.contractor-code-input').value.trim().toUpperCase();
   const category=row.querySelector('.contractor-category-input').value;
-  let programs=Array.from(row.querySelectorAll('.contractor-program-checks input:checked')).map(function(input){return input.value;});
+  let programs=Array.from(row.querySelectorAll('.contractor-program-values input:checked')).map(function(input){return input.value;});
+  let sites=Array.from(row.querySelectorAll('.contractor-site-checks input:checked')).map(function(input){return input.value;});
   if(!newName){toast('Contractor name required','err');return;}
   if(!programs.length)programs=['Exploration'];
+  if(!sites.length)sites=['Ironbark'];
   try{
     const res=await fetch(`${API}/contractors/${encodeURIComponent(oldName)}`,{
       method:'PATCH',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:newName,short_code:code||newName.slice(0,3).toUpperCase(),category,programs})
+      body:JSON.stringify({name:newName,short_code:code||newName.slice(0,3).toUpperCase(),category,programs,sites})
     });
     if(!res.ok){const e=await res.json().catch(()=>({detail:'Failed to update contractor'}));toast(e.detail||'Failed to update contractor','err');return;}
     const updated=await res.json();

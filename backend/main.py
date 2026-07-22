@@ -780,6 +780,7 @@ def init_db():
                     short_code TEXT,
                     category   TEXT DEFAULT 'Misc',
                     program    TEXT DEFAULT 'Exploration',
+                    sites      TEXT DEFAULT 'Ironbark',
                     expense_gl TEXT,
                     active     BOOLEAN DEFAULT TRUE
                 )
@@ -787,9 +788,11 @@ def init_db():
             try:
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Misc'")
+                cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS sites TEXT DEFAULT 'Ironbark'")
                 cur.execute("ALTER TABLE contractors ADD COLUMN IF NOT EXISTS expense_gl TEXT")
                 cur.execute("UPDATE contractors SET program='Exploration' WHERE program IS NULL OR program=''")
                 cur.execute("UPDATE contractors SET category='Misc' WHERE category IS NULL OR category=''")
+                cur.execute("UPDATE contractors SET sites='Ironbark' WHERE sites IS NULL OR BTRIM(sites)=''")
                 for con_name, con_category in DEFAULT_CONTRACTOR_CATEGORIES.items():
                     cur.execute("""
                         UPDATE contractors
@@ -2784,21 +2787,27 @@ async def add_contractor(request: Request):
         program = ",".join(str(p).strip() for p in raw_program if str(p).strip()) or "Exploration"
     else:
         program = str(raw_program or "Exploration").strip() or "Exploration"
+    raw_sites = payload.get("sites", payload.get("site", "Ironbark"))
+    if isinstance(raw_sites, list):
+        sites = ",".join(str(site).strip() for site in raw_sites if str(site).strip()) or "Ironbark"
+    else:
+        sites = str(raw_sites or "Ironbark").strip() or "Ironbark"
     if not name:
         raise HTTPException(400, "name is required")
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO contractors (name, short_code, category, program, expense_gl, active)
-                    VALUES (%s, %s, %s, %s, %s, TRUE)
+                    INSERT INTO contractors (name, short_code, category, program, sites, expense_gl, active)
+                    VALUES (%s, %s, %s, %s, %s, %s, TRUE)
                     ON CONFLICT (name) DO UPDATE
                     SET short_code=EXCLUDED.short_code,
                         category=EXCLUDED.category,
                         program=EXCLUDED.program,
+                        sites=EXCLUDED.sites,
                         expense_gl=EXCLUDED.expense_gl
                     RETURNING *
-                """, (name, code, category, program, expense_gl))
+                """, (name, code, category, program, sites, expense_gl))
                 row = dict(cur.fetchone())
             conn.commit()
         row["status"] = "created"
@@ -2842,6 +2851,14 @@ async def update_contractor(name: str, request: Request):
             safe["program"] = str(raw_program or "Exploration").strip() or "Exploration"
     elif "program" in payload:
         safe["program"] = str(payload.get("program") or "Exploration").strip() or "Exploration"
+    if "sites" in payload:
+        raw_sites = payload.get("sites")
+        if isinstance(raw_sites, list):
+            safe["sites"] = ",".join(str(site).strip() for site in raw_sites if str(site).strip()) or "Ironbark"
+        else:
+            safe["sites"] = str(raw_sites or "Ironbark").strip() or "Ironbark"
+    elif "site" in payload:
+        safe["sites"] = str(payload.get("site") or "Ironbark").strip() or "Ironbark"
     if not safe:
         raise HTTPException(400, "No valid fields")
     set_clause = ", ".join(f"{k}=%({k})s" for k in safe)
@@ -7572,6 +7589,7 @@ def get_cost_centre_forecast(
     from datetime import datetime, timedelta, timezone
 
     brisbane_today = datetime.now(timezone(timedelta(hours=10))).date()
+    forecast_project = "Ironbark" if site.upper() == "IB" else site
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -7605,7 +7623,7 @@ def get_cost_centre_forecast(
                 add_actual(month, category, amount, source)
 
             cur.execute("""
-                SELECT name, category, program,
+                SELECT name, category, program, sites,
                        COALESCE(NULLIF(BTRIM(expense_gl), ''),
                          CASE WHEN category='Drilling' THEN '4350'
                               WHEN category IN ('Earthworks','Labour') THEN '4250'
@@ -7618,8 +7636,13 @@ def get_cost_centre_forecast(
                     FROM unnest(string_to_array(COALESCE(program,''), ',')) AS assigned_program
                     WHERE BTRIM(assigned_program)='Exploration'
                   )
+                  AND EXISTS (
+                    SELECT 1
+                    FROM unnest(string_to_array(COALESCE(sites,'Ironbark'), ',')) AS assigned_site
+                    WHERE BTRIM(assigned_site)=%s
+                  )
                 ORDER BY name
-            """)
+            """, (forecast_project,))
             exploration_contractors = [dict(row) for row in cur.fetchall()]
 
             cur.execute("""
@@ -7649,13 +7672,18 @@ def get_cost_centre_forecast(
                   LEFT JOIN contractors c ON c.name=i.contractor
                   WHERE COALESCE(i.project,'') ILIKE '%%Ironbark%%'
                     AND COALESCE(i.status,'') <> 'Rejected'
+                    AND EXISTS (
+                      SELECT 1
+                      FROM unnest(string_to_array(COALESCE(c.sites,'Ironbark'), ',')) AS assigned_site
+                      WHERE BTRIM(assigned_site)=%s
+                    )
                 )
                 SELECT month, contractor, expense_gl, SUM(amount) AS amount
                 FROM received_invoices
                 WHERE invoice_year=%s
                 GROUP BY month, contractor, expense_gl
                 ORDER BY month, contractor
-            """, (year,))
+            """, (forecast_project, year))
             for row in cur.fetchall():
                 if row["month"]:
                     add_contractor_actual(
