@@ -4129,6 +4129,7 @@ function periodBudgetTotals(period,metrics){
   const boreholeDrilling=(metrics||[]).reduce(function(s,r){return s+r.drillingBudget;},0);
   const boreholeTotal=(metrics||[]).reduce(function(s,r){return s+r.budget;},0);
   const drilling=drillingFromRows||boreholeDrilling;
+  if(!drillingFromRows&&boreholeDrilling)bySection.Drilling=boreholeDrilling;
   const total=projectTotal||boreholeTotal;
   return {
     rows:rows,
@@ -4658,15 +4659,19 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
   });
   const drillingBudgetRows=contractorBudgetRows.filter(function(r){return normalBudgetSection(r.section,r.vendor)==='Drilling';});
   const drillingBudget=drillingBudgetRows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
+  const effectiveDrillingBudget=numVal(budgetTotals&&budgetTotals.drilling)||drillingBudget;
   if(drillingBudgetRows.length){
     drillingBudgetRows.forEach(function(r){
       const section=normalBudgetSection(r.section,r.vendor);
       const item=ensureContractor(r.vendor||reportDrillingContractor()||section,section);
       const share=drillingBudget>0?numVal(r.budget_amount)/drillingBudget:1/drillingBudgetRows.length;
+      if(drillingBudget<=0)item.budget+=effectiveDrillingBudget/drillingBudgetRows.length;
       item.spent+=numVal(drillingSpend)*share;
     });
-  }else if(numVal(drillingSpend)>0){
-    ensureContractor(reportDrillingContractor()||'Drilling','Drilling').spent+=numVal(drillingSpend);
+  }else if(numVal(drillingSpend)>0||effectiveDrillingBudget>0){
+    const item=ensureContractor(reportDrillingContractor()||'Drilling','Drilling');
+    item.budget+=effectiveDrillingBudget;
+    item.spent+=numVal(drillingSpend);
   }
   rows.forEach(function(inv){
     const section=supportSectionForInvoice(inv);
