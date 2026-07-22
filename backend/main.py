@@ -826,6 +826,60 @@ def init_db():
                     conn.rollback()
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS cost_centre_forecasts (
+                    id                SERIAL PRIMARY KEY,
+                    site              TEXT NOT NULL,
+                    division          TEXT NOT NULL,
+                    cost_centre       TEXT NOT NULL,
+                    program           TEXT NOT NULL,
+                    year              INTEGER NOT NULL,
+                    month             INTEGER NOT NULL,
+                    category          TEXT NOT NULL,
+                    baseline_amount   FLOAT DEFAULT 0,
+                    finance_actual    FLOAT DEFAULT 0,
+                    manual_accrual    FLOAT DEFAULT 0,
+                    forecast_override FLOAT,
+                    notes             TEXT,
+                    source_file       TEXT,
+                    updated_at        TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(site, cost_centre, year, month, category)
+                )
+            """)
+
+            # F07 is a high-level Technical Services - Exploration forecast:
+            # Jan-Jun are Finance actuals and Jul-Dec are the forecast baseline.
+            f07_tec_exp = {
+                "Contractors & Consultants": [
+                    31003.66, 22771.50, 46547.63, -68316.00, 0.38, 44441.55,
+                    184687.00, 179687.00, 549476.00, 181418.00, 470418.00, 170418.00,
+                ],
+                "Drilling Services": [
+                    0, 0, 0, 0, 0, 129343.00,
+                    267795.00, 267795.00, 267795.00, 267795.00, 267795.00, 357060.00,
+                ],
+                "Equipment and Tools": [90.00, 460.56, 608.80, 326.98, 12.38, 0, 0, 0, 0, 0, 0, 0],
+                "Materials": [10.00, 104.48, 90.20, 1618.46, 1371.68, 910.00, 0, 0, 0, 0, 0, 0],
+                "Other": [0, 112.73, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            }
+            for category, monthly_amounts in f07_tec_exp.items():
+                for month, amount in enumerate(monthly_amounts, start=1):
+                    cur.execute("""
+                        INSERT INTO cost_centre_forecasts
+                        (site, division, cost_centre, program, year, month, category,
+                         baseline_amount, finance_actual, manual_accrual,
+                         forecast_override, notes, source_file)
+                        VALUES ('IB','TEC','TECEXP','Exploration',2026,%s,%s,%s,%s,0,%s,%s,'F07 IB TEC.xlsx')
+                        ON CONFLICT (site, cost_centre, year, month, category) DO NOTHING
+                    """, (
+                        month,
+                        category,
+                        amount,
+                        amount if month <= 6 else 0,
+                        0 if month >= 8 else None,
+                        "Program hold: no forward spend assumed" if month >= 8 else "",
+                    ))
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
                     id              SERIAL PRIMARY KEY,
                     source_file     TEXT,
@@ -7439,6 +7493,134 @@ def delete_project_budget(budget_id: int):
             cur.execute("DELETE FROM project_budgets WHERE id=%s", (budget_id,))
         conn.commit()
     return {"status": "deleted"}
+
+
+@app.get("/cost-centre-forecast")
+def get_cost_centre_forecast(
+    site: str = Query("IB"),
+    cost_centre: str = Query("TECEXP"),
+    year: int = Query(2026),
+):
+    """Return the Finance baseline plus live DrillOps costs for a cost centre."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT *
+                FROM cost_centre_forecasts
+                WHERE site=%s AND cost_centre=%s AND year=%s
+                ORDER BY month, category
+            """, (site, cost_centre, year))
+            rows = [dict(r) for r in cur.fetchall()]
+
+            live_actuals = {}
+            live_sources = {}
+
+            def add_actual(month, category, amount, source):
+                key = f"{int(month)}:{category}"
+                live_actuals[key] = round(live_actuals.get(key, 0) + float(amount or 0), 2)
+                live_sources.setdefault(key, []).append({"source": source, "amount": round(float(amount or 0), 2)})
+
+            cur.execute("""
+                SELECT CAST(SUBSTRING(a.date,6,2) AS INTEGER) AS month,
+                       SUM(COALESCE(a.line_cost,0)) AS amount
+                FROM activities a
+                LEFT JOIN contractors c ON c.name=a.contractor
+                WHERE a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  AND SUBSTRING(a.date,1,4)=%s
+                  AND COALESCE(a.program,'')='Exploration'
+                  AND COALESCE(c.category,'')='Drilling'
+                  AND (
+                    COALESCE(a.project,'') ILIKE '%%Ironbark%%'
+                    OR COALESCE(a.hole_num,'') ILIKE 'IB%%'
+                    OR COALESCE(a.site_name,'') ILIKE 'IB%%'
+                  )
+                GROUP BY CAST(SUBSTRING(a.date,6,2) AS INTEGER)
+            """, (str(year),))
+            for row in cur.fetchall():
+                add_actual(row["month"], "Drilling Services", row["amount"], "DrillOps EOS")
+
+            cur.execute("""
+                SELECT CAST(SUBSTRING(cn.date,6,2) AS INTEGER) AS month,
+                       SUM(COALESCE(cn.line_cost,0)) AS amount
+                FROM consumables cn
+                LEFT JOIN contractors c ON c.name=cn.contractor
+                WHERE cn.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  AND SUBSTRING(cn.date,1,4)=%s
+                  AND COALESCE(c.category,'')='Drilling'
+                  AND (
+                    COALESCE(cn.hole_num,'') ILIKE 'IB%%'
+                    OR COALESCE(cn.site_name,'') ILIKE 'IB%%'
+                  )
+                GROUP BY CAST(SUBSTRING(cn.date,6,2) AS INTEGER)
+            """, (str(year),))
+            for row in cur.fetchall():
+                add_actual(row["month"], "Materials", row["amount"], "DrillOps consumables")
+
+            cur.execute("""
+                SELECT
+                  CASE
+                    WHEN i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN CAST(SUBSTRING(i.invoice_date,6,2) AS INTEGER)
+                    WHEN i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.invoice_date,'/',2) AS INTEGER)
+                    WHEN i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' THEN CAST(SPLIT_PART(i.billing_month,'/',1) AS INTEGER)
+                  END AS month,
+                  SUM(COALESCE(i.total_aud,0)) AS amount
+                FROM invoices i
+                LEFT JOIN contractors c ON c.name=i.contractor
+                WHERE COALESCE(i.project,'') ILIKE '%%Ironbark%%'
+                  AND COALESCE(c.category,'') <> 'Drilling'
+                  AND (
+                    (i.invoice_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND SUBSTRING(i.invoice_date,1,4)=%s)
+                    OR (i.invoice_date ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.invoice_date,'/',3)=%s)
+                    OR (i.billing_month ~ '^[0-9]{1,2}/[0-9]{4}$' AND SPLIT_PART(i.billing_month,'/',2)=%s)
+                  )
+                GROUP BY month
+            """, (str(year), str(year), str(year)))
+            for row in cur.fetchall():
+                if row["month"]:
+                    add_actual(row["month"], "Contractors & Consultants", row["amount"], "DrillOps invoices")
+
+    from datetime import datetime, timedelta, timezone
+    brisbane_today = datetime.now(timezone(timedelta(hours=10))).date().isoformat()
+    return {
+        "site": site,
+        "division": rows[0]["division"] if rows else "TEC",
+        "cost_centre": cost_centre,
+        "program": rows[0]["program"] if rows else "Exploration",
+        "year": year,
+        "as_of": brisbane_today,
+        "rows": rows,
+        "live_actuals": live_actuals,
+        "live_sources": live_sources,
+    }
+
+
+@app.patch("/cost-centre-forecast/{row_id}")
+async def update_cost_centre_forecast(row_id: int, request: Request):
+    payload = await request.json()
+    safe = {"manual_accrual", "forecast_override", "notes"}
+    update = {key: payload[key] for key in safe if key in payload}
+    if not update:
+        raise HTTPException(400, "No valid fields")
+    for field in ("manual_accrual", "forecast_override"):
+        if field in update and update[field] not in (None, ""):
+            try:
+                update[field] = float(str(update[field]).replace("$", "").replace(",", ""))
+            except Exception:
+                raise HTTPException(400, f"{field} must be numeric")
+        elif field in update:
+            update[field] = None if field == "forecast_override" else 0
+    set_clause = ", ".join([f"{key}=%s" for key in update] + ["updated_at=NOW()"])
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE cost_centre_forecasts SET {set_clause} WHERE id=%s RETURNING *",
+                list(update.values()) + [row_id],
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(404, "Forecast row not found")
+        conn.commit()
+    return dict(row)
 
 
 # Gemini Vision OCR
