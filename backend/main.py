@@ -122,8 +122,40 @@ _db_pool = ThreadedConnectionPool(
     cursor_factory=psycopg2.extras.RealDictCursor,
     connect_timeout=10,
     application_name="drillops-api",
+    keepalives=1,
+    keepalives_idle=30,
+    keepalives_interval=10,
+    keepalives_count=3,
 )
 _db_pool_slots = BoundedSemaphore(DB_POOL_MAX)
+
+
+def _connection_failed(exc, conn):
+    """Return True when an exception means the connection cannot be reused."""
+    return bool(
+        conn.closed
+        or isinstance(exc, (psycopg2.InterfaceError, psycopg2.OperationalError))
+        or (isinstance(exc, psycopg2.DatabaseError) and exc.pgcode is None)
+    )
+
+
+def _get_live_connection():
+    """Check pooled connections before use and replace stale ones once."""
+    last_error = None
+    for _ in range(2):
+        conn = _db_pool.getconn()
+        try:
+            if conn.closed:
+                raise psycopg2.InterfaceError("pooled database connection is closed")
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            conn.rollback()
+            return conn
+        except psycopg2.Error as exc:
+            last_error = exc
+            _db_pool.putconn(conn, close=True)
+
+    raise last_error
 
 
 @contextmanager
@@ -135,15 +167,17 @@ def get_conn():
     conn = None
     discard = False
     try:
-        conn = _db_pool.getconn()
+        conn = _get_live_connection()
         yield conn
         conn.commit()
-    except Exception:
+    except Exception as exc:
         if conn is not None:
-            try:
-                conn.rollback()
-            except (psycopg2.InterfaceError, psycopg2.OperationalError):
-                discard = True
+            discard = _connection_failed(exc, conn)
+            if not discard:
+                try:
+                    conn.rollback()
+                except psycopg2.Error:
+                    discard = True
         raise
     finally:
         if conn is not None:
