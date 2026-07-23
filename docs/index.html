@@ -1850,7 +1850,7 @@ tbody td[contenteditable=true]:focus {
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">F07 Three-GL Baseline</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">4200 + 4250 + 4350 only</div></div>
         <div class="kpi"><div class="kpi-label">July Accrued to Date</div><div class="kpi-value" id="ccf-july-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
-        <div class="kpi"><div class="kpi-label">Remaining Drilling Plan</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">Open Ironbark holes</div></div>
+        <div class="kpi"><div class="kpi-label">Remaining Workbook Program</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">All hole-linked contractors</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
@@ -1867,7 +1867,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Green rows are created automatically for active Ironbark Exploration contractors and use each contractor's saved Expense GL. Monthly actuals combine Invoices Received with the unbilled balance from drilling Activity Reports, avoiding double-counting when an invoice arrives. Yellow rows reconcile these lines to closed Finance actuals and any manual accrual balance. Exploration Drilling is dated from Borehole Planning drill order and remaining drill days. Future 4200 and 4250 support costs retain the F07 mix only while drilling is active, are prorated in the final drilling month, and stop afterward.</div>
+        <div class="ccf-finance-note">Green rows combine contractor actuals with the original workbook budget for each remaining hole. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. Yellow rows reconcile the contractor lines to closed Finance actuals, manual accruals or overrides.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -1878,7 +1878,7 @@ tbody td[contenteditable=true]:focus {
         </div>
         <div class="tbl-scroll" style="max-height:360px;">
           <table class="period-mini-table">
-            <thead><tr><th>Order</th><th>Hole</th><th>Rig</th><th>Status</th><th>Budgeted days</th><th>Remaining drill days</th><th>Forecast start</th><th>Forecast end</th><th>Remaining drilling</th></tr></thead>
+            <thead><tr><th>Order</th><th>Hole</th><th>Rig</th><th>Status</th><th>Budgeted days</th><th>Remaining drill days</th><th>Forecast start</th><th>Forecast end</th><th>Remaining drilling</th><th>All contractors</th></tr></thead>
             <tbody id="ccf-drill-schedule-body"></tbody>
           </table>
         </div>
@@ -1896,7 +1896,7 @@ tbody td[contenteditable=true]:focus {
       <div class="table-wrap">
         <div class="table-toolbar">
           <div class="table-count">July accrual and remaining 2026 assumptions</div>
-          <div style="font-size:11px;color:var(--muted);">Leave override blank to use actuals, the F07 support plan, or the remaining borehole plan.</div>
+          <div style="font-size:11px;color:var(--muted);">Leave override blank to use actuals plus the original per-hole contractor budget phased by Borehole Planning.</div>
         </div>
         <div class="tbl-scroll" style="max-height:520px;">
           <table class="period-mini-table">
@@ -8541,24 +8541,10 @@ function costCentrePlanForecast(row){
   return numVal((costCentreForecastData.plan_forecast||{})[row.month+':'+row.category]);
 }
 
-function costCentreSupportFactor(row){
-  const endText=String((costCentreForecastData&&costCentreForecastData.plan_summary&&costCentreForecastData.plan_summary.latest_forecast_end)||'');
-  const parts=endText.split('-').map(Number);
-  if(parts.length!==3||!parts[0]||!parts[1]||!parts[2])return 0;
-  const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
-  const rowPeriod=forecastYear*100+numVal(row.month);
-  const endPeriod=parts[0]*100+parts[1];
-  if(rowPeriod>endPeriod)return 0;
-  if(rowPeriod<endPeriod)return 1;
-  const daysInMonth=new Date(parts[0],parts[1],0).getDate();
-  return Math.max(0,Math.min(1,parts[2]/daysInMonth));
-}
-
 function costCentreDefaultForecast(row){
   if(row.month<=6)return numVal(row.finance_actual);
-  if(row.month===7)return costCentreLiveActual(row)+(row.category==='4350 - Drilling Services'?costCentrePlanForecast(row):0);
-  if(row.category==='4350 - Drilling Services')return costCentrePlanForecast(row);
-  return numVal(row.baseline_amount)*costCentreSupportFactor(row);
+  if(row.month===7)return costCentreLiveActual(row)+costCentrePlanForecast(row);
+  return costCentrePlanForecast(row);
 }
 
 function costCentreRowReforecast(row){
@@ -8582,19 +8568,6 @@ function aggregateCostCentreMonths(){
   return months;
 }
 
-const COST_CENTRE_F07_LINES=[
-  {expense:'4250 - Contractors',commentary:'Exploration Coordinator',profile:[0,0,0,0,0,0]},
-  {expense:'4200 - Consulting Services',commentary:'Geotech Sampling of core',profile:[9809,9809,6540,6540,6540,6540]},
-  {expense:'4200 - Consulting Services',commentary:'FI testing and detailed Petro',profile:[5040,5040,5040,5040,5040,5040]},
-  {expense:'4200 - Consulting Services',commentary:'Gas Compliance Testing',profile:[47389,47389,47389,47389,47389,47389]},
-  {expense:'4200 - Consulting Services',commentary:'Geophysical Logging',profile:[29939,29939,29939,29939,29939,29939]},
-  {expense:'4250 - Contractors',commentary:'Backhoe/watercart/sucker truck',profile:[81510,81510,81510,81510,81510,81510]},
-  {expense:'4350 - Drilling Services',commentary:'Exploration Drilling',profile:[267795,267795,267795,267795,267795,357600]},
-  {expense:'4200 - Consulting Services',commentary:'Stress Boreholes x 2',profile:[0,0,373058,0,300000,0]},
-  {expense:'4200 - Consulting Services',commentary:'Fauna spotter catcher',profile:[5000,0,0,5000,0,0]},
-  {expense:'4200 - Consulting Services',commentary:'Spon Com Sample analysis',profile:[6000,6000,6000,6000,0,0]}
-];
-
 function costCentreCategoryMonths(){
   const source=(costCentreForecastData&&costCentreForecastData.rows)||[];
   const result={};
@@ -8609,20 +8582,39 @@ function costCentreCategoryMonths(){
 
 function costCentreSpreadsheetRows(){
   const categoryMonths=costCentreCategoryMonths();
-  const source=(costCentreForecastData&&costCentreForecastData.rows)||[];
-  const asOfParts=String((costCentreForecastData&&costCentreForecastData.as_of)||'').split('-').map(Number);
-  const currentMonthIndex=(asOfParts[1]>=1&&asOfParts[1]<=12)?asOfParts[1]-1:6;
   const contractorActuals=(costCentreForecastData&&costCentreForecastData.contractor_actuals)||{};
-  const contractorRows=((costCentreForecastData&&costCentreForecastData.exploration_contractors)||[]).filter(function(contractor){
-    return ['4200','4250','4350'].includes(String(contractor.expense_gl||''));
-  }).map(function(contractor){
-    const expense=String(contractor.expense_gl||'4200')+' - '+({4200:'Consulting Services',4250:'Contractors',4350:'Drilling Services'}[contractor.expense_gl]||'Assigned contractor GL');
+  const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
+  const planDefinitions=(costCentreForecastData&&costCentreForecastData.contractor_plan_rows)||[];
+  const contractorDefinitions=[];
+  function addContractorDefinition(name,expenseGl,sourceLine,periods){
+    const cleanName=String(name||'').trim();
+    if(!cleanName)return;
+    const existing=contractorDefinitions.find(function(item){return item.name.toLowerCase()===cleanName.toLowerCase();});
+    if(existing){
+      if(periods)existing.periods=periods;
+      if(sourceLine)existing.sourceLine=sourceLine;
+      if(expenseGl)existing.expenseGl=String(expenseGl);
+      return;
+    }
+    contractorDefinitions.push({name:cleanName,expenseGl:String(expenseGl||'4200'),sourceLine:sourceLine||cleanName,periods:periods||{}});
+  }
+  ((costCentreForecastData&&costCentreForecastData.exploration_contractors)||[]).forEach(function(contractor){
+    if(['4200','4250','4350'].includes(String(contractor.expense_gl||'')))addContractorDefinition(contractor.name,contractor.expense_gl,contractor.name,{});
+  });
+  planDefinitions.forEach(function(definition){
+    addContractorDefinition(definition.name,definition.expense_gl,definition.source_line,definition.periods||{});
+  });
+  const contractorRows=contractorDefinitions.map(function(contractor){
+    const expense=contractor.expenseGl+' - '+({4200:'Consulting Services',4250:'Contractors',4350:'Drilling Services'}[contractor.expenseGl]||'Assigned contractor GL');
     const monthly=Array.from({length:12},function(_,monthIndex){
-      return numVal(contractorActuals[(monthIndex+1)+':'+contractor.name]);
+      const period=forecastYear+'-'+String(monthIndex+1).padStart(2,'0');
+      return numVal(contractorActuals[(monthIndex+1)+':'+contractor.name])+numVal(contractor.periods[period]);
     });
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
-      commentary:contractor.name,monthly:monthly,actualLine:false,contractorLine:true
+      commentary:contractor.name,sourceLine:contractor.sourceLine,monthly:monthly,
+      future:[numVal(contractor.periods[(forecastYear+1)+'-01']),numVal(contractor.periods[(forecastYear+1)+'-02'])],
+      actualLine:false,contractorLine:true
     };
   });
   const contractorTotalsByExpense={};
@@ -8636,55 +8628,15 @@ function costCentreSpreadsheetRows(){
     const account=expense.slice(0,4);
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
-      commentary:'Finance actual reconciliation / manual accrual - '+account,
+      commentary:'Finance / manual reconciliation - '+account,
       monthly:Array.from({length:12},function(_,index){
-        const row=source.find(function(item){return item.category===expense&&item.month===index+1;});
-        if(!row)return 0;
         const contractorTotal=numVal((contractorTotalsByExpense[expense]||[])[index]);
-        if(index<6)return numVal(row.finance_actual)-contractorTotal;
-        if(index===currentMonthIndex){
-          if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return costCentreRowReforecast(row)-contractorTotal;
-          return costCentreLiveActual(row)+numVal(row.manual_accrual)-contractorTotal;
-        }
-        return 0;
+        return numVal((categoryMonths[expense]||[])[index])-contractorTotal;
       }),
       actualLine:true
     };
   });
-  const planRows=COST_CENTRE_F07_LINES.map(function(line){
-    return {site:'IB',division:'TEC',costCentre:'TECEXP',expense:line.expense,commentary:line.commentary,monthly:Array(12).fill(0),actualLine:false};
-  });
-  COST_CENTRE_GLS.forEach(function(expense){
-    for(let month=6;month<12;month++){
-      const candidates=planRows.filter(function(row){return row.expense===expense;});
-      const profileIndex=month-6;
-      const weights=candidates.map(function(row){
-        const definition=COST_CENTRE_F07_LINES.find(function(line){return line.expense===row.expense&&line.commentary===row.commentary;});
-        return profileIndex>=0?numVal(definition&&definition.profile[profileIndex]):0;
-      });
-      const weightTotal=weights.reduce(function(sum,value){return sum+value;},0);
-      const actualRow=actualRows.find(function(row){return row.expense===expense;});
-      const contractorTotal=contractorRows.filter(function(row){return row.expense===expense;}).reduce(function(sum,row){return sum+numVal(row.monthly[month]);},0);
-      const target=numVal((categoryMonths[expense]||[])[month])-numVal(actualRow&&actualRow.monthly[month])-contractorTotal;
-      let allocated=0;
-      candidates.forEach(function(row,index){
-        let value=0;
-        if(index===candidates.length-1)value=target-allocated;
-        else if(weightTotal>0)value=target*weights[index]/weightTotal;
-        else if(index===0)value=target;
-        value=Math.round(value*100)/100;
-        row.monthly[month]=value;
-        allocated+=value;
-      });
-    }
-  });
-  const futurePeriods=(costCentreForecastData&&costCentreForecastData.plan_forecast_periods)||{};
-  const drillingPlan=planRows.find(function(row){return row.expense==='4350 - Drilling Services'&&row.commentary==='Exploration Drilling';});
-  if(drillingPlan)drillingPlan.future=[
-    numVal(futurePeriods['2027-01:4350 - Drilling Services']),
-    numVal(futurePeriods['2027-02:4350 - Drilling Services'])
-  ];
-  return actualRows.concat(contractorRows,planRows).map(function(row){
+  return actualRows.concat(contractorRows).map(function(row){
     row.total=row.monthly.reduce(function(sum,value){return sum+value;},0);
     if(!row.future)row.future=[0,0];
     return row;
@@ -8749,8 +8701,8 @@ function renderCostCentreForecast(){
   const plan=costCentreForecastData.plan_summary||{};
   setPeriodText('ccf-f07-total',cur(baselineTotal));
   setPeriodText('ccf-july-accrued',cur(julyAccrued));
-  setPeriodText('ccf-plan-total',cur(plan.remaining_drilling_budget||0));
-  setPeriodText('ccf-plan-sub',(plan.hole_count||0)+' open Ironbark holes'+(plan.latest_forecast_end?' | through '+plan.latest_forecast_end:'')+(plan.missing_budget_holes?' | '+plan.missing_budget_holes+' missing budget':''));
+  setPeriodText('ccf-plan-total',cur(plan.remaining_program_budget||0));
+  setPeriodText('ccf-plan-sub',(plan.source_mapped_holes||0)+' workbook-mapped of '+(plan.hole_count||0)+' open holes'+(plan.latest_forecast_end?' | through '+plan.latest_forecast_end:'')+(plan.source_missing_holes?' | '+plan.source_missing_holes+' without a workbook row':''));
   setPeriodText('ccf-reforecast-total',cur(reforecastTotal));
   setPeriodText('ccf-asof','As at '+costCentreForecastData.as_of+' | 4200 + 4250 + 4350');
   renderCostCentreSpreadsheetGrid();
@@ -8762,8 +8714,8 @@ function renderCostCentreForecast(){
       +'<td class="num">'+numVal(hole.days_budgeted).toLocaleString('en-AU',{maximumFractionDigits:1})+'</td>'
       +'<td class="num">'+numVal(hole.forecast_drill_days).toLocaleString('en-AU',{maximumFractionDigits:0})+'</td>'
       +'<td>'+esc(hole.forecast_start||'--')+'</td><td>'+esc(hole.forecast_end||'--')+'</td>'
-      +'<td class="num"><b>'+cur(hole.remaining_drilling)+'</b></td></tr>';
-  }).join('')||'<tr><td colspan="9">No open Ironbark holes in Borehole Planning.</td></tr>';
+      +'<td class="num">'+cur(hole.remaining_drilling)+'</td><td class="num"><b>'+cur(hole.remaining_program_budget)+'</b></td></tr>';
+  }).join('')||'<tr><td colspan="10">No open Ironbark holes in Borehole Planning.</td></tr>';
 
   const maxValue=Math.max(1,...months.map(function(m){return Math.max(Math.abs(m.baseline),Math.abs(m.reforecast));}));
   const visual=document.getElementById('ccf-month-visual');
@@ -8804,9 +8756,9 @@ function renderCostCentreForecast(){
   const sourceNote=document.getElementById('ccf-source-note');
   if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
     +'Received Ironbark invoices use the saved contractor Expense GL assignment and populate contractor rows by Invoice Date, falling back to Billing Month. Drilling Activity Reports add only the contractor/month balance not yet covered by a received invoice. July actual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
-    +'January&ndash;June remains reconciled to closed Finance actuals. July uses received invoices, unbilled Activity Report costs and manual accrual, plus drilling scheduled after the as-of date. Activity Report costs also reduce the remaining borehole budgets. The F07 4200/4250 support forecast runs only while drilling is active, is prorated through the final drill day'+(plan.latest_forecast_end?' ('+esc(plan.latest_forecast_end)+')':'')+', and is $0 afterward. 4350 uses '+cur(plan.remaining_drilling_budget||0)+' remaining across '+(plan.hole_count||0)+' Planned/In Progress Ironbark holes after deducting '+cur(plan.drilling_actual_deducted||0)+' Activity Report cost already recorded against their budgets. '
-    +(numVal(plan.forecast_after_year)>0?cur(plan.forecast_after_year)+' of drilling falls after 2026 based on the current sequence. ':'')
-    +esc(plan.allocation_method||'')+(plan.missing_budget_holes?' '+plan.missing_budget_holes+' open hole(s) have no drilling budget and contribute $0 until budgeted.':'')+' Carborough Downs is excluded and will be forecast separately.';
+    +'January&ndash;June remains reconciled to closed Finance actuals. July combines those actuals with work scheduled after the as-of date. The remaining '+cur(plan.remaining_program_budget||0)+' forecast uses '+esc(plan.workbook_source||'the original 2026 budget workbook')+', covering Mitchells, geophysics, MCC, environment, testing, Fortem and consumables by hole. '+esc(plan.allocation_method||'')+' Workbook coverage is '+(plan.source_mapped_holes||0)+' of '+(plan.hole_count||0)+' open holes and the sequence currently ends'+(plan.latest_forecast_end?' '+esc(plan.latest_forecast_end):' when drilling finishes')+'. '
+    +(numVal(plan.forecast_after_year)>0?cur(plan.forecast_after_year)+' of the all-contractor program falls after 2026. ':'')
+    +(plan.source_missing_holes?plan.source_missing_holes+' open hole(s) have no matching workbook row; only any saved remaining drilling budget is used for them. ':'')+'Carborough Downs is excluded and will be forecast separately.';
 }
 
 async function saveCostCentreForecastField(input,rowId,field){

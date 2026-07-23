@@ -7579,6 +7579,18 @@ def delete_project_budget(budget_id: int):
     return {"status": "deleted"}
 
 
+@lru_cache(maxsize=1)
+def load_ironbark_budget_v5_1():
+    """Load the audited per-hole contractor budget extracted from the source workbook."""
+    source_path = os.path.join(
+        os.path.dirname(__file__),
+        "data",
+        "ironbark_2026_budget_v5_1.json",
+    )
+    with open(source_path, "r", encoding="utf-8") as source_file:
+        return json.load(source_file)
+
+
 @app.get("/cost-centre-forecast")
 def get_cost_centre_forecast(
     site: str = Query("IB"),
@@ -7743,7 +7755,9 @@ def get_cost_centre_forecast(
             cur.execute("""
                 SELECT b.hole_id, b.site_id, b.status, b.scheduled_start,
                        b.drill_order, b.days_budgeted, b.assigned_rig,
-                       b.drilling_budget_total,
+                       b.drilling_budget_total, b.earthworks_budget_total,
+                       b.geophysical_budget_total, b.geological_support_budget_total,
+                       b.misc_budget_total, b.budget_total,
                        COALESCE(SUM(CASE WHEN COALESCE(ac.category,'')='Drilling'
                            THEN COALESCE(a.line_cost,0) ELSE 0 END),0) AS drilling_actual
                 FROM boreholes b
@@ -7782,14 +7796,30 @@ def get_cost_centre_forecast(
             "drilling_actual": round(actual, 2),
             "deducted_actual": round(deducted_actual, 2),
             "remaining_drilling": round(remaining, 2),
+            "database_total_budget": round(float(hole.get("budget_total") or 0), 2),
         })
 
-    # Schedule open holes in Borehole Planning order. Each assigned rig has a
-    # separate cursor, allowing rigs to operate in parallel. A hole's remaining
-    # budget is spread evenly over its remaining drill days and calendar months.
+    # Phase every contractor component from the original Ironbark budget
+    # workbook against the live Borehole Planning sequence. Matching by drill
+    # order preserves the source budget when a planned hole is renamed to its
+    # operating hole id. Each assigned rig keeps its own scheduling cursor.
+    workbook_budget = load_ironbark_budget_v5_1()
+    budget_definitions = workbook_budget.get("contractors", [])
+    budget_holes_by_order = {
+        int(source_row[0]): source_row
+        for source_row in workbook_budget.get("holes", [])
+        if source_row and source_row[0] is not None
+    }
+    expense_labels = {
+        "4200": "4200 - Consulting Services",
+        "4250": "4250 - Contractors",
+        "4350": "4350 - Drilling Services",
+    }
     schedule_base = brisbane_today + timedelta(days=1)
     rig_cursors = {}
     plan_forecast_cents = {}
+    contractor_plan_cents = {}
+    contractor_plan_totals = {}
 
     def parse_plan_date(raw_value):
         raw = str(raw_value or "").strip()
@@ -7802,6 +7832,36 @@ def get_cost_centre_forecast(
 
     for hole in plan_rows:
         remaining = float(hole["remaining_drilling"] or 0)
+        source_row = budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+        source_line_items = []
+        source_total = 0.0
+        if source_row:
+            source_total = round(sum(float(value or 0) for value in source_row[3:]), 2)
+            for definition_index, definition in enumerate(budget_definitions):
+                source_amount = float(source_row[3 + definition_index] or 0)
+                amount = remaining if definition.get("key") == "mitchells" else source_amount
+                if amount > 0:
+                    source_line_items.append({
+                        "name": definition.get("name") or definition.get("key"),
+                        "expense_gl": str(definition.get("expense_gl") or "4200"),
+                        "amount": round(amount, 2),
+                    })
+            hole["budget_source_hole_id"] = source_row[1]
+            hole["budget_source_status"] = "Matched by drill order"
+        elif remaining > 0:
+            source_line_items.append({
+                "name": "Mitchells Drilling",
+                "expense_gl": "4350",
+                "amount": round(remaining, 2),
+            })
+            hole["budget_source_hole_id"] = None
+            hole["budget_source_status"] = "Drilling fallback; no workbook row"
+        else:
+            hole["budget_source_hole_id"] = None
+            hole["budget_source_status"] = "No workbook row or drilling budget"
+        hole["workbook_source_budget"] = source_total
+        hole["remaining_program_budget"] = round(sum(item["amount"] for item in source_line_items), 2)
+
         rig = str(hole.get("assigned_rig") or "Unassigned").strip() or "Unassigned"
         stored_start = parse_plan_date(hole.get("scheduled_start"))
         start_date = max(schedule_base, rig_cursors.get(rig, schedule_base), stored_start or schedule_base)
@@ -7817,24 +7877,51 @@ def get_cost_centre_forecast(
         hole["forecast_end"] = end_date.isoformat()
         hole["forecast_drill_days"] = remaining_days
 
-        total_cents = int(round(remaining * 100))
-        cents_per_day, extra_cents = divmod(total_cents, remaining_days)
-        for day_index in range(remaining_days):
-            spend_date = start_date + timedelta(days=day_index)
-            period = spend_date.strftime("%Y-%m")
-            day_cents = cents_per_day + (1 if day_index < extra_cents else 0)
-            plan_forecast_cents[period] = plan_forecast_cents.get(period, 0) + day_cents
+        for line_item in source_line_items:
+            name = line_item["name"]
+            expense = expense_labels.get(line_item["expense_gl"], "4200 - Consulting Services")
+            total_cents = int(round(float(line_item["amount"] or 0) * 100))
+            contractor_plan_totals[name] = contractor_plan_totals.get(name, 0) + total_cents
+            cents_per_day, extra_cents = divmod(total_cents, remaining_days)
+            for day_index in range(remaining_days):
+                spend_date = start_date + timedelta(days=day_index)
+                period = spend_date.strftime("%Y-%m")
+                day_cents = cents_per_day + (1 if day_index < extra_cents else 0)
+                category_key = (period, expense)
+                contractor_key = (period, name)
+                plan_forecast_cents[category_key] = plan_forecast_cents.get(category_key, 0) + day_cents
+                contractor_plan_cents[contractor_key] = contractor_plan_cents.get(contractor_key, 0) + day_cents
 
     plan_forecast_periods = {
-        f"{period}:4350 - Drilling Services": round(cents / 100, 2)
-        for period, cents in sorted(plan_forecast_cents.items())
+        f"{period}:{expense}": round(cents / 100, 2)
+        for (period, expense), cents in sorted(plan_forecast_cents.items())
     }
     plan_forecast = {
-        f"{month}:4350 - Drilling Services": round(plan_forecast_cents.get(f"{year}-{month:02d}", 0) / 100, 2)
+        f"{month}:{expense}": round(plan_forecast_cents.get((f"{year}-{month:02d}", expense), 0) / 100, 2)
         for month in range(1, 13)
+        for expense in expense_labels.values()
     }
+    contractor_plan_rows = []
+    for definition in budget_definitions:
+        name = definition.get("name") or definition.get("key")
+        contractor_plan_rows.append({
+            "name": name,
+            "expense_gl": str(definition.get("expense_gl") or "4200"),
+            "source_line": definition.get("source_line") or name,
+            "periods": {
+                period: round(cents / 100, 2)
+                for (period, contractor_name), cents in sorted(contractor_plan_cents.items())
+                if contractor_name == name and cents
+            },
+            "remaining_budget": round(contractor_plan_totals.get(name, 0) / 100, 2),
+        })
 
     remaining_total = round(sum(row["remaining_drilling"] for row in plan_rows), 2)
+    remaining_program_total = round(sum(row["remaining_program_budget"] for row in plan_rows), 2)
+    forecast_in_year = round(sum(
+        cents for (period, _expense), cents in plan_forecast_cents.items()
+        if period.startswith(f"{year}-")
+    ) / 100, 2)
     plan_summary = {
         "project": "Ironbark",
         "hole_count": len(plan_rows),
@@ -7846,14 +7933,21 @@ def get_cost_centre_forecast(
         "drilling_actual_on_open_holes": round(sum(row["drilling_actual"] for row in plan_rows), 2),
         "drilling_actual_deducted": round(sum(row["deducted_actual"] for row in plan_rows), 2),
         "remaining_drilling_budget": remaining_total,
-        "forecast_in_year": round(sum(plan_forecast.values()), 2),
-        "forecast_after_year": round(remaining_total - sum(plan_forecast.values()), 2),
+        "remaining_program_budget": remaining_program_total,
+        "forecast_in_year": forecast_in_year,
+        "forecast_after_year": round(remaining_program_total - forecast_in_year, 2),
+        "workbook_source": workbook_budget.get("source"),
+        "workbook_sheet": workbook_budget.get("sheet"),
+        "workbook_range": workbook_budget.get("range"),
+        "workbook_total": round(float(workbook_budget.get("total") or 0), 2),
+        "source_mapped_holes": sum(1 for row in plan_rows if row.get("budget_source_hole_id")),
+        "source_missing_holes": sum(1 for row in plan_rows if not row.get("budget_source_hole_id")),
         "scheduled_holes": len(plan_rows),
         "unphased_holes": 0,
         "missing_days_holes": sum(1 for row in plan_rows if float(row.get("days_budgeted") or 0) <= 0),
         "first_forecast_start": min((row["forecast_start"] for row in plan_rows), default=None),
         "latest_forecast_end": max((row["forecast_end"] for row in plan_rows), default=None),
-        "allocation_method": "Remaining drilling budgets are scheduled by Borehole Planning drill order and assigned rig from the day after the as-of date. Each hole occupies its remaining budgeted drill days, and spend is spread evenly across those calendar days and months.",
+        "allocation_method": "Per-hole contractor values come from the original 2026 Ironbark budget workbook, matched to Borehole Planning by drill order and spread over each hole's remaining drill days. Mitchells is reduced by drilling Activity Report cost already incurred. All other hole-linked costs stop when the drilling sequence stops.",
     }
 
     return {
@@ -7869,6 +7963,7 @@ def get_cost_centre_forecast(
         "exploration_contractors": exploration_contractors,
         "contractor_actuals": contractor_actuals,
         "contractor_actual_sources": contractor_actual_sources,
+        "contractor_plan_rows": contractor_plan_rows,
         "plan_forecast": plan_forecast,
         "plan_forecast_periods": plan_forecast_periods,
         "plan_summary": plan_summary,
