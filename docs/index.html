@@ -339,6 +339,8 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .ccf-finance-table td.commentary{min-width:250px;}
 .ccf-finance-table td.actual-period{background:#e1e1e1;}
 .ccf-finance-table td.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;min-width:74px;}
+.ccf-finance-table th.remainder-period{background:#1f5f8b;}
+.ccf-finance-table td.remainder-period{background:#e8f2f8;font-weight:800;border-left:2px solid #1f5f8b;}
 .ccf-finance-table td.year-total{font-weight:850;background:#f7f8fa;border-left:2px solid #777;}
 .ccf-finance-table tr.ccf-actual-line td.identity{background:#fff2cc;}
 .ccf-finance-table tr.ccf-contractor-line td.identity{background:#e2f0d9;}
@@ -1846,7 +1848,7 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">F07 Three-GL Baseline</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">4200 + 4250 + 4350 only</div></div>
-        <div class="kpi"><div class="kpi-label">July Accrued to Date</div><div class="kpi-value" id="ccf-july-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
+        <div class="kpi"><div class="kpi-label" id="ccf-current-accrued-label">Current Month Accrued to Date</div><div class="kpi-value" id="ccf-current-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
         <div class="kpi"><div class="kpi-label">Remaining Workbook Program</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">All hole-linked contractors</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
       </div>
@@ -1860,11 +1862,11 @@ tbody td[contenteditable=true]:focus {
         </div>
         <div class="ccf-finance-scroll">
           <table class="ccf-finance-table">
-            <thead><tr><th>Site</th><th>Div</th><th>Cost Centre</th><th>Expense</th><th>Commentary</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr-26</th><th class="num">May-26</th><th class="num">Jun-26</th><th class="num">Jul-26</th><th class="num">Aug-26</th><th class="num">Sep-26</th><th class="num">Oct-26</th><th class="num">Nov-26</th><th class="num">Dec-26</th><th class="num">2026</th><th class="num">Jan-27</th><th class="num">Feb-27</th></tr></thead>
+            <thead><tr id="ccf-finance-header"></tr></thead>
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the original per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes.</div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the original per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. The Rest of Month column is forecast-only and is already included in the matching monthly column and the 2026 total.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -8513,6 +8515,20 @@ function buildProjectBudgetSelectors(){
 }
 
 const COST_CENTRE_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function costCentreCurrentForecastContext(){
+  const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
+  const asOf=String((costCentreForecastData&&costCentreForecastData.as_of)||'');
+  const match=asOf.match(/^(\d{4})-(\d{2})-/);
+  let month=match&&numVal(match[1])===forecastYear?numVal(match[2]):new Date().getMonth()+1;
+  month=Math.max(1,Math.min(12,month));
+  return {
+    year:forecastYear,
+    month:month,
+    period:forecastYear+'-'+String(month).padStart(2,'0'),
+    label:'Rest of '+COST_CENTRE_MONTHS[month-1]+'-'+String(forecastYear).slice(-2)
+  };
+}
 const COST_CENTRE_GLS=['4200 - Consulting Services','4250 - Contractors','4350 - Drilling Services'];
 
 function costCentreLiveActual(row){
@@ -8566,6 +8582,7 @@ function costCentreCategoryMonths(){
 function costCentreSpreadsheetRows(){
   const contractorActuals=(costCentreForecastData&&costCentreForecastData.contractor_actuals)||{};
   const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
+  const currentForecast=costCentreCurrentForecastContext();
   const planDefinitions=(costCentreForecastData&&costCentreForecastData.contractor_plan_rows)||[];
   const contractorDefinitions=[];
   function costCentreContractorName(name){
@@ -8600,6 +8617,7 @@ function costCentreSpreadsheetRows(){
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
       commentary:contractor.name==='Weatherfords / Epiroc'?'Geophysical Logging — Weatherfords / Epiroc':contractor.name,sourceLine:contractor.sourceLine,monthly:monthly,
+      currentMonthForecast:numVal(contractor.periods[currentForecast.period]),
       future:[numVal(contractor.periods[(forecastYear+1)+'-01']),numVal(contractor.periods[(forecastYear+1)+'-02'])],
       actualLine:false,contractorLine:true
     };
@@ -8615,25 +8633,51 @@ function renderCostCentreSpreadsheetGrid(){
   const body=document.getElementById('ccf-sheet-body');
   if(!body)return;
   const rows=costCentreSpreadsheetRows();
+  const currentForecast=costCentreCurrentForecastContext();
+  const header=document.getElementById('ccf-finance-header');
+  if(header)header.innerHTML=['Site','Div','Cost Centre','Expense','Commentary'].map(function(label){return '<th>'+label+'</th>';}).join('')
+    +COST_CENTRE_MONTHS.map(function(month,index){
+      const monthHeader='<th class="num">'+month+'-'+String(currentForecast.year).slice(-2)+'</th>';
+      return monthHeader+(index===currentForecast.month-1?'<th class="num remainder-period">'+currentForecast.label+'</th>':'');
+    }).join('')
+    +'<th class="num">'+currentForecast.year+'</th><th class="num">Jan-'+String(currentForecast.year+1).slice(-2)+'</th><th class="num">Feb-'+String(currentForecast.year+1).slice(-2)+'</th>';
   const money=function(value){return Math.abs(numVal(value))<0.005?'-':numVal(value).toLocaleString('en-AU',{maximumFractionDigits:0});};
   const totals=Array.from({length:12},function(_,index){return rows.reduce(function(sum,row){return sum+row.monthly[index];},0);});
+  const currentMonthForecastTotal=rows.reduce(function(sum,row){return sum+numVal(row.currentMonthForecast);},0);
   const futureTotals=Array.from({length:2},function(_,index){return rows.reduce(function(sum,row){return sum+numVal(row.future[index]);},0);});
   body.innerHTML=rows.map(function(row){
     const rowClass=row.actualLine?'ccf-actual-line':(row.contractorLine?'ccf-contractor-line':'');
     return '<tr class="'+rowClass+'"><td class="identity">'+row.site+'</td><td class="identity">'+row.division+'</td><td class="identity">'+row.costCentre+'</td><td class="identity">'+esc(row.expense)+'</td><td class="identity commentary">'+esc(row.commentary)+'</td>'
-      +row.monthly.map(function(value,index){return '<td class="num '+(index<7?'actual-period':'')+'">'+money(value)+'</td>';}).join('')
+      +row.monthly.map(function(value,index){
+        const monthlyCell='<td class="num '+(index<=currentForecast.month-1?'actual-period':'')+'">'+money(value)+'</td>';
+        return monthlyCell+(index===currentForecast.month-1?'<td class="num remainder-period">'+money(row.currentMonthForecast)+'</td>':'');
+      }).join('')
       +'<td class="num year-total">'+money(row.total)+'</td>'
       +row.future.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
   }).join('')+'<tr class="ccf-total-row"><td colspan="5">2026 REFORECAST TOTAL</td>'
-    +totals.map(function(value,index){return '<td class="num '+(index<7?'actual-period':'')+'">'+money(value)+'</td>';}).join('')
+    +totals.map(function(value,index){
+      const monthlyCell='<td class="num '+(index<=currentForecast.month-1?'actual-period':'')+'">'+money(value)+'</td>';
+      return monthlyCell+(index===currentForecast.month-1?'<td class="num remainder-period">'+money(currentMonthForecastTotal)+'</td>':'');
+    }).join('')
     +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0))+'</td>'
     +futureTotals.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
 }
 
 async function copyCostCentreSpreadsheetRows(){
-  const headers=['Site','Div','Cost Centre','Expense','Commentary','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26','Aug-26','Sep-26','Oct-26','Nov-26','Dec-26','2026','Jan-27','Feb-27'];
+  const currentForecast=costCentreCurrentForecastContext();
+  const monthHeaders=[];
+  COST_CENTRE_MONTHS.forEach(function(month,index){
+    monthHeaders.push(month+'-'+String(currentForecast.year).slice(-2));
+    if(index===currentForecast.month-1)monthHeaders.push(currentForecast.label);
+  });
+  const headers=['Site','Div','Cost Centre','Expense','Commentary'].concat(monthHeaders,[String(currentForecast.year),'Jan-'+String(currentForecast.year+1).slice(-2),'Feb-'+String(currentForecast.year+1).slice(-2)]);
   const lines=[headers].concat(costCentreSpreadsheetRows().map(function(row){
-    return [row.site,row.division,row.costCentre,row.expense,row.commentary].concat(row.monthly.map(function(value){return numVal(value).toFixed(2);}),[row.total.toFixed(2)],row.future.map(function(value){return numVal(value).toFixed(2);}));
+    const monthValues=[];
+    row.monthly.forEach(function(value,index){
+      monthValues.push(numVal(value).toFixed(2));
+      if(index===currentForecast.month-1)monthValues.push(numVal(row.currentMonthForecast).toFixed(2));
+    });
+    return [row.site,row.division,row.costCentre,row.expense,row.commentary].concat(monthValues,[row.total.toFixed(2)],row.future.map(function(value){return numVal(value).toFixed(2);}));
   })).map(function(row){return row.join('\t');}).join('\n');
   try{
     await navigator.clipboard.writeText(lines);
@@ -8661,11 +8705,13 @@ function renderCostCentreForecast(){
   const months=aggregateCostCentreMonths();
   const baselineTotal=months.reduce(function(s,m){return s+m.baseline;},0);
   const reforecastTotal=months.reduce(function(s,m){return s+m.reforecast;},0);
-  const july=months[6];
-  const julyAccrued=july.live+july.accrual;
+  const currentForecast=costCentreCurrentForecastContext();
+  const currentMonth=months[currentForecast.month-1];
+  const currentMonthAccrued=currentMonth.live+currentMonth.accrual;
   const plan=costCentreForecastData.plan_summary||{};
   setPeriodText('ccf-f07-total',cur(baselineTotal));
-  setPeriodText('ccf-july-accrued',cur(julyAccrued));
+  setPeriodText('ccf-current-accrued-label',COST_CENTRE_MONTHS[currentForecast.month-1]+' Accrued to Date');
+  setPeriodText('ccf-current-accrued',cur(currentMonthAccrued));
   setPeriodText('ccf-plan-total',cur(plan.remaining_program_budget||0));
   setPeriodText('ccf-plan-sub',(plan.source_mapped_holes||0)+' workbook-mapped of '+(plan.hole_count||0)+' open holes'+(plan.latest_forecast_end?' | through '+plan.latest_forecast_end:'')+(plan.source_missing_holes?' | '+plan.source_missing_holes+' without a workbook row':''));
   setPeriodText('ccf-reforecast-total',cur(reforecastTotal));
