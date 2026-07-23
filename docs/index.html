@@ -1869,7 +1869,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the Version 5.3 per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. Live Borehole Planning statuses preserve later cancellations. The Rest of Month column is forecast-only and is already included in the matching monthly column and the 2026 total.</div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the Version 5.3 per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. Live Borehole Planning statuses preserve later cancellations. The current-month column is actual-only. Rest of Month is forecast-only and is already included once in the 2026 Reforecast total; do not add it to that total again.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -8562,7 +8562,7 @@ function costCentreCurrentForecastContext(){
     year:forecastYear,
     month:month,
     period:forecastYear+'-'+String(month).padStart(2,'0'),
-    label:'Rest of '+COST_CENTRE_MONTHS[month-1]+'-'+String(forecastYear).slice(-2)
+    label:'Rest of '+COST_CENTRE_MONTHS[month-1]+'-'+String(forecastYear).slice(-2)+' Forecast'
   };
 }
 const COST_CENTRE_GLS=['4200 - Consulting Services','4250 - Contractors','4350 - Drilling Services'];
@@ -8697,10 +8697,11 @@ function renderCostCentreSpreadsheetGrid(){
   const header=document.getElementById('ccf-finance-header');
   if(header)header.innerHTML=['Site','Div','Cost Centre','Expense','Commentary'].map(function(label){return '<th>'+label+'</th>';}).join('')
     +COST_CENTRE_MONTHS.map(function(month,index){
-      const monthHeader='<th class="num">'+month+'-'+String(currentForecast.year).slice(-2)+'</th>';
+      const monthLabel=month+'-'+String(currentForecast.year).slice(-2)+(index===currentForecast.month-1?' Actual':'');
+      const monthHeader='<th class="num">'+monthLabel+'</th>';
       return monthHeader+(index===currentForecast.month-1?'<th class="num remainder-period">'+currentForecast.label+'</th>':'');
     }).join('')
-    +'<th class="num">'+currentForecast.year+'</th><th class="num">Jan-'+String(currentForecast.year+1).slice(-2)+'</th><th class="num">Feb-'+String(currentForecast.year+1).slice(-2)+'</th>';
+    +'<th class="num">'+currentForecast.year+' Reforecast (includes Rest of '+COST_CENTRE_MONTHS[currentForecast.month-1]+')</th><th class="num">Jan-'+String(currentForecast.year+1).slice(-2)+'</th><th class="num">Feb-'+String(currentForecast.year+1).slice(-2)+'</th>';
   const money=function(value){return Math.abs(numVal(value))<0.005?'-':numVal(value).toLocaleString('en-AU',{maximumFractionDigits:0});};
   const editableTextCell=function(row,field,value,className){
     return '<td contenteditable="true" data-ccf-row="'+attr(row.rowKey)+'" data-ccf-field="'+field+'" class="'+(className||'')+'">'+esc(value||'')+'</td>';
@@ -8746,10 +8747,10 @@ async function copyCostCentreSpreadsheetRows(){
   const currentForecast=costCentreCurrentForecastContext();
   const monthHeaders=[];
   COST_CENTRE_MONTHS.forEach(function(month,index){
-    monthHeaders.push(month+'-'+String(currentForecast.year).slice(-2));
+    monthHeaders.push(month+'-'+String(currentForecast.year).slice(-2)+(index===currentForecast.month-1?' Actual':''));
     if(index===currentForecast.month-1)monthHeaders.push(currentForecast.label);
   });
-  const headers=['Site','Div','Cost Centre','Expense','Commentary'].concat(monthHeaders,[String(currentForecast.year),'Jan-'+String(currentForecast.year+1).slice(-2),'Feb-'+String(currentForecast.year+1).slice(-2)]);
+  const headers=['Site','Div','Cost Centre','Expense','Commentary'].concat(monthHeaders,[String(currentForecast.year)+' Reforecast (includes Rest of '+COST_CENTRE_MONTHS[currentForecast.month-1]+')','Jan-'+String(currentForecast.year+1).slice(-2),'Feb-'+String(currentForecast.year+1).slice(-2)]);
   const lines=[headers].concat(visibleCostCentreSpreadsheetRows().map(function(row){
     const monthValues=[];
     row.monthly.forEach(function(value,index){
