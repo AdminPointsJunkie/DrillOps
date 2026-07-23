@@ -8548,7 +8548,6 @@ function costCentreDefaultForecast(row){
 }
 
 function costCentreRowReforecast(row){
-  if(row.month<=6)return numVal(row.finance_actual);
   if(row.forecast_override!==null&&row.forecast_override!==''&&row.forecast_override!==undefined)return numVal(row.forecast_override);
   return costCentreDefaultForecast(row)+numVal(row.manual_accrual);
 }
