@@ -7580,12 +7580,12 @@ def delete_project_budget(budget_id: int):
 
 
 @lru_cache(maxsize=1)
-def load_ironbark_budget_v5_1():
-    """Load the audited per-hole contractor budget extracted from the source workbook."""
+def load_ironbark_budget_v5_3():
+    """Load the audited Version 5.3 per-hole contractor budget extracted from the source workbook."""
     source_path = os.path.join(
         os.path.dirname(__file__),
         "data",
-        "ironbark_2026_budget_v5_1.json",
+        "ironbark_2026_budget_v5_3.json",
     )
     with open(source_path, "r", encoding="utf-8") as source_file:
         return json.load(source_file)
@@ -7835,11 +7835,11 @@ def get_cost_centre_forecast(
             "database_total_budget": round(float(hole.get("budget_total") or 0), 2),
         })
 
-    # Phase every contractor component from the original Ironbark budget
+    # Phase every contractor component from the current Ironbark Version 5.3 budget
     # workbook against the live Borehole Planning sequence. Matching by drill
     # order preserves the source budget when a planned hole is renamed to its
     # operating hole id. Each assigned rig keeps its own scheduling cursor.
-    workbook_budget = load_ironbark_budget_v5_1()
+    workbook_budget = load_ironbark_budget_v5_3()
     budget_definitions = workbook_budget.get("contractors", [])
     budget_holes_by_order = {
         int(source_row[0]): source_row
@@ -7926,7 +7926,7 @@ def get_cost_centre_forecast(
                 "Weatherfords / Epiroc",
                 "4200",
                 unbilled_cents / 100,
-                "Original per-hole budget accrual (uninvoiced geophysical logging)",
+                "Version 5.3 per-hole budget accrual (uninvoiced geophysical logging)",
             )
 
     geophysics_accrual_summary = {
@@ -7942,7 +7942,7 @@ def get_cost_centre_forecast(
         },
         "missing_source_holes": geophysics_missing_source_holes,
         "date_fallback_holes": geophysics_date_fallback_holes,
-        "allocation_method": "Weatherfords and Epiroc are one geophysical logging line. Completed holes accrue the original per-hole budget in their completion month; invoices received from either supplier reduce the oldest outstanding accrual before the remaining open-hole budget is forecast.",
+        "allocation_method": "Weatherfords and Epiroc are one geophysical logging line. Completed holes accrue the Version 5.3 per-hole budget in their completion month; invoices received from either supplier reduce the oldest outstanding accrual before the remaining open-hole budget is forecast.",
     }
 
     for hole in plan_rows:
@@ -8062,7 +8062,7 @@ def get_cost_centre_forecast(
         "missing_days_holes": sum(1 for row in plan_rows if float(row.get("days_budgeted") or 0) <= 0),
         "first_forecast_start": min((row["forecast_start"] for row in plan_rows), default=None),
         "latest_forecast_end": max((row["forecast_end"] for row in plan_rows), default=None),
-        "allocation_method": "Per-hole contractor values come from the original 2026 Ironbark budget workbook, matched to Borehole Planning by drill order and spread over each hole's remaining drill days. Mitchells is reduced by drilling Activity Report cost already incurred. All other hole-linked costs stop when the drilling sequence stops.",
+        "allocation_method": "Per-hole contractor values come from the 2 July 2026 Version 5.3 Ironbark budget workbook, matched to Borehole Planning by drill order and spread over each hole's remaining drill days. Live Borehole Planning statuses preserve later completions and cancellations. Mitchells is reduced by drilling Activity Report cost already incurred. All other hole-linked costs stop when the drilling sequence stops.",
     }
 
     return {
