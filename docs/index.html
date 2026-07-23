@@ -8616,7 +8616,9 @@ function costCentreSpreadsheetRows(){
     const expense=contractor.expenseGl+' - '+({4200:'Consulting Services',4250:'Contractors',4350:'Drilling Services'}[contractor.expenseGl]||'Assigned contractor GL');
     const monthly=Array.from({length:12},function(_,monthIndex){
       const period=forecastYear+'-'+String(monthIndex+1).padStart(2,'0');
-      return numVal(contractorActuals[(monthIndex+1)+':'+contractor.name])+numVal(contractor.periods[period]);
+      const actual=numVal(contractorActuals[(monthIndex+1)+':'+contractor.name]);
+      const forecast=numVal(contractor.periods[period]);
+      return actual+(monthIndex+1===currentForecast.month?0:forecast);
     });
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
@@ -8627,7 +8629,7 @@ function costCentreSpreadsheetRows(){
     };
   });
   return contractorRows.map(function(row){
-    row.total=row.monthly.reduce(function(sum,value){return sum+value;},0);
+    row.total=row.monthly.reduce(function(sum,value){return sum+value;},0)+numVal(row.currentMonthForecast);
     if(!row.future)row.future=[0,0];
     return row;
   });
@@ -8684,7 +8686,7 @@ function renderCostCentreSpreadsheetGrid(){
       const monthlyCell='<td class="num '+(index<=currentForecast.month-1?'actual-period':'')+'">'+money(value)+'</td>';
       return monthlyCell+(index===currentForecast.month-1?'<td class="num remainder-period">'+money(currentMonthForecastTotal)+'</td>':'');
     }).join('')
-    +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0))+'</td>'
+    +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0)+currentMonthForecastTotal)+'</td>'
     +futureTotals.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
 }
 
