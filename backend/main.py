@@ -7168,7 +7168,10 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                if contractor:
+                if contractor == "Company":
+                    # Borehole Planning is the company master plan.  Its actuals
+                    # come from the drilling contractor Activity Reports, not
+                    # from a non-existent "Company" activity feed.
                     cur.execute("""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
@@ -7176,7 +7179,25 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
                                 THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
                             SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
-                            SUM(a.total_metres) AS eos_metres
+                            SUM(a.total_metres) AS eos_metres,
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
+                        FROM boreholes b
+                        LEFT JOIN activities a ON
+                            a.hole_num=b.hole_id
+                            OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                        WHERE b.contractor='Company'
+                        GROUP BY b.id ORDER BY b.drill_order
+                    """)
+                elif contractor:
+                    cur.execute("""
+                        SELECT b.*,
+                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
+                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
+                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
+                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
+                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
+                            SUM(a.total_metres) AS eos_metres,
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=%s
                             AND (
@@ -7194,7 +7215,8 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
                                 THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
                             SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
-                            SUM(a.total_metres) AS eos_metres
+                            SUM(a.total_metres) AS eos_metres,
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=b.contractor
                             AND (
@@ -7232,6 +7254,9 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 if current.get(field) in (None, "", 0) and row.get(field) not in (None, "", 0):
                                     current[field] = row.get(field)
                     rows = sorted(deduped.values(), key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
+                for row in rows:
+                    if row.get("activity_complete") and str(row.get("status") or "Planned").lower() == "planned":
+                        row["status"] = "Complete"
                 return [apply_borehole_wgs84(row) for row in rows]
     except Exception as e:
         raise HTTPException(500, f"Boreholes error: {str(e)}")
@@ -7761,12 +7786,16 @@ def get_cost_centre_forecast(
             # deducted so that it is not counted once in July and again in the plan.
             cur.execute("""
                 SELECT b.hole_id, b.site_id, b.status, b.scheduled_start,
-                       b.drill_order, b.days_budgeted, b.assigned_rig,
+                       b.drill_order, b.days_budgeted, b.assigned_rig, b.bh_type,
+                       b.eoh_depth,
                        b.drilling_budget_total, b.earthworks_budget_total,
                        b.geophysical_budget_total, b.geological_support_budget_total,
                        b.misc_budget_total, b.budget_total,
                        COALESCE(SUM(CASE WHEN COALESCE(ac.category,'')='Drilling'
-                           THEN COALESCE(a.line_cost,0) ELSE 0 END),0) AS drilling_actual
+                           THEN COALESCE(a.line_cost,0) ELSE 0 END),0) AS drilling_actual,
+                       MAX(CASE WHEN a.code LIKE 'Drill_%%' THEN a.metres_to END) AS drilled_depth,
+                       MIN(CASE WHEN COALESCE(ac.category,'')='Drilling' THEN a.date END) AS activity_start,
+                       MAX(CASE WHEN COALESCE(ac.category,'')='Drilling' THEN a.date END) AS activity_end
                 FROM boreholes b
                 LEFT JOIN activities a ON
                     a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
@@ -7780,8 +7809,18 @@ def get_cost_centre_forecast(
                   AND COALESCE(b.project,'')='Ironbark'
                   AND COALESCE(b.planned_year,'')=%s
                   AND LOWER(COALESCE(b.status,'Planned')) NOT IN ('complete','cancelled')
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM activities completed_activity
+                    WHERE (
+                        completed_activity.hole_num=b.hole_id
+                        OR (COALESCE(b.site_id,'')<>'' AND completed_activity.site_name=b.site_id)
+                    )
+                      AND COALESCE(completed_activity.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
+                  )
                 GROUP BY b.id
-                ORDER BY b.drill_order NULLS LAST, b.hole_id
+                ORDER BY CASE WHEN LOWER(COALESCE(b.status,''))='in progress' THEN 0 ELSE 1 END,
+                         b.drill_order NULLS LAST, b.hole_id
             """, (str(year), str(year)))
             plan_holes = [dict(row) for row in cur.fetchall()]
 
@@ -7808,11 +7847,49 @@ def get_cost_centre_forecast(
                 WHERE b.contractor='Company'
                   AND COALESCE(b.project,'')='Ironbark'
                   AND COALESCE(b.planned_year,'')=%s
-                  AND LOWER(COALESCE(b.status,''))='complete'
                 GROUP BY b.id
+                HAVING LOWER(COALESCE(b.status,''))='complete'
+                    OR COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE)
                 ORDER BY b.drill_order NULLS LAST, b.hole_id
             """, (str(year), str(year)))
             completed_holes = [dict(row) for row in cur.fetchall()]
+
+            cur.execute("""
+                WITH daily_drilling AS (
+                  SELECT CASE WHEN a.code='Drill_Core' THEN 'Core' ELSE 'Chip' END AS bh_type,
+                         a.hole_num, a.date, SUM(COALESCE(a.total_metres,0)) AS metres
+                  FROM activities a
+                  LEFT JOIN contractors c ON c.name=a.contractor
+                  WHERE a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                    AND SUBSTRING(a.date,1,4)=%s
+                    AND a.code IN ('Drill_Core','Drill_Chip_or_Open_hole')
+                    AND COALESCE(c.category,'')='Drilling'
+                    AND (COALESCE(a.hole_num,'') ILIKE 'IB%%' OR COALESCE(a.site_name,'') ILIKE 'IB%%')
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM boreholes current_hole
+                      WHERE current_hole.contractor='Company'
+                        AND LOWER(COALESCE(current_hole.status,''))='in progress'
+                        AND (
+                          current_hole.hole_id=a.hole_num
+                          OR (COALESCE(current_hole.site_id,'')<>'' AND current_hole.site_id=a.site_name)
+                        )
+                    )
+                  GROUP BY CASE WHEN a.code='Drill_Core' THEN 'Core' ELSE 'Chip' END,
+                           a.hole_num, a.date
+                  HAVING SUM(COALESCE(a.total_metres,0)) > 0
+                )
+                SELECT bh_type, AVG(metres) AS metres_per_day, COUNT(*) AS observed_days
+                FROM daily_drilling
+                GROUP BY bh_type
+            """, (str(year),))
+            observed_drilling_rates = {
+                str(row["bh_type"]): {
+                    "metres_per_day": float(row["metres_per_day"] or 0),
+                    "observed_days": int(row["observed_days"] or 0),
+                }
+                for row in cur.fetchall()
+            }
 
     plan_rows = []
     for hole in plan_holes:
@@ -7828,6 +7905,11 @@ def get_cost_centre_forecast(
             "drill_order": hole.get("drill_order"),
             "days_budgeted": float(hole.get("days_budgeted") or 0),
             "assigned_rig": hole.get("assigned_rig") or "Unassigned",
+            "bh_type": hole.get("bh_type") or "Core",
+            "eoh_depth": float(hole.get("eoh_depth") or 0),
+            "drilled_depth": float(hole.get("drilled_depth") or 0),
+            "activity_start": hole.get("activity_start"),
+            "activity_end": hole.get("activity_end"),
             "drilling_budget": round(budget, 2),
             "drilling_actual": round(actual, 2),
             "deducted_actual": round(deducted_actual, 2),
@@ -7982,15 +8064,26 @@ def get_cost_centre_forecast(
         start_date = max(schedule_base, rig_cursors.get(rig, schedule_base), stored_start or schedule_base)
         budget_days = max(1, int(ceil(float(hole.get("days_budgeted") or 1))))
         budget = float(hole.get("drilling_budget") or 0)
-        if budget > 0 and remaining < budget:
+        status_lower = str(hole.get("status") or "").lower()
+        remaining_metres = max(float(hole.get("eoh_depth") or 0) - float(hole.get("drilled_depth") or 0), 0)
+        activity_rate = observed_drilling_rates.get(str(hole.get("bh_type") or "Core"), {})
+        metres_per_day = float(activity_rate.get("metres_per_day") or 0)
+        if status_lower == "in progress" and remaining_metres > 0 and metres_per_day > 0:
+            remaining_days = max(1, int(ceil(remaining_metres / metres_per_day)))
+            remaining_days_basis = "Activity Report metres remaining at observed drilling rate"
+        elif budget > 0 and remaining < budget:
             remaining_days = max(1, int(ceil(budget_days * remaining / budget)))
+            remaining_days_basis = "Budget days scaled by unspent drilling budget"
         else:
             remaining_days = budget_days
+            remaining_days_basis = "Borehole Planning budget days"
         end_date = start_date + timedelta(days=remaining_days - 1)
         rig_cursors[rig] = end_date + timedelta(days=1)
         hole["forecast_start"] = start_date.isoformat()
         hole["forecast_end"] = end_date.isoformat()
         hole["forecast_drill_days"] = remaining_days
+        hole["forecast_days_basis"] = remaining_days_basis
+        hole["remaining_metres"] = round(remaining_metres, 2)
 
         for line_item in source_line_items:
             name = line_item["name"]
@@ -8060,9 +8153,16 @@ def get_cost_centre_forecast(
         "scheduled_holes": len(plan_rows),
         "unphased_holes": 0,
         "missing_days_holes": sum(1 for row in plan_rows if float(row.get("days_budgeted") or 0) <= 0),
+        "activity_drilling_rates": {
+            hole_type: {
+                "metres_per_day": round(values["metres_per_day"], 2),
+                "observed_days": values["observed_days"],
+            }
+            for hole_type, values in observed_drilling_rates.items()
+        },
         "first_forecast_start": min((row["forecast_start"] for row in plan_rows), default=None),
         "latest_forecast_end": max((row["forecast_end"] for row in plan_rows), default=None),
-        "allocation_method": "Per-hole contractor values come from the 2 July 2026 Version 5.3 Ironbark budget workbook, matched to Borehole Planning by drill order and spread over each hole's remaining drill days. Live Borehole Planning statuses preserve later completions and cancellations. Mitchells is reduced by drilling Activity Report cost already incurred. All other hole-linked costs stop when the drilling sequence stops.",
+        "allocation_method": "Activity Reports are authoritative for completed holes and the current in-progress depth. Remaining planned holes use Borehole Planning drill days; an in-progress hole uses its metres remaining at the observed Activity Report drilling rate. Per-hole contractor values come from the 2 July 2026 Version 5.3 Ironbark budget workbook and stop when the drilling sequence stops.",
     }
 
     return {
