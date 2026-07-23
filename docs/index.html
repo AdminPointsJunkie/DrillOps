@@ -1856,7 +1856,7 @@ tbody td[contenteditable=true]:focus {
         <div class="table-toolbar">
           <div>
             <div class="table-count">Finance accrual and reforecast entry</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Detailed F07 commentary lines in the same left-to-right format as the Finance workbook.</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Detailed F07 commentary lines in the Finance workbook format. Click any data cell to edit; edits save in this browser.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button class="btn-csv" id="ccf-empty-rows-btn" type="button" onclick="toggleCostCentreEmptyRows()">Hide empty rows</button>
@@ -8519,6 +8519,38 @@ function buildProjectBudgetSelectors(){
 
 const COST_CENTRE_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let costCentreHideEmptyRows=false;
+const COST_CENTRE_SHEET_EDITS_KEY='drillops_ironbark_tecexp_sheet_edits';
+
+function loadCostCentreSheetEdits(){
+  try{return JSON.parse(localStorage.getItem(COST_CENTRE_SHEET_EDITS_KEY)||'{}')||{};}catch(e){return {};}
+}
+
+function applyCostCentreSheetEdits(row){
+  const edits=loadCostCentreSheetEdits()[row.rowKey]||{};
+  ['site','division','costCentre','expense','commentary'].forEach(function(field){
+    if(Object.prototype.hasOwnProperty.call(edits,field))row[field]=String(edits[field]||'');
+  });
+  row.monthly=row.monthly.map(function(value,index){
+    const field='monthly.'+index;
+    return Object.prototype.hasOwnProperty.call(edits,field)?numVal(edits[field]):value;
+  });
+  if(Object.prototype.hasOwnProperty.call(edits,'currentMonthForecast'))row.currentMonthForecast=numVal(edits.currentMonthForecast);
+  row.future=row.future.map(function(value,index){
+    const field='future.'+index;
+    return Object.prototype.hasOwnProperty.call(edits,field)?numVal(edits[field]):value;
+  });
+  row.total=row.monthly.reduce(function(sum,value){return sum+value;},0)+numVal(row.currentMonthForecast);
+  if(Object.prototype.hasOwnProperty.call(edits,'total'))row.total=numVal(edits.total);
+  return row;
+}
+
+function saveCostCentreSheetCell(rowKey,field,rawValue,isNumber){
+  const edits=loadCostCentreSheetEdits();
+  if(!edits[rowKey])edits[rowKey]={};
+  edits[rowKey][field]=isNumber?numVal(String(rawValue||'').replace(/[$,]/g,'')):String(rawValue||'').trim();
+  localStorage.setItem(COST_CENTRE_SHEET_EDITS_KEY,JSON.stringify(edits));
+  renderCostCentreSpreadsheetGrid();
+}
 
 function costCentreCurrentForecastContext(){
   const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
@@ -8621,6 +8653,7 @@ function costCentreSpreadsheetRows(){
       return actual+(monthIndex+1===currentForecast.month?0:forecast);
     });
     return {
+      rowKey:'contractor:'+contractor.name,
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
       commentary:contractor.name==='Weatherfords / Epiroc'?'Geophysical Logging — Weatherfords / Epiroc':contractor.name,sourceLine:contractor.sourceLine,monthly:monthly,
       currentMonthForecast:numVal(contractor.periods[currentForecast.period]),
@@ -8631,7 +8664,7 @@ function costCentreSpreadsheetRows(){
   return contractorRows.map(function(row){
     row.total=row.monthly.reduce(function(sum,value){return sum+value;},0)+numVal(row.currentMonthForecast);
     if(!row.future)row.future=[0,0];
-    return row;
+    return applyCostCentreSheetEdits(row);
   });
 }
 
@@ -8669,25 +8702,44 @@ function renderCostCentreSpreadsheetGrid(){
     }).join('')
     +'<th class="num">'+currentForecast.year+'</th><th class="num">Jan-'+String(currentForecast.year+1).slice(-2)+'</th><th class="num">Feb-'+String(currentForecast.year+1).slice(-2)+'</th>';
   const money=function(value){return Math.abs(numVal(value))<0.005?'-':numVal(value).toLocaleString('en-AU',{maximumFractionDigits:0});};
+  const editableTextCell=function(row,field,value,className){
+    return '<td contenteditable="true" data-ccf-row="'+attr(row.rowKey)+'" data-ccf-field="'+field+'" class="'+(className||'')+'">'+esc(value||'')+'</td>';
+  };
+  const editableMoneyCell=function(row,field,value,className){
+    return '<td contenteditable="true" data-ccf-row="'+attr(row.rowKey)+'" data-ccf-field="'+field+'" data-ccf-number="true" class="num '+(className||'')+'">'+money(value)+'</td>';
+  };
   const totals=Array.from({length:12},function(_,index){return rows.reduce(function(sum,row){return sum+row.monthly[index];},0);});
   const currentMonthForecastTotal=rows.reduce(function(sum,row){return sum+numVal(row.currentMonthForecast);},0);
   const futureTotals=Array.from({length:2},function(_,index){return rows.reduce(function(sum,row){return sum+numVal(row.future[index]);},0);});
   body.innerHTML=rows.map(function(row){
     const rowClass=row.actualLine?'ccf-actual-line':(row.contractorLine?'ccf-contractor-line':'');
-    return '<tr class="'+rowClass+'"><td class="identity">'+row.site+'</td><td class="identity">'+row.division+'</td><td class="identity">'+row.costCentre+'</td><td class="identity">'+esc(row.expense)+'</td><td class="identity commentary">'+esc(row.commentary)+'</td>'
+    return '<tr class="'+rowClass+'">'
+      +editableTextCell(row,'site',row.site,'identity')
+      +editableTextCell(row,'division',row.division,'identity')
+      +editableTextCell(row,'costCentre',row.costCentre,'identity')
+      +editableTextCell(row,'expense',row.expense,'identity')
+      +editableTextCell(row,'commentary',row.commentary,'identity commentary')
       +row.monthly.map(function(value,index){
-        const monthlyCell='<td class="num '+(index<=currentForecast.month-1?'actual-period':'')+'">'+money(value)+'</td>';
-        return monthlyCell+(index===currentForecast.month-1?'<td class="num remainder-period">'+money(row.currentMonthForecast)+'</td>':'');
+        const monthlyCell=editableMoneyCell(row,'monthly.'+index,value,index<=currentForecast.month-1?'actual-period':'');
+        return monthlyCell+(index===currentForecast.month-1?editableMoneyCell(row,'currentMonthForecast',row.currentMonthForecast,'remainder-period'):'');
       }).join('')
-      +'<td class="num year-total">'+money(row.total)+'</td>'
-      +row.future.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
+      +editableMoneyCell(row,'total',row.total,'year-total')
+      +row.future.map(function(value,index){return editableMoneyCell(row,'future.'+index,value,'');}).join('')+'</tr>';
   }).join('')+'<tr class="ccf-total-row"><td colspan="5">2026 REFORECAST TOTAL</td>'
     +totals.map(function(value,index){
       const monthlyCell='<td class="num '+(index<=currentForecast.month-1?'actual-period':'')+'">'+money(value)+'</td>';
       return monthlyCell+(index===currentForecast.month-1?'<td class="num remainder-period">'+money(currentMonthForecastTotal)+'</td>':'');
     }).join('')
-    +'<td class="num year-total">'+money(totals.reduce(function(sum,value){return sum+value;},0)+currentMonthForecastTotal)+'</td>'
+    +'<td class="num year-total">'+money(rows.reduce(function(sum,row){return sum+numVal(row.total);},0))+'</td>'
     +futureTotals.map(function(value){return '<td class="num">'+money(value)+'</td>';}).join('')+'</tr>';
+  body.querySelectorAll('[contenteditable][data-ccf-row]').forEach(function(cell){
+    cell.addEventListener('keydown',function(event){
+      if(event.key==='Enter'){event.preventDefault();cell.blur();}
+    });
+    cell.addEventListener('blur',function(){
+      saveCostCentreSheetCell(cell.dataset.ccfRow,cell.dataset.ccfField,cell.textContent,cell.dataset.ccfNumber==='true');
+    });
+  });
 }
 
 async function copyCostCentreSpreadsheetRows(){
