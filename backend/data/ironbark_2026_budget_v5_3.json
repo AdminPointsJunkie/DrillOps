@@ -66,8 +66,9 @@
     },
     {
       "key": "gas_kit",
-      "name": "Gas Kit Replacement",
-      "expense_gl": "4200"
+      "name": "GEOGAS",
+      "expense_gl": "4200",
+      "source_line": "Gas Kit Replacement"
     }
   ],
   "holes": [

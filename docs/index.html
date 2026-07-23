@@ -1858,7 +1858,10 @@ tbody td[contenteditable=true]:focus {
             <div class="table-count">Finance accrual and reforecast entry</div>
             <div style="font-size:11px;color:var(--muted);margin-top:3px;">Detailed F07 commentary lines in the same left-to-right format as the Finance workbook.</div>
           </div>
-          <button class="btn-csv" type="button" onclick="copyCostCentreSpreadsheetRows()">Copy rows for Excel</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv" id="ccf-empty-rows-btn" type="button" onclick="toggleCostCentreEmptyRows()">Hide empty rows</button>
+            <button class="btn-csv" type="button" onclick="copyCostCentreSpreadsheetRows()">Copy rows for Excel</button>
+          </div>
         </div>
         <div class="ccf-finance-scroll">
           <table class="ccf-finance-table">
@@ -8515,6 +8518,7 @@ function buildProjectBudgetSelectors(){
 }
 
 const COST_CENTRE_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let costCentreHideEmptyRows=false;
 
 function costCentreCurrentForecastContext(){
   const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
@@ -8629,11 +8633,32 @@ function costCentreSpreadsheetRows(){
   });
 }
 
+function costCentreSpreadsheetRowHasData(row){
+  return row.monthly.some(function(value){return Math.abs(numVal(value))>=0.005;})
+    ||Math.abs(numVal(row.currentMonthForecast))>=0.005
+    ||(row.future||[]).some(function(value){return Math.abs(numVal(value))>=0.005;});
+}
+
+function visibleCostCentreSpreadsheetRows(){
+  const rows=costCentreSpreadsheetRows();
+  return costCentreHideEmptyRows?rows.filter(costCentreSpreadsheetRowHasData):rows;
+}
+
+function toggleCostCentreEmptyRows(){
+  costCentreHideEmptyRows=!costCentreHideEmptyRows;
+  renderCostCentreSpreadsheetGrid();
+}
+
 function renderCostCentreSpreadsheetGrid(){
   const body=document.getElementById('ccf-sheet-body');
   if(!body)return;
-  const rows=costCentreSpreadsheetRows();
+  const rows=visibleCostCentreSpreadsheetRows();
   const currentForecast=costCentreCurrentForecastContext();
+  const emptyRowsButton=document.getElementById('ccf-empty-rows-btn');
+  if(emptyRowsButton){
+    emptyRowsButton.textContent=costCentreHideEmptyRows?'Show all rows':'Hide empty rows';
+    emptyRowsButton.setAttribute('aria-pressed',costCentreHideEmptyRows?'true':'false');
+  }
   const header=document.getElementById('ccf-finance-header');
   if(header)header.innerHTML=['Site','Div','Cost Centre','Expense','Commentary'].map(function(label){return '<th>'+label+'</th>';}).join('')
     +COST_CENTRE_MONTHS.map(function(month,index){
@@ -8671,7 +8696,7 @@ async function copyCostCentreSpreadsheetRows(){
     if(index===currentForecast.month-1)monthHeaders.push(currentForecast.label);
   });
   const headers=['Site','Div','Cost Centre','Expense','Commentary'].concat(monthHeaders,[String(currentForecast.year),'Jan-'+String(currentForecast.year+1).slice(-2),'Feb-'+String(currentForecast.year+1).slice(-2)]);
-  const lines=[headers].concat(costCentreSpreadsheetRows().map(function(row){
+  const lines=[headers].concat(visibleCostCentreSpreadsheetRows().map(function(row){
     const monthValues=[];
     row.monthly.forEach(function(value,index){
       monthValues.push(numVal(value).toFixed(2));

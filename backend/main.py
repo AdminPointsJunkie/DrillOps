@@ -8080,12 +8080,22 @@ def get_cost_centre_forecast(
         for expense in expense_labels.values()
     }
     contractor_plan_rows = []
+    contractor_plan_names = set()
     for definition in budget_definitions:
         name = definition.get("name") or definition.get("key")
+        if name in contractor_plan_names:
+            continue
+        contractor_plan_names.add(name)
+        source_lines = []
+        for matching_definition in budget_definitions:
+            matching_name = matching_definition.get("name") or matching_definition.get("key")
+            source_line = matching_definition.get("source_line") or matching_name
+            if matching_name == name and source_line not in source_lines:
+                source_lines.append(source_line)
         contractor_plan_rows.append({
             "name": name,
             "expense_gl": str(definition.get("expense_gl") or "4200"),
-            "source_line": definition.get("source_line") or name,
+            "source_line": " / ".join(source_lines),
             "periods": {
                 period: round(cents / 100, 2)
                 for (period, contractor_name), cents in sorted(contractor_plan_cents.items())
