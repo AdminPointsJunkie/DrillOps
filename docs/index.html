@@ -1847,7 +1847,7 @@ tbody td[contenteditable=true]:focus {
         </div>
       </div>
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
-        <div class="kpi"><div class="kpi-label">F07 Three-GL Baseline</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">4200 + 4250 + 4350 only</div></div>
+        <div class="kpi"><div class="kpi-label">Version 5.3 Program Budget</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">2 Jul 2026 per-hole baseline</div></div>
         <div class="kpi"><div class="kpi-label" id="ccf-current-accrued-label">Current Month Accrued to Date</div><div class="kpi-value" id="ccf-current-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
         <div class="kpi"><div class="kpi-label">Remaining Workbook Program</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">All hole-linked contractors</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
@@ -8709,7 +8709,7 @@ function renderCostCentreForecast(){
   const currentMonth=months[currentForecast.month-1];
   const currentMonthAccrued=currentMonth.live+currentMonth.accrual;
   const plan=costCentreForecastData.plan_summary||{};
-  setPeriodText('ccf-f07-total',cur(baselineTotal));
+  setPeriodText('ccf-f07-total',cur(plan.workbook_total||baselineTotal));
   setPeriodText('ccf-current-accrued-label',COST_CENTRE_MONTHS[currentForecast.month-1]+' Accrued to Date');
   setPeriodText('ccf-current-accrued',cur(currentMonthAccrued));
   setPeriodText('ccf-plan-total',cur(plan.remaining_program_budget||0));
