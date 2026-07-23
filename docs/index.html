@@ -1867,7 +1867,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes.</div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the original per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -8584,8 +8584,13 @@ function costCentreSpreadsheetRows(){
   const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
   const planDefinitions=(costCentreForecastData&&costCentreForecastData.contractor_plan_rows)||[];
   const contractorDefinitions=[];
-  function addContractorDefinition(name,expenseGl,sourceLine,periods){
+  function costCentreContractorName(name){
     const cleanName=String(name||'').trim();
+    const normalized=cleanName.toLowerCase().replace(/[^a-z0-9]+/g,'');
+    return ['weatherford','weatherfords','epiroc','weatherfordsepiroc'].includes(normalized)?'Weatherfords / Epiroc':cleanName;
+  }
+  function addContractorDefinition(name,expenseGl,sourceLine,periods){
+    const cleanName=costCentreContractorName(name);
     if(!cleanName)return;
     const existing=contractorDefinitions.find(function(item){return item.name.toLowerCase()===cleanName.toLowerCase();});
     if(existing){
@@ -8610,7 +8615,7 @@ function costCentreSpreadsheetRows(){
     });
     return {
       site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
-      commentary:contractor.name,sourceLine:contractor.sourceLine,monthly:monthly,
+      commentary:contractor.name==='Weatherfords / Epiroc'?'Geophysical Logging — Weatherfords / Epiroc':contractor.name,sourceLine:contractor.sourceLine,monthly:monthly,
       future:[numVal(contractor.periods[(forecastYear+1)+'-01']),numVal(contractor.periods[(forecastYear+1)+'-02'])],
       actualLine:false,contractorLine:true
     };

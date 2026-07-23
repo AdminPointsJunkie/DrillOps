@@ -7622,8 +7622,15 @@ def get_cost_centre_forecast(
                 live_actuals[key] = round(live_actuals.get(key, 0) + float(amount or 0), 2)
                 live_sources.setdefault(key, []).append({"source": source, "amount": round(float(amount or 0), 2)})
 
-            def add_contractor_actual(month, contractor, expense_gl, amount, source):
+            def forecast_contractor_name(contractor):
                 contractor_name = str(contractor or "Unassigned").strip() or "Unassigned"
+                normalized = re.sub(r"[^a-z0-9]+", "", contractor_name.lower())
+                if normalized in {"weatherford", "weatherfords", "epiroc", "weatherfordsepiroc"}:
+                    return "Weatherfords / Epiroc"
+                return contractor_name
+
+            def add_contractor_actual(month, contractor, expense_gl, amount, source):
+                contractor_name = forecast_contractor_name(contractor)
                 category = contractor_gl_category(expense_gl)
                 key = f"{int(month)}:{contractor_name}"
                 contractor_actuals[key] = round(contractor_actuals.get(key, 0) + float(amount or 0), 2)
@@ -7778,6 +7785,35 @@ def get_cost_centre_forecast(
             """, (str(year), str(year)))
             plan_holes = [dict(row) for row in cur.fetchall()]
 
+            # Completed holes have incurred their geophysical logging cost even
+            # when Weatherfords or Epiroc has not yet invoiced it. Capture the
+            # last drilling activity date so the source-workbook allowance is
+            # accrued in the month the hole finished.
+            cur.execute("""
+                SELECT b.hole_id, b.site_id, b.status, b.scheduled_end, b.drill_order,
+                       MAX(CASE
+                           WHEN COALESCE(ac.category,'')='Drilling'
+                            AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                           THEN a.date
+                       END) AS activity_end
+                FROM boreholes b
+                LEFT JOIN activities a ON
+                    a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                    AND SUBSTRING(a.date,1,4)=%s
+                    AND (
+                        a.hole_num=b.hole_id
+                        OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                    )
+                LEFT JOIN contractors ac ON ac.name=a.contractor
+                WHERE b.contractor='Company'
+                  AND COALESCE(b.project,'')='Ironbark'
+                  AND COALESCE(b.planned_year,'')=%s
+                  AND LOWER(COALESCE(b.status,''))='complete'
+                GROUP BY b.id
+                ORDER BY b.drill_order NULLS LAST, b.hole_id
+            """, (str(year), str(year)))
+            completed_holes = [dict(row) for row in cur.fetchall()]
+
     plan_rows = []
     for hole in plan_holes:
         budget = float(hole.get("drilling_budget_total") or 0)
@@ -7829,6 +7865,85 @@ def get_cost_centre_forecast(
             except (TypeError, ValueError):
                 continue
         return None
+
+    geophysics_definition_index = next((
+        definition_index
+        for definition_index, definition in enumerate(budget_definitions)
+        if definition.get("key") == "geophysics"
+    ), None)
+    geophysics_accrual_cents = {}
+    geophysics_accrual_holes = []
+    geophysics_missing_source_holes = []
+    geophysics_date_fallback_holes = []
+    if geophysics_definition_index is not None:
+        for hole in completed_holes:
+            source_row = budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+            if not source_row:
+                geophysics_missing_source_holes.append(hole.get("hole_id"))
+                continue
+            source_amount = float(source_row[3 + geophysics_definition_index] or 0)
+            if source_amount <= 0:
+                continue
+            completion_date = parse_plan_date(hole.get("activity_end"))
+            date_source = "Last drilling Activity Report"
+            if completion_date is None:
+                completion_date = parse_plan_date(hole.get("scheduled_end"))
+                date_source = "Borehole Planning scheduled end"
+            if completion_date is None:
+                completion_date = brisbane_today
+                date_source = "Forecast as-of date"
+            if completion_date.year != year:
+                continue
+            if date_source != "Last drilling Activity Report":
+                geophysics_date_fallback_holes.append(hole.get("hole_id"))
+            source_cents = int(round(source_amount * 100))
+            month = completion_date.month
+            geophysics_accrual_cents[month] = geophysics_accrual_cents.get(month, 0) + source_cents
+            geophysics_accrual_holes.append({
+                "hole_id": hole.get("hole_id"),
+                "source_hole_id": source_row[1],
+                "drill_order": hole.get("drill_order"),
+                "completion_date": completion_date.isoformat(),
+                "date_source": date_source,
+                "source_budget": round(source_amount, 2),
+            })
+
+    received_geophysics_cents = int(round(sum(
+        float(contractor_actuals.get(f"{month}:Weatherfords / Epiroc", 0) or 0)
+        for month in range(1, 13)
+    ) * 100))
+    received_to_apply_cents = received_geophysics_cents
+    net_geophysics_accrual_cents = 0
+    for month in sorted(geophysics_accrual_cents):
+        gross_cents = geophysics_accrual_cents[month]
+        applied_invoice_cents = min(gross_cents, received_to_apply_cents)
+        received_to_apply_cents -= applied_invoice_cents
+        unbilled_cents = gross_cents - applied_invoice_cents
+        net_geophysics_accrual_cents += unbilled_cents
+        if unbilled_cents > 0:
+            add_contractor_actual(
+                month,
+                "Weatherfords / Epiroc",
+                "4200",
+                unbilled_cents / 100,
+                "Original per-hole budget accrual (uninvoiced geophysical logging)",
+            )
+
+    geophysics_accrual_summary = {
+        "contractor_line": "Weatherfords / Epiroc",
+        "expense_gl": "4200",
+        "completed_mapped_holes": len(geophysics_accrual_holes),
+        "gross_completed_budget": round(sum(geophysics_accrual_cents.values()) / 100, 2),
+        "received_invoices": round(received_geophysics_cents / 100, 2),
+        "unbilled_accrual": round(net_geophysics_accrual_cents / 100, 2),
+        "monthly_gross_accrual": {
+            str(month): round(cents / 100, 2)
+            for month, cents in sorted(geophysics_accrual_cents.items())
+        },
+        "missing_source_holes": geophysics_missing_source_holes,
+        "date_fallback_holes": geophysics_date_fallback_holes,
+        "allocation_method": "Weatherfords and Epiroc are one geophysical logging line. Completed holes accrue the original per-hole budget in their completion month; invoices received from either supplier reduce the oldest outstanding accrual before the remaining open-hole budget is forecast.",
+    }
 
     for hole in plan_rows:
         remaining = float(hole["remaining_drilling"] or 0)
@@ -7968,6 +8083,8 @@ def get_cost_centre_forecast(
         "plan_forecast_periods": plan_forecast_periods,
         "plan_summary": plan_summary,
         "plan_holes": plan_rows,
+        "geophysics_accrual_summary": geophysics_accrual_summary,
+        "geophysics_accrual_holes": geophysics_accrual_holes,
     }
 
 
