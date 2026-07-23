@@ -1867,7 +1867,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Green rows combine contractor actuals with the original workbook budget for each remaining hole. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. Yellow rows reconcile the contractor lines to closed Finance actuals, manual accruals or overrides.</div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -8542,7 +8542,7 @@ function costCentrePlanForecast(row){
 }
 
 function costCentreDefaultForecast(row){
-  if(row.month<=6)return numVal(row.finance_actual);
+  if(row.month<=6)return costCentreLiveActual(row);
   if(row.month===7)return costCentreLiveActual(row)+costCentrePlanForecast(row);
   return costCentrePlanForecast(row);
 }
@@ -8581,7 +8581,6 @@ function costCentreCategoryMonths(){
 }
 
 function costCentreSpreadsheetRows(){
-  const categoryMonths=costCentreCategoryMonths();
   const contractorActuals=(costCentreForecastData&&costCentreForecastData.contractor_actuals)||{};
   const forecastYear=numVal(costCentreForecastData&&costCentreForecastData.year)||2026;
   const planDefinitions=(costCentreForecastData&&costCentreForecastData.contractor_plan_rows)||[];
@@ -8617,26 +8616,7 @@ function costCentreSpreadsheetRows(){
       actualLine:false,contractorLine:true
     };
   });
-  const contractorTotalsByExpense={};
-  contractorRows.forEach(function(row){
-    if(!contractorTotalsByExpense[row.expense])contractorTotalsByExpense[row.expense]=Array(12).fill(0);
-    row.monthly.forEach(function(value,index){
-      contractorTotalsByExpense[row.expense][index]+=numVal(value);
-    });
-  });
-  const actualRows=COST_CENTRE_GLS.map(function(expense){
-    const account=expense.slice(0,4);
-    return {
-      site:'IB',division:'TEC',costCentre:'TECEXP',expense:expense,
-      commentary:'Finance / manual reconciliation - '+account,
-      monthly:Array.from({length:12},function(_,index){
-        const contractorTotal=numVal((contractorTotalsByExpense[expense]||[])[index]);
-        return numVal((categoryMonths[expense]||[])[index])-contractorTotal;
-      }),
-      actualLine:true
-    };
-  });
-  return actualRows.concat(contractorRows).map(function(row){
+  return contractorRows.map(function(row){
     row.total=row.monthly.reduce(function(sum,value){return sum+value;},0);
     if(!row.future)row.future=[0,0];
     return row;
@@ -8756,7 +8736,7 @@ function renderCostCentreForecast(){
   const sourceNote=document.getElementById('ccf-source-note');
   if(sourceNote)sourceNote.innerHTML='<b>Current outlook:</b> '+varianceText+'. <b>Source and treatment:</b> F07 IB TEC.xlsx is filtered to Ironbark TECEXP GL 4200, 4250 and 4350 only. '
     +'Received Ironbark invoices use the saved contractor Expense GL assignment and populate contractor rows by Invoice Date, falling back to Billing Month. Drilling Activity Reports add only the contractor/month balance not yet covered by a received invoice. July actual sources: '+(julySources.length?julySources.join(' | '):'none recorded')+'. '
-    +'January&ndash;June remains reconciled to closed Finance actuals. July combines those actuals with work scheduled after the as-of date. The remaining '+cur(plan.remaining_program_budget||0)+' forecast uses '+esc(plan.workbook_source||'the original 2026 budget workbook')+', covering Mitchells, geophysics, MCC, environment, testing, Fortem and consumables by hole. '+esc(plan.allocation_method||'')+' Workbook coverage is '+(plan.source_mapped_holes||0)+' of '+(plan.hole_count||0)+' open holes and the sequence currently ends'+(plan.latest_forecast_end?' '+esc(plan.latest_forecast_end):' when drilling finishes')+'. '
+    +'January&ndash;July actuals come directly from received invoices and unbilled Activity Reports; no artificial Finance reconciliation rows are added. July also includes work scheduled after the as-of date. The remaining '+cur(plan.remaining_program_budget||0)+' forecast uses '+esc(plan.workbook_source||'the original 2026 budget workbook')+', covering Mitchells, geophysics, MCC, environment, testing, Fortem and consumables by hole. '+esc(plan.allocation_method||'')+' Workbook coverage is '+(plan.source_mapped_holes||0)+' of '+(plan.hole_count||0)+' open holes and the sequence currently ends'+(plan.latest_forecast_end?' '+esc(plan.latest_forecast_end):' when drilling finishes')+'. '
     +(numVal(plan.forecast_after_year)>0?cur(plan.forecast_after_year)+' of the all-contractor program falls after 2026. ':'')
     +(plan.source_missing_holes?plan.source_missing_holes+' open hole(s) have no matching workbook row; only any saved remaining drilling budget is used for them. ':'')+'Carborough Downs is excluded and will be forecast separately.';
 }
