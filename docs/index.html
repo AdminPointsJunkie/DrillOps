@@ -4436,11 +4436,12 @@ function periodHoleMetrics(rows,consumables,reportHoles,holes){
   return reportHoles.map(function(b){
     const id=String(b.hole_id||b.hole_num||'').trim();
     const hr=rows.filter(function(r){return rowMatchesBorehole(r,b);});
+    const drillingRows=hr.filter(function(r){return !rowIsDrillerEarthworksSupport(r);});
     const hc=consumables.filter(function(r){return rowMatchesBorehole(r,b);});
     const actualMetres=hr.reduce(function(s,r){return s+numVal(r.total_metres);},0);
     const drillHours=hr.filter(function(r){return numVal(r.total_metres)>0;}).reduce(function(s,r){return s+parseDurationHours(r.total_time);},0);
-    const charged=hr.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
-    const drillingCharged=charged;
+    const drillingCharged=drillingRows.reduce(function(s,r){return s+numVal(r.line_cost);},0)+hc.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+    const charged=drillingCharged;
     const budget=numVal(b.budget_total);
     const drillingBudget=numVal(b.drilling_budget_total);
     const plannedMetres=numVal(b.eoh_depth)||numVal(b.chip_depth)||numVal(b.total_core);
@@ -4479,7 +4480,8 @@ function renderPeriodReport(){
   const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
   const reportHoles=periodRelevantProjectHoles(projectHoles,activeHoles);
-  const activityCost=rows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
+  const drillingRows=rows.filter(function(r){return !rowIsDrillerEarthworksSupport(r);});
+  const activityCost=drillingRows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const actualTotal=activityCost+consumableCost;
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
@@ -4515,7 +4517,7 @@ function renderPeriodReport(){
     drillingSummaryEl.className='value '+(drillingBudgetTotal&&totalDrillingCost>drillingBudgetTotal?'variance-neg':'');
   }
   const drillVariance=drillingBudgetTotal-totalDrillingCost;
-  setPeriodText('period-drilling-sub',(drillingBudgetTotal?'Includes provider earthworks; ':'Includes provider earthworks; ')+(drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'no budget loaded'));
+  setPeriodText('period-drilling-sub',drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'No drilling budget loaded');
   setPeriodText('period-support-total',cur(supportCost));
   setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
@@ -4528,13 +4530,13 @@ function renderPeriodReport(){
   setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
   setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
-  setPeriodText('period-extra-costs','Includes provider earthworks');
+  setPeriodText('period-extra-costs','Standby and extras');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
   renderPeriodMap(reportHoles);
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
-  renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
+  renderPeriodCostBreakdown(drillingRows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
   renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles);
@@ -4985,19 +4987,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
       +'<div class="variance '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+' '+(variance>=0?'under':'over')+'</div>'
       +'</div>';
   }).join('');
-  const providerEarthworksSpend=periodFilteredRows().filter(rowIsDrillerEarthworksSupport).reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const forecastItems=contractorCards.slice();
-  if(providerEarthworksSpend>0){
-    forecastItems.push({
-      label:'Allianz Earthworks',
-      sections:new Set(['Drilling provider earthworks']),
-      budget:0,
-      spent:providerEarthworksSpend,
-      invoices:0,
-      forecastAssumption:0,
-      detailSuffix:'Included in drilling spend; no separate budget loaded.'
-    });
-  }
   const forecastRows=forecastItems.map(function(item){
     const assumption=reportForecastAssumption(item);
     const forecastCost=item.budget*assumption;
