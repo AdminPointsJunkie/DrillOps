@@ -309,7 +309,6 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
 .period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
-.period-kpi-holes .value{font-size:24px;color:#1f5f8b;}
 .ccf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;}
 .ccf-head p{margin:5px 0 0;color:var(--muted);font-size:12px;max-width:760px;line-height:1.5;}
 .ccf-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
@@ -430,7 +429,6 @@ body.period-print-prep .period-map-print{display:block!important;height:250px!im
   .period-kpi{padding:6px 8px!important;break-inside:avoid!important;border-radius:5px!important;}
   .period-kpi .label{font-size:8.5px!important;margin-bottom:3px!important;}
   .period-kpi .value{font-size:14.5px!important;}
-  .period-kpi-holes .value{font-size:18px!important;}
   .period-kpi .sub{font-size:8.5px!important;margin-top:2px!important;}
   .period-section-title{margin:9px 0 5px!important;font-size:10.5px!important;}
   .period-print-section-start{break-before:page!important;page-break-before:always!important;}
@@ -1935,7 +1933,6 @@ tbody td[contenteditable=true]:focus {
             <div class="period-kpi"><div class="label">Total Spent</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + support costs</div></div>
             <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
             <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
-            <div class="period-kpi period-kpi-holes"><div class="label">Holes Drilled / Planned</div><div class="value" id="period-holes">--</div><div class="sub" id="period-holes-sub">Completed vs planned</div></div>
             <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
             <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
           </div>
@@ -4427,8 +4424,6 @@ function renderPeriodReport(){
     if(method==='Core')coreMetres+=numVal(r.total_metres);
     else if(method==='Chipped / RC')chippedMetres+=numVal(r.total_metres);
   });
-  const completed=(projectHoles.length?projectHoles:reportHoles).filter(boreholeIsComplete).length;
-  const planned=projectHoles.length||reportHoles.length||activeHoles.length;
   const extrasCost=rows.filter(rowIsExtra).reduce(function(s,r){return s+numVal(r.line_cost);},0);
   const avgCost=totalMetres>0?totalDrillingCost/totalMetres:0;
   const projectLabel=period.project||'All Projects';
@@ -4457,9 +4452,6 @@ function renderPeriodReport(){
   setPeriodText('period-variance-sub',variance>=0?'Under total budget':'Over total budget');
   setPeriodText('period-total-metres',totalMetres.toFixed(1)+' m');
   setPeriodText('period-metres-sub','Core '+coreMetres.toFixed(1)+' m | Chip/RC '+chippedMetres.toFixed(1)+' m');
-  setPeriodText('period-holes',completed.toLocaleString()+' / '+planned.toLocaleString());
-  const costedHoles=metrics.filter(function(m){return m.charged>0||m.actualMetres>0;}).length;
-  setPeriodText('period-holes-sub',completed+' completed; '+Math.max(0,planned-completed)+' remaining; '+costedHoles+' with costs');
   setPeriodText('period-cost-metre',totalMetres>0?cur(avgCost):'--');
   setPeriodText('period-extra-costs','Includes provider earthworks');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
