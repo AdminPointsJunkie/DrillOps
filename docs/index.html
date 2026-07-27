@@ -3175,7 +3175,7 @@ function removeUserAccount(index){
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], costCentreForecastData=null;
+let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let reportApprovalsByKey={};
@@ -3274,6 +3274,7 @@ async function switchProgram(program){
   ensureActiveContractorInProgram();
   projects=[];
   projectBudgetsData=[];
+  periodSourceBudgetData=null;
   bhData=[];
   activitiesData=[];consumablesData=[];crewData=[];dailyReportsData=[];
   buildContractorSwitcher();
@@ -4233,7 +4234,8 @@ async function loadReportsPage(){
     const results=await Promise.all([
       fetch(API+'/activity-report-data?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}),
       loadPeriodSupportInvoices(),
-      fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];})
+      fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
+      fetch(API+'/project-budget-source?project=Ironbark&year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
     ]);
     applyActivityReportBundle(results[0]);
     periodReportActivitiesData=activitiesData;
@@ -4242,6 +4244,7 @@ async function loadReportsPage(){
     consumablesData=periodReportConsumablesData;
     periodSupportInvoicesData=results[1]||[];
     projectBudgetsData=results[2]||[];
+    periodSourceBudgetData=results[3]||null;
     await ensureReportBoreholes();
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
@@ -4333,11 +4336,82 @@ function periodFilteredBudgetRows(period){
   });
 }
 
+function sourceBudgetSection(key){
+  if(key==='mitchells')return 'Drilling';
+  if(key==='mcc')return 'Earthworks';
+  if(key==='geophysics'||key==='fortem')return 'Geophysical / Geological Support';
+  if(['gas_testing','stantec','fi_testing','spon_com','coal_quality'].includes(key))return 'Lab Testing';
+  return 'MISC';
+}
+
+function periodSourceBudgetRows(period,metrics){
+  const source=periodSourceBudgetData||{};
+  const sourceProject=String(source.project||'').trim();
+  const definitions=Array.isArray(source.contractors)?source.contractors:[];
+  const sourceHoles=Array.isArray(source.holes)?source.holes:[];
+  if(!sourceProject||!definitions.length||!sourceHoles.length)return [];
+  if(period.project&&!projectNamesMatch(period.project,sourceProject))return [];
+  const relevant=(metrics||[]).filter(function(metric){
+    return projectNamesMatch(metric.borehole&&metric.borehole.project,sourceProject);
+  });
+  if(!relevant.length)return [];
+  const byOrder=new Map(sourceHoles.map(function(row){return [Number(row&&row[0]),row];}));
+  const totals=definitions.map(function(){return 0;});
+  relevant.forEach(function(metric){
+    const order=Number(metric.borehole&&metric.borehole.drill_order);
+    const sourceRow=byOrder.get(order);
+    definitions.forEach(function(definition,index){
+      const sourceAmount=sourceRow?numVal(sourceRow[3+index]):0;
+      const amount=definition.key==='mitchells'
+        ? (numVal(metric.drillingBudget)||sourceAmount)
+        : sourceAmount;
+      totals[index]+=amount;
+    });
+  });
+  const rows=definitions.map(function(definition,index){
+    const amount=Math.round(totals[index]*100)/100;
+    if(amount<=0)return null;
+    const section=sourceBudgetSection(definition.key);
+    return {
+      contractor:'Company',
+      program:'Exploration',
+      project:sourceProject,
+      section:section,
+      canonical_section:section,
+      vendor:definition.name||definition.key,
+      budget_amount:amount,
+      allocation:'Version 5.3 per-hole source',
+      notes:'Source: '+String(source.source||'Version 5.3 workbook'),
+      source_budget:true
+    };
+  }).filter(Boolean);
+  const boreholeTotal=relevant.reduce(function(sum,metric){return sum+numVal(metric.budget);},0);
+  const mappedTotal=rows.reduce(function(sum,row){return sum+numVal(row.budget_amount);},0);
+  const unallocated=Math.round(Math.max(0,boreholeTotal-mappedTotal)*100)/100;
+  if(unallocated>0){
+    rows.push({
+      contractor:'Company',
+      program:'Exploration',
+      project:sourceProject,
+      section:'MISC',
+      canonical_section:'MISC',
+      vendor:'Unallocated Support',
+      budget_amount:unallocated,
+      allocation:'Borehole total less mapped Version 5.3 contractor lines',
+      notes:'Retains support budget on report holes that do not have a matching Version 5.3 source row.',
+      source_budget:true
+    });
+  }
+  return rows;
+}
+
 function periodBudgetTotals(period,metrics){
-  const rows=periodFilteredBudgetRows(period);
+  const projectRows=periodFilteredBudgetRows(period);
+  const sourceRows=projectRows.length?[]:periodSourceBudgetRows(period,metrics);
+  const rows=projectRows.length?projectRows:sourceRows;
   const bySection={};
   rows.forEach(function(r){
-    const section=normalBudgetSection(r.section,r.vendor);
+    const section=budgetRowSection(r);
     bySection[section]=(bySection[section]||0)+numVal(r.budget_amount);
   });
   const projectTotal=rows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
@@ -4346,11 +4420,12 @@ function periodBudgetTotals(period,metrics){
   const boreholeTotal=(metrics||[]).reduce(function(s,r){return s+r.budget;},0);
   const drilling=drillingFromRows||boreholeDrilling;
   if(!drillingFromRows&&boreholeDrilling)bySection.Drilling=boreholeDrilling;
-  const total=projectTotal||boreholeTotal;
+  const total=projectRows.length?(projectTotal||boreholeTotal):(boreholeTotal||projectTotal);
   return {
     rows:rows,
     bySection:bySection,
-    hasProjectBudget:rows.length>0,
+    hasProjectBudget:projectRows.length>0,
+    hasSourceBudget:sourceRows.length>0,
     total:total,
     drilling:drilling,
     support:Math.max(0,total-drilling)
@@ -4433,7 +4508,7 @@ function renderPeriodReport(){
   shell.textContent=projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
   setPeriodText('period-print-meta',projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today);
   setPeriodText('period-budget-total',cur(budgetTotal));
-  setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':'Borehole budget fallback');
+  setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.3 per-hole budget':'Borehole budget fallback'));
   const drillingSummaryEl=document.getElementById('period-drilling-summary');
   if(drillingSummaryEl){
     drillingSummaryEl.textContent=cur(totalDrillingCost)+' / '+cur(drillingBudgetTotal);
@@ -4793,6 +4868,8 @@ function contractorSummaryKey(value){
     geochempet:'geochempet',
     fortem:'fortem',
     epirocweatherford:'epiroc',
+    weatherfordepiroc:'epiroc',
+    weatherfordsepiroc:'epiroc',
     weatherford:'epiroc',
     weatherfords:'epiroc'
   };
@@ -4864,16 +4941,16 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
     return item;
   }
   contractorBudgetRows.forEach(function(r){
-    const section=normalBudgetSection(r.section,r.vendor);
+    const section=budgetRowSection(r);
     const item=ensureContractor(r.vendor||section,section);
     item.budget+=numVal(r.budget_amount);
   });
-  const drillingBudgetRows=contractorBudgetRows.filter(function(r){return normalBudgetSection(r.section,r.vendor)==='Drilling';});
+  const drillingBudgetRows=contractorBudgetRows.filter(function(r){return budgetRowSection(r)==='Drilling';});
   const drillingBudget=drillingBudgetRows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
   const effectiveDrillingBudget=numVal(budgetTotals&&budgetTotals.drilling)||drillingBudget;
   if(drillingBudgetRows.length){
     drillingBudgetRows.forEach(function(r){
-      const section=normalBudgetSection(r.section,r.vendor);
+      const section=budgetRowSection(r);
       const item=ensureContractor(r.vendor||reportDrillingContractor()||section,section);
       const share=drillingBudget>0?numVal(r.budget_amount)/drillingBudget:1/drillingBudgetRows.length;
       if(drillingBudget<=0)item.budget+=effectiveDrillingBudget/drillingBudgetRows.length;
@@ -8481,6 +8558,10 @@ function normalBudgetSection(value,vendor){
   if(text.match(/fortem|geolog|geophys|logging|weatherford|epiroc|stant|wireline/))return 'Geophysical / Geological Support';
   if(text.match(/geogas|sigra|gas|geochem|lab test|assay/))return 'Lab Testing';
   return value||'MISC';
+}
+
+function budgetRowSection(row){
+  return String((row&&row.canonical_section)||'').trim()||normalBudgetSection(row&&row.section,row&&row.vendor);
 }
 
 function budgetMatchesActiveProgram(row){

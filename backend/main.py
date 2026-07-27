@@ -7616,6 +7616,28 @@ def load_ironbark_budget_v5_3():
         return json.load(source_file)
 
 
+@app.get("/project-budget-source")
+def get_project_budget_source(
+    project: str = Query("Ironbark"),
+    year: int = Query(2026),
+):
+    """Return the audited per-hole contractor budget used by period reports."""
+    if project.strip().lower() != "ironbark" or year != 2026:
+        raise HTTPException(404, "No audited contractor budget source is available for this project and year.")
+    source = load_ironbark_budget_v5_3()
+    return {
+        "project": "Ironbark",
+        "year": 2026,
+        "source": source.get("source"),
+        "source_date": source.get("source_date"),
+        "sheet": source.get("sheet"),
+        "range": source.get("range"),
+        "total": source.get("total"),
+        "contractors": source.get("contractors", []),
+        "holes": source.get("holes", []),
+    }
+
+
 @app.get("/cost-centre-forecast")
 def get_cost_centre_forecast(
     site: str = Query("IB"),
