@@ -3656,18 +3656,20 @@ importBtn.addEventListener('click',async()=>{
   importBtn.innerHTML='<span class="spinner"></span>Importing…';
   const log=document.getElementById('import-log');log.innerHTML='';
   let total=0;
+  const importedContractors=new Set();
   for(const file of pendingFiles){
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+    const uploadContractor=/\.csv$/i.test(file.name)?'Mitchells Drilling':activeContractor;
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',uploadContractor);
     try{
       const d=await fetch(`${API}/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported'){log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows)</div>`+renderImportCheck(d.import_check);total+=d.rows;}
+      if(d.status==='imported'){const savedContractor=d.contractor||uploadContractor;importedContractors.add(savedContractor);log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows · ${esc(savedContractor)})</div>`+renderImportCheck(d.import_check);total+=d.rows;}
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
     }catch(e){log.innerHTML+=`<div class="err">✗ ${file.name}</div>`;}
   }
   importBtn.textContent='Import to Database';importBtn.disabled=false;
   pendingFiles=[];fileInput.value='';
   await updateDbCount();
-  if(total>0){toast(`✓ Imported ${total} rows for ${activeContractor}`);loadActivities();}
+  if(total>0){toast(`✓ Imported ${total} rows for ${Array.from(importedContractors).join(', ')||activeContractor}`);loadActivities();}
 });
 
 function renderImportCheck(check){

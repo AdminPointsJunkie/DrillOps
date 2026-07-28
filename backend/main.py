@@ -3433,6 +3433,10 @@ def infer_report_contractor(selected_contractor: str, filename: str = "", header
     ]).upper()
     filename_upper = str(filename or "").upper().strip()
     rig = str(header.get("drill_rig") or "").upper().strip()
+    # CorePlan plod CSV is the structured Mitchells DAR export. It must not
+    # inherit whichever contractor happens to be active in the upload UI.
+    if filename_upper.endswith(".CSV"):
+        return "Mitchells Drilling"
     # Report identity is stronger evidence than the upload card selected in the UI.
     # In particular, ADR001 PDFs must never be filed under Mitchells accidentally.
     if filename_upper.startswith("ADR001") or rig.startswith(("ADR", "ALZ")) or "ALLIANZ" in report_haystack:
@@ -3511,7 +3515,7 @@ async def import_pdf(
     if filename.lower().endswith(".csv"):
         try:
             header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, "Mitchells Drilling")
-            contractor = infer_report_contractor(contractor, filename, header, source_text)
+            contractor = "Mitchells Drilling"
             header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, contractor)
         except Exception as e:
             raise HTTPException(400, f"Could not read CorePlan CSV: {e}")
