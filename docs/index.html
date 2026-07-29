@@ -65,6 +65,28 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:16px;paddi
 #contractor-switcher{flex:1;min-width:0;}
 .header-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
 .header-meta{font-size:12px;color:var(--muted);}
+.workspace-context-btn{display:flex;align-items:center;gap:8px;padding:7px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--text);font:600 12px var(--font);cursor:pointer;max-width:330px;}
+.workspace-context-btn:hover{border-color:var(--accent);color:var(--accent);}
+.workspace-context-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.workspace-gate{position:fixed;inset:0;z-index:5000;display:none;place-items:center;padding:24px;background:rgba(20,31,45,.72);backdrop-filter:blur(8px);}
+.workspace-gate.open{display:grid;}
+body.workspace-locked{overflow:hidden;}
+.workspace-gate-card{width:min(560px,100%);background:#fff;border:1px solid rgba(255,255,255,.65);border-radius:18px;box-shadow:0 28px 80px rgba(9,24,42,.35);padding:34px;}
+.workspace-gate-brand{font-size:13px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:12px;}
+.workspace-gate-title{font-size:28px;font-weight:750;letter-spacing:-.7px;color:var(--text);margin-bottom:8px;}
+.workspace-gate-copy{font-size:13px;line-height:1.6;color:var(--muted);margin-bottom:24px;}
+.workspace-gate-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+.workspace-gate-field label{display:block;margin-bottom:6px;font-size:11px;font-weight:750;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);}
+.workspace-gate-field select{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--text);font:600 14px var(--font);outline:none;}
+.workspace-gate-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
+.workspace-gate-action{width:100%;padding:12px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:700 14px var(--font);cursor:pointer;}
+.workspace-gate-action:disabled{opacity:.42;cursor:not-allowed;}
+.workspace-gate-error{min-height:18px;margin-top:10px;color:var(--red);font-size:12px;text-align:center;}
+@media(max-width:680px){
+  .workspace-gate-card{padding:24px;}
+  .workspace-gate-fields{grid-template-columns:1fr;}
+  .workspace-context-btn{max-width:210px;}
+}
 #db-count{color:var(--accent);font-weight:600;}
 
 /* Hamburger */
@@ -1535,7 +1557,7 @@ tbody td[contenteditable=true]:focus {
 }
 </style>
 </head>
-<body>
+<body class="workspace-locked">
 
 <!-- Landing / Login -->
 <div id="login-screen">
@@ -1649,7 +1671,7 @@ tbody td[contenteditable=true]:focus {
     <span></span><span></span><span></span>
   </button>
   <div class="logo">Drill<span>Ops</span></div>
-  <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="background:#fff;border:1.5px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;color:var(--text);min-width:128px;">
+  <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="display:none;">
     <option value="Exploration">Exploration</option>
     <option value="Gas Riser">Gas Riser</option>
     <option value="SIS">SIS</option>
@@ -1657,9 +1679,36 @@ tbody td[contenteditable=true]:focus {
   </select>
   <div id="contractor-switcher" aria-label="Contractor switcher"></div>
   <div class="header-right">
+    <button class="workspace-context-btn" id="workspace-context-btn" type="button" onclick="changeWorkspace()">
+      <span id="workspace-context-label">Select client / project</span>
+    </button>
     <div class="header-meta"><span id="db-count">—</span> records</div>
   </div>
 </header>
+
+<div class="workspace-gate open" id="workspace-gate" role="dialog" aria-modal="true" aria-labelledby="workspace-gate-title">
+  <div class="workspace-gate-card">
+    <div class="workspace-gate-brand">DrillOps workspace</div>
+    <div class="workspace-gate-title" id="workspace-gate-title">Choose where you are working</div>
+    <div class="workspace-gate-copy">Select a client first, then choose one of that client’s projects. DrillOps will use this workspace before loading operational data.</div>
+    <div class="workspace-gate-fields">
+      <div class="workspace-gate-field">
+        <label for="workspace-client-select">1. Client</label>
+        <select id="workspace-client-select" onchange="populateWorkspaceProjectOptions()">
+          <option value="">Loading clients...</option>
+        </select>
+      </div>
+      <div class="workspace-gate-field">
+        <label for="workspace-project-select">2. Project</label>
+        <select id="workspace-project-select" onchange="updateWorkspaceContinueState()" disabled>
+          <option value="">Select client first</option>
+        </select>
+      </div>
+    </div>
+    <button class="workspace-gate-action" id="workspace-continue-btn" type="button" onclick="confirmWorkspaceSelection()" disabled>Enter DrillOps</button>
+    <div class="workspace-gate-error" id="workspace-gate-error"></div>
+  </div>
+</div>
 
 <div class="shell">
   <!-- Sidebar -->
@@ -2496,14 +2545,14 @@ tbody td[contenteditable=true]:focus {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
         <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Planning</h2>
         <div style="display:flex;gap:10px;align-items:center;">
-          <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:none;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Client</label>
             <select id="bh-client-select" onchange="filterBoreholesByClient()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;">
               <option value="">All Clients</option>
             </select>
             <button onclick="showNewClientDialog()" style="background:var(--bg3);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:600;" title="New Client">+</button>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:none;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Program</label>
             <select id="bh-program-select" onchange="switchProgram(this.value)" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
               <option value="">All Programs</option>
@@ -2512,7 +2561,7 @@ tbody td[contenteditable=true]:focus {
               <option value="SIS">SIS</option>
             </select>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:none;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Project</label>
             <select id="bh-project-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:180px;">
               <option value="">All Projects</option>
@@ -3194,6 +3243,8 @@ function removeUserAccount(index){
 
 // ── Global State ──────────────────────────────────────────────────────────────
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
+let activeClientId = null;
+let activeProjectName = '';
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
@@ -3262,6 +3313,7 @@ function filterBoreholesForActiveProgram(rows){
   return (rows||[]).filter(boreholeMatchesActiveProgram);
 }
 function rowMatchesActiveProgram(row){
+  if(activeProjectName && row && row.project && !projectNamesMatch(row.project, activeProjectName)) return false;
   if(!activeProgram)return true;
   if(row&&row.program)return row.program===activeProgram;
   if(row&&row.project)return projectMatchesActiveProgram(row.project);
@@ -3271,6 +3323,7 @@ function rowMatchesActiveProgram(row){
   if(text.includes('arg-005')||text.includes('exploration'))return activeProgram==='Exploration';
   const holes=holeLookup();
   const bh=holes.get(rowHole(row||{}));
+  if(activeProjectName && bh && !projectNamesMatch(bh.project, activeProjectName)) return false;
   return !!(bh&&boreholeMatchesActiveProgram(bh));
 }
 function filterRowsForActiveProgram(rows){
@@ -6867,6 +6920,11 @@ async function loadInvoices(preferredContractor){
     }));
     invoicesData = results.flat();
     if(!Array.isArray(invoicesData)) invoicesData = [];
+    if(activeProjectName) {
+      invoicesData = invoicesData.filter(function(invoice){
+        return invoice.project && projectNamesMatch(invoice.project, activeProjectName);
+      });
+    }
 
     // Apply client-side filters
     var cfilt = preferredContractor || document.getElementById('inv-contractor-filter').value;
@@ -7428,7 +7486,7 @@ function displayHoleId(bh) {
 async function loadBoreholes(force) {
   if(bhData.length && !force) {
     updateBhKPIs();
-    renderBhTable(bhData);
+    filterBoreholesByProject();
     if(isPageActive('boreholes')) setTimeout(initBhMap, 0);
     if(isPageActive('borehole-details')) renderBoreholeDetails();
     if(isPageActive('drilling-schedule')) renderDrillingSchedule();
@@ -7473,7 +7531,7 @@ async function fetchBoreholesFromApi() {
   bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
   bhData = filterBoreholesForActiveProgram(bhData);
   updateBhKPIs();
-  renderBhTable(bhData);
+  filterBoreholesByProject();
   if(isPageActive('boreholes')) setTimeout(initBhMap, 100);
   if(isPageActive('borehole-details')) renderBoreholeDetails();
   if(isPageActive('drilling-schedule')) renderDrillingSchedule();
@@ -8508,10 +8566,132 @@ function loadImageMapOverlay(asset) {
 // ── Project Management ────────────────────────────────────────────────────────────
 var clients = [];
 var projects = [];
+var workspaceGateResolve = null;
+var workspaceStarted = false;
+
+function populateWorkspaceClientOptions() {
+  var select = document.getElementById('workspace-client-select');
+  if(!select) return;
+  var preferred = activeClientId || Number(sessionStorage.getItem('drillops_client_id') || 0);
+  select.innerHTML = '<option value="">Select client</option>';
+  clients.filter(function(client){ return client.status !== 'Inactive'; }).forEach(function(client) {
+    var option = document.createElement('option');
+    option.value = client.id;
+    option.textContent = client.name;
+    if(Number(client.id) === Number(preferred)) option.selected = true;
+    select.appendChild(option);
+  });
+  populateWorkspaceProjectOptions();
+}
+
+function populateWorkspaceProjectOptions() {
+  var clientSelect = document.getElementById('workspace-client-select');
+  var projectSelect = document.getElementById('workspace-project-select');
+  if(!clientSelect || !projectSelect) return;
+  var clientId = Number(clientSelect.value || 0);
+  var preferred = activeProjectName || sessionStorage.getItem('drillops_project') || '';
+  projectSelect.innerHTML = clientId
+    ? '<option value="">Select project</option>'
+    : '<option value="">Select client first</option>';
+  projects.filter(function(project){
+    return clientId && Number(project.client_id) === clientId && project.status !== 'Inactive';
+  }).forEach(function(project) {
+    var option = document.createElement('option');
+    option.value = project.name;
+    option.textContent = project.name;
+    if(project.name === preferred) option.selected = true;
+    projectSelect.appendChild(option);
+  });
+  projectSelect.disabled = !clientId;
+  updateWorkspaceContinueState();
+}
+
+function updateWorkspaceContinueState() {
+  var clientSelect = document.getElementById('workspace-client-select');
+  var projectSelect = document.getElementById('workspace-project-select');
+  var button = document.getElementById('workspace-continue-btn');
+  if(button) button.disabled = !(clientSelect && clientSelect.value && projectSelect && projectSelect.value);
+}
+
+function showWorkspaceGate() {
+  populateWorkspaceClientOptions();
+  var gate = document.getElementById('workspace-gate');
+  var error = document.getElementById('workspace-gate-error');
+  if(error) error.textContent = '';
+  if(gate) gate.classList.add('open');
+  document.body.classList.add('workspace-locked');
+  return new Promise(function(resolve){ workspaceGateResolve = resolve; });
+}
+
+function syncWorkspaceControls() {
+  var clientSelect = document.getElementById('bh-client-select');
+  if(clientSelect) clientSelect.value = activeClientId ? String(activeClientId) : '';
+  buildProgramSelector();
+  buildProjectSelector();
+  buildAddBoreholeProjectSelector();
+  var projectSelect = document.getElementById('bh-project-select');
+  if(projectSelect) projectSelect.value = activeProjectName;
+  var budgetProgram = document.getElementById('budget-program-filter');
+  var budgetProject = document.getElementById('budget-project-filter');
+  buildProjectBudgetSelectors();
+  if(budgetProgram) budgetProgram.value = activeProgram;
+  if(budgetProject) budgetProject.value = activeProjectName;
+  var reportProject = document.getElementById('period-project-select');
+  if(reportProject && Array.from(reportProject.options).some(function(option){ return option.value === activeProjectName; })) {
+    reportProject.value = activeProjectName;
+  }
+}
+
+function confirmWorkspaceSelection() {
+  var clientSelect = document.getElementById('workspace-client-select');
+  var projectSelect = document.getElementById('workspace-project-select');
+  var error = document.getElementById('workspace-gate-error');
+  var clientId = Number(clientSelect && clientSelect.value || 0);
+  var projectName = String(projectSelect && projectSelect.value || '');
+  var project = projects.find(function(item){
+    return Number(item.client_id) === clientId && item.name === projectName;
+  });
+  if(!clientId || !project) {
+    if(error) error.textContent = 'Select both a client and a project to continue.';
+    return;
+  }
+  activeClientId = clientId;
+  activeProjectName = project.name;
+  activeProgram = projectProgram(project);
+  sessionStorage.setItem('drillops_client_id', String(activeClientId));
+  sessionStorage.setItem('drillops_project', activeProjectName);
+  sessionStorage.setItem('drillops_program', activeProgram);
+  setProgramControls();
+  syncWorkspaceControls();
+  var client = clientById(activeClientId);
+  var label = document.getElementById('workspace-context-label');
+  if(label) label.textContent = (client ? client.name : 'Client') + ' / ' + activeProjectName;
+  document.getElementById('workspace-gate').classList.remove('open');
+  document.body.classList.remove('workspace-locked');
+  var resolve = workspaceGateResolve;
+  workspaceGateResolve = null;
+  if(resolve) resolve({clientId:activeClientId, project:activeProjectName});
+}
+
+async function changeWorkspace() {
+  if(!clients.length || !projects.length) await fetchProjects();
+  await showWorkspaceGate();
+  if(!workspaceStarted) return;
+  bhData = [];
+  activitiesData = [];
+  consumablesData = [];
+  crewData = [];
+  dailyReportsData = [];
+  await loadProjectBudgets();
+  syncWorkspaceControls();
+  await updateDbCount();
+  var activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+  if(activePage) triggerPageLoad(activePage);
+}
 
 function selectedClientId() {
   var sel = document.getElementById("bh-client-select");
-  return sel && sel.value ? Number(sel.value) : null;
+  return sel && sel.value ? Number(sel.value) : activeClientId;
 }
 
 function clientById(clientId) {
@@ -9512,17 +9692,20 @@ function highlightBhRow(holeId) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-buildContractorSwitcher();
-updateContractorSwitcherVisibility(document.querySelector('.page.active')?.id?.replace('page-','')||'boreholes');
 (async()=>{
   await fetchContractors();
+  await fetchProjects();
+  await showWorkspaceGate();
+  workspaceStarted = true;
   buildContractorSwitcher();
   updateContractorSwitcherVisibility(document.querySelector('.page.active')?.id?.replace('page-','')||'boreholes');
-  await fetchProjects();
+  syncWorkspaceControls();
   await loadProjectBudgets();
+  syncWorkspaceControls();
   await updateDbCount();
   await loadActivities();
-  loadBoreholes();
+  await loadBoreholes();
+  filterBoreholesByProject();
   setTimeout(()=>loadAnalytics('all'),200);
 })();
 </script>
