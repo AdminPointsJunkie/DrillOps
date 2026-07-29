@@ -5394,10 +5394,13 @@ def parse_invoice_breakdown_date(value: str) -> str:
         "may": "05", "jun": "06", "jul": "07", "aug": "08",
         "sep": "09", "oct": "10", "nov": "11", "dec": "12",
     }
-    m = re.match(r"(\d{1,2})-([A-Za-z]{3})-(\d{4})", str(value or "").strip())
+    m = re.match(r"(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})", str(value or "").strip())
     if not m:
         return value or ""
-    return f"{int(m.group(1)):02d}/{months.get(m.group(2).lower(), '01')}/{m.group(3)}"
+    year = m.group(3)
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{int(m.group(1)):02d}/{months.get(m.group(2).lower(), '01')}/{year}"
 
 
 def parse_invoice_breakdown_money(value: str) -> float:
@@ -5825,7 +5828,159 @@ def parse_chms_quote_invoice_pdf(text: str, filename: str) -> dict:
     }
 
 
-def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
+def parse_kinetic_logging_invoice_pdf(text: str, filename: str, tables=None) -> dict:
+    """Parse Epiroc/Kinetic Logging Services tax invoices."""
+
+    def find(pattern, default=""):
+        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+        return match.group(1).strip() if match else default
+
+    def money(value) -> float:
+        raw = str(value or "").replace("$", "").replace(",", "").replace(" ", "").strip()
+        if not raw or raw == "-":
+            return 0.0
+        try:
+            return float(raw)
+        except ValueError:
+            return 0.0
+
+    def quantity(value) -> float:
+        raw = re.sub(r"\s+", "", str(value or "").strip())
+        if not raw or raw == "-":
+            return 0.0
+        try:
+            return float(raw)
+        except ValueError:
+            return 0.0
+
+    def split_cell(value):
+        return [part.strip() for part in str(value or "").splitlines() if part.strip()]
+
+    def descriptions_from_cell(value):
+        starts = re.compile(
+            r"^(Daily Charge|Standby rate|Three[- ]arm|North\s*seeking|"
+            r"A[c]+oustic Televeiwer|Both Acoustic|Ac+om+odation charge|Payment received)",
+            re.IGNORECASE,
+        )
+        descriptions = []
+        for part in split_cell(value):
+            if starts.search(part) or not descriptions:
+                descriptions.append(part)
+            else:
+                descriptions[-1] = f"{descriptions[-1]} {part}"
+        return descriptions
+
+    invoice_table = None
+    for table in tables or []:
+        flattened = " ".join(
+            str(cell or "")
+            for row in table or []
+            for cell in row or []
+        )
+        if "Kinetic Logging Services" in flattened and "Invoice Number:" in flattened:
+            invoice_table = table
+            break
+
+    lines = []
+    if invoice_table:
+        item_row = next(
+            (
+                row for row in invoice_table
+                if row and len(row) >= 6
+                and re.search(r"\b(?:20|30)\d{8}\b", str(row[0] or ""))
+            ),
+            None,
+        )
+        if item_row:
+            item_codes = split_cell(item_row[0])
+            descriptions = descriptions_from_cell(item_row[1])
+            quantities = split_cell(item_row[2])
+            units = split_cell(item_row[3])
+            rates = split_cell(item_row[4])
+            amounts = split_cell(item_row[5])
+            count = min(
+                len(item_codes), len(descriptions), len(quantities),
+                len(units), len(rates), len(amounts),
+            )
+            for index in range(count):
+                line_amount = money(amounts[index])
+                if line_amount == 0:
+                    continue
+                description = descriptions[index]
+                description_lower = description.lower()
+                if "payment received" in description_lower:
+                    category = "payment"
+                elif "accommodation" in description_lower or "accomodation" in description_lower:
+                    category = "accommodation"
+                else:
+                    category = "geophysical_logging"
+                lines.append({
+                    "description": description,
+                    "quantity": quantity(quantities[index]),
+                    "unit_price": money(rates[index]),
+                    "gst_rate": "10%",
+                    "amount": line_amount,
+                    "category": category,
+                    "unit": units[index],
+                    "activity_code": item_codes[index],
+                    "source_category": "Geophysical Logging",
+                })
+
+    # Text-only fallback for PDFs where table extraction is unavailable.
+    if not lines:
+        line_re = re.compile(
+            r"^(?P<item>(?:20|30)\d{8})\s+(?P<description>.*?)"
+            r"(?P<quantity>\d+\s*\.\s*\d+|-)\s+(?P<unit>Day|Hole|Night|Pre-Payment)\s+"
+            r"(?P<rate>-?\$\s*[\d,]+\.\d{2}|\$\s*-)\s+"
+            r"(?P<amount>-?\$\s*[\d,]+\.\d{2}|\$\s*-)\s*$",
+            re.IGNORECASE | re.MULTILINE,
+        )
+        for match in line_re.finditer(text):
+            line_amount = money(match.group("amount"))
+            if line_amount == 0:
+                continue
+            description = match.group("description").strip() or f"KLS item {match.group('item')}"
+            lines.append({
+                "description": description,
+                "quantity": quantity(match.group("quantity")),
+                "unit_price": money(match.group("rate")),
+                "gst_rate": "10%",
+                "amount": line_amount,
+                "category": "payment" if line_amount < 0 else "geophysical_logging",
+                "unit": match.group("unit"),
+                "activity_code": match.group("item"),
+                "source_category": "Geophysical Logging",
+            })
+
+    subtotal = money(find(r"Excl\.\s*GST\s*\$\s*([\d,]+\.\d{2})"))
+    gst = money(find(r"(?m)^GST\s*\$\s*([\d,]+\.\d{2})"))
+    total_aud = money(find(r"(?:AUD\s*)?Total\s+Incl\.\s*GST\s*\$\s*([\d,]+\.\d{2})"))
+    if not subtotal and lines:
+        subtotal = round(sum(line["amount"] for line in lines), 2)
+    if not gst and subtotal:
+        gst = round(subtotal * 0.1, 2)
+    if not total_aud and subtotal:
+        total_aud = round(subtotal + gst, 2)
+
+    return {
+        "invoice_number": find(r"Invoice Number:\s*(\d+)") or find(r"INVOICE NO\.\s*(\d+)") or os.path.splitext(filename)[0],
+        "invoice_date": parse_invoice_breakdown_date(find(r"Invoice Date:\s*(\d{1,2}-[A-Za-z]{3}-\d{2,4})")),
+        "due_date": "",
+        "po_reference": find(r"Purchase Order:\s*([A-Z0-9-]+)") or find(r"PURCHASE ORDER NO:\s*([A-Z0-9-]+)"),
+        "project": "Carborough Downs" if "Carborough Downs" in text else "",
+        "client": find(r"^(Fitzroy Coal Management)\s*$", "Fitzroy Coal Management"),
+        "abn": find(r"Kinetic Logging Services Pty Ltd\s+ABN:\s*([\d ]+)"),
+        "subtotal": subtotal,
+        "gst": gst,
+        "total_aud": total_aud,
+        "amount_paid": 0.0,
+        "amount_due": total_aud,
+        "status": "Unpaid" if total_aud else "Paid",
+        "lines": lines,
+    }
+
+
+def parse_invoice_pdf(text: str, filename: str, contractor: str, tables=None) -> dict:
     """Parse an Allianz-style tax invoice PDF.
     Note: pdfplumber strips spaces from words so 'Invoice Number' becomes 'InvoiceNumber'.
     """
@@ -5844,6 +5999,9 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str) -> dict:
 
     if "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
         return parse_chms_quote_invoice_pdf(text, filename)
+
+    if "Kinetic Logging Services" in text or "kls.ar@epiroc.com" in text.lower():
+        return parse_kinetic_logging_invoice_pdf(text, filename, tables)
 
     def find(pattern, default=""):
         m = re.search(pattern, text, re.IGNORECASE)
@@ -6118,10 +6276,16 @@ async def test_invoice_parse(
     try:
         with pdfplumber.open(BytesIO(content)) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+            tables = []
+            for page in pdf.pages:
+                try:
+                    tables.extend(page.extract_tables() or [])
+                except Exception:
+                    pass
     except Exception as e:
         return {"error": f"PDF read failed: {e}"}
     try:
-        inv = parse_invoice_pdf(text, file.filename, contractor)
+        inv = parse_invoice_pdf(text, file.filename, contractor, tables)
         return {"parsed": inv, "line_count": len(inv.get("lines",[]))}
     except Exception as e:
         return {"error": f"Parse failed: {e}", "text_preview": text[:500]}
@@ -6159,6 +6323,12 @@ async def import_invoice(
     try:
         with pdfplumber.open(BytesIO(content)) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+            tables = []
+            for page in pdf.pages:
+                try:
+                    tables.extend(page.extract_tables() or [])
+                except Exception:
+                    pass
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
@@ -6180,8 +6350,17 @@ async def import_invoice(
                 if cur.fetchone():
                     return {"status": "skipped", "filename": filename}
 
+    if "Kinetic Logging Services" in text or "kls.ar@epiroc.com" in text.lower():
+        contractor = "Epiroc"
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
+                            (filename, contractor))
+                if cur.fetchone():
+                    return {"status": "skipped", "filename": filename}
+
     try:
-        inv = parse_invoice_pdf(text, filename, contractor)
+        inv = parse_invoice_pdf(text, filename, contractor, tables)
     except Exception as e:
         raise HTTPException(422, f"Could not parse invoice: {e}")
 
