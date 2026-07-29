@@ -82,10 +82,23 @@ body.workspace-locked{overflow:hidden;}
 .workspace-gate-action{width:100%;padding:12px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:700 14px var(--font);cursor:pointer;}
 .workspace-gate-action:disabled{opacity:.42;cursor:not-allowed;}
 .workspace-gate-error{min-height:18px;margin-top:10px;color:var(--red);font-size:12px;text-align:center;}
+.entity-dialog{width:min(620px,calc(100vw - 32px));border:0;border-radius:16px;padding:0;box-shadow:0 28px 80px rgba(9,24,42,.35);color:var(--text);}
+.entity-dialog::backdrop{background:rgba(20,31,45,.62);backdrop-filter:blur(5px);}
+.entity-dialog-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:24px 26px 18px;border-bottom:1px solid var(--border);}
+.entity-dialog-title{font-size:20px;font-weight:750;letter-spacing:-.35px;}
+.entity-dialog-copy{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;}
+.entity-dialog-body{padding:22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.entity-dialog-field.full{grid-column:1/-1;}
+.entity-dialog-field label{display:block;margin-bottom:6px;font-size:10px;font-weight:750;letter-spacing:.65px;text-transform:uppercase;color:var(--muted);}
+.entity-dialog-field input,.entity-dialog-field select,.entity-dialog-field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text);font:500 13px var(--font);outline:none;}
+.entity-dialog-field input:focus,.entity-dialog-field select:focus,.entity-dialog-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
+.entity-dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:16px 26px 22px;}
 @media(max-width:680px){
   .workspace-gate-card{padding:24px;}
   .workspace-gate-fields{grid-template-columns:1fr;}
   .workspace-context-btn{max-width:210px;}
+  .entity-dialog-body{grid-template-columns:1fr;}
+  .entity-dialog-field.full{grid-column:auto;}
 }
 #db-count{color:var(--accent);font-weight:600;}
 
@@ -1653,7 +1666,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
-        <button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><span class="drawer-nav-label">Project Budgets</span><span class="drawer-nav-meta">Vendor budgets</span></button>
+        <button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><span class="drawer-nav-label">Clients &amp; Projects</span><span class="drawer-nav-meta">Setup and budgets</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
@@ -1706,9 +1719,43 @@ tbody td[contenteditable=true]:focus {
       </div>
     </div>
     <button class="workspace-gate-action" id="workspace-continue-btn" type="button" onclick="confirmWorkspaceSelection()" disabled>Enter DrillOps</button>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:10px;">
+      <button class="btn-ghost" type="button" onclick="showNewClientDialog()">Add client</button>
+      <button class="btn-ghost" type="button" onclick="showNewProjectDialog()">Add project</button>
+    </div>
     <div class="workspace-gate-error" id="workspace-gate-error"></div>
   </div>
 </div>
+
+<dialog class="entity-dialog" id="client-project-dialog">
+  <form id="client-project-form" onsubmit="saveClientProjectDialog(event)">
+    <input id="entity-dialog-mode" type="hidden" value="project"/>
+    <div class="entity-dialog-header">
+      <div>
+        <div class="entity-dialog-title" id="entity-dialog-title">Add project</div>
+        <div class="entity-dialog-copy" id="entity-dialog-copy">Create a project and assign it to a client. It will immediately become available in workspace and import selectors.</div>
+      </div>
+      <button class="icon-btn" type="button" onclick="closeClientProjectDialog()" aria-label="Close">Close</button>
+    </div>
+    <div class="entity-dialog-body" id="entity-client-fields" style="display:none;">
+      <div class="entity-dialog-field full"><label for="entity-client-name">Client name</label><input id="entity-client-name" required placeholder="e.g. Argo NR"/></div>
+      <div class="entity-dialog-field"><label for="entity-client-code">Client code</label><input id="entity-client-code" placeholder="e.g. ARGO"/></div>
+      <div class="entity-dialog-field"><label for="entity-client-status">Status</label><select id="entity-client-status"><option>Active</option><option>Inactive</option></select></div>
+      <div class="entity-dialog-field full"><label for="entity-client-notes">Notes</label><textarea id="entity-client-notes" rows="3" placeholder="Optional client notes"></textarea></div>
+    </div>
+    <div class="entity-dialog-body" id="entity-project-fields">
+      <div class="entity-dialog-field full"><label for="entity-project-client">Client</label><select id="entity-project-client" required></select></div>
+      <div class="entity-dialog-field full"><label for="entity-project-name">Project name</label><input id="entity-project-name" required placeholder="e.g. Carborough Downs"/></div>
+      <div class="entity-dialog-field"><label for="entity-project-program">Program</label><select id="entity-project-program"></select></div>
+      <div class="entity-dialog-field"><label for="entity-project-year">Planning year</label><input id="entity-project-year" inputmode="numeric" pattern="\d{4}" placeholder="2026"/></div>
+      <div class="entity-dialog-field full"><label for="entity-project-notes">Notes</label><textarea id="entity-project-notes" rows="3" placeholder="Optional project notes"></textarea></div>
+    </div>
+    <div class="entity-dialog-actions">
+      <button class="btn-ghost" type="button" onclick="closeClientProjectDialog()">Cancel</button>
+      <button class="btn-primary" id="entity-dialog-save" type="submit">Create project</button>
+    </div>
+  </form>
+</dialog>
 
 <div class="shell">
   <!-- Sidebar -->
@@ -1724,6 +1771,18 @@ tbody td[contenteditable=true]:focus {
         <div class="chart-card" style="padding:24px;">
           <div class="chart-title">EOS Daily Reports</div>
           <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Typed/digital drilling report PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Client
+              <select id="import-client-select" onchange="populateImportProjectOptions()" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
+                <option value="">Select client</option>
+              </select>
+            </label>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Project
+              <select id="import-project-select" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);" disabled>
+                <option value="">Select client first</option>
+              </select>
+            </label>
+          </div>
           <div class="upload-zone" id="drop-zone" style="margin-bottom:10px;position:relative;">
             <input type="file" id="file-input" multiple accept=".pdf,.csv,.xlsx" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
             <div class="up-icon" style="font-size:28px;">&#x1F4C4;</div>
@@ -1844,7 +1903,7 @@ tbody td[contenteditable=true]:focus {
 
     <!-- Project Budgets -->
     <section class="page" id="page-project-budgets">
-      <h2 class="section-title">Project Budgets</h2>
+      <h2 class="section-title">Clients, Projects &amp; Budgets</h2>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="table-toolbar">
           <div>
@@ -2044,6 +2103,7 @@ tbody td[contenteditable=true]:focus {
         <input class="range-date" id="range-from" type="date" title="Report start date"/>
         <input class="range-date" id="range-to" type="date" title="Report end date"/>
         <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
+        <button class="btn-ghost" id="bulk-assign-project-btn" type="button" onclick="bulkAssignReportsToWorkspace()" disabled>Assign to workspace</button>
         <button class="btn-ghost" id="bulk-lock-btn" type="button" onclick="bulkSetReportLocks(true)" disabled>Lock selected</button>
         <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
         <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
@@ -2076,7 +2136,7 @@ tbody td[contenteditable=true]:focus {
           <table id="report-table">
             <thead><tr>
               <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
-              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th>Rig</th><th>Hole</th><th>Driller</th>
+              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th>Rig</th><th>Hole</th><th>Project</th><th>Driller</th>
               <th>Depth (m)</th><th>Duration (h)</th><th>Total Cost</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
@@ -3530,7 +3590,7 @@ function groupDailyReports(rows){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',project:r.project||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
@@ -3700,6 +3760,45 @@ function looksLikeInvoice(filename){
   return /INV[-_]\d+/i.test(filename) || /invoice/i.test(filename) || /tax.invoice/i.test(filename);
 }
 
+function populateImportScopeOptions(){
+  const select=document.getElementById('import-client-select');
+  if(!select)return;
+  const current=Number(select.value||activeClientId||0);
+  select.innerHTML='<option value="">Select client</option>'+clients.filter(function(client){
+    return client.status!=='Inactive';
+  }).map(function(client){
+    return '<option value="'+Number(client.id)+'"'+(Number(client.id)===current?' selected':'')+'>'+esc(client.name)+'</option>';
+  }).join('');
+  populateImportProjectOptions();
+}
+
+function populateImportProjectOptions(){
+  const clientSelect=document.getElementById('import-client-select');
+  const projectSelect=document.getElementById('import-project-select');
+  if(!clientSelect||!projectSelect)return;
+  const clientId=Number(clientSelect.value||0);
+  const current=projectSelect.value||((clientId===Number(activeClientId))?activeProjectName:'');
+  const available=projects.filter(function(project){
+    return clientId&&Number(project.client_id)===clientId&&project.status!=='Inactive';
+  });
+  projectSelect.innerHTML=clientId
+    ? '<option value="">Select project</option>'+available.map(function(project){
+        return '<option value="'+attr(project.name)+'"'+(project.name===current?' selected':'')+'>'+esc(project.name)+'</option>';
+      }).join('')
+    : '<option value="">Select client first</option>';
+  projectSelect.disabled=!clientId;
+}
+
+function selectedImportScope(){
+  const clientId=Number(document.getElementById('import-client-select')?.value||0);
+  const projectName=document.getElementById('import-project-select')?.value||'';
+  const client=clients.find(function(item){return Number(item.id)===clientId;});
+  const project=projects.find(function(item){
+    return Number(item.client_id)===clientId&&item.name===projectName;
+  });
+  return {client:client,project:project};
+}
+
 fileInput.addEventListener('change',e=>{
   const files=[...e.target.files];
   const invoices=files.filter(f=>looksLikeInvoice(f.name));
@@ -3715,13 +3814,18 @@ dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.a
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop',e=>{
   e.preventDefault();dropZone.classList.remove('drag-over');
-  pendingFiles=[...e.dataTransfer.files].filter(f=>/\\.(pdf|csv)$/i.test(f.name));
+  pendingFiles=[...e.dataTransfer.files].filter(f=>/\.(pdf|csv|xlsx)$/i.test(f.name));
   importBtn.disabled=pendingFiles.length===0;
   importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
 });
 
 importBtn.addEventListener('click',async()=>{
   if(!pendingFiles.length)return;
+  const importScope=selectedImportScope();
+  if(!importScope.client||!importScope.project){
+    toast('Select the client and project for these reports','err');
+    return;
+  }
   importBtn.disabled=true;
   importBtn.innerHTML='<span class="spinner"></span>Importing…';
   const log=document.getElementById('import-log');log.innerHTML='';
@@ -3729,10 +3833,15 @@ importBtn.addEventListener('click',async()=>{
   const importedContractors=new Set();
   for(const file of pendingFiles){
     const uploadContractor=/\.csv$/i.test(file.name)?'Mitchells Drilling':activeContractor;
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',uploadContractor);
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('contractor',uploadContractor);
+    fd.append('client',importScope.client.name);
+    fd.append('project',importScope.project.name);
+    fd.append('program',projectProgram(importScope.project));
     try{
       const d=await fetch(`${API}/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported'){const savedContractor=d.contractor||uploadContractor;importedContractors.add(savedContractor);log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows · ${esc(savedContractor)})</div>`+renderImportCheck(d.import_check);total+=d.rows;}
+      if(d.status==='imported'){const savedContractor=d.contractor||uploadContractor;importedContractors.add(savedContractor);log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows · ${esc(savedContractor)} · ${esc(importScope.client.name)} / ${esc(importScope.project.name)})</div>`+renderImportCheck(d.import_check);total+=d.rows;}
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
     }catch(e){log.innerHTML+=`<div class="err">✗ ${file.name}</div>`;}
   }
@@ -3942,6 +4051,9 @@ async function addActivityRow(){
   const row={
     contractor:activeContractor,
     source_file:'Manual entry',
+    client:(clientById(activeClientId)||{}).name||'',
+    program:activeProgram||'Exploration',
+    project:activeProjectName||'',
     date:dates[0]||'',
     hole_num:holes[0]||'',
     site_name:sites[0]||'',
@@ -4111,14 +4223,14 @@ function renderDailyReportSummary(rows){
   const tbody=document.getElementById('report-body');
   if(!tbody)return;
   if(!dailyReportsData.length){
-    tbody.innerHTML='<tr><td colspan="14"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="15"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
     updateBulkReportSelection();
     closeDailyReportDetail();
     return;
   }
   tbody.innerHTML=dailyReportsData.map(function(r){
     const note=r.notes.join(' ').slice(0,180);
-    return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+attr(r.key)+'" data-search="'+attr((r.id+' '+r.date+' '+r.hole+' '+r.rig+' '+r.driller+' '+note).toLowerCase())+'">'
+    return '<tr class="report-row '+(r.key===selectedDailyReportKey?'active':'')+'" data-report-key="'+attr(r.key)+'" data-search="'+attr((r.id+' '+r.date+' '+r.hole+' '+r.project+' '+r.rig+' '+r.driller+' '+note).toLowerCase())+'">'
       +'<td class="select-cell"><input class="row-check" type="checkbox" onchange="updateBulkReportSelection()"/></td>'
       +'<td><div class="plod-cell"><button class="plod-link" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">'+esc(r.id)+'</button>'+(r.sourceFile?'<span class="attach-icon">↗</span>':'')+'</div></td>'
       +'<td>'+renderReportStatusSelect(r)+'</td>'
@@ -4127,6 +4239,7 @@ function renderDailyReportSummary(rows){
       +'<td>'+(r.shift?'<span class="shift-pill">'+esc(r.shift)+'</span>':'')+'</td>'
       +'<td>'+esc(r.rig||'--')+'</td>'
       +'<td>'+esc(r.hole||'--')+'</td>'
+      +'<td>'+esc(r.project||'Unassigned')+'</td>'
       +'<td>'+esc(r.driller||'--')+'</td>'
       +'<td>'+r.metres.toFixed(2)+'</td>'
       +'<td>'+r.hours.toFixed(2)+'</td>'
@@ -5320,10 +5433,52 @@ function updateBulkReportSelection(){
   const lockBtn=document.getElementById('bulk-lock-btn');
   const unlockBtn=document.getElementById('bulk-unlock-btn');
   const deleteBtn=document.getElementById('bulk-delete-btn');
+  const assignBtn=document.getElementById('bulk-assign-project-btn');
   if(count)count.textContent=selected.length+' selected';
   if(lockBtn)lockBtn.disabled=!selected.length;
   if(unlockBtn)unlockBtn.disabled=!selected.length;
   if(deleteBtn)deleteBtn.disabled=!selected.length;
+  if(assignBtn)assignBtn.disabled=!selected.length;
+}
+
+async function bulkAssignReportsToWorkspace(){
+  const reports=selectedReportRows();
+  if(!reports.length)return;
+  if(!activeProjectName||!activeClientId){
+    toast('Choose a client and project workspace first','err');
+    return;
+  }
+  const activityIds=Array.from(new Set(reports.flatMap(function(report){
+    return (report.rows||[]).map(function(row){return Number(row.id);}).filter(Number.isFinite);
+  })));
+  if(!activityIds.length){
+    toast('No activity rows found for the selected reports','err');
+    return;
+  }
+  const client=clientById(activeClientId);
+  const destination=(client?client.name+' / ':'')+activeProjectName;
+  if(!confirm('Assign '+reports.length+' selected report(s) to '+destination+'?'))return;
+  const button=document.getElementById('bulk-assign-project-btn');
+  if(button)button.disabled=true;
+  try{
+    const response=await fetch(API+'/activities/assign-project',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contractor:reportDrillingContractor(),
+        project:activeProjectName,
+        activity_ids:activityIds
+      })
+    });
+    if(!response.ok)throw new Error(await response.text());
+    const result=await response.json();
+    toast('\u2713 '+result.rows+' activity rows assigned to '+activeProjectName);
+    await loadActivities();
+  }catch(error){
+    toast('Project assignment failed','err');
+  }finally{
+    updateBulkReportSelection();
+  }
 }
 
 async function bulkSetReportLocks(locked){
@@ -5511,7 +5666,7 @@ function openSelectedReportPdf(){
 
 function downloadDailyReportsCSV(){
   if(!dailyReportsData.length){toast('No daily reports to export','warn');return;}
-  const rows=dailyReportsData.map(function(r){return {report:r.id,status:r.status.label,date:r.date,shift:r.shift,rig:r.rig,hole:r.hole,driller:r.driller,metres:r.metres.toFixed(2),hours:r.hours.toFixed(2),cost:r.cost.toFixed(2),notes:r.notes.join(' | ')};});
+  const rows=dailyReportsData.map(function(r){return {report:r.id,status:r.status.label,date:r.date,shift:r.shift,rig:r.rig,hole:r.hole,project:r.project||'',driller:r.driller,metres:r.metres.toFixed(2),hours:r.hours.toFixed(2),cost:r.cost.toFixed(2),notes:r.notes.join(' | ')};});
   const headers=Object.keys(rows[0]);
   const csv=[headers.join(',')].concat(rows.map(function(r){return headers.map(function(h){return '"'+String(r[h]??'').replace(/"/g,'""')+'"';}).join(',');})).join('\n');
   const a=document.createElement('a');
@@ -7485,7 +7640,6 @@ function displayHoleId(bh) {
 
 async function loadBoreholes(force) {
   if(bhData.length && !force) {
-    updateBhKPIs();
     filterBoreholesByProject();
     if(isPageActive('boreholes')) setTimeout(initBhMap, 0);
     if(isPageActive('borehole-details')) renderBoreholeDetails();
@@ -7530,7 +7684,6 @@ async function fetchBoreholesFromApi() {
   }
   bhData.sort((a,b) => (a.drill_order||999)-(b.drill_order||999));
   bhData = filterBoreholesForActiveProgram(bhData);
-  updateBhKPIs();
   filterBoreholesByProject();
   if(isPageActive('boreholes')) setTimeout(initBhMap, 100);
   if(isPageActive('borehole-details')) renderBoreholeDetails();
@@ -7762,8 +7915,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
   renderBoreholeDetails();
   updateBhKPIs();
   if(isPageActive('boreholes')) {
-    renderBhTable(bhData);
-    if(col==='easting'||col==='northing') renderBhMap();
+    filterBoreholesByProject();
   }
 }
 
@@ -8062,7 +8214,7 @@ async function saveScheduleDetail() {
     toast('Schedule saved');
     renderDrillingSchedule();
     updateBhKPIs();
-    if(isPageActive('boreholes')) renderBhTable(bhData);
+    if(isPageActive('boreholes')) filterBoreholesByProject();
   } catch(e) {
     toast('Save failed: '+((e&&e.message)||'schedule was not saved'),'err');
   }
@@ -8074,17 +8226,18 @@ function openSelectedScheduleBorehole() {
   window.open(boreholeDetailUrl(b), '_blank');
 }
 
-function updateBhKPIs() {
-  const complete = bhData.filter(b => b.status==='Complete').length;
-  const inprog   = bhData.filter(b => b.status==='In Progress').length;
-  const planned  = bhData.filter(b => b.status==='Planned').length;
-  const totalBudget = bhData.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
-  const drillingBudget = bhData.reduce((s,b) => s+(parseFloat(b.drilling_budget_total)||0), 0);
-  const totalDays   = bhData.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
-  const totalEos    = bhData.reduce((s,b) => s+(parseFloat(b.eos_cost)||0), 0);
-  const totalDrilling = bhData.reduce((s,b) => s+(parseFloat(b.drilling_cost)||0), 0);
+function updateBhKPIs(rows) {
+  const scopedRows = Array.isArray(rows) ? rows : currentFilteredBoreholes();
+  const complete = scopedRows.filter(b => b.status==='Complete').length;
+  const inprog   = scopedRows.filter(b => b.status==='In Progress').length;
+  const planned  = scopedRows.filter(b => b.status==='Planned').length;
+  const totalBudget = scopedRows.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
+  const drillingBudget = scopedRows.reduce((s,b) => s+(parseFloat(b.drilling_budget_total)||0), 0);
+  const totalDays   = scopedRows.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
+  const totalEos    = scopedRows.reduce((s,b) => s+(parseFloat(b.eos_cost)||0), 0);
+  const totalDrilling = scopedRows.reduce((s,b) => s+(parseFloat(b.drilling_cost)||0), 0);
   const variance    = totalDrilling - drillingBudget;
-  document.getElementById('bh-kpi-total').textContent = bhData.length;
+  document.getElementById('bh-kpi-total').textContent = scopedRows.length;
   document.getElementById('bh-kpi-complete').textContent = complete;
   document.getElementById('bh-kpi-inprog').textContent = inprog;
   document.getElementById('bh-kpi-planned').textContent = planned;
@@ -8096,14 +8249,15 @@ function updateBhKPIs() {
     vEl.textContent = (variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
     vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
-  renderBhBudgetSummary();
+  renderBhBudgetSummary(scopedRows);
 }
 
-function renderBhBudgetSummary() {
+function renderBhBudgetSummary(rows) {
   const el = document.getElementById('bh-budget-summary');
   if(!el) return;
+  const scopedRows = Array.isArray(rows) ? rows : currentFilteredBoreholes();
   const groups = {};
-  bhData.forEach(b => {
+  scopedRows.forEach(b => {
     const k = (b.purpose||'Other').split('/')[0].trim();
     if(!groups[k]) groups[k] = {count:0,days:0,budget:0};
     groups[k].count++;
@@ -8133,7 +8287,7 @@ function initBhMap() {
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
   bhMap = L.map('bh-map', {layers:[osm]});
   L.control.layers({'Street':osm,'Satellite':sat}).addTo(bhMap);
-  renderBhMap();
+  renderBhMapFiltered(currentFilteredBoreholes());
   setTimeout(loadDefaultMapOverlays, 250);
 }
 
@@ -8224,14 +8378,13 @@ async function setBhStatus(holeId, status) {
     bh.status = previous;
     toast('Save failed: '+((e&&e.message)||'status was not saved'),'err');
   }
-  renderBhTable(bhData);
-  renderBhMap();
-  updateBhKPIs();
+  filterBoreholesByProject();
 }
 
 function filterBhTable() {
   const sf = document.getElementById('bh-status-filter').value;
-  renderBhTable(sf ? bhData.filter(function(b){return b.status===sf;}) : bhData);
+  const scopedRows = currentFilteredBoreholes();
+  renderBhTable(sf ? scopedRows.filter(function(b){return b.status===sf;}) : scopedRows);
 }
 
 function renderBhTable(rows) {
@@ -8285,7 +8438,7 @@ function renderBhTable(rows) {
       const col = cell.dataset.col;
       let val = cell.textContent.trim().replace(/[$,]/g,'');
       if(col==='hole_id' && !val) {
-        renderBhTable(bhData);
+        filterBoreholesByProject();
         return;
       }
       if(cell.dataset.num) val = val===''?null:parseFloat(val);
@@ -8368,9 +8521,7 @@ async function deleteBorehole(holeId) {
     await fetch(API+'/boreholes/'+encodeURIComponent(holeId)+'?contractor='+encodeURIComponent(boreholePlanningContractor()), {method:'DELETE'});
     bhData = bhData.filter(function(b){return b.hole_id!==holeId;});
     toast(holeId+' deleted','warn');
-    renderBhTable(bhData);
-    renderBhMap();
-    updateBhKPIs();
+    filterBoreholesByProject();
   } catch(e) { toast('Delete failed','err'); }
 }
 
@@ -8501,7 +8652,7 @@ function setMapOverlayStatus(message, isError) {
 function fitMapToVisibleContent() {
   if(!bhMap) return;
   var bounds = null;
-  var points = (bhData||[]).filter(function(b){
+  var points = currentFilteredBoreholes().filter(function(b){
     var lat=parseFloat(b.lat),lng=parseFloat(b.lng);
     return Number.isFinite(lat)&&Number.isFinite(lng);
   }).map(function(b){return [parseFloat(b.lat),parseFloat(b.lng)];});
@@ -8640,6 +8791,11 @@ function syncWorkspaceControls() {
   if(reportProject && Array.from(reportProject.options).some(function(option){ return option.value === activeProjectName; })) {
     reportProject.value = activeProjectName;
   }
+  var importClient = document.getElementById('import-client-select');
+  var importProject = document.getElementById('import-project-select');
+  if(importClient) importClient.value = activeClientId ? String(activeClientId) : '';
+  if(importProject) importProject.value = '';
+  populateImportScopeOptions();
 }
 
 function confirmWorkspaceSelection() {
@@ -8728,7 +8884,7 @@ function buildClientSelector() {
 function renderClientProjectHierarchy() {
   var body = document.getElementById("client-project-body");
   if(!body) return;
-  body.innerHTML = projects.map(function(project) {
+  var projectRows = projects.map(function(project) {
     return '<tr data-project-id="'+Number(project.id)+'">'
       +'<td><select onchange="saveProjectHierarchyField(this,&apos;client_id&apos;)">'+clientProjectOptions(project.client_id)+'</select></td>'
       +'<td contenteditable="true" data-field="name">'+esc(project.name||'')+'</td>'
@@ -8737,7 +8893,19 @@ function renderClientProjectHierarchy() {
       +'<td><select onchange="saveProjectHierarchyField(this,&apos;status&apos;)"><option'+(project.status==='Active'?' selected':'')+'>Active</option><option'+(project.status==='Inactive'?' selected':'')+'>Inactive</option></select></td>'
       +'<td><button class="icon-btn" type="button" onclick="deleteProjectFromHierarchy('+Number(project.id)+')">Delete</button></td>'
       +'</tr>';
-  }).join('') || '<tr><td colspan="6" style="padding:16px;color:var(--muted);text-align:center;">No projects configured.</td></tr>';
+  }).join('');
+  var emptyClientRows = clients.filter(function(client){
+    return !projects.some(function(project){ return Number(project.client_id) === Number(client.id); });
+  }).map(function(client){
+    return '<tr>'
+      +'<td style="font-weight:700;">'+esc(client.name)+'</td>'
+      +'<td colspan="3" style="color:var(--muted);">No projects configured</td>'
+      +'<td>'+esc(client.status||'Active')+'</td>'
+      +'<td><button class="btn-ghost" type="button" onclick="showNewProjectDialog('+Number(client.id)+')">Add project</button></td>'
+      +'</tr>';
+  }).join('');
+  body.innerHTML = projectRows + emptyClientRows;
+  if(!body.innerHTML) body.innerHTML = '<tr><td colspan="6" style="padding:16px;color:var(--muted);text-align:center;">No clients or projects configured.</td></tr>';
   body.querySelectorAll('[contenteditable][data-field]').forEach(function(cell) {
     cell.addEventListener('blur', function(){ saveProjectHierarchyField(cell, cell.dataset.field); });
   });
@@ -9455,6 +9623,7 @@ async function fetchProjects() {
   buildProjectBudgetSelectors();
   syncHierarchyYearSelector();
   renderClientProjectHierarchy();
+  populateImportScopeOptions();
 }
 
 function buildProgramSelector() {
@@ -9526,72 +9695,129 @@ function syncHierarchyYearSelector() {
   });
 }
 
-async function showNewClientDialog() {
-  var name = prompt("Client name:");
-  if(!name) return;
-  var code = prompt("Client code (optional):", "");
+function setEntityDialogMode(mode) {
+  var isClient = mode === 'client';
+  document.getElementById('entity-dialog-mode').value = mode;
+  document.getElementById('entity-client-fields').style.display = isClient ? 'grid' : 'none';
+  document.getElementById('entity-project-fields').style.display = isClient ? 'none' : 'grid';
+  document.getElementById('entity-dialog-title').textContent = isClient ? 'Add client' : 'Add project';
+  document.getElementById('entity-dialog-copy').textContent = isClient
+    ? 'Create a client account. Projects can then be assigned to this client.'
+    : 'Create a project and assign it to a client. It will immediately become available in workspace and import selectors.';
+  document.getElementById('entity-dialog-save').textContent = isClient ? 'Create client' : 'Create project';
+  document.querySelectorAll('#entity-client-fields [required]').forEach(function(el){ el.disabled = !isClient; });
+  document.querySelectorAll('#entity-project-fields [required]').forEach(function(el){ el.disabled = isClient; });
+}
+
+function showNewClientDialog() {
+  setEntityDialogMode('client');
+  document.getElementById('entity-client-name').value = '';
+  document.getElementById('entity-client-code').value = '';
+  document.getElementById('entity-client-status').value = 'Active';
+  document.getElementById('entity-client-notes').value = '';
+  document.getElementById('client-project-dialog').showModal();
+  setTimeout(function(){ document.getElementById('entity-client-name').focus(); }, 0);
+}
+
+function showNewProjectDialog(preferredClientId) {
+  if(!clients.length) {
+    toast('Create a client first','warn');
+    showNewClientDialog();
+    return;
+  }
+  setEntityDialogMode('project');
+  var defaultClient = clientById(preferredClientId) || clientById(selectedClientId()) || clientById(activeClientId) || clients[0];
+  var clientSelect = document.getElementById('entity-project-client');
+  clientSelect.innerHTML = clients.filter(function(client){ return client.status !== 'Inactive'; }).map(function(client){
+    return '<option value="'+Number(client.id)+'"'+(defaultClient&&Number(defaultClient.id)===Number(client.id)?' selected':'')+'>'+esc(client.name)+'</option>';
+  }).join('');
+  var programSelect = document.getElementById('entity-project-program');
+  programSelect.innerHTML = PROJECT_PROGRAMS.map(function(program){
+    return '<option'+(program===(activeProgram||'Exploration')?' selected':'')+'>'+esc(program)+'</option>';
+  }).join('');
+  document.getElementById('entity-project-name').value = '';
+  document.getElementById('entity-project-year').value = String(new Date().getFullYear());
+  document.getElementById('entity-project-notes').value = '';
+  document.getElementById('client-project-dialog').showModal();
+  setTimeout(function(){ document.getElementById('entity-project-name').focus(); }, 0);
+}
+
+function closeClientProjectDialog() {
+  var dialog = document.getElementById('client-project-dialog');
+  if(dialog && dialog.open) dialog.close();
+}
+
+async function saveClientProjectDialog(event) {
+  event.preventDefault();
+  var mode = document.getElementById('entity-dialog-mode').value;
+  var payload;
+  var url;
+  if(mode === 'client') {
+    payload = {
+      name:document.getElementById('entity-client-name').value.trim(),
+      code:document.getElementById('entity-client-code').value.trim(),
+      status:document.getElementById('entity-client-status').value,
+      notes:document.getElementById('entity-client-notes').value.trim()
+    };
+    url = API+'/clients';
+  } else {
+    payload = {
+      contractor:'Company',
+      client_id:Number(document.getElementById('entity-project-client').value),
+      name:document.getElementById('entity-project-name').value.trim(),
+      program:document.getElementById('entity-project-program').value,
+      year:document.getElementById('entity-project-year').value.trim(),
+      notes:document.getElementById('entity-project-notes').value.trim()
+    };
+    url = API+'/projects';
+  }
+  if(!payload.name) return;
+  var saveButton = document.getElementById('entity-dialog-save');
+  saveButton.disabled = true;
   try {
-    var response = await fetch(API+"/clients", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name:name, code:code||"", status:"Active"})
+    var response = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
     });
     if(!response.ok) throw new Error(await response.text());
     var created = await response.json();
+    closeClientProjectDialog();
     await fetchProjects();
-    var clientSel = document.getElementById("bh-client-select");
-    if(clientSel) clientSel.value = String(created.id);
-    filterBoreholesByClient();
-    toast("\u2713 Client "+name+" saved");
+    populateWorkspaceClientOptions();
+    if(mode === 'client') {
+      var clientSel = document.getElementById('bh-client-select');
+      if(clientSel) clientSel.value = String(created.id);
+      var workspaceClient = document.getElementById('workspace-client-select');
+      if(workspaceClient) {
+        workspaceClient.value = String(created.id);
+        populateWorkspaceProjectOptions();
+      }
+      toast('\u2713 Client '+payload.name+' created');
+    } else {
+      var planningClient = document.getElementById('bh-client-select');
+      var planningProject = document.getElementById('bh-project-select');
+      if(planningClient) planningClient.value = String(payload.client_id);
+      buildProjectSelector();
+      if(planningProject) planningProject.value = payload.name;
+      var workspaceClientForProject = document.getElementById('workspace-client-select');
+      var workspaceProject = document.getElementById('workspace-project-select');
+      if(workspaceClientForProject) {
+        workspaceClientForProject.value = String(payload.client_id);
+        populateWorkspaceProjectOptions();
+      }
+      if(workspaceProject) {
+        workspaceProject.value = payload.name;
+        updateWorkspaceContinueState();
+      }
+      toast('\u2713 Project '+payload.name+' created');
+    }
+    populateImportScopeOptions();
   } catch(error) {
-    toast("Failed to create client","err");
+    toast((mode === 'client' ? 'Client' : 'Project')+' creation failed','err');
+  } finally {
+    saveButton.disabled = false;
   }
-}
-
-async function showNewProjectDialog() {
-  if(!clients.length) {
-    toast("Create a client first","warn");
-    await showNewClientDialog();
-    if(!clients.length) return;
-  }
-  var defaultClient = clientById(selectedClientId()) || clients[0];
-  var clientName = prompt("Client for this project:", defaultClient.name);
-  if(!clientName) return;
-  var selectedClient = clients.find(function(client){
-    return String(client.name||'').toLowerCase() === String(clientName).trim().toLowerCase();
-  });
-  if(!selectedClient) {
-    toast("Create client "+clientName+" first","warn");
-    return;
-  }
-  var clientId = Number(selectedClient.id);
-  var program = prompt("Program / first tier:", activeProgram || "Exploration");
-  if(!program) return;
-  var name = prompt("New project name:");
-  if(!name) return;
-  var year = prompt("Year:", "2026");
-  if(!year) return;
-  try {
-    var res = await fetch(API+"/projects", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contractor:"Company", client_id:clientId, program:program, name:name, year:year})
-    });
-    if(!res.ok) { toast("Failed to create project","err"); return; }
-    toast("\u2713 Project "+name+" saved to database");
-    activeProgram = program;
-    sessionStorage.setItem('drillops_program', activeProgram);
-    setProgramControls();
-    await fetchProjects();
-    var programSel = document.getElementById("bh-program-select");
-    var clientSel = document.getElementById("bh-client-select");
-    var projectSel = document.getElementById("bh-project-select");
-    if(clientSel) clientSel.value = String(clientId);
-    if(programSel) programSel.value = program;
-    buildProjectSelector();
-    buildAddBoreholeProjectSelector();
-    if(projectSel) projectSel.value = name;
-    filterBoreholesByProject();
-  } catch(e) { toast("Failed: "+e.message,"err"); }
 }
 
 function filterBoreholesByClient() {
@@ -9602,24 +9828,32 @@ function filterBoreholesByClient() {
   filterBoreholesByProject();
 }
 
-function filterBoreholesByProject() {
-  buildProjectSelector();
-  buildAddBoreholeProjectSelector();
-  syncHierarchyYearSelector();
+function currentFilteredBoreholes() {
   const program = activeProgram;
   const clientId = selectedClientId();
-  const proj = document.getElementById("bh-project-select").value;
-  const year = document.getElementById("bh-year-select").value;
-  let filtered = bhData;
+  const projectEl = document.getElementById("bh-project-select");
+  const yearEl = document.getElementById("bh-year-select");
+  const proj = (projectEl && projectEl.value) || activeProjectName || "";
+  const year = (yearEl && yearEl.value) || "";
+  let filtered = bhData.slice();
   if(program) filtered = filtered.filter(function(b){ return projectProgramForName(b.project||"") === program; });
   if(clientId) {
     var clientProjects = new Set(projects.filter(function(p){ return Number(p.client_id)===clientId; }).map(function(p){ return p.name; }));
     filtered = filtered.filter(function(b){ return clientProjects.has(b.project||""); });
   }
   if(proj) filtered = filtered.filter(function(b){ return (b.project||"") === proj; });
-  if(year) filtered = filtered.filter(function(b){ 
+  if(year) filtered = filtered.filter(function(b){
     return (b.hole_id||"").startsWith(year.slice(2)+"-") || (b.planned_year||"") === year || (b.project||"").includes(year);
   });
+  return filtered;
+}
+
+function filterBoreholesByProject() {
+  buildProjectSelector();
+  buildAddBoreholeProjectSelector();
+  syncHierarchyYearSelector();
+  const filtered = currentFilteredBoreholes();
+  updateBhKPIs(filtered);
   renderBhTable(filtered);
   renderBhMapFiltered(filtered);
   loadDefaultMapOverlays(false);

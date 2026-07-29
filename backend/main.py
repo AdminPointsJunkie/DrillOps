@@ -544,6 +544,29 @@ def init_db():
                 except Exception:
                     conn.rollback()
 
+            # Historical Mitchells/CorePlan imports pre-dated project workspaces.
+            # Route their well-known hole prefixes so Carborough and Ironbark
+            # reports no longer appear together as unassigned Exploration data.
+            cur.execute("""
+                UPDATE activities
+                SET project = CASE
+                        WHEN UPPER(COALESCE(hole_num, '')) LIKE 'CD%%' THEN 'Carborough Downs'
+                        WHEN UPPER(COALESCE(hole_num, '')) LIKE 'IB%%' THEN 'Ironbark'
+                        ELSE project
+                    END,
+                    program = 'Exploration',
+                    client = 'Argo NR'
+                WHERE contractor = 'Mitchells Drilling'
+                  AND (
+                    UPPER(COALESCE(hole_num, '')) LIKE 'CD%%'
+                    OR UPPER(COALESCE(hole_num, '')) LIKE 'IB%%'
+                  )
+                  AND (
+                    COALESCE(project, '') = ''
+                    OR project IN ('Exploration', 'Gas Riser', 'SIS')
+                  )
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS consumables (
                     id          SERIAL PRIMARY KEY,
@@ -3469,16 +3492,28 @@ def infer_report_contractor(selected_contractor: str, filename: str = "", header
     return selected_contractor or "Allianz Drilling"
 
 
-def apply_import_activity_scope(rows: list[dict], contractor: str, program: str = "") -> list[dict]:
+def apply_import_activity_scope(
+    rows: list[dict],
+    contractor: str,
+    program: str = "",
+    project: str = "",
+    client: str = "",
+) -> list[dict]:
     """Ensure imported activity rows participate in program/project filtering."""
     default_program = str(program or "").strip()
+    selected_project = str(project or "").strip()
+    selected_client = str(client or "").strip()
     if not default_program:
         default_program = "Exploration" if contractor != "MCC Group" else ""
     for row in rows:
-        if not str(row.get("program") or "").strip():
+        if default_program:
             row["program"] = default_program
-        if "project" not in row:
+        if selected_project:
+            row["project"] = selected_project
+        elif "project" not in row:
             row["project"] = None
+        if selected_client:
+            row["client"] = selected_client
     return rows
 
 
@@ -3486,6 +3521,9 @@ def apply_import_activity_scope(rows: list[dict], contractor: str, program: str 
 async def import_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="Allianz Drilling"),
+    program: str = Form(default=""),
+    project: str = Form(default=""),
+    client: str = Form(default=""),
 ):
     filename = file.filename
     content = await file.read()
@@ -3493,6 +3531,7 @@ async def import_pdf(
         try:
             contractor = "MCC Group"
             header, acts, cons, crew, source_text = parse_mcc_weekly_xlsx(content, filename, contractor)
+            acts = apply_import_activity_scope(acts, contractor, program, project, client)
         except Exception as e:
             raise HTTPException(400, f"Could not read MCC weekly XLSX: {e}")
 
@@ -3531,6 +3570,7 @@ async def import_pdf(
 
         return {"status":"imported","filename":filename,"rows":len(acts),
                 "contractor":contractor,
+                "client":client,"project":project,
                 "total_cost":round(sum(float(a.get("line_cost") or 0) for a in acts), 2),
                 "consumables":0,"crew":len(crew),
                 "import_check":{"status":"ok","summary":"MCC Group weekly end-of-shift XLSX imported. Labour and equipment rows are priced from the MCC schedule where matched, and separated by ARG workstream/program.","warnings":[]}}
@@ -3553,7 +3593,7 @@ async def import_pdf(
         acts = restore_coreplan_activity_line_costs(acts)
         acts = adjust_imported_minimum_shift_rows(acts, contractor)
         acts = apply_allianz_minimum_shift_topups_to_rows(acts)
-        acts = apply_import_activity_scope(acts, contractor)
+        acts = apply_import_activity_scope(acts, contractor, program, project, client)
 
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -3591,6 +3631,7 @@ async def import_pdf(
 
         return {"status":"imported","filename":filename,"rows":len(acts),
                 "contractor":contractor,
+                "client":client,"project":project,
                 "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
                 "consumables":len(cons),"crew":len(crew),
                 "import_check":{"status":"ok","summary":"CorePlan CSV imported using Mitchells/CorePlan structured export.","warnings":[]}}
@@ -3611,7 +3652,7 @@ async def import_pdf(
         acts = parse_activities(text, header, filename, contractor)
     cons = parse_consumables(text, header, filename, contractor)
     crew = parse_crew(text, header, filename, contractor)
-    acts = apply_import_activity_scope(acts, contractor)
+    acts = apply_import_activity_scope(acts, contractor, program, project, client)
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -3808,6 +3849,7 @@ async def import_pdf(
 
     return {"status":"imported","filename":filename,"rows":len(acts),
             "contractor":contractor,
+            "client":client,"project":project,
             "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
             "import_check":import_check}
 
@@ -4764,6 +4806,58 @@ async def delete_activity_reports(request: Request):
                 totals["reports"] += 1
         conn.commit()
     return {"status": "deleted", **totals}
+
+
+@app.post("/activities/assign-project")
+async def assign_activities_to_project(request: Request):
+    payload = await request.json()
+    contractor = str(payload.get("contractor") or "").strip()
+    project_name = str(payload.get("project") or "").strip()
+    raw_ids = payload.get("activity_ids") or []
+    if not contractor:
+        raise HTTPException(400, "contractor is required")
+    if not project_name:
+        raise HTTPException(400, "project is required")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(400, "activity_ids are required")
+    try:
+        activity_ids = sorted({int(row_id) for row_id in raw_ids})
+    except (TypeError, ValueError):
+        raise HTTPException(400, "activity_ids must be integers")
+    if len(activity_ids) > 10000:
+        raise HTTPException(400, "Too many activity rows")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.program, c.name AS client_name
+                FROM projects p
+                JOIN clients c ON c.id=p.client_id
+                WHERE p.contractor='Company' AND p.name=%s AND p.status='Active'
+                """,
+                (project_name,),
+            )
+            project = cur.fetchone()
+            if not project:
+                raise HTTPException(404, "Active project not found")
+            cur.execute(
+                """
+                UPDATE activities
+                SET project=%s, program=%s, client=%s
+                WHERE contractor=%s AND id=ANY(%s)
+                """,
+                (
+                    project_name,
+                    project.get("program") or "Exploration",
+                    project.get("client_name") or "",
+                    contractor,
+                    activity_ids,
+                ),
+            )
+            updated = max(cur.rowcount, 0)
+        conn.commit()
+    return {"status": "updated", "rows": updated, "project": project_name}
 
 
 @app.post("/activities")
