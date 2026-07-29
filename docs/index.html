@@ -1632,10 +1632,6 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
         <button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><span class="drawer-nav-label">Project Budgets</span><span class="drawer-nav-meta">Vendor budgets</span></button>
-        <button class="drawer-nav-item" data-page="cost-centre-forecast" onclick="drawerNav(this)"><span class="drawer-nav-label">TECEXP Forecast</span><span class="drawer-nav-meta">IB cost centre</span></button>
-        <button class="drawer-nav-item" data-page="borehole-details" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Details</span><span class="drawer-nav-meta">Full register</span></button>
-        <button class="drawer-nav-item" data-page="drilling-schedule" onclick="drawerNav(this)"><span class="drawer-nav-label">Rig Scheduler</span><span class="drawer-nav-meta">Rig calendar</span></button>
-        <button class="drawer-nav-item" data-page="tenements" onclick="drawerNav(this)"><span class="drawer-nav-label">Tenement Management</span><span class="drawer-nav-meta">Compliance</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
@@ -1833,7 +1829,7 @@ tbody td[contenteditable=true]:focus {
     </section>
 
     <!-- IB Technical Services Exploration Forecast -->
-    <section class="page" id="page-cost-centre-forecast">
+    <section class="page" id="page-cost-centre-forecast" hidden aria-hidden="true">
       <div class="ccf-head">
         <div>
           <h2 class="section-title" style="margin-bottom:0;">Ironbark Exploration Forecast</h2>
@@ -2163,7 +2159,7 @@ tbody td[contenteditable=true]:focus {
     </section>
 
     <!-- Tenement Management -->
-    <section class="page" id="page-tenements">
+    <section class="page" id="page-tenements" hidden aria-hidden="true">
       <h2 class="section-title">Tenement Management</h2>
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-label">Total Tenements</div><div class="kpi-value" id="ten-kpi-total">—</div></div>
@@ -2364,7 +2360,7 @@ tbody td[contenteditable=true]:focus {
     </section>
 
     <!-- Borehole Details -->
-    <section class="page" id="page-borehole-details">
+    <section class="page" id="page-borehole-details" hidden aria-hidden="true">
       <div class="details-toolbar">
         <div>
           <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Details</h2>
@@ -2408,7 +2404,7 @@ tbody td[contenteditable=true]:focus {
     </section>
 
     <!-- Rig Scheduler -->
-    <section class="page" id="page-drilling-schedule">
+    <section class="page" id="page-drilling-schedule" hidden aria-hidden="true">
       <div class="schedule-toolbar">
         <div>
           <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Rig Scheduler</h2>
@@ -3594,14 +3590,10 @@ function triggerPageLoad(page){
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
   if(page==='project-budgets') loadProjectBudgets();
-  if(page==='cost-centre-forecast') loadCostCentreForecast();
-  if(page==='borehole-details') loadBoreholeDetails();
-  if(page==='drilling-schedule') loadDrillingSchedule();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='purchase-orders') loadPOs();
-  if(page==='tenements')    loadTenements();
   if(page==='invoices')     loadInvoices();
   if(page==='rates')        initRatesTab();
 }
