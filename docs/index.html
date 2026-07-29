@@ -1796,6 +1796,24 @@ tbody td[contenteditable=true]:focus {
     <!-- Project Budgets -->
     <section class="page" id="page-project-budgets">
       <h2 class="section-title">Project Budgets</h2>
+      <div class="chart-card" style="margin-bottom:14px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="chart-title" style="margin-bottom:3px;">Clients and Projects</div>
+            <div style="font-size:11px;color:var(--muted);">Create as many clients as required, then assign each project to its client.</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" type="button" onclick="showNewClientDialog()">Add client</button>
+            <button class="btn-primary" type="button" onclick="showNewProjectDialog()">Add project</button>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:300px;">
+          <table id="client-project-table">
+            <thead><tr><th>Client</th><th>Project</th><th>Program</th><th>Year</th><th>Status</th><th></th></tr></thead>
+            <tbody id="client-project-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="kpi-grid" style="margin-bottom:14px;">
         <div class="kpi-card"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div></div>
         <div class="kpi-card"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div></div>
@@ -2478,6 +2496,13 @@ tbody td[contenteditable=true]:focus {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
         <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Planning</h2>
         <div style="display:flex;gap:10px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Client</label>
+            <select id="bh-client-select" onchange="filterBoreholesByClient()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;">
+              <option value="">All Clients</option>
+            </select>
+            <button onclick="showNewClientDialog()" style="background:var(--bg3);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:600;" title="New Client">+</button>
+          </div>
           <div style="display:flex;align-items:center;gap:6px;">
             <label style="font-size:12px;font-weight:500;color:var(--muted);">Program</label>
             <select id="bh-program-select" onchange="switchProgram(this.value)" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
@@ -6421,20 +6446,22 @@ invSidebarBtn.addEventListener('click', async()=>{
   if(!invSidebarFiles.length)return;
   invSidebarBtn.disabled=true;invSidebarBtn.innerHTML='<span class="spinner"></span>Importing…';
   const log=document.getElementById('inv-import-log-sidebar');log.innerHTML='';
+  let importedContractor='';
   for(const file of invSidebarFiles){
     const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
     try{
       const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported')
+      if(d.status==='imported'){
+        importedContractor=d.contractor||importedContractor;
         log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — $${(d.total_aud||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}${invoiceMatchImportText(d.match_summary)}</div>`;
-      else
+      }else
         log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} already imported</div>`;
     }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
   }
   invSidebarBtn.textContent='Import Invoices';invSidebarBtn.disabled=false;
   invSidebarFiles=[];invSidebarInput.value='';
   // Refresh invoices tab if open
-  if(document.getElementById('page-invoices').classList.contains('active')) loadInvoices();
+  if(document.getElementById('page-invoices').classList.contains('active')) loadInvoices(importedContractor);
 });
 
 // ── OCR Import (handwritten drill logs via Gemini) ────────────────────────────
@@ -6694,21 +6721,23 @@ if(invFileInput && invImportBtn && invDropZone) {
     invImportBtn.disabled=true;invImportBtn.innerHTML='<span class="spinner"></span>Importing...';
     const log=document.getElementById('inv-import-log');
     if(log) log.innerHTML='';
+    let importedContractor='';
     for(const file of invPendingFiles){
       const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
       try{
         const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
         if(log) {
-          if(d.status==='imported')
+          if(d.status==='imported'){
+            importedContractor=d.contractor||importedContractor;
             log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} - ${cur(d.total_aud)} (${d.line_count} lines)${invoiceMatchImportText(d.match_summary)}</div>`;
-          else
+          }else
             log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} (already imported)</div>`;
         }
       }catch(e){if(log) log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
     }
     invImportBtn.textContent='Import Invoices';invImportBtn.disabled=false;
     invPendingFiles=[];invFileInput.value='';
-    loadInvoices();
+    loadInvoices(importedContractor);
   });
 }
 
@@ -6824,10 +6853,12 @@ async function createManualInvoice(){
   }
 }
 
-async function loadInvoices(){
+async function loadInvoices(preferredContractor){
   try{
     populateManualInvoiceForm();
-    var invoiceContractors = filteredContractors().map(function(c){ return c.name; });
+    // The invoice register is company-wide. A workspace selection must not hide
+    // an invoice that has just been imported for another project or contractor.
+    var invoiceContractors = CONTRACTORS.map(function(c){ return c.name; });
     if(activeContractor && !invoiceContractors.includes(activeContractor)) invoiceContractors.push(activeContractor);
     var results = await Promise.all(invoiceContractors.map(function(name){
       return fetch(API+'/invoices?contractor='+encodeURIComponent(name))
@@ -6836,10 +6867,9 @@ async function loadInvoices(){
     }));
     invoicesData = results.flat();
     if(!Array.isArray(invoicesData)) invoicesData = [];
-    invoicesData = invoicesData.filter(function(r){ return rowMatchesActiveProgram(r); });
 
     // Apply client-side filters
-    var cfilt = document.getElementById('inv-contractor-filter').value;
+    var cfilt = preferredContractor || document.getElementById('inv-contractor-filter').value;
     var sfilt = document.getElementById('inv-status-filter').value;
     var filtered = invoicesData;
     if(cfilt) filtered = filtered.filter(function(r){ return (r.contractor||'') === cfilt; });
@@ -6849,7 +6879,7 @@ async function loadInvoices(){
     var contractors = {};
     invoicesData.forEach(function(r){ if(r.contractor) contractors[r.contractor] = true; });
     var csel = document.getElementById('inv-contractor-filter');
-    var cv = csel.value;
+    var cv = cfilt;
     csel.innerHTML = '<option value="">All Contractors</option>';
     Object.keys(contractors).sort().forEach(function(c){
       csel.innerHTML += '<option value="'+esc(c)+'"'+(c===cv?' selected':'')+'>'+esc(c)+'</option>';
@@ -8476,7 +8506,94 @@ function loadImageMapOverlay(asset) {
 
 
 // ── Project Management ────────────────────────────────────────────────────────────
+var clients = [];
 var projects = [];
+
+function selectedClientId() {
+  var sel = document.getElementById("bh-client-select");
+  return sel && sel.value ? Number(sel.value) : null;
+}
+
+function clientById(clientId) {
+  return clients.find(function(client){ return Number(client.id) === Number(clientId); }) || null;
+}
+
+function projectMatchesSelectedClient(project) {
+  var clientId = selectedClientId();
+  return !clientId || Number(project.client_id) === clientId;
+}
+
+function clientProjectOptions(selectedId) {
+  var options = '<option value="">Unassigned</option>';
+  clients.forEach(function(client) {
+    options += '<option value="'+Number(client.id)+'"'+(Number(client.id)===Number(selectedId)?' selected':'')+'>'+esc(client.name)+'</option>';
+  });
+  return options;
+}
+
+function buildClientSelector() {
+  var sel = document.getElementById("bh-client-select");
+  if(!sel) return;
+  var current = sel.value;
+  sel.innerHTML = '<option value="">All Clients</option>';
+  clients.filter(function(client){ return client.status !== 'Inactive'; }).forEach(function(client) {
+    var option = document.createElement("option");
+    option.value = client.id;
+    option.textContent = client.name;
+    if(String(client.id) === current) option.selected = true;
+    sel.appendChild(option);
+  });
+}
+
+function renderClientProjectHierarchy() {
+  var body = document.getElementById("client-project-body");
+  if(!body) return;
+  body.innerHTML = projects.map(function(project) {
+    return '<tr data-project-id="'+Number(project.id)+'">'
+      +'<td><select onchange="saveProjectHierarchyField(this,&apos;client_id&apos;)">'+clientProjectOptions(project.client_id)+'</select></td>'
+      +'<td contenteditable="true" data-field="name">'+esc(project.name||'')+'</td>'
+      +'<td><select onchange="saveProjectHierarchyField(this,&apos;program&apos;)">'+PROJECT_PROGRAMS.map(function(program){return '<option'+(program===projectProgram(project)?' selected':'')+'>'+esc(program)+'</option>';}).join('')+'</select></td>'
+      +'<td contenteditable="true" data-field="year">'+esc(project.year||'')+'</td>'
+      +'<td><select onchange="saveProjectHierarchyField(this,&apos;status&apos;)"><option'+(project.status==='Active'?' selected':'')+'>Active</option><option'+(project.status==='Inactive'?' selected':'')+'>Inactive</option></select></td>'
+      +'<td><button class="icon-btn" type="button" onclick="deleteProjectFromHierarchy('+Number(project.id)+')">Delete</button></td>'
+      +'</tr>';
+  }).join('') || '<tr><td colspan="6" style="padding:16px;color:var(--muted);text-align:center;">No projects configured.</td></tr>';
+  body.querySelectorAll('[contenteditable][data-field]').forEach(function(cell) {
+    cell.addEventListener('blur', function(){ saveProjectHierarchyField(cell, cell.dataset.field); });
+  });
+}
+
+async function saveProjectHierarchyField(element, field) {
+  var row = element.closest('tr');
+  if(!row) return;
+  var value = element.matches('select') ? element.value : element.textContent.trim();
+  if(field === 'client_id') value = value ? Number(value) : null;
+  try {
+    var response = await fetch(API+'/projects/'+encodeURIComponent(row.dataset.projectId), {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({[field]:value})
+    });
+    if(!response.ok) throw new Error(await response.text());
+    await fetchProjects();
+    toast('Project updated');
+  } catch(error) {
+    toast('Project update failed','err');
+    await fetchProjects();
+  }
+}
+
+async function deleteProjectFromHierarchy(projectId) {
+  if(!confirm('Delete this project setup row? Existing operational records will retain the project name.')) return;
+  try {
+    var response = await fetch(API+'/projects/'+encodeURIComponent(projectId), {method:'DELETE'});
+    if(!response.ok) throw new Error(await response.text());
+    await fetchProjects();
+    toast('Project removed','warn');
+  } catch(error) {
+    toast('Project delete failed','err');
+  }
+}
 
 function projectProgram(p) {
   return (p && (p.program || p.category)) || 'Exploration';
@@ -9144,14 +9261,20 @@ async function deleteProjectBudgetRow(id){
 
 async function fetchProjects() {
   try {
-    var res = await fetch(API+"/projects?contractor=Company");
-    if(res.ok) projects = await res.json();
+    var responses = await Promise.all([
+      fetch(API+"/clients"),
+      fetch(API+"/projects?contractor=Company")
+    ]);
+    if(responses[0].ok) clients = await responses[0].json();
+    if(responses[1].ok) projects = await responses[1].json();
   } catch(e) { console.warn("Could not fetch projects"); }
+  buildClientSelector();
   buildProgramSelector();
   buildProjectSelector();
   buildAddBoreholeProjectSelector();
   buildProjectBudgetSelectors();
   syncHierarchyYearSelector();
+  renderClientProjectHierarchy();
 }
 
 function buildProgramSelector() {
@@ -9175,7 +9298,9 @@ function buildProjectSelector() {
   var current = sel.value;
   var program = activeProgram;
   sel.innerHTML = "<option value=\"\">All Projects</option>";
-  projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
+  projects.filter(function(p){
+    return projectMatchesSelectedClient(p) && (!program || projectProgram(p) === program);
+  }).forEach(function(p) {
     var opt = document.createElement("option");
     opt.value = p.name;
     opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
@@ -9191,7 +9316,9 @@ function buildAddBoreholeProjectSelector() {
   var current = sel.value;
   var program = activeProgram;
   sel.innerHTML = "<option value=\"\">Select project</option>";
-  projects.filter(function(p){ return !program || projectProgram(p) === program; }).forEach(function(p) {
+  projects.filter(function(p){
+    return projectMatchesSelectedClient(p) && (!program || projectProgram(p) === program);
+  }).forEach(function(p) {
     var opt = document.createElement("option");
     opt.value = p.name;
     opt.textContent = p.name + (p.year ? " (" + p.year + ")" : "");
@@ -9219,7 +9346,45 @@ function syncHierarchyYearSelector() {
   });
 }
 
+async function showNewClientDialog() {
+  var name = prompt("Client name:");
+  if(!name) return;
+  var code = prompt("Client code (optional):", "");
+  try {
+    var response = await fetch(API+"/clients", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:name, code:code||"", status:"Active"})
+    });
+    if(!response.ok) throw new Error(await response.text());
+    var created = await response.json();
+    await fetchProjects();
+    var clientSel = document.getElementById("bh-client-select");
+    if(clientSel) clientSel.value = String(created.id);
+    filterBoreholesByClient();
+    toast("\u2713 Client "+name+" saved");
+  } catch(error) {
+    toast("Failed to create client","err");
+  }
+}
+
 async function showNewProjectDialog() {
+  if(!clients.length) {
+    toast("Create a client first","warn");
+    await showNewClientDialog();
+    if(!clients.length) return;
+  }
+  var defaultClient = clientById(selectedClientId()) || clients[0];
+  var clientName = prompt("Client for this project:", defaultClient.name);
+  if(!clientName) return;
+  var selectedClient = clients.find(function(client){
+    return String(client.name||'').toLowerCase() === String(clientName).trim().toLowerCase();
+  });
+  if(!selectedClient) {
+    toast("Create client "+clientName+" first","warn");
+    return;
+  }
+  var clientId = Number(selectedClient.id);
   var program = prompt("Program / first tier:", activeProgram || "Exploration");
   if(!program) return;
   var name = prompt("New project name:");
@@ -9229,7 +9394,7 @@ async function showNewProjectDialog() {
   try {
     var res = await fetch(API+"/projects", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contractor:"Company", program:program, name:name, year:year})
+      body:JSON.stringify({contractor:"Company", client_id:clientId, program:program, name:name, year:year})
     });
     if(!res.ok) { toast("Failed to create project","err"); return; }
     toast("\u2713 Project "+name+" saved to database");
@@ -9238,7 +9403,9 @@ async function showNewProjectDialog() {
     setProgramControls();
     await fetchProjects();
     var programSel = document.getElementById("bh-program-select");
+    var clientSel = document.getElementById("bh-client-select");
     var projectSel = document.getElementById("bh-project-select");
+    if(clientSel) clientSel.value = String(clientId);
     if(programSel) programSel.value = program;
     buildProjectSelector();
     buildAddBoreholeProjectSelector();
@@ -9247,15 +9414,28 @@ async function showNewProjectDialog() {
   } catch(e) { toast("Failed: "+e.message,"err"); }
 }
 
+function filterBoreholesByClient() {
+  var projectSel = document.getElementById("bh-project-select");
+  if(projectSel) projectSel.value = "";
+  buildProjectSelector();
+  buildAddBoreholeProjectSelector();
+  filterBoreholesByProject();
+}
+
 function filterBoreholesByProject() {
   buildProjectSelector();
   buildAddBoreholeProjectSelector();
   syncHierarchyYearSelector();
   const program = activeProgram;
+  const clientId = selectedClientId();
   const proj = document.getElementById("bh-project-select").value;
   const year = document.getElementById("bh-year-select").value;
   let filtered = bhData;
   if(program) filtered = filtered.filter(function(b){ return projectProgramForName(b.project||"") === program; });
+  if(clientId) {
+    var clientProjects = new Set(projects.filter(function(p){ return Number(p.client_id)===clientId; }).map(function(p){ return p.name; }));
+    filtered = filtered.filter(function(b){ return clientProjects.has(b.project||""); });
+  }
   if(proj) filtered = filtered.filter(function(b){ return (b.project||"") === proj; });
   if(year) filtered = filtered.filter(function(b){ 
     return (b.hole_id||"").startsWith(year.slice(2)+"-") || (b.planned_year||"") === year || (b.project||"").includes(year);

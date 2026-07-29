@@ -812,9 +812,25 @@ def init_db():
                 conn.rollback()
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS clients (
+                    id         SERIAL PRIMARY KEY,
+                    name       TEXT NOT NULL UNIQUE,
+                    code       TEXT,
+                    status     TEXT DEFAULT 'Active',
+                    notes      TEXT
+                )
+            """)
+            cur.execute("""
+                INSERT INTO clients (name, code, status, notes)
+                VALUES ('Argo NR', 'ARGO', 'Active', 'Initial DrillOps client')
+                ON CONFLICT (name) DO NOTHING
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id         SERIAL PRIMARY KEY,
                     contractor TEXT NOT NULL DEFAULT 'Allianz Drilling',
+                    client_id  INTEGER REFERENCES clients(id) ON DELETE SET NULL,
                     program    TEXT DEFAULT 'Exploration',
                     name       TEXT NOT NULL,
                     year       TEXT,
@@ -824,8 +840,15 @@ def init_db():
                 )
             """)
             try:
+                cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL")
                 cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
                 cur.execute("UPDATE projects SET program='Exploration' WHERE program IS NULL OR program=''")
+                cur.execute("""
+                    UPDATE projects
+                    SET client_id=(SELECT id FROM clients WHERE name='Argo NR')
+                    WHERE LOWER(name) IN ('ironbark', 'carborough downs')
+                      AND client_id IS NULL
+                """)
             except Exception:
                 conn.rollback()
 
@@ -5877,7 +5900,7 @@ def parse_kinetic_logging_invoice_pdf(text: str, filename: str, tables=None) -> 
             for row in table or []
             for cell in row or []
         )
-        if "Kinetic Logging Services" in flattened and "Invoice Number:" in flattened:
+        if "KINETIC LOGGING SERVICES" in flattened.upper() and "INVOICE NUMBER:" in flattened.upper():
             invoice_table = table
             break
 
@@ -6000,7 +6023,7 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str, tables=None) ->
     if "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
         return parse_chms_quote_invoice_pdf(text, filename)
 
-    if "Kinetic Logging Services" in text or "kls.ar@epiroc.com" in text.lower():
+    if "KINETIC LOGGING SERVICES" in text.upper() or "kls.ar@epiroc.com" in text.lower():
         return parse_kinetic_logging_invoice_pdf(text, filename, tables)
 
     def find(pattern, default=""):
@@ -6350,7 +6373,7 @@ async def import_invoice(
                 if cur.fetchone():
                     return {"status": "skipped", "filename": filename}
 
-    if "Kinetic Logging Services" in text or "kls.ar@epiroc.com" in text.lower():
+    if "KINETIC LOGGING SERVICES" in text.upper() or "kls.ar@epiroc.com" in text.lower():
         contractor = "Epiroc"
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -6431,8 +6454,10 @@ async def import_invoice(
 
     return {
         "status": "imported",
+        "id": invoice_id,
         "filename": filename,
         "invoice_number": inv.get("invoice_number", filename),
+        "contractor": contractor,
         "project": inv.get("project", ""),
         "total_aud": inv.get("total_aud", 0),
         "line_count": len(lines),
@@ -7623,11 +7648,92 @@ def get_borehole_summary(contractor: Optional[str] = Query(None)):
 
 # ── Projects ──────────────────────────────────────────────────────────────────
 
+@app.get("/clients")
+def get_clients():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT c.*, COUNT(p.id) AS project_count
+                FROM clients c
+                LEFT JOIN projects p ON p.client_id=c.id
+                GROUP BY c.id
+                ORDER BY CASE WHEN c.status='Active' THEN 0 ELSE 1 END, c.name
+            """)
+            return [dict(row) for row in cur.fetchall()]
+
+
+@app.post("/clients")
+async def add_client(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    code = str(payload.get("code") or "").strip()
+    status = str(payload.get("status") or "Active").strip() or "Active"
+    notes = str(payload.get("notes") or "").strip()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO clients (name, code, status, notes)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (name) DO UPDATE SET
+                    code=EXCLUDED.code,
+                    status=EXCLUDED.status,
+                    notes=EXCLUDED.notes
+                RETURNING id
+            """, (name, code, status, notes))
+            client_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": client_id, "name": name}
+
+
+@app.patch("/clients/{client_id}")
+async def update_client(client_id: int, request: Request):
+    payload = await request.json()
+    safe = {"name", "code", "status", "notes"}
+    update = {key: value for key, value in payload.items() if key in safe}
+    if not update:
+        raise HTTPException(400, "No valid fields")
+    if "name" in update and not str(update["name"] or "").strip():
+        raise HTTPException(400, "name is required")
+    set_clause = ", ".join(f"{key}=%s" for key in update)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE clients SET {set_clause} WHERE id=%s", list(update.values()) + [client_id])
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Client not found")
+        conn.commit()
+    return {"status": "updated"}
+
+
+@app.delete("/clients/{client_id}")
+def delete_client(client_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS count FROM projects WHERE client_id=%s", (client_id,))
+            if int((cur.fetchone() or {}).get("count") or 0):
+                raise HTTPException(409, "Move or delete this client's projects first")
+            cur.execute("DELETE FROM clients WHERE id=%s", (client_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Client not found")
+        conn.commit()
+    return {"status": "deleted"}
+
+
 @app.get("/projects")
 def get_projects(contractor: str = Query(...)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM projects WHERE contractor=%s ORDER BY program, name, year", (contractor,))
+            cur.execute("""
+                SELECT p.*, c.name AS client_name, c.code AS client_code
+                FROM projects p
+                LEFT JOIN clients c ON c.id=p.client_id
+                WHERE p.contractor=%s
+                ORDER BY COALESCE(c.name, ''), p.program, p.name, p.year
+            """, (contractor,))
             return [dict(r) for r in cur.fetchall()]
 
 
@@ -7641,6 +7747,11 @@ async def add_project(request: Request):
     if not name:
         raise HTTPException(400, "name is required")
     contractor = payload.get("contractor", "Allianz Drilling")
+    client_id = payload.get("client_id")
+    try:
+        client_id = int(client_id) if client_id not in (None, "") else None
+    except (TypeError, ValueError):
+        raise HTTPException(400, "client_id must be an integer")
     program = str(payload.get("program", payload.get("category", "Exploration")) or "Exploration").strip() or "Exploration"
     year = payload.get("year", "")
     notes = payload.get("notes", "")
@@ -7648,16 +7759,44 @@ async def add_project(request: Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO projects (contractor, program, name, year, notes)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (contractor, name) DO UPDATE SET program=EXCLUDED.program, year=EXCLUDED.year, notes=EXCLUDED.notes
+                    INSERT INTO projects (contractor, client_id, program, name, year, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (contractor, name) DO UPDATE SET
+                        client_id=EXCLUDED.client_id,
+                        program=EXCLUDED.program,
+                        year=EXCLUDED.year,
+                        notes=EXCLUDED.notes
                     RETURNING id
-                """, (contractor, program, name, year, notes))
+                """, (contractor, client_id, program, name, year, notes))
                 pid = cur.fetchone()["id"]
             conn.commit()
-        return {"status": "created", "id": pid, "program": program, "name": name}
+        return {"status": "created", "id": pid, "client_id": client_id, "program": program, "name": name}
     except Exception as e:
         raise HTTPException(500, f"Failed: {str(e)}")
+
+
+@app.patch("/projects/{project_id}")
+async def update_project(project_id: int, request: Request):
+    payload = await request.json()
+    safe = {"client_id", "program", "name", "year", "status", "notes"}
+    update = {key: value for key, value in payload.items() if key in safe}
+    if not update:
+        raise HTTPException(400, "No valid fields")
+    if "name" in update and not str(update["name"] or "").strip():
+        raise HTTPException(400, "name is required")
+    if "client_id" in update:
+        try:
+            update["client_id"] = int(update["client_id"]) if update["client_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            raise HTTPException(400, "client_id must be an integer")
+    set_clause = ", ".join(f"{key}=%s" for key in update)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE projects SET {set_clause} WHERE id=%s", list(update.values()) + [project_id])
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Project not found")
+        conn.commit()
+    return {"status": "updated"}
 
 
 @app.delete("/projects/{project_id}")
