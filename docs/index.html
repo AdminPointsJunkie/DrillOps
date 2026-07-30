@@ -2270,7 +2270,7 @@ tbody td[contenteditable=true]:focus {
             <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
             <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
             <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
-            <button class="btn-primary" type="button" onclick="loadReportsPage()">Update report</button>
+            <button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button>
             <button class="btn-secondary" type="button" onclick="printPeriodReport()">Print PDF</button>
           </div>
         </div>
@@ -3876,7 +3876,7 @@ async function loadReportLocks(dates){
     console.warn('Report locks unavailable',e);
   }
 }
-function groupDailyReports(rows){
+function groupDailyReports(rows,reportConsumables){
   const map=new Map();
   rows.forEach(function(r){
     const key=reportKeyFor(r);
@@ -3898,7 +3898,8 @@ function groupDailyReports(rows){
   });
   const groups=[...map.values()];
   const consumablesByKey=new Map();
-  (consumablesData||[]).forEach(function(c){
+  const sourceConsumables=Array.isArray(reportConsumables)?reportConsumables:(consumablesData||[]);
+  sourceConsumables.forEach(function(c){
     const key=reportKeyFor(c);
     consumablesByKey.set(key,(consumablesByKey.get(key)||0)+(parseFloat(c.line_cost)||0));
   });
@@ -4703,9 +4704,15 @@ function selectedPeriod(){
   return {from:from,to:to,project:activeProjectName||''};
 }
 
-async function loadReportsPage(){
+async function loadReportsPage(preserveRange){
   const shell=document.getElementById('period-report-meta');
   if(shell)shell.textContent='Loading report data...';
+  if(!preserveRange){
+    const from=document.getElementById('period-range-from');
+    const to=document.getElementById('period-range-to');
+    if(from)from.value='';
+    if(to)to.value='';
+  }
   try{
     const drillingContractor=reportDrillingContractor();
     const suffix='contractor='+encodeURIComponent(drillingContractor)+'&_='+Date.now();
@@ -4958,16 +4965,17 @@ function renderPeriodReport(){
   const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
   const reportHoles=periodRelevantProjectHoles(projectHoles,activeHoles);
-  const drillingRows=rows.filter(function(r){return !rowIsDrillerEarthworksSupport(r);});
-  const activityCost=drillingRows.reduce(function(s,r){return s+numVal(r.line_cost);},0);
-  const consumableCost=consumables.reduce(function(s,r){return s+numVal(r.line_cost);},0);
-  const actualTotal=activityCost+consumableCost;
+  const drillingReports=groupDailyReports(rows,consumables);
+  const groupedConsumableKeys=new Set(drillingReports.map(function(report){return report.key;}));
+  const ungroupedConsumableCost=consumables.filter(function(row){
+    return !groupedConsumableKeys.has(reportKeyFor(row));
+  }).reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
+  const totalDrillingCost=drillingReports.reduce(function(sum,report){return sum+report.cost;},0)+ungroupedConsumableCost;
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,reportHoles,holes);
   const budgetTotals=periodBudgetTotals(period,metrics);
   const budgetTotal=budgetTotals.total;
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
-  const totalDrillingCost=actualTotal;
   const supportCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const totalSpent=totalDrillingCost+supportCost;
   const drillingBudgetTotal=budgetTotals.drilling;
@@ -4995,7 +5003,8 @@ function renderPeriodReport(){
     drillingSummaryEl.className='value '+(drillingBudgetTotal&&totalDrillingCost>drillingBudgetTotal?'variance-neg':'');
   }
   const drillVariance=drillingBudgetTotal-totalDrillingCost;
-  setPeriodText('period-drilling-sub',drillingBudgetTotal?cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):'No drilling budget loaded');
+  const reportCountLabel=drillingReports.length+' '+drillingContractor+' report'+(drillingReports.length===1?'':'s');
+  setPeriodText('period-drilling-sub',reportCountLabel+(drillingBudgetTotal?' / '+cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):' / No drilling budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
   setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
@@ -5014,7 +5023,7 @@ function renderPeriodReport(){
   renderPeriodMap(reportHoles);
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
-  renderPeriodCostBreakdown(drillingRows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
+  renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
   renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles);
