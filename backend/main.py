@@ -126,6 +126,7 @@ CONTRACTOR_REFERENCE_TABLES = [
     "activity_sheet_locks",
     "minimum_shift_topup_preferences",
     "projects",
+    "cost_contracts",
     "project_budgets",
     "invoices",
     "invoice_lines",
@@ -865,6 +866,7 @@ def init_db():
             try:
                 cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL")
                 cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
+                cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
                 cur.execute("UPDATE projects SET program='Exploration' WHERE program IS NULL OR program=''")
                 cur.execute("""
                     UPDATE projects
@@ -876,6 +878,47 @@ def init_db():
                 conn.rollback()
 
             # ── Invoices ──────────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cost_contracts (
+                    id          SERIAL PRIMARY KEY,
+                    client_id   INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+                    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    contractor  TEXT NOT NULL,
+                    name        TEXT NOT NULL,
+                    status      TEXT NOT NULL DEFAULT 'Draft',
+                    start_date  TEXT,
+                    end_date    TEXT,
+                    rate_year   TEXT,
+                    notes       TEXT,
+                    created_at  TIMESTAMP DEFAULT NOW(),
+                    updated_at  TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(project_id, contractor, name)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cost_contract_rates (
+                    id             SERIAL PRIMARY KEY,
+                    contract_id    INTEGER NOT NULL REFERENCES cost_contracts(id) ON DELETE CASCADE,
+                    section        TEXT NOT NULL,
+                    name           TEXT NOT NULL,
+                    rig_type       TEXT DEFAULT 'All',
+                    category       TEXT,
+                    depth_from     FLOAT,
+                    depth_to       FLOAT,
+                    unit           TEXT,
+                    charge         FLOAT DEFAULT 0,
+                    reference_name TEXT,
+                    cost_code      TEXT,
+                    status         TEXT DEFAULT 'Active',
+                    sort_order     INTEGER DEFAULT 0,
+                    created_at     TIMESTAMP DEFAULT NOW(),
+                    updated_at     TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cost_contracts_project ON cost_contracts(project_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cost_contracts_contractor ON cost_contracts(contractor)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cost_contract_rates_contract ON cost_contract_rates(contract_id, section)")
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS project_budgets (
                     id            SERIAL PRIMARY KEY,
@@ -1753,6 +1796,77 @@ def extract_year(date_str):
     return "2025"
 
 
+def effective_rate_rows(cur, contractor: str, project: str = ""):
+    """Return project-contract rates when available, otherwise the legacy schedule."""
+    contract = None
+    if project:
+        cur.execute("""
+            SELECT cc.*
+            FROM cost_contracts cc
+            JOIN projects p ON p.id=cc.project_id
+            WHERE cc.contractor=%s
+              AND LOWER(p.name)=LOWER(%s)
+              AND cc.status='Active'
+            ORDER BY cc.updated_at DESC, cc.id DESC
+            LIMIT 1
+        """, (contractor, project))
+        contract = cur.fetchone()
+    if contract:
+        cur.execute("""
+            SELECT * FROM cost_contract_rates
+            WHERE contract_id=%s AND status='Active'
+            ORDER BY section, sort_order, id
+        """, (contract["id"],))
+        lines = [dict(row) for row in cur.fetchall()]
+        year = str(contract.get("rate_year") or "2025")
+        drilling = [
+            {
+                "id": row["id"], "contractor": contractor, "year": year,
+                "bit_type": row["name"], "depth_from": row.get("depth_from") or 0,
+                "depth_to": row.get("depth_to") or 99999, "rate": row.get("charge") or 0,
+            }
+            for row in lines if row["section"] == "Drilling Rates"
+        ]
+        hourly = [
+            {
+                "id": row["id"], "contractor": contractor, "year": year,
+                "code": row.get("cost_code") or row.get("reference_name") or row["name"],
+                "description": row["name"], "rate": row.get("charge") or 0,
+                "unit": row.get("unit") or "hour",
+            }
+            for row in lines if row["section"] in {
+                "Time Activities", "Downhole Activities", "Equipment",
+                "Personnel", "Miscellaneous", "Bit Wear",
+            }
+        ]
+        consumables = [
+            {
+                "id": row["id"], "contractor": contractor, "year": year,
+                "product": row["name"], "description": row.get("category") or "",
+                "unit_price": row.get("charge") or 0, "unit": row.get("unit") or "each",
+            }
+            for row in lines if row["section"] == "Consumables"
+        ]
+        if drilling or hourly or consumables:
+            if not hourly:
+                cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+                hourly = [dict(row) for row in cur.fetchall()]
+            if not drilling:
+                cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+                drilling = [dict(row) for row in cur.fetchall()]
+            if not consumables:
+                cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+                consumables = [dict(row) for row in cur.fetchall()]
+            return hourly, drilling, consumables, dict(contract)
+    cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
+    hourly = [dict(row) for row in cur.fetchall()]
+    cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
+    drilling = [dict(row) for row in cur.fetchall()]
+    cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
+    consumables = [dict(row) for row in cur.fetchall()]
+    return hourly, drilling, consumables, None
+
+
 def price_activity(cur, row, contractor):
     code         = row.get("code","") or ""
     total_time   = row.get("total_time","") or ""
@@ -1764,32 +1878,34 @@ def price_activity(cur, row, contractor):
     hours        = time_str_to_hours(total_time)
     unit_rate = quantity = line_cost = rate_basis = None
     mcc_fix = mcc_reprice_from_row(row)
+    effective_hr, effective_dr, _, _ = effective_rate_rows(cur, contractor, row.get("project") or "")
 
     def get_dr(bit_key, depth):
         # Try exact year first, then fall back to nearest available
         for try_year in [year, str(int(year)-1), str(int(year)+1), "2025"]:
-            cur.execute("""
-                SELECT rate FROM drilling_rates
-                WHERE contractor=%s AND year=%s AND bit_type=%s
-                  AND depth_from<=%s AND depth_to>%s
-                ORDER BY depth_from LIMIT 1
-            """, (contractor, try_year, bit_key, depth, depth))
-            r = cur.fetchone()
-            if r: return float(r["rate"])
+            match = next((
+                rate for rate in effective_dr
+                if str(rate.get("year")) == try_year
+                and normalise_drilling_bit_key(rate.get("bit_type")) == normalise_drilling_bit_key(bit_key)
+                and float(rate.get("depth_from") or 0) <= depth < float(rate.get("depth_to") or 0)
+            ), None)
+            if match:
+                return float(match["rate"])
         return None
 
     def get_hr(code_key):
         # Try exact year first, then fall back to nearest available
         for try_year in [year, str(int(year)-1), str(int(year)+1), "2025"]:
-            cur.execute("SELECT rate FROM hourly_rates WHERE contractor=%s AND year=%s AND code=%s",
-                        (contractor, try_year, code_key))
-            r = cur.fetchone()
-            if r: return float(r["rate"])
+            match = next((
+                rate for rate in effective_hr
+                if str(rate.get("year")) == try_year and rate.get("code") == code_key
+            ), None)
+            if match:
+                return float(match["rate"])
         return None
 
     if code in DRILLING_METRE_CODES and total_metres and total_metres > 0:
-        cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
-        priced = drilling_schedule_cost(row, build_rate_context(drilling_rates=[dict(r) for r in cur.fetchall()]))
+        priced = drilling_schedule_cost(row, build_rate_context(effective_hr, effective_dr))
         if priced is not None:
             unit_rate = priced["unit_rate"]
             quantity = priced["quantity"]
@@ -3663,13 +3779,8 @@ async def import_pdf(
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Load all rates into memory for fast pricing (same as reprice)
-            cur.execute("SELECT * FROM drilling_rates WHERE contractor=%s", (contractor,))
-            all_dr = [dict(r) for r in cur.fetchall()]
-            cur.execute("SELECT * FROM hourly_rates WHERE contractor=%s", (contractor,))
-            all_hr = [dict(r) for r in cur.fetchall()]
-            cur.execute("SELECT * FROM consumable_rates WHERE contractor=%s", (contractor,))
-            all_cr = [dict(r) for r in cur.fetchall()]
+            # Prefer the active project contract; preserve contractor/year schedules as fallback.
+            all_hr, all_dr, all_cr, applied_contract = effective_rate_rows(cur, contractor, project)
 
         hr_lookup = {}
         for r in all_hr:
@@ -3850,6 +3961,7 @@ async def import_pdf(
     return {"status":"imported","filename":filename,"rows":len(acts),
             "contractor":contractor,
             "client":client,"project":project,
+            "cost_contract":{"id":applied_contract["id"],"name":applied_contract["name"]} if applied_contract else None,
             "total_cost":round(sum(r["line_cost"] for r in acts if r["line_cost"]),2),
             "import_check":import_check}
 
@@ -7090,31 +7202,48 @@ def reprice_activities(contractor: str = Query(...)):
 
             dr_years = sorted(set(r["year"] for r in all_dr))
             hr_years = sorted(set(r["year"] for r in all_hr))
+            project_rate_sets = {}
+            for project_name in {str(row.get("project") or "").strip() for row in rows} - {""}:
+                project_hr, project_dr, _, contract = effective_rate_rows(cur, contractor, project_name)
+                if contract:
+                    project_rate_sets[project_name.lower()] = (project_hr, project_dr, contract)
 
         # ── Build rate lookup dicts in memory ─────────────────────────
-        # hourly: {(year, code): rate}
-        hr_lookup = {}
-        for r in all_hr:
-            hr_lookup[(r["year"], r["code"])] = float(r["rate"])
+        def make_rate_bundle(hourly_rows, drilling_rows, contract=None):
+            hourly_lookup = {}
+            for rate_row in hourly_rows:
+                hourly_lookup[(rate_row["year"], rate_row["code"])] = float(rate_row["rate"])
+            drilling_lookup = {}
+            for rate_row in drilling_rows:
+                key = (rate_row["year"], normalise_drilling_bit_key(rate_row["bit_type"]))
+                if key not in drilling_lookup:
+                    drilling_lookup[key] = []
+                drilling_lookup[key].append((
+                    float(rate_row["depth_from"]), float(rate_row["depth_to"]), float(rate_row["rate"])
+                ))
+            return {
+                "hourly": hourly_lookup,
+                "drilling": drilling_lookup,
+                "context": build_rate_context(hourly_rows, drilling_rows),
+                "contract": contract,
+            }
 
-        # drilling: {(year, bit_type, depth): rate}  — depth is the matching band
-        dr_lookup = {}
-        for r in all_dr:
-            key = (r["year"], normalise_drilling_bit_key(r["bit_type"]))
-            if key not in dr_lookup: dr_lookup[key] = []
-            dr_lookup[key].append((float(r["depth_from"]), float(r["depth_to"]), float(r["rate"])))
-
-        rate_context = build_rate_context(all_hr, all_dr)
+        default_rate_bundle = make_rate_bundle(all_hr, all_dr)
+        project_rate_bundles = {
+            name: make_rate_bundle(rate_set[0], rate_set[1], rate_set[2])
+            for name, rate_set in project_rate_sets.items()
+        }
+        current_rate_bundle = default_rate_bundle
 
         def get_hr_mem(code, year):
             for try_year in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
-                r = hr_lookup.get((try_year, code))
+                r = current_rate_bundle["hourly"].get((try_year, code))
                 if r is not None: return r
             return None
 
         def get_dr_mem(bit_key, depth, year):
             for try_year in [year, str(int(year)-1) if year.isdigit() else year, str(int(year)+1) if year.isdigit() else year, "2025"]:
-                bands = dr_lookup.get((try_year, bit_key), [])
+                bands = current_rate_bundle["drilling"].get((try_year, bit_key), [])
                 for frm, to, rate in bands:
                     if frm <= depth < to:
                         return rate
@@ -7138,6 +7267,10 @@ def reprice_activities(contractor: str = Query(...)):
         # ── Process all rows in memory ────────────────────────────────
         batch_updates = []
         for row in rows:
+            current_rate_bundle = project_rate_bundles.get(
+                str(row.get("project") or "").strip().lower(),
+                default_rate_bundle,
+            )
             if row_is_in_locked_sheet(row, locked_keys):
                 stats["locked_skipped"] += 1
                 continue
@@ -7191,7 +7324,7 @@ def reprice_activities(contractor: str = Query(...)):
 
             # Drilling metres
             if metres > 0 and bit_type and mf is not None and mt is not None:
-                priced = drilling_schedule_cost(row, rate_context)
+                priced = drilling_schedule_cost(row, current_rate_bundle["context"])
                 if priced is not None:
                     unit_rate = priced["unit_rate"]
                     quantity = priced["quantity"]
@@ -7822,10 +7955,14 @@ def get_projects(contractor: str = Query(...)):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT p.*, c.name AS client_name, c.code AS client_code
+                SELECT p.*, c.name AS client_name, c.code AS client_code,
+                       COUNT(cc.id) AS contract_count,
+                       COUNT(cc.id) FILTER (WHERE cc.status='Active') AS active_contract_count
                 FROM projects p
                 LEFT JOIN clients c ON c.id=p.client_id
+                LEFT JOIN cost_contracts cc ON cc.project_id=p.id
                 WHERE p.contractor=%s
+                GROUP BY p.id, c.name, c.code
                 ORDER BY COALESCE(c.name, ''), p.program, p.name, p.year
             """, (contractor,))
             return [dict(r) for r in cur.fetchall()]
@@ -7897,12 +8034,366 @@ async def update_project(project_id: int, request: Request):
 def delete_project(project_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS count FROM cost_contracts WHERE project_id=%s", (project_id,))
+            if int((cur.fetchone() or {}).get("count") or 0):
+                raise HTTPException(409, "End or remove this project's cost contracts before deleting the project")
             cur.execute("DELETE FROM projects WHERE id=%s", (project_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Project not found")
         conn.commit()
     return {"status": "deleted"}
 
 
 # ── Gemini Vision OCR for handwritten drill logs ──────────────────────────────
+
+CONTRACT_STATUSES = {"Active", "Pending Approval", "Draft", "Ended"}
+CONTRACT_RATE_SECTIONS = {
+    "Time Activities", "Drilling Rates", "Consumables",
+    "Downhole Activities", "Equipment", "Personnel", "Miscellaneous", "Bit Wear",
+}
+
+
+def clean_cost_contract_payload(payload: dict, partial: bool = False) -> dict:
+    cleaned = {}
+    for field in {"contractor", "name", "status", "start_date", "end_date", "rate_year", "notes"}:
+        if field in payload:
+            cleaned[field] = str(payload.get(field) or "").strip()
+    for field in ("project_id", "client_id"):
+        if field in payload:
+            try:
+                cleaned[field] = int(payload[field]) if payload[field] not in (None, "") else None
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{field} must be an integer")
+    if not partial:
+        for field in ("project_id", "contractor", "name"):
+            if not cleaned.get(field):
+                raise HTTPException(400, f"{field} is required")
+        cleaned["status"] = cleaned.get("status") or "Draft"
+    if cleaned.get("status") and cleaned["status"] not in CONTRACT_STATUSES:
+        raise HTTPException(400, "Invalid contract status")
+    return cleaned
+
+
+@app.get("/cost-contracts")
+def get_cost_contracts(
+    client_id: Optional[int] = Query(None),
+    project_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    where, params = [], []
+    if client_id is not None:
+        where.append("cc.client_id=%s")
+        params.append(client_id)
+    if project_id is not None:
+        where.append("cc.project_id=%s")
+        params.append(project_id)
+    if status:
+        where.append("cc.status=%s")
+        params.append(status)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT cc.*, p.name AS project_name, p.program, p.year AS project_year,
+                       c.name AS client_name, c.code AS client_code,
+                       COUNT(cr.id) AS rate_count
+                FROM cost_contracts cc
+                JOIN projects p ON p.id=cc.project_id
+                LEFT JOIN clients c ON c.id=cc.client_id
+                LEFT JOIN cost_contract_rates cr ON cr.contract_id=cc.id
+                {clause}
+                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code
+                ORDER BY CASE cc.status
+                    WHEN 'Active' THEN 0 WHEN 'Pending Approval' THEN 1
+                    WHEN 'Draft' THEN 2 ELSE 3 END,
+                    COALESCE(c.name,''), p.name, cc.name
+            """, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+@app.get("/cost-contracts/{contract_id}")
+def get_cost_contract(contract_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT cc.*, p.name AS project_name, p.program, p.year AS project_year,
+                       c.name AS client_name, c.code AS client_code,
+                       COUNT(cr.id) AS rate_count
+                FROM cost_contracts cc
+                JOIN projects p ON p.id=cc.project_id
+                LEFT JOIN clients c ON c.id=cc.client_id
+                LEFT JOIN cost_contract_rates cr ON cr.contract_id=cc.id
+                WHERE cc.id=%s
+                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code
+            """, (contract_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(404, "Cost contract not found")
+            return dict(row)
+
+
+@app.post("/cost-contracts")
+async def add_cost_contract(request: Request):
+    payload = clean_cost_contract_payload(await request.json())
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT client_id FROM projects WHERE id=%s", (payload["project_id"],))
+            project = cur.fetchone()
+            if not project:
+                raise HTTPException(404, "Project not found")
+            payload["client_id"] = payload.get("client_id") or project.get("client_id")
+            if payload.get("status") == "Active":
+                cur.execute("""
+                    SELECT id, name FROM cost_contracts
+                    WHERE project_id=%s AND contractor=%s AND status='Active' AND name<>%s
+                    LIMIT 1
+                """, (payload["project_id"], payload["contractor"], payload["name"]))
+                existing_active = cur.fetchone()
+                if existing_active:
+                    raise HTTPException(
+                        409,
+                        f"{payload['contractor']} already has active contract '{existing_active['name']}' for this project",
+                    )
+            cur.execute("""
+                INSERT INTO cost_contracts
+                    (client_id, project_id, contractor, name, status, start_date, end_date, rate_year, notes)
+                VALUES
+                    (%(client_id)s, %(project_id)s, %(contractor)s, %(name)s, %(status)s,
+                     %(start_date)s, %(end_date)s, %(rate_year)s, %(notes)s)
+                ON CONFLICT (project_id, contractor, name) DO UPDATE SET
+                    client_id=EXCLUDED.client_id,
+                    status=EXCLUDED.status,
+                    start_date=EXCLUDED.start_date,
+                    end_date=EXCLUDED.end_date,
+                    rate_year=EXCLUDED.rate_year,
+                    notes=EXCLUDED.notes,
+                    updated_at=NOW()
+                RETURNING id
+            """, {
+                **{"client_id": None, "start_date": "", "end_date": "", "rate_year": "", "notes": ""},
+                **payload,
+            })
+            contract_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": contract_id}
+
+
+@app.patch("/cost-contracts/{contract_id}")
+async def update_cost_contract(contract_id: int, request: Request):
+    update = clean_cost_contract_payload(await request.json(), partial=True)
+    if not update:
+        raise HTTPException(400, "No valid fields")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if update.get("status") == "Active":
+                cur.execute("SELECT project_id, contractor FROM cost_contracts WHERE id=%s", (contract_id,))
+                current = cur.fetchone()
+                if not current:
+                    raise HTTPException(404, "Cost contract not found")
+                cur.execute("""
+                    SELECT id, name FROM cost_contracts
+                    WHERE project_id=%s AND contractor=%s AND status='Active' AND id<>%s
+                    LIMIT 1
+                """, (current["project_id"], current["contractor"], contract_id))
+                existing_active = cur.fetchone()
+                if existing_active:
+                    raise HTTPException(
+                        409,
+                        f"{current['contractor']} already has active contract '{existing_active['name']}' for this project",
+                    )
+            set_clause = ", ".join(f"{field}=%s" for field in update)
+            cur.execute(
+                f"UPDATE cost_contracts SET {set_clause}, updated_at=NOW() WHERE id=%s",
+                list(update.values()) + [contract_id],
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Cost contract not found")
+        conn.commit()
+    return {"status": "updated"}
+
+
+@app.delete("/cost-contracts/{contract_id}")
+def delete_cost_contract(contract_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS count FROM cost_contract_rates WHERE contract_id=%s", (contract_id,))
+            if int((cur.fetchone() or {}).get("count") or 0):
+                raise HTTPException(409, "End this contract instead of deleting it because it contains rate lines")
+            cur.execute("DELETE FROM cost_contracts WHERE id=%s", (contract_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Cost contract not found")
+        conn.commit()
+    return {"status": "deleted"}
+
+
+def clean_cost_contract_rate(payload: dict, partial: bool = False) -> dict:
+    safe_text = {
+        "section", "name", "rig_type", "category", "unit",
+        "reference_name", "cost_code", "status",
+    }
+    cleaned = {field: str(payload.get(field) or "").strip() for field in safe_text if field in payload}
+    for field in ("depth_from", "depth_to", "charge"):
+        if field in payload:
+            try:
+                cleaned[field] = float(payload[field]) if payload[field] not in (None, "") else None
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{field} must be numeric")
+    if "sort_order" in payload:
+        try:
+            cleaned["sort_order"] = int(payload["sort_order"] or 0)
+        except (TypeError, ValueError):
+            cleaned["sort_order"] = 0
+    if "contract_id" in payload:
+        try:
+            cleaned["contract_id"] = int(payload["contract_id"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "contract_id must be an integer")
+    if not partial:
+        for field in ("contract_id", "section", "name"):
+            if not cleaned.get(field):
+                raise HTTPException(400, f"{field} is required")
+        cleaned["status"] = cleaned.get("status") or "Active"
+        cleaned["rig_type"] = cleaned.get("rig_type") or "All"
+    if cleaned.get("section") and cleaned["section"] not in CONTRACT_RATE_SECTIONS:
+        raise HTTPException(400, "Invalid contract rate section")
+    return cleaned
+
+
+@app.get("/cost-contract-rates")
+def get_cost_contract_rates(contract_id: int = Query(...), section: Optional[str] = Query(None)):
+    query = "SELECT * FROM cost_contract_rates WHERE contract_id=%s"
+    params = [contract_id]
+    if section:
+        query += " AND section=%s"
+        params.append(section)
+    query += " ORDER BY section, sort_order, name, depth_from NULLS FIRST"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+@app.post("/cost-contract-rates")
+async def add_cost_contract_rate(request: Request):
+    payload = clean_cost_contract_rate(await request.json())
+    values = {
+        "rig_type": "All", "category": "", "depth_from": None, "depth_to": None,
+        "unit": "", "charge": 0, "reference_name": "", "cost_code": "",
+        "status": "Active", "sort_order": 0,
+        **payload,
+    }
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO cost_contract_rates
+                    (contract_id, section, name, rig_type, category, depth_from, depth_to,
+                     unit, charge, reference_name, cost_code, status, sort_order)
+                VALUES
+                    (%(contract_id)s, %(section)s, %(name)s, %(rig_type)s, %(category)s,
+                     %(depth_from)s, %(depth_to)s, %(unit)s, %(charge)s,
+                     %(reference_name)s, %(cost_code)s, %(status)s, %(sort_order)s)
+                RETURNING id
+            """, values)
+            rate_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"status": "created", "id": rate_id}
+
+
+@app.patch("/cost-contract-rates/{rate_id}")
+async def update_cost_contract_rate(rate_id: int, request: Request):
+    update = clean_cost_contract_rate(await request.json(), partial=True)
+    if not update:
+        raise HTTPException(400, "No valid fields")
+    set_clause = ", ".join(f"{field}=%s" for field in update)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE cost_contract_rates SET {set_clause}, updated_at=NOW() WHERE id=%s",
+                list(update.values()) + [rate_id],
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Contract rate not found")
+        conn.commit()
+    return {"status": "updated"}
+
+
+@app.delete("/cost-contract-rates/{rate_id}")
+def delete_cost_contract_rate(rate_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM cost_contract_rates WHERE id=%s", (rate_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "Contract rate not found")
+        conn.commit()
+    return {"status": "deleted"}
+
+
+@app.post("/cost-contracts/{contract_id}/import-schedule")
+def import_schedule_to_cost_contract(contract_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT contractor, rate_year FROM cost_contracts WHERE id=%s", (contract_id,))
+            contract = cur.fetchone()
+            if not contract:
+                raise HTTPException(404, "Cost contract not found")
+            contractor = contract["contractor"]
+            year = contract.get("rate_year") or ""
+            cur.execute("DELETE FROM cost_contract_rates WHERE contract_id=%s", (contract_id,))
+
+            year_filter = " AND year=%s" if year else ""
+            year_params = (contractor, year) if year else (contractor,)
+            cur.execute(
+                "SELECT * FROM hourly_rates WHERE contractor=%s" + year_filter + " ORDER BY code",
+                year_params,
+            )
+            hourly = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                "SELECT * FROM drilling_rates WHERE contractor=%s" + year_filter + " ORDER BY bit_type, depth_from",
+                year_params,
+            )
+            drilling = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                "SELECT * FROM consumable_rates WHERE contractor=%s" + year_filter + " ORDER BY product",
+                year_params,
+            )
+            consumables = [dict(row) for row in cur.fetchall()]
+
+            rate_rows = []
+            for index, row in enumerate(hourly):
+                rate_rows.append((
+                    contract_id, "Time Activities", row.get("description") or row["code"], "All",
+                    "", None, None, row.get("unit") or "hour", row.get("rate") or 0,
+                    row["code"], row["code"], "Active", index,
+                ))
+            for index, row in enumerate(drilling):
+                rate_rows.append((
+                    contract_id, "Drilling Rates", row["bit_type"], "All", "",
+                    row.get("depth_from"), row.get("depth_to"), "Per Metre", row.get("rate") or 0,
+                    row["bit_type"], "", "Active", index,
+                ))
+            for index, row in enumerate(consumables):
+                rate_rows.append((
+                    contract_id, "Consumables", row["product"], "All", row.get("description") or "",
+                    None, None, row.get("unit") or "each", row.get("unit_price") or 0,
+                    row["product"], "", "Active", index,
+                ))
+            if rate_rows:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO cost_contract_rates
+                        (contract_id, section, name, rig_type, category, depth_from, depth_to,
+                         unit, charge, reference_name, cost_code, status, sort_order)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, rate_rows)
+            cur.execute("UPDATE cost_contracts SET updated_at=NOW() WHERE id=%s", (contract_id,))
+        conn.commit()
+    return {
+        "status": "imported",
+        "contract_id": contract_id,
+        "time_activities": len(hourly),
+        "drilling_rates": len(drilling),
+        "consumables": len(consumables),
+    }
+
 
 # Project budgets
 def clean_project_budget_row(row: dict, contractor_default: str = "Company") -> dict:
