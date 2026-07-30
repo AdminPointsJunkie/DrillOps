@@ -7957,7 +7957,11 @@ def get_projects(contractor: str = Query(...)):
             cur.execute("""
                 SELECT p.*, c.name AS client_name, c.code AS client_code,
                        COUNT(cc.id) AS contract_count,
-                       COUNT(cc.id) FILTER (WHERE cc.status='Active') AS active_contract_count
+                       COUNT(cc.id) FILTER (WHERE cc.status='Active') AS active_contract_count,
+                       STRING_AGG(cc.name, ', ' ORDER BY cc.name)
+                           FILTER (WHERE cc.status='Active') AS active_contract_names,
+                       STRING_AGG(DISTINCT cc.contractor, ', ')
+                           FILTER (WHERE cc.status='Active') AS active_contractors
                 FROM projects p
                 LEFT JOIN clients c ON c.id=p.client_id
                 LEFT JOIN cost_contracts cc ON cc.project_id=p.id
@@ -8051,6 +8055,44 @@ CONTRACT_RATE_SECTIONS = {
     "Time Activities", "Drilling Rates", "Consumables",
     "Downhole Activities", "Equipment", "Personnel", "Miscellaneous", "Bit Wear",
 }
+
+
+@app.get("/rate-library-summary")
+def get_rate_library_summary():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH library AS (
+                    SELECT contractor, year, COUNT(DISTINCT (bit_type, depth_from, depth_to)) AS drilling_rates, 0::BIGINT AS hourly_rates, 0::BIGINT AS consumable_rates
+                    FROM drilling_rates GROUP BY contractor, year
+                    UNION ALL
+                    SELECT contractor, year, 0::BIGINT, COUNT(DISTINCT code), 0::BIGINT
+                    FROM hourly_rates GROUP BY contractor, year
+                    UNION ALL
+                    SELECT contractor, year, 0::BIGINT, 0::BIGINT, COUNT(DISTINCT product)
+                    FROM consumable_rates GROUP BY contractor, year
+                ),
+                schedules AS (
+                    SELECT contractor, year,
+                           SUM(drilling_rates) AS drilling_rates,
+                           SUM(hourly_rates) AS hourly_rates,
+                           SUM(consumable_rates) AS consumable_rates
+                    FROM library
+                    GROUP BY contractor, year
+                )
+                SELECT schedules.*,
+                       COUNT(DISTINCT cc.id) AS contract_count,
+                       COUNT(DISTINCT cc.id) FILTER (WHERE cc.status='Active') AS active_contract_count,
+                       COUNT(DISTINCT cc.project_id) AS project_count
+                FROM schedules
+                LEFT JOIN cost_contracts cc
+                  ON cc.contractor=schedules.contractor
+                 AND cc.rate_year=schedules.year
+                GROUP BY schedules.contractor, schedules.year,
+                         schedules.drilling_rates, schedules.hourly_rates, schedules.consumable_rates
+                ORDER BY schedules.contractor, schedules.year DESC
+            """)
+            return [dict(row) for row in cur.fetchall()]
 
 
 def clean_cost_contract_payload(payload: dict, partial: bool = False) -> dict:
@@ -8343,20 +8385,33 @@ def import_schedule_to_cost_contract(contract_id: int):
             year_filter = " AND year=%s" if year else ""
             year_params = (contractor, year) if year else (contractor,)
             cur.execute(
-                "SELECT * FROM hourly_rates WHERE contractor=%s" + year_filter + " ORDER BY code",
+                "SELECT * FROM hourly_rates WHERE contractor=%s" + year_filter + " ORDER BY code, id",
                 year_params,
             )
             hourly = [dict(row) for row in cur.fetchall()]
             cur.execute(
-                "SELECT * FROM drilling_rates WHERE contractor=%s" + year_filter + " ORDER BY bit_type, depth_from",
+                "SELECT * FROM drilling_rates WHERE contractor=%s" + year_filter + " ORDER BY bit_type, depth_from, id",
                 year_params,
             )
             drilling = [dict(row) for row in cur.fetchall()]
             cur.execute(
-                "SELECT * FROM consumable_rates WHERE contractor=%s" + year_filter + " ORDER BY product",
+                "SELECT * FROM consumable_rates WHERE contractor=%s" + year_filter + " ORDER BY product, id",
                 year_params,
             )
             consumables = [dict(row) for row in cur.fetchall()]
+            hourly = list({
+                str(row.get("code") or "").strip().upper(): row for row in hourly
+            }.values())
+            drilling = list({
+                (
+                    str(row.get("bit_type") or "").strip().upper(),
+                    float(row.get("depth_from") or 0),
+                    float(row.get("depth_to") or 0),
+                ): row for row in drilling
+            }.values())
+            consumables = list({
+                str(row.get("product") or "").strip().upper(): row for row in consumables
+            }.values())
 
             rate_rows = []
             for index, row in enumerate(hourly):

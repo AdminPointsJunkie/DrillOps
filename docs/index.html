@@ -324,6 +324,15 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .contract-rate-table table{min-width:920px;}
 .contract-rate-table td[contenteditable=true]{background:#fff;}
 .contract-empty{text-align:center;color:var(--muted);padding:40px 16px;}
+.rate-library-panel{border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:16px;overflow:hidden;}
+.rate-library-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.rate-library-metrics{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:4px;}
+.rate-library-metrics strong{color:var(--text);font-size:13px;}
+.rate-source{display:flex;flex-direction:column;gap:3px;}
+.rate-source strong{font-size:12px;color:#174ea6;}
+.rate-source span{font-size:10px;color:var(--muted);}
+.library-fallback{display:inline-flex;align-items:center;gap:5px;color:#8a5b00;font-size:11px;font-weight:700;}
+.library-fallback::before{content:'';width:7px;height:7px;border-radius:50%;background:#f59e0b;}
 .contract-dialog{width:min(720px,calc(100vw - 32px));border:0;border-radius:10px;padding:0;box-shadow:0 22px 70px rgba(15,23,42,.28);}
 .contract-dialog::backdrop{background:rgba(15,23,42,.42);}
 .contract-dialog-head{padding:18px 20px;border-bottom:1px solid var(--border);font-size:18px;font-weight:780;}
@@ -2006,7 +2015,7 @@ tbody td[contenteditable=true]:focus {
       <div class="management-table">
         <div class="tbl-scroll" style="max-height:360px;">
           <table id="client-project-table">
-            <thead><tr><th>Client</th><th>Project</th><th>Status</th><th>Program</th><th>Active cost contracts</th><th>Year</th><th></th></tr></thead>
+            <thead><tr><th>Client</th><th>Project</th><th>Status</th><th>Program</th><th>Rate source</th><th>Year</th><th></th></tr></thead>
             <tbody id="client-project-body"></tbody>
           </table>
         </div>
@@ -2051,7 +2060,29 @@ tbody td[contenteditable=true]:focus {
           <div class="management-title">Cost Contracts</div>
           <div class="management-subtitle">Commercial schedules linked to a client, project and contractor.</div>
         </div>
-        <button class="btn-primary" type="button" onclick="showCostContractDialog()">Add cost contract</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" type="button" onclick="openRateLibraryEditor()">Manage rate library</button>
+          <button class="btn-primary" type="button" onclick="showCostContractDialog()">Add cost contract</button>
+        </div>
+      </div>
+      <div class="rate-library-panel">
+        <div class="rate-library-head">
+          <div>
+            <div style="font-size:14px;font-weight:780;color:var(--text);">Reusable Rate Library</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Choose a contractor schedule to create a project contract with its drilling, activity and consumable rates already copied in.</div>
+            <div class="rate-library-metrics">
+              <span><strong id="rate-library-schedule-count">0</strong> schedules</span>
+              <span><strong id="rate-library-contractor-count">0</strong> contractors</span>
+              <span><strong id="rate-library-line-count">0</strong> rate lines</span>
+            </div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:260px;">
+          <table>
+            <thead><tr><th>Contractor</th><th>Schedule</th><th>Drilling</th><th>Time activities</th><th>Consumables</th><th>Linked contracts</th><th></th></tr></thead>
+            <tbody id="rate-library-summary-body"><tr><td colspan="7" class="contract-empty">Loading rate library...</td></tr></tbody>
+          </table>
+        </div>
       </div>
       <div class="management-tabs" id="cost-contract-tabs">
         <button class="management-tab active" data-status="Active" onclick="setCostContractStatus(this)">Active</button>
@@ -2088,6 +2119,10 @@ tbody td[contenteditable=true]:focus {
           <div class="filter-group"><label>Start date</label><input id="cost-contract-start" type="date"/></div>
           <div class="filter-group"><label>End date</label><input id="cost-contract-end" type="date"/></div>
           <div class="filter-group"><label>Schedule year</label><select id="cost-contract-year"><option value="">No existing schedule</option></select></div>
+          <label class="wide" style="display:flex;align-items:flex-start;gap:9px;padding:10px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:7px;font-size:12px;color:var(--text2);">
+            <input id="cost-contract-copy-library" type="checkbox" checked style="margin-top:2px;"/>
+            <span><strong style="display:block;color:var(--text);margin-bottom:2px;">Copy Rate Library into this contract</strong>Creates project-owned rate lines from the selected contractor schedule. They can then be edited without changing the reusable library.</span>
+          </label>
           <div class="filter-group wide"><label>Notes</label><textarea id="cost-contract-notes" rows="3" placeholder="Commercial scope, revision or approval notes"></textarea></div>
         </div>
         <div class="contract-dialog-actions">
@@ -3534,7 +3569,7 @@ let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], period
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
-let costContractsData=[], costContractRatesData=[], selectedCostContractId=null, activeCostContractStatus='Active', activeCostContractSection='Time Activities';
+let costContractsData=[], costContractRatesData=[], rateLibrarySummaryData=[], selectedCostContractId=null, activeCostContractStatus='Active', activeCostContractSection='Time Activities';
 let reportApprovalsByKey={};
 let reportLocksByKey={};
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
@@ -9376,12 +9411,15 @@ function renderClientProjectHierarchy() {
   });
   var projectRows = visibleProjects.map(function(project) {
     var contractCount=Number(project.active_contract_count||0);
+    var rateSource=contractCount
+      ? '<div class="rate-source"><button class="management-link" type="button" onclick="openProjectCostContracts('+Number(project.id)+')">'+esc(project.active_contract_names||contractCount+' active contract')+'</button><span>'+contractCount+' active project contract'+(contractCount===1?'':'s')+'</span></div>'
+      : '<button class="library-fallback" type="button" style="border:0;background:transparent;padding:0;cursor:pointer;" onclick="openProjectCostContracts('+Number(project.id)+')">Rate Library fallback</button>';
     return '<tr data-project-id="'+Number(project.id)+'">'
       +'<td><select onchange="saveProjectHierarchyField(this,&apos;client_id&apos;)">'+clientProjectOptions(project.client_id)+'</select></td>'
       +'<td contenteditable="true" data-field="name">'+esc(project.name||'')+'</td>'
       +'<td><select onchange="saveProjectHierarchyField(this,&apos;status&apos;)"><option'+(project.status==='Active'?' selected':'')+'>Active</option><option'+(project.status==='Inactive'?' selected':'')+'>Inactive</option></select></td>'
       +'<td><select onchange="saveProjectHierarchyField(this,&apos;program&apos;)">'+PROJECT_PROGRAMS.map(function(program){return '<option'+(program===projectProgram(project)?' selected':'')+'>'+esc(program)+'</option>';}).join('')+'</select></td>'
-      +'<td><button class="management-link" type="button" onclick="openProjectCostContracts('+Number(project.id)+')">'+contractCount+' active</button></td>'
+      +'<td>'+rateSource+'</td>'
       +'<td contenteditable="true" data-field="year">'+esc(project.year||'')+'</td>'
       +'<td style="white-space:nowrap;"><button class="btn-ghost" type="button" onclick="activateProjectFromRegister('+Number(project.id)+')">Open</button> <button class="icon-btn" type="button" onclick="deleteProjectFromHierarchy('+Number(project.id)+')">Delete</button></td>'
       +'</tr>';
@@ -9420,13 +9458,12 @@ function activateProjectFromRegister(projectId){
   if(button)drawerNav(button);
 }
 
-function openProjectCostContracts(projectId){
+async function openProjectCostContracts(projectId){
   var button=document.querySelector('.drawer-nav-item[data-page="cost-contracts"]');
   if(button)drawerNav(button);
-  setTimeout(function(){
-    var filter=document.getElementById('cost-contract-project-filter');
-    if(filter){filter.value=String(projectId);renderCostContracts();}
-  },80);
+  await loadCostContracts();
+  var filter=document.getElementById('cost-contract-project-filter');
+  if(filter){filter.value=String(projectId);renderCostContracts();}
 }
 
 async function saveProjectHierarchyField(element, field) {
@@ -9498,19 +9535,59 @@ async function loadCostContracts(){
   if(!projects.length)await fetchProjects();
   populateCostContractProjectOptions();
   try{
-    const response=await fetch(API+'/cost-contracts?_='+Date.now(),{cache:'no-store'});
-    if(!response.ok)throw new Error(await response.text());
-    costContractsData=await response.json();
+    const responses=await Promise.all([
+      fetch(API+'/cost-contracts?_='+Date.now(),{cache:'no-store'}),
+      fetch(API+'/rate-library-summary?_='+Date.now(),{cache:'no-store'})
+    ]);
+    if(!responses[0].ok)throw new Error(await responses[0].text());
+    costContractsData=await responses[0].json();
+    rateLibrarySummaryData=responses[1].ok?await responses[1].json():[];
     if(selectedCostContractId&&!costContractsData.some(function(contract){return Number(contract.id)===Number(selectedCostContractId);})){
       selectedCostContractId=null;
       costContractRatesData=[];
     }
+    renderRateLibrarySummary();
     renderCostContracts();
     if(selectedCostContractId)await openCostContract(selectedCostContractId,false);
   }catch(error){
     costContractsData=[];
     if(body)body.innerHTML='<tr><td colspan="8" class="contract-empty">Cost contracts could not be loaded.</td></tr>';
   }
+}
+
+function renderRateLibrarySummary(){
+  const body=document.getElementById('rate-library-summary-body');
+  if(!body)return;
+  const totalLines=rateLibrarySummaryData.reduce(function(sum,row){
+    return sum+Number(row.drilling_rates||0)+Number(row.hourly_rates||0)+Number(row.consumable_rates||0);
+  },0);
+  const contractors=new Set(rateLibrarySummaryData.map(function(row){return row.contractor;}));
+  const setText=function(id,value){const node=document.getElementById(id);if(node)node.textContent=Number(value||0).toLocaleString('en-AU');};
+  setText('rate-library-schedule-count',rateLibrarySummaryData.length);
+  setText('rate-library-contractor-count',contractors.size);
+  setText('rate-library-line-count',totalLines);
+  body.innerHTML=rateLibrarySummaryData.map(function(row){
+    const linked=Number(row.contract_count||0);
+    return '<tr>'
+      +'<td style="font-weight:750;">'+esc(row.contractor)+'</td>'
+      +'<td><span class="status-pill status-info">'+esc(row.year)+'</span></td>'
+      +'<td>'+Number(row.drilling_rates||0).toLocaleString('en-AU')+'</td>'
+      +'<td>'+Number(row.hourly_rates||0).toLocaleString('en-AU')+'</td>'
+      +'<td>'+Number(row.consumable_rates||0).toLocaleString('en-AU')+'</td>'
+      +'<td><span style="font-weight:700;">'+linked+'</span><div style="font-size:10px;color:var(--muted);">'+Number(row.active_contract_count||0)+' active</div></td>'
+      +'<td><button class="btn-primary" type="button" onclick="createContractFromLibrary(decodeURIComponent(&apos;'+attr(encodeURIComponent(row.contractor))+'&apos;),decodeURIComponent(&apos;'+attr(encodeURIComponent(row.year))+'&apos;))">Use for project</button></td>'
+      +'</tr>';
+  }).join('')||'<tr><td colspan="7" class="contract-empty">No reusable rate schedules are configured yet. Open Manage rate library to add one.</td></tr>';
+}
+
+function openRateLibraryEditor(){
+  const button=document.querySelector('.drawer-nav-item[data-page="rates"]');
+  if(button)drawerNav(button);
+}
+
+function createContractFromLibrary(contractor,year){
+  const activeProject=projects.find(function(project){return project.name===activeProjectName;});
+  showCostContractDialog(activeProject&&activeProject.id,contractor,year);
 }
 
 function setCostContractStatus(button){
@@ -9545,7 +9622,7 @@ function renderCostContracts(){
   }).join('')||'<tr><td colspan="8" class="contract-empty">No cost contracts match this view. Add one to create a project-specific schedule.</td></tr>';
 }
 
-function showCostContractDialog(preferredProjectId){
+function showCostContractDialog(preferredProjectId,preferredContractor,preferredYear){
   populateCostContractProjectOptions();
   const projectSelect=document.getElementById('cost-contract-project');
   const preferred=preferredProjectId||Number((projects.find(function(project){return project.name===activeProjectName;})||{}).id||0);
@@ -9561,14 +9638,20 @@ function showCostContractDialog(preferredProjectId){
     return '<option value="'+attr(item.name)+'">'+esc(item.name)+'</option>';
   }).join('');
   const drilling=CONTRACTORS.find(function(item){return contractorCategory(item)==='Drilling';});
-  if(drilling)contractor.value=drilling.name;
-  loadCostContractYears();
+  if(preferredContractor&&CONTRACTORS.some(function(item){return item.name===preferredContractor;}))contractor.value=preferredContractor;
+  else if(drilling)contractor.value=drilling.name;
+  document.getElementById('cost-contract-copy-library').checked=true;
+  loadCostContractYears(preferredYear);
   syncCostContractClient();
+  if(preferredContractor&&preferredYear&&projectSelect.value){
+    const selectedProject=projects.find(function(project){return String(project.id)===projectSelect.value;});
+    if(selectedProject)document.getElementById('cost-contract-name').value=selectedProject.name+' - '+preferredContractor+' '+preferredYear;
+  }
   document.getElementById('cost-contract-dialog').showModal();
   setTimeout(function(){document.getElementById('cost-contract-name').focus();},0);
 }
 
-async function loadCostContractYears(){
+async function loadCostContractYears(preferredYear){
   const contractor=document.getElementById('cost-contract-contractor')?.value||'';
   const select=document.getElementById('cost-contract-year');
   if(!select)return;
@@ -9576,10 +9659,12 @@ async function loadCostContractYears(){
     const response=await fetch(API+'/rates/years?contractor='+encodeURIComponent(contractor));
     if(!response.ok)throw new Error('Could not load schedules');
     const result=await response.json();
+    if(document.getElementById('cost-contract-contractor')?.value!==contractor)return;
     const years=(result.years||[]).slice().sort().reverse();
     select.innerHTML=years.length
       ? years.map(function(year){return '<option value="'+attr(year)+'">'+esc(year)+'</option>';}).join('')
       : '<option value="">No existing schedule</option>';
+    if(preferredYear&&years.includes(String(preferredYear)))select.value=String(preferredYear);
   }catch(error){
     select.innerHTML='<option value="">No existing schedule</option>';
   }
@@ -9618,6 +9703,17 @@ async function saveCostContract(event){
     const response=await fetch(API+'/cost-contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!response.ok)throw new Error(await response.text());
     const saved=await response.json();
+    let copiedRates=0;
+    let copyWarning='';
+    if(document.getElementById('cost-contract-copy-library').checked&&payload.rate_year){
+      const copyResponse=await fetch(API+'/cost-contracts/'+encodeURIComponent(saved.id)+'/import-schedule',{method:'POST'});
+      const copyResult=await copyResponse.json().catch(function(){return {};});
+      if(copyResponse.ok){
+        copiedRates=Number(copyResult.time_activities||0)+Number(copyResult.drilling_rates||0)+Number(copyResult.consumables||0);
+      }else{
+        copyWarning=copyResult.detail||'The contract was created, but its library schedule could not be copied.';
+      }
+    }
     document.getElementById('cost-contract-dialog').close();
     selectedCostContractId=Number(saved.id);
     activeCostContractStatus=payload.status;
@@ -9627,7 +9723,8 @@ async function saveCostContract(event){
     await fetchProjects();
     await loadCostContracts();
     await openCostContract(selectedCostContractId);
-    toast('Cost contract created');
+    if(copyWarning)toast(copyWarning,'warn');
+    else toast('Cost contract created'+(copiedRates?' with '+copiedRates+' Rate Library lines':''));
   }catch(error){
     toast('Cost contract creation failed','err');
   }finally{
@@ -9674,7 +9771,7 @@ function renderCostContractDetail(contract){
     +'</div>'
     +'<aside class="contract-side">'+sections.map(function(section){return '<button type="button" class="'+(section===activeCostContractSection?'active':'')+'" onclick="setCostContractSection(&apos;'+attr(section)+'&apos;)">'+esc(section)+'</button>';}).join('')+'</aside>'
     +'<div class="contract-main"><div class="contract-main-head"><div><div style="font-size:16px;font-weight:780;">'+esc(activeCostContractSection)+'</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">Rates in this section belong only to this cost contract.</div></div>'
-      +'<div style="display:flex;gap:8px;"><button class="btn-secondary" type="button" onclick="importCostContractSchedule()">Import current schedule</button><button class="btn-primary" type="button" onclick="addCostContractRate()">Add rate</button></div>'
+      +'<div style="display:flex;gap:8px;"><button class="btn-secondary" type="button" onclick="importCostContractSchedule()">Refresh from Rate Library</button><button class="btn-primary" type="button" onclick="addCostContractRate()">Add rate</button></div>'
     +'</div><div class="contract-rate-table">'+costContractRateTable()+'</div></div>'
     +'</div>';
   attachCostContractRateEdits();
@@ -9781,7 +9878,7 @@ async function deleteCostContractRate(rateId){
 async function importCostContractSchedule(){
   const contract=costContractsData.find(function(item){return Number(item.id)===Number(selectedCostContractId);});
   if(!contract)return;
-  if(!confirm('Replace this contract’s rate lines with the '+(contract.rate_year||'available')+' '+contract.contractor+' schedule?'))return;
+  if(!confirm('Replace this contract’s rate lines with the '+(contract.rate_year||'available')+' '+contract.contractor+' Rate Library schedule?'))return;
   try{
     const response=await fetch(API+'/cost-contracts/'+selectedCostContractId+'/import-schedule',{method:'POST'});
     const result=await response.json();
