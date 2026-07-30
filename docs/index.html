@@ -303,6 +303,10 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .management-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 16px;}
 .management-tab{border:none;background:transparent;padding:10px 12px 9px;font:600 13px var(--font);color:var(--text2);border-bottom:2px solid transparent;cursor:pointer;}
 .management-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.project-workspace-nav{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:-2px 0 18px;padding:5px;border:1px solid var(--border);border-radius:9px;background:#fff;box-shadow:var(--shadow);}
+.project-workspace-tab{border:0;background:transparent;padding:9px 14px;border-radius:6px;color:var(--muted);font:700 12px var(--font);cursor:pointer;}
+.project-workspace-tab:hover{background:var(--bg3);color:var(--text);}
+.project-workspace-tab.active{background:var(--accent-light);color:var(--accent);}
 .management-table{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden;margin-bottom:16px;}
 .management-table table{width:100%;border-collapse:collapse;}
 .management-table th{font-size:12px;text-transform:none;letter-spacing:0;color:#526a83;background:#fff;padding:12px 10px;}
@@ -1755,17 +1759,15 @@ tbody td[contenteditable=true]:focus {
     <div class="drawer-section">
       <div class="drawer-section-title">Navigation</div>
       <div class="drawer-nav-list">
+        <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Budgets, contracts &amp; rates</span></button>
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
         <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></button>
-        <button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients and budgets</span></button>
-        <button class="drawer-nav-item" data-page="cost-contracts" onclick="drawerNav(this)"><span class="drawer-nav-label">Cost Contracts</span><span class="drawer-nav-meta">Rates by project</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
         <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
         <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
-        <button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)"><span class="drawer-nav-label">Rate Library</span><span class="drawer-nav-meta">Fallback schedules</span></button>
       </div>
     </div>
 
@@ -1997,6 +1999,11 @@ tbody td[contenteditable=true]:focus {
 
     <!-- Project Budgets -->
     <section class="page management-page" id="page-project-budgets">
+      <nav class="project-workspace-nav" aria-label="Project workspace sections">
+        <button class="project-workspace-tab active" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
+        <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
+      </nav>
       <div class="management-head">
         <div>
           <div class="management-title">Projects</div>
@@ -2058,13 +2065,17 @@ tbody td[contenteditable=true]:focus {
 
     <!-- Cost Contracts -->
     <section class="page management-page" id="page-cost-contracts">
+      <nav class="project-workspace-nav" aria-label="Project workspace sections">
+        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab active" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
+        <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
+      </nav>
       <div class="management-head">
         <div>
           <div class="management-title">Cost Contracts</div>
           <div class="management-subtitle">Commercial schedules linked to a client, project and contractor.</div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-secondary" type="button" onclick="openRateLibraryEditor()">Manage rate library</button>
           <button class="btn-primary" type="button" onclick="showCostContractDialog()">Add cost contract</button>
         </div>
       </div>
@@ -2605,6 +2616,11 @@ tbody td[contenteditable=true]:focus {
 
     <!-- Rate Library -->
     <section class="page" id="page-rates">
+      <nav class="project-workspace-nav" aria-label="Project workspace sections">
+        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
+        <button class="project-workspace-tab active" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
+      </nav>
       <h2 class="section-title">Rate Library</h2>
       <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px;">Reusable contractor/year schedules. Project-specific commercial rates are managed under Cost Contracts.</p>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
@@ -3231,6 +3247,30 @@ function drawerNav(btn){
   // Update drawer nav highlight
   document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  closeDrawer();
+}
+
+function openProjectsFromDrawer(){
+  openProjectWorkspaceSection('overview');
+}
+
+function openProjectWorkspaceSection(section){
+  const pages={overview:'project-budgets',contracts:'cost-contracts',rates:'rates'};
+  section=pages[section]?section:'overview';
+  const page=pages[section];
+  const pageEl=document.getElementById('page-'+page);
+  if(!pageEl){toast('Project section not found','err');return;}
+  document.querySelectorAll('.nav-item').forEach(function(item){item.classList.remove('active');});
+  document.querySelectorAll('.page').forEach(function(item){item.classList.remove('active');});
+  document.querySelector('.nav-item[data-page="project-budgets"]')?.classList.add('active');
+  pageEl.classList.add('active');
+  document.querySelectorAll('.drawer-nav-item').forEach(function(item){item.classList.remove('active');});
+  document.querySelector('.drawer-nav-item[data-page="project-budgets"]')?.classList.add('active');
+  document.querySelectorAll('.project-workspace-tab').forEach(function(tab){
+    tab.classList.toggle('active',tab.dataset.projectSection===section);
+  });
+  updateContractorSwitcherVisibility(page);
+  triggerPageLoad(page);
   closeDrawer();
 }
 
@@ -9513,8 +9553,7 @@ async function openProjectCostContracts(projectId){
     var client=clientById(activeClientId);
     if(label)label.textContent=(client?client.name+' / ':'')+activeProjectName;
   }
-  var button=document.querySelector('.drawer-nav-item[data-page="cost-contracts"]');
-  if(button)drawerNav(button);
+  openProjectWorkspaceSection('contracts');
   await loadCostContracts();
   renderCostContracts();
 }
@@ -9634,11 +9673,6 @@ function renderRateLibrarySummary(){
       +'<td><button class="btn-primary" type="button" onclick="createContractFromLibrary(decodeURIComponent(&apos;'+attr(encodeURIComponent(row.contractor))+'&apos;),decodeURIComponent(&apos;'+attr(encodeURIComponent(row.year))+'&apos;))">Use for project</button></td>'
       +'</tr>';
   }).join('')||'<tr><td colspan="7" class="contract-empty">No reusable rate schedules are linked to '+esc(activeProjectName||'this project')+'. Open Manage rate library to add one.</td></tr>';
-}
-
-function openRateLibraryEditor(){
-  const button=document.querySelector('.drawer-nav-item[data-page="rates"]');
-  if(button)drawerNav(button);
 }
 
 function createContractFromLibrary(contractor,year){
