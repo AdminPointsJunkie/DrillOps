@@ -268,6 +268,38 @@ tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2
 .chart-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
 .chart-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;}
 .chart-card canvas{max-height:240px;}
+.production-page{max-width:none;margin:-8px -20px 0;}
+.production-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:14px;}
+.production-title{font-size:26px;font-weight:750;letter-spacing:-.6px;color:var(--text);}
+.production-subtitle{font-size:12px;color:var(--muted);margin-top:4px;}
+.production-context{font-size:11px;font-weight:750;color:var(--accent);background:var(--accent-light);border:1px solid #c9dcea;border-radius:999px;padding:6px 11px;white-space:nowrap;}
+.production-filters{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin-bottom:12px;}
+.production-filter{min-width:150px;}
+.production-filter label{display:block;font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.production-filter select,.production-filter input{height:36px;width:100%;border:1px solid #cfd7e1;border-radius:7px;background:#fff;padding:0 10px;font:600 12px var(--font);color:var(--text);outline:none;}
+.production-filter select:focus,.production-filter input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
+.production-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.production-kpi{background:#fff;border:1px solid var(--border);border-radius:8px;padding:13px 15px;box-shadow:var(--shadow);}
+.production-kpi-label{font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+.production-kpi-value{font-size:22px;font-weight:780;color:var(--text);margin-top:5px;}
+.production-kpi-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.production-chart-card{padding:18px 20px;margin-bottom:12px;}
+.production-chart-wrap{position:relative;height:350px;}
+#production-chart{max-height:none!important;height:350px!important;}
+.production-table .tbl-scroll{max-height:430px;}
+.production-table thead th{position:sticky;top:0;z-index:2;background:#fff;text-transform:none;letter-spacing:0;font-size:12px;color:#49627d;}
+.production-table tbody td{font-size:12px;padding:11px 9px;color:#001b3f;}
+.production-total{font-weight:750;color:var(--accent)!important;}
+@media(max-width:900px){
+  .production-page{margin:0;}
+  .production-head{flex-direction:column;}
+  .production-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .production-filter{min-width:calc(50% - 5px);flex:1;}
+}
+@media(max-width:520px){
+  .production-kpis{grid-template-columns:1fr;}
+  .production-filter{min-width:100%;}
+}
 
 /* Daily report summary */
 .report-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;}
@@ -1666,6 +1698,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
+        <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></button>
         <button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><span class="drawer-nav-label">Clients &amp; Projects</span><span class="drawer-nav-meta">Setup and budgets</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
         <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
@@ -2013,6 +2046,85 @@ tbody td[contenteditable=true]:focus {
             <div class="ccf-visual-row ccf-visual-head"><span>Month</span><span></span><span>F07 baseline</span><span>Reforecast</span></div>
             <div id="ccf-month-visual"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily Drill Production -->
+    <section class="page production-page" id="page-production">
+      <div class="production-head">
+        <div>
+          <div class="production-title">Daily Drill Production</div>
+          <div class="production-subtitle">Daily drilled metres, cumulative progress and production detail for the selected project.</div>
+        </div>
+        <div class="production-context" id="production-context">Project workspace</div>
+      </div>
+
+      <div class="production-filters">
+        <div class="production-filter">
+          <label for="production-contractor">Drilling contractor</label>
+          <select id="production-contractor" onchange="loadDailyProduction()"></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-rig">Rig</label>
+          <select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-drill-type">Drill type</label>
+          <select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All drill types</option></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-date-preset">Date range</label>
+          <select id="production-date-preset" onchange="setProductionDatePreset(this.value)">
+            <option value="latest-month">Latest month</option>
+            <option value="last-30">Last 30 days</option>
+            <option value="year">Latest year</option>
+            <option value="all">All dates</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="production-filter">
+          <label for="production-from">From</label>
+          <input id="production-from" type="date" onchange="setProductionCustomRange()"/>
+        </div>
+        <div class="production-filter">
+          <label for="production-to">To</label>
+          <input id="production-to" type="date" onchange="setProductionCustomRange()"/>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button>
+      </div>
+
+      <div class="production-kpis">
+        <div class="production-kpi"><div class="production-kpi-label">Metres drilled</div><div class="production-kpi-value" id="production-kpi-metres">--</div><div class="production-kpi-sub" id="production-kpi-period">Selected period</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Production days</div><div class="production-kpi-value" id="production-kpi-days">--</div><div class="production-kpi-sub">Days with recorded metres</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Average per day</div><div class="production-kpi-value" id="production-kpi-average">--</div><div class="production-kpi-sub">Across production days</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Best day</div><div class="production-kpi-value" id="production-kpi-best">--</div><div class="production-kpi-sub" id="production-kpi-best-date">No production loaded</div></div>
+      </div>
+
+      <div class="chart-card production-chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+          <div>
+            <div class="chart-title" style="margin-bottom:3px;">Metres by day</div>
+            <div style="font-size:11px;color:var(--muted);">Daily metres with cumulative production and a trailing 7-day average.</div>
+          </div>
+          <div id="production-chart-status" style="font-size:11px;color:var(--muted);"></div>
+        </div>
+        <div class="production-chart-wrap"><canvas id="production-chart"></canvas></div>
+      </div>
+
+      <div class="table-wrap production-table">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="production-row-count">0</span> production intervals</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Every row is traceable to its source plod.</div>
+          </div>
+          <button class="btn-csv" type="button" onclick="downloadProductionCsv()">CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="production-table">
+            <thead><tr><th>Hole</th><th>Date</th><th>Shift</th><th>Plod</th><th>Rig</th><th>Drill type</th><th>Depth from (m)</th><th>Depth to (m)</th><th>Total (m)</th></tr></thead>
+            <tbody id="production-body"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -3310,6 +3422,7 @@ let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
+let productionRawData=[], productionFilteredData=[];
 let reportApprovalsByKey={};
 let reportLocksByKey={};
 let costingHolesData=[], costingDatesData=[], costingLinesData=[];
@@ -3410,7 +3523,7 @@ async function switchProgram(program){
   projectBudgetsData=[];
   periodSourceBudgetData=null;
   bhData=[];
-  activitiesData=[];consumablesData=[];crewData=[];dailyReportsData=[];
+  activitiesData=[];consumablesData=[];crewData=[];dailyReportsData=[];productionRawData=[];productionFilteredData=[];
   buildContractorSwitcher();
   renderDrawerContractors();
   await fetchProjects();
@@ -3727,6 +3840,7 @@ function triggerPageLoad(page){
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
+  if(page==='production')   loadDailyProduction();
   if(page==='project-budgets') loadProjectBudgets();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
@@ -5748,6 +5862,260 @@ function renderCrewTable(){
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
+// Daily Drill Production
+function productionDrillType(row){
+  const bit=String(row&&row.bit_type||'').trim();
+  const diameter=String(row&&row.diameter||'').trim();
+  if(bit&&diameter&&!bit.toLowerCase().includes(diameter.toLowerCase()))return bit+' · '+diameter;
+  return bit||diameter||'Unspecified';
+}
+
+function productionDate(row){
+  return isoFromReportDate(row&&row.date||'');
+}
+
+function productionDisplayDate(value,short){
+  const iso=isoFromReportDate(value);
+  if(!iso)return String(value||'--');
+  const date=new Date(iso+'T00:00:00Z');
+  return date.toLocaleDateString('en-AU',short
+    ? {day:'2-digit',month:'short',timeZone:'UTC'}
+    : {day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+}
+
+function populateProductionContractors(){
+  const select=document.getElementById('production-contractor');
+  if(!select)return '';
+  const drilling=filteredContractors().filter(function(contractor){
+    return contractorCategory(contractor)==='Drilling';
+  });
+  const preferred=select.value||sessionStorage.getItem('drillops_report_drilling_contractor')||reportDrillingContractor();
+  select.innerHTML=drilling.map(function(contractor){
+    return '<option value="'+attr(contractor.name)+'"'+(contractor.name===preferred?' selected':'')+'>'+esc(contractor.name)+'</option>';
+  }).join('');
+  if(!select.value&&drilling.length)select.value=drilling[0].name;
+  return select.value;
+}
+
+function populateProductionDimensionFilters(){
+  const rigSelect=document.getElementById('production-rig');
+  const typeSelect=document.getElementById('production-drill-type');
+  if(!rigSelect||!typeSelect)return;
+  const currentRig=rigSelect.value;
+  const currentType=typeSelect.value;
+  const rigs=Array.from(new Set(productionRawData.map(function(row){return String(row.drill_rig||'Unspecified').trim()||'Unspecified';}))).sort();
+  const types=Array.from(new Set(productionRawData.map(productionDrillType))).sort();
+  rigSelect.innerHTML='<option value="">All rigs</option>'+rigs.map(function(rig){return '<option value="'+attr(rig)+'">'+esc(rig)+'</option>';}).join('');
+  typeSelect.innerHTML='<option value="">All drill types</option>'+types.map(function(type){return '<option value="'+attr(type)+'">'+esc(type)+'</option>';}).join('');
+  if(rigs.includes(currentRig))rigSelect.value=currentRig;
+  if(types.includes(currentType))typeSelect.value=currentType;
+}
+
+async function loadDailyProduction(){
+  const contractor=populateProductionContractors();
+  const status=document.getElementById('production-chart-status');
+  const context=document.getElementById('production-context');
+  if(context){
+    const client=clientById(activeClientId);
+    context.textContent=(client?client.name+' / ':'')+(activeProjectName||'No project selected');
+  }
+  if(!contractor){
+    productionRawData=[];
+    renderDailyProduction();
+    return;
+  }
+  if(status)status.textContent='Loading '+contractor+' production...';
+  try{
+    const response=await fetch(API+'/activity-report-data?contractor='+encodeURIComponent(contractor)+'&_='+Date.now(),{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const bundle=await response.json();
+    productionRawData=filterRowsForActiveProgram(bundle.activities||[]).filter(function(row){
+      return productionDate(row)&&Number(row.total_metres)>0;
+    });
+    sessionStorage.setItem('drillops_report_drilling_contractor',contractor);
+    populateProductionDimensionFilters();
+    setProductionDatePreset(document.getElementById('production-date-preset')?.value||'latest-month');
+  }catch(error){
+    productionRawData=[];
+    productionFilteredData=[];
+    if(status)status.textContent='Production data could not be loaded.';
+    renderDailyProduction();
+  }
+}
+
+function setProductionDatePreset(preset){
+  const dates=productionRawData.map(productionDate).filter(Boolean).sort();
+  const from=document.getElementById('production-from');
+  const to=document.getElementById('production-to');
+  const presetSelect=document.getElementById('production-date-preset');
+  if(presetSelect&&presetSelect.value!==preset)presetSelect.value=preset;
+  if(!dates.length){
+    if(from)from.value='';
+    if(to)to.value='';
+    renderDailyProduction();
+    return;
+  }
+  const first=dates[0];
+  const latest=dates[dates.length-1];
+  if(preset==='latest-month'){
+    if(from)from.value=latest.slice(0,7)+'-01';
+    if(to)to.value=latest;
+  }else if(preset==='last-30'){
+    const start=new Date(latest+'T00:00:00Z');
+    start.setUTCDate(start.getUTCDate()-29);
+    if(from)from.value=start.toISOString().slice(0,10);
+    if(to)to.value=latest;
+  }else if(preset==='year'){
+    if(from)from.value=latest.slice(0,4)+'-01-01';
+    if(to)to.value=latest;
+  }else if(preset==='all'){
+    if(from)from.value=first;
+    if(to)to.value=latest;
+  }
+  renderDailyProduction();
+}
+
+function setProductionCustomRange(){
+  const preset=document.getElementById('production-date-preset');
+  if(preset)preset.value='custom';
+  renderDailyProduction();
+}
+
+function productionCalendarDates(from,to,fallbackDates){
+  if(!from||!to)return fallbackDates;
+  const start=new Date(from+'T00:00:00Z');
+  const end=new Date(to+'T00:00:00Z');
+  const span=Math.round((end-start)/86400000);
+  if(!Number.isFinite(span)||span<0||span>730)return fallbackDates;
+  const result=[];
+  for(let cursor=new Date(start);cursor<=end;cursor.setUTCDate(cursor.getUTCDate()+1)){
+    result.push(cursor.toISOString().slice(0,10));
+  }
+  return result;
+}
+
+function renderDailyProduction(){
+  const rig=document.getElementById('production-rig')?.value||'';
+  const drillType=document.getElementById('production-drill-type')?.value||'';
+  const from=document.getElementById('production-from')?.value||'';
+  const to=document.getElementById('production-to')?.value||'';
+  const contractor=document.getElementById('production-contractor')?.value||'';
+  productionFilteredData=productionRawData.filter(function(row){
+    const date=productionDate(row);
+    if(!date||(from&&date<from)||(to&&date>to))return false;
+    if(rig&&String(row.drill_rig||'Unspecified').trim()!==rig)return false;
+    return !drillType||productionDrillType(row)===drillType;
+  });
+
+  const dailyMap=new Map();
+  productionFilteredData.forEach(function(row){
+    const date=productionDate(row);
+    dailyMap.set(date,(dailyMap.get(date)||0)+(Number(row.total_metres)||0));
+  });
+  const activeDates=Array.from(dailyMap.keys()).sort();
+  const chartDates=productionCalendarDates(from,to,activeDates);
+  const daily=chartDates.map(function(date){return dailyMap.get(date)||0;});
+  const cumulative=[];
+  const movingAverage=[];
+  let running=0;
+  daily.forEach(function(value,index){
+    running+=value;
+    cumulative.push(Number(running.toFixed(2)));
+    const window=daily.slice(Math.max(0,index-6),index+1);
+    movingAverage.push(Number((window.reduce(function(sum,item){return sum+item;},0)/window.length).toFixed(2)));
+  });
+
+  const total=productionFilteredData.reduce(function(sum,row){return sum+(Number(row.total_metres)||0);},0);
+  const productionDays=activeDates.length;
+  const bestDate=activeDates.reduce(function(best,date){
+    return !best||dailyMap.get(date)>dailyMap.get(best)?date:best;
+  },'');
+  const number=function(value,digits){
+    return Number(value||0).toLocaleString('en-AU',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+  };
+  const setText=function(id,value){const node=document.getElementById(id);if(node)node.textContent=value;};
+  setText('production-kpi-metres',number(total,2)+' m');
+  setText('production-kpi-days',String(productionDays));
+  setText('production-kpi-average',number(productionDays?total/productionDays:0,2)+' m');
+  setText('production-kpi-best',number(bestDate?dailyMap.get(bestDate):0,2)+' m');
+  setText('production-kpi-best-date',bestDate?productionDisplayDate(bestDate,false):'No production in range');
+  setText('production-kpi-period',from&&to?productionDisplayDate(from,true)+' – '+productionDisplayDate(to,true):'All available dates');
+  setText('production-row-count',String(productionFilteredData.length));
+  setText('production-chart-status',(activeProjectName||'All projects')+(contractor?' · '+contractor:''));
+
+  destroyChart('production');
+  const canvas=document.getElementById('production-chart');
+  if(canvas&&chartDates.length&&typeof Chart!=='undefined'){
+    charts.production=new Chart(canvas,{
+      data:{
+        labels:chartDates.map(function(date){return productionDisplayDate(date,true);}),
+        datasets:[
+          {type:'bar',label:'Daily metres',data:daily,backgroundColor:'rgba(30, 105, 160, .78)',borderColor:'#1e69a0',borderWidth:1,borderRadius:3,yAxisID:'y',order:3},
+          {type:'line',label:'Cumulative',data:cumulative,borderColor:'#ef7d22',backgroundColor:'#ef7d22',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:.2,yAxisID:'y1',order:1},
+          {type:'line',label:'7-day average',data:movingAverage,borderColor:'#6842c2',backgroundColor:'#6842c2',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:.28,yAxisID:'y',order:2}
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:9,padding:18,font:{size:11}}},
+          tooltip:{callbacks:{label:function(context){return context.dataset.label+': '+number(context.parsed.y,2)+' m';}}}
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:24,maxRotation:0,font:{size:10}}},
+          y:{beginAtZero:true,position:'left',title:{display:true,text:'Daily metres'},grid:{color:'rgba(148, 163, 184, .18)'}},
+          y1:{beginAtZero:true,position:'right',title:{display:true,text:'Cumulative metres'},grid:{drawOnChartArea:false}}
+        }
+      }
+    });
+  }
+
+  const body=document.getElementById('production-body');
+  if(body){
+    const rows=productionFilteredData.slice().sort(function(a,b){
+      return productionDate(b).localeCompare(productionDate(a))||String(b.source_file||'').localeCompare(String(a.source_file||''));
+    });
+    body.innerHTML=rows.map(function(row){
+      const source=String(row.source_file||'').replace(/\.[^.]+$/,'')||'--';
+      const shift=String(row.shift||'--');
+      return '<tr>'
+        +'<td style="font-weight:750;color:var(--accent);">'+esc(row.hole_num||'--')+'</td>'
+        +'<td>'+esc(productionDisplayDate(row.date,false))+'</td>'
+        +'<td><span class="status-pill '+(shift.toLowerCase().includes('night')?'status-info':'status-warn')+'">'+esc(shift)+'</span></td>'
+        +'<td title="'+attr(row.source_file||'')+'">'+esc(source)+'</td>'
+        +'<td>'+esc(row.drill_rig||'--')+'</td>'
+        +'<td>'+esc(productionDrillType(row))+'</td>'
+        +'<td class="num">'+number(row.metres_from,2)+'</td>'
+        +'<td class="num">'+number(row.metres_to,2)+'</td>'
+        +'<td class="num" style="font-weight:800;">'+number(row.total_metres,2)+'</td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="9"><div class="empty-state"><div class="big">--</div>No drilling production found for these filters.</div></td></tr>';
+    makeTableSortable('production-table');
+  }
+}
+
+function downloadProductionCsv(){
+  if(!productionFilteredData.length){alert('There is no production data to export for the selected filters.');return;}
+  const headers=['Hole','Date','Shift','Plod','Rig','Drill type','Depth from (m)','Depth to (m)','Total (m)','Project','Contractor'];
+  const contractor=document.getElementById('production-contractor')?.value||'';
+  const values=productionFilteredData.map(function(row){
+    return [row.hole_num,productionDate(row),row.shift,row.source_file,row.drill_rig,productionDrillType(row),row.metres_from,row.metres_to,row.total_metres,row.project||activeProjectName,contractor];
+  });
+  const csv=[headers].concat(values).map(function(row){
+    return row.map(function(value){return '"'+String(value==null?'':value).replace(/"/g,'""')+'"';}).join(',');
+  }).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='daily_drill_production_'+String(activeProjectName||'all-projects').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function(){URL.revokeObjectURL(link.href);},0);
+}
+
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6',
   'Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
 
@@ -8838,6 +9206,8 @@ async function changeWorkspace() {
   consumablesData = [];
   crewData = [];
   dailyReportsData = [];
+  productionRawData = [];
+  productionFilteredData = [];
   await loadProjectBudgets();
   syncWorkspaceControls();
   await updateDbCount();
