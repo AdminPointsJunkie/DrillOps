@@ -5441,25 +5441,28 @@ def del_consumable_rate(rid: int):
 
 
 @app.get("/purchase_orders")
-def get_pos(contractor: Optional[str] = Query(None)):
+def get_pos(
+    contractor: Optional[str] = Query(None),
+    project: Optional[str] = Query(None),
+):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
+                where, params = [], []
                 if contractor:
-                    cur.execute("""
-                        SELECT id, po_number, contractor, description,
-                               project, issue_date, expiry_date, po_value, status, notes
-                        FROM purchase_orders
-                        WHERE contractor=%s
-                        ORDER BY issue_date DESC
-                    """, (contractor,))
-                else:
-                    cur.execute("""
-                        SELECT id, po_number, contractor, description,
-                               project, issue_date, expiry_date, po_value, status, notes
-                        FROM purchase_orders
-                        ORDER BY issue_date DESC
-                    """)
+                    where.append("contractor=%s")
+                    params.append(contractor)
+                if project:
+                    where.append("LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))")
+                    params.append(project)
+                clause = ("WHERE " + " AND ".join(where)) if where else ""
+                cur.execute(f"""
+                    SELECT id, po_number, contractor, description,
+                           project, issue_date, expiry_date, po_value, status, notes
+                    FROM purchase_orders
+                    {clause}
+                    ORDER BY issue_date DESC NULLS LAST, id DESC
+                """, params)
                 pos = [dict(r) for r in cur.fetchall()]
 
                 # Add spent from invoices matched to this PO
@@ -6524,6 +6527,7 @@ async def test_invoice_parse(
 async def import_invoice(
     file: UploadFile = File(...),
     contractor: str = Form(default="Allianz Drilling"),
+    project: str = Form(default=""),
 ):
     filename = file.filename
 
@@ -6592,6 +6596,8 @@ async def import_invoice(
         inv = parse_invoice_pdf(text, filename, contractor, tables)
     except Exception as e:
         raise HTTPException(422, f"Could not parse invoice: {e}")
+    if str(project or "").strip():
+        inv["project"] = str(project).strip()
 
     lines = inv.pop("lines", [])
 
@@ -6792,19 +6798,29 @@ async def create_manual_invoice(request: Request):
 
 
 @app.get("/invoices")
-def get_invoices(contractor: str = Query(...)):
+def get_invoices(
+    contractor: str = Query(...),
+    project: Optional[str] = Query(None),
+):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
+                project_clause = """
+                    AND LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                """ if project else ""
+                params = [contractor]
+                if project:
+                    params.append(project)
+                cur.execute(f"""
                     SELECT id, source_file, contractor, invoice_number,
                            project, invoice_date, due_date, po_reference, client, abn,
                            subtotal, gst, total_aud, amount_paid, amount_due,
                            status, notes, billing_month, query_notes, version
                     FROM invoices
                     WHERE contractor=%s
+                    {project_clause}
                     ORDER BY invoice_date DESC
-                """, (contractor,))
+                """, params)
                 invoices = [dict(r) for r in cur.fetchall()]
 
                 for inv in invoices:
@@ -7970,6 +7986,64 @@ def get_projects(contractor: str = Query(...)):
                 ORDER BY COALESCE(c.name, ''), p.program, p.name, p.year
             """, (contractor,))
             return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/project-contractors")
+def get_project_contractors(project: str = Query(...)):
+    """Return only suppliers with evidence linking them to the selected project."""
+    project_name = str(project or "").strip()
+    if not project_name:
+        return []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH project_usage AS (
+                    SELECT contractor, COUNT(*)::BIGINT AS activity_rows,
+                           0::BIGINT AS invoice_rows, 0::BIGINT AS po_rows,
+                           0::BIGINT AS contract_rows
+                    FROM activities
+                    WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND TRIM(COALESCE(contractor,''))<>''
+                    GROUP BY contractor
+                    UNION ALL
+                    SELECT contractor, 0, COUNT(*), 0, 0
+                    FROM invoices
+                    WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND TRIM(COALESCE(contractor,''))<>''
+                    GROUP BY contractor
+                    UNION ALL
+                    SELECT contractor, 0, 0, COUNT(*), 0
+                    FROM purchase_orders
+                    WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND TRIM(COALESCE(contractor,''))<>''
+                    GROUP BY contractor
+                    UNION ALL
+                    SELECT cc.contractor, 0, 0, 0, COUNT(*)
+                    FROM cost_contracts cc
+                    JOIN projects p ON p.id=cc.project_id
+                    WHERE LOWER(TRIM(p.name))=LOWER(TRIM(%s))
+                      AND TRIM(COALESCE(cc.contractor,''))<>''
+                    GROUP BY cc.contractor
+                ),
+                rolled AS (
+                    SELECT contractor,
+                           SUM(activity_rows) AS activity_rows,
+                           SUM(invoice_rows) AS invoice_rows,
+                           SUM(po_rows) AS po_rows,
+                           SUM(contract_rows) AS contract_rows
+                    FROM project_usage
+                    GROUP BY contractor
+                )
+                SELECT r.contractor,
+                       COALESCE(c.category, '') AS category,
+                       r.activity_rows, r.invoice_rows, r.po_rows, r.contract_rows,
+                       r.activity_rows+r.invoice_rows+r.po_rows+r.contract_rows AS usage_count
+                FROM rolled r
+                LEFT JOIN contractors c ON LOWER(c.name)=LOWER(r.contractor)
+                ORDER BY CASE WHEN COALESCE(c.category,'')='Drilling' THEN 0 ELSE 1 END,
+                         r.activity_rows DESC, r.invoice_rows DESC, r.contractor
+            """, (project_name, project_name, project_name, project_name))
+            return [dict(row) for row in cur.fetchall()]
 
 
 @app.post("/projects")

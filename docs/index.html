@@ -53,6 +53,7 @@
   --font:'Inter',sans-serif; --font-mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+[hidden]{display:none!important;}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;overflow-x:hidden;}
 
 /* Login */
@@ -68,6 +69,8 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:16px;paddi
 .workspace-context-btn{display:flex;align-items:center;gap:8px;padding:7px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--text);font:600 12px var(--font);cursor:pointer;max-width:330px;}
 .workspace-context-btn:hover{border-color:var(--accent);color:var(--accent);}
 .workspace-context-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.workspace-scope-note{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;color:#1d4ed8;font:700 11px var(--font);}
+.workspace-scope-note::before{content:'●';font-size:8px;color:#2563eb;}
 .workspace-gate{position:fixed;inset:0;z-index:5000;display:none;place-items:center;padding:24px;background:rgba(20,31,45,.72);backdrop-filter:blur(8px);}
 .workspace-gate.open{display:grid;}
 body.workspace-locked{overflow:hidden;}
@@ -1863,12 +1866,12 @@ tbody td[contenteditable=true]:focus {
           <div class="chart-title">EOS Daily Reports</div>
           <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Typed/digital drilling report PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Client
-              <select id="import-client-select" onchange="populateImportProjectOptions()" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace client
+              <select id="import-client-select" disabled style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
                 <option value="">Select client</option>
               </select>
             </label>
-            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Project
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace project
               <select id="import-project-select" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);" disabled>
                 <option value="">Select client first</option>
               </select>
@@ -2030,7 +2033,7 @@ tbody td[contenteditable=true]:focus {
       <div class="chart-card" style="margin-bottom:14px;">
         <div style="display:grid;grid-template-columns:150px minmax(180px,1fr) auto auto auto auto;gap:8px;align-items:end;">
           <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()"></select></div>
-          <div class="filter-group"><label>Project</label><select id="budget-project-filter" onchange="renderProjectBudgets()"></select></div>
+          <div class="filter-group"><label>Workspace project</label><span class="workspace-scope-note" id="budget-project-context">Selected at entry</span><select id="budget-project-filter" onchange="renderProjectBudgets()" hidden></select></div>
           <button class="btn-primary" type="button" onclick="addProjectBudgetRow()">Add budget row</button>
           <button class="btn-secondary" type="button" onclick="seedCarboroughBudgets()">Load Carborough Downs</button>
           <button class="btn-secondary" type="button" onclick="document.getElementById('project-budget-csv').click()">Import CSV</button>
@@ -2093,7 +2096,8 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div class="management-toolbar">
         <input class="management-search" id="cost-contract-search" placeholder="Search by contract, project or contractor" oninput="renderCostContracts()"/>
-        <select id="cost-contract-project-filter" class="range-date" onchange="renderCostContracts()"><option value="">All projects</option></select>
+        <span class="workspace-scope-note" id="cost-contract-project-context">Selected at entry</span>
+        <select id="cost-contract-project-filter" class="range-date" onchange="renderCostContracts()" hidden><option value=""></option></select>
         <button class="btn-secondary" type="button" onclick="loadCostContracts()">Refresh</button>
       </div>
       <div class="management-table" id="cost-contract-register">
@@ -2112,7 +2116,7 @@ tbody td[contenteditable=true]:focus {
         <div class="contract-dialog-head">Add cost contract</div>
         <div class="contract-dialog-body">
           <div class="filter-group wide"><label>Contract name *</label><input id="cost-contract-name" required placeholder="e.g. Ironbark Drilling 2026"/></div>
-          <div class="filter-group"><label>Project *</label><select id="cost-contract-project" required onchange="syncCostContractClient()"></select></div>
+          <div class="filter-group"><label>Workspace project *</label><select id="cost-contract-project" required disabled onchange="syncCostContractClient()"></select></div>
           <div class="filter-group"><label>Client</label><input id="cost-contract-client" disabled/></div>
           <div class="filter-group"><label>Contractor *</label><select id="cost-contract-contractor" required onchange="loadCostContractYears()"></select></div>
           <div class="filter-group"><label>Status</label><select id="cost-contract-status"><option>Draft</option><option>Pending Approval</option><option>Active</option><option>Ended</option></select></div>
@@ -2280,12 +2284,12 @@ tbody td[contenteditable=true]:focus {
         <div class="period-report-head">
           <div>
             <div class="period-report-title">Period Drilling Report</div>
-            <div class="period-report-meta" id="period-report-meta">Select a date range and project to summarise drilling performance.</div>
+            <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
           </div>
           <div class="period-report-actions">
             <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
             <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
-            <select id="period-project-select" onchange="renderPeriodReport()"><option value="">All Projects</option></select>
+            <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
             <button class="btn-primary" type="button" onclick="loadReportsPage()">Update report</button>
             <button class="btn-secondary" type="button" onclick="printPeriodReport()">Print PDF</button>
           </div>
@@ -2520,7 +2524,7 @@ tbody td[contenteditable=true]:focus {
         <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
-          <div class="filter-group"><label>Project</label><input type="text" id="po-project" placeholder="e.g. Ironbark North"/></div>
+          <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/></div>
           <div class="filter-group"><label>PO Value ($)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
           <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>
@@ -2558,7 +2562,7 @@ tbody td[contenteditable=true]:focus {
         <div class="filter-body" id="ten-add-body" style="grid-template-columns:repeat(4,1fr);">
           <div class="filter-group"><label>Tenement ID *</label><input id="ten-id" placeholder="EPC 1234"/></div>
           <div class="filter-group"><label>Name</label><input id="ten-name" placeholder="Ironbark North"/></div>
-          <div class="filter-group"><label>Project</label><input id="ten-project" placeholder="Ironbark"/></div>
+          <div class="filter-group"><label>Workspace project</label><input id="ten-project" readonly/></div>
           <div class="filter-group"><label>Status</label><select id="ten-status"><option>Granted</option><option>Application</option><option>Renewal Due</option><option>Suspended</option><option>Surrendered</option></select></div>
           <div class="filter-group"><label>Holder</label><input id="ten-holder" placeholder="Entity / JV"/></div>
           <div class="filter-group"><label>Area ha</label><input id="ten-area" type="number" placeholder="0" step="0.01"/></div>
@@ -2679,7 +2683,7 @@ tbody td[contenteditable=true]:focus {
         <div class="filter-body open" style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:14px;">
           <div class="filter-group"><label>Contractor</label><select id="manual-inv-contractor"></select></div>
           <div class="filter-group"><label>Program</label><select id="manual-inv-program" onchange="populateManualInvoiceForm(true)"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select></div>
-          <div class="filter-group"><label>Project</label><select id="manual-inv-project"><option value="Ironbark">Ironbark</option></select></div>
+          <div class="filter-group"><label>Workspace project</label><select id="manual-inv-project" disabled><option value=""></option></select></div>
           <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
           <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
           <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
@@ -2752,8 +2756,8 @@ tbody td[contenteditable=true]:focus {
           <div style="font-size:12px;color:var(--muted);margin-top:3px;">Detailed borehole register. Editable cells save back to the borehole database.</div>
         </div>
         <div class="details-controls">
-          <label for="details-project-filter">Project</label>
-          <select id="details-project-filter" onchange="renderBoreholeDetails()"><option value="">All Projects</option></select>
+          <span class="workspace-scope-note" id="details-project-context">Selected at entry</span>
+          <select id="details-project-filter" onchange="renderBoreholeDetails()" hidden><option value=""></option></select>
           <label for="details-status-filter">Status</label>
           <select id="details-status-filter" onchange="renderBoreholeDetails()">
             <option value="">All Status</option>
@@ -2796,10 +2800,8 @@ tbody td[contenteditable=true]:focus {
           <div style="font-size:12px;color:var(--muted);margin-top:3px;">Rig calendar for planned holes. Click a hole block to edit rig, dates, status, and notes.</div>
         </div>
         <div class="schedule-controls">
-          <label for="schedule-project-filter">Project</label>
-          <select id="schedule-project-filter" onchange="renderDrillingSchedule()">
-            <option value="">All Projects</option>
-          </select>
+          <span class="workspace-scope-note" id="schedule-project-context">Selected at entry</span>
+          <select id="schedule-project-filter" onchange="renderDrillingSchedule()" hidden><option value=""></option></select>
           <label for="schedule-rig-filter">Rig</label>
           <select id="schedule-rig-filter" onchange="renderDrillingSchedule()">
             <option value="">All Rigs</option>
@@ -2964,7 +2966,7 @@ tbody td[contenteditable=true]:focus {
         <div style="padding:16px;border-bottom:1px solid var(--border);background:var(--bg3);">
           <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Add New Borehole</div>
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px;">
-            <div class="filter-group"><label>Project</label><select id="add-bh-project"><option value="">Select project</option></select></div>
+            <div class="filter-group"><label>Workspace project</label><select id="add-bh-project" disabled><option value="">Select project</option></select></div>
             <div class="filter-group"><label>Year</label><input type="text" id="add-bh-year" placeholder="2026" value="2026"/></div>
             <div class="filter-group"><label>Site ID</label><input type="text" id="add-bh-site" placeholder="CD-26-004"/></div>
             <div class="filter-group"><label>Hole ID *</label><input type="text" id="add-bh-id" placeholder="26-062"/></div>
@@ -3153,13 +3155,16 @@ function activeContractorCategory(){
 }
 
 function reportDrillingContractor(){
-  if(activeContractor && activeContractorCategory() === 'Drilling'){
+  const projectContractors=filteredContractors();
+  if(activeContractor && activeContractorCategory() === 'Drilling'
+      && projectContractors.some(function(c){return c.name===activeContractor;})){
     sessionStorage.setItem('drillops_report_drilling_contractor', activeContractor);
     return activeContractor;
   }
   const saved = sessionStorage.getItem('drillops_report_drilling_contractor') || '';
-  if(saved && contractorCategory(contractorByName(saved)) === 'Drilling') return saved;
-  const drilling = filteredContractors().find(function(c){ return contractorCategory(c) === 'Drilling'; })
+  if(saved && contractorCategory(contractorByName(saved)) === 'Drilling'
+      && projectContractors.some(function(c){return c.name===saved;})) return saved;
+  const drilling = projectContractors.find(function(c){ return contractorCategory(c) === 'Drilling'; })
     || CONTRACTORS.find(function(c){ return contractorCategory(c) === 'Drilling'; });
   return (drilling && drilling.name) || activeContractor;
 }
@@ -3169,7 +3174,23 @@ function contractorInProgram(c, program) {
 }
 
 function filteredContractors() {
-  return CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
+  const programContractors=CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
+  if(!activeProjectName||!projectContractorsData.length)return programContractors;
+  const linkedNames=new Set(projectContractorsData.map(function(row){return String(row.contractor||'').toLowerCase();}));
+  const linked=programContractors.filter(function(c){return linkedNames.has(String(c.name||'').toLowerCase());});
+  return linked.length?linked:programContractors;
+}
+
+async function loadProjectContractors(){
+  projectContractorsData=[];
+  if(!activeProjectName)return projectContractorsData;
+  try{
+    const response=await fetch(API+'/project-contractors?project='+encodeURIComponent(activeProjectName)+'&_='+Date.now(),{cache:'no-store'});
+    if(response.ok)projectContractorsData=await response.json();
+  }catch(error){
+    console.warn('Could not load project suppliers',error);
+  }
+  return projectContractorsData;
 }
 
 async function fetchContractors(){
@@ -3563,6 +3584,7 @@ function removeUserAccount(index){
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let activeClientId = null;
 let activeProjectName = '';
+let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
@@ -4669,7 +4691,7 @@ function selectedPeriod(){
   const toEl=document.getElementById('period-range-to');
   if(!from&&dates.length){from=dates[0];if(fromEl)fromEl.value=from;}
   if(!to&&dates.length){to=dates[dates.length-1];if(toEl)toEl.value=to;}
-  return {from:from,to:to,project:document.getElementById('period-project-select')?.value||''};
+  return {from:from,to:to,project:activeProjectName||''};
 }
 
 async function loadReportsPage(){
@@ -4682,7 +4704,7 @@ async function loadReportsPage(){
       fetch(API+'/activity-report-data?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}),
       loadPeriodSupportInvoices(),
       fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
-      fetch(API+'/project-budget-source?project=Ironbark&year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
+      fetch(API+'/project-budget-source?project='+encodeURIComponent(activeProjectName||'')+'&year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
     ]);
     applyActivityReportBundle(results[0]);
     periodReportActivitiesData=activitiesData;
@@ -4705,7 +4727,7 @@ async function loadPeriodSupportInvoices(){
   const contractors=filteredContractors().filter(function(c){return contractorCategory(c)!=='Drilling';});
   const stamp=Date.now();
   const rows=await Promise.all(contractors.map(function(c){
-    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
+    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&project='+encodeURIComponent(activeProjectName||'')+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
   }));
   return rows.flat().map(function(r){
     const c=contractorByName(r.contractor);
@@ -6619,7 +6641,7 @@ function attachCostingLineEdits(){
 // ── Purchase Orders ───────────────────────────────────────────────────────────
 async function loadPOs(){
   try{
-    const res=await fetch(API+'/purchase_orders?contractor='+encodeURIComponent(activeContractor));
+    const res=await fetch(API+'/purchase_orders?project='+encodeURIComponent(activeProjectName||''));
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load POs','err');return;}
     posData=await res.json();
     if(!Array.isArray(posData)){toast('PO data error','err');return;}
@@ -6631,7 +6653,7 @@ async function loadPOs(){
 function renderPOs(rows){
   document.getElementById('po-count').textContent=rows.length;
   const tbody=document.getElementById('po-body');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders yet</div></td></tr>`;return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders recorded for '+esc(activeProjectName||'this project')+'</div></td></tr>';return;}
   tbody.innerHTML=rows.map(r=>{
     const spent=parseFloat(r.spent_to_date)||0;
     const value=parseFloat(r.po_value)||0;
@@ -6673,7 +6695,7 @@ async function addPO(){
     const payload={
       po_number:pn,
       contractor:activeContractor,
-      project:document.getElementById('po-project').value,
+      project:activeProjectName||'',
       description:document.getElementById('po-description').value,
       po_value:parseFloat(document.getElementById('po-value').value)||0,
       issue_date:document.getElementById('po-issue-date').value,
@@ -6690,7 +6712,7 @@ async function addPO(){
     const d=await res.json();
     console.log('PO response:', res.status, d);
     if(!res.ok){toast(d.detail||'Failed to save PO — see console','err');return;}
-    ['po-number','po-project','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
+    ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
     toast('✓ Purchase order saved');
     loadPOs();
   }catch(e){toast('Network error: '+e.message,'err');console.error('addPO error:',e);}
@@ -7172,7 +7194,7 @@ invSidebarBtn.addEventListener('click', async()=>{
   const log=document.getElementById('inv-import-log-sidebar');log.innerHTML='';
   let importedContractor='';
   for(const file of invSidebarFiles){
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');
     try{
       const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
       if(d.status==='imported'){
@@ -7184,8 +7206,11 @@ invSidebarBtn.addEventListener('click', async()=>{
   }
   invSidebarBtn.textContent='Import Invoices';invSidebarBtn.disabled=false;
   invSidebarFiles=[];invSidebarInput.value='';
+  await loadProjectContractors();
+  ensureActiveContractorInProgram();
+  buildContractorSwitcher();
   // Refresh invoices tab if open
-  if(document.getElementById('page-invoices').classList.contains('active')) loadInvoices(importedContractor);
+  if(document.getElementById('page-invoices').classList.contains('active')) await loadInvoices(importedContractor);
 });
 
 // ── OCR Import (handwritten drill logs via Gemini) ────────────────────────────
@@ -7447,7 +7472,7 @@ if(invFileInput && invImportBtn && invDropZone) {
     if(log) log.innerHTML='';
     let importedContractor='';
     for(const file of invPendingFiles){
-      const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);
+      const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');
       try{
         const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
         if(log) {
@@ -7461,7 +7486,10 @@ if(invFileInput && invImportBtn && invDropZone) {
     }
     invImportBtn.textContent='Import Invoices';invImportBtn.disabled=false;
     invPendingFiles=[];invFileInput.value='';
-    loadInvoices(importedContractor);
+    await loadProjectContractors();
+    ensureActiveContractorInProgram();
+    buildContractorSwitcher();
+    await loadInvoices(importedContractor);
   });
 }
 
@@ -7469,24 +7497,19 @@ function populateManualInvoiceForm(programChanged){
   var csel = document.getElementById('manual-inv-contractor');
   if(csel){
     var current = csel.value || activeContractor;
-    csel.innerHTML = CONTRACTORS.map(function(c){
+    var availableContractors=filteredContractors();
+    csel.innerHTML = availableContractors.map(function(c){
       return '<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>';
     }).join('');
-    csel.value = current && CONTRACTORS.some(function(c){ return c.name === current; }) ? current : activeContractor;
+    csel.value = current && availableContractors.some(function(c){ return c.name === current; }) ? current : activeContractor;
   }
   var programSel = document.getElementById('manual-inv-program');
   var program = (programSel && programSel.value) || activeProgram || 'Exploration';
   if(programSel) programSel.value = program;
   var psel = document.getElementById('manual-inv-project');
   if(psel){
-    var currentProject = psel.value || 'Ironbark';
-    var names = knownProjectNames().filter(function(name){ return projectProgramForName(name) === program; });
-    if(!names.length) names = knownProjectNames();
-    psel.innerHTML = names.map(function(name){
-      return '<option value="'+attr(name)+'">'+esc(name)+'</option>';
-    }).join('');
-    if(programChanged || !names.includes(currentProject)) currentProject = names.includes('Ironbark') ? 'Ironbark' : (names[0] || '');
-    psel.value = currentProject;
+    psel.innerHTML='<option value="'+attr(activeProjectName||'')+'">'+esc(activeProjectName||'No project selected')+'</option>';
+    psel.value=activeProjectName||'';
   }
   var date = document.getElementById('manual-inv-date');
   if(date && !date.value) date.value = new Date().toISOString().slice(0,10);
@@ -7536,7 +7559,7 @@ async function createManualInvoice(){
   var total = manualInvoiceNumber('manual-inv-total');
   var payload = {
     contractor: (document.getElementById('manual-inv-contractor') || {}).value || activeContractor,
-    project: (document.getElementById('manual-inv-project') || {}).value || 'Ironbark',
+    project: activeProjectName||'',
     program: (document.getElementById('manual-inv-program') || {}).value || activeProgram || 'Exploration',
     invoice_number: ((document.getElementById('manual-inv-number') || {}).value || '').trim(),
     invoice_date: ((document.getElementById('manual-inv-date') || {}).value || '').trim(),
@@ -7580,12 +7603,12 @@ async function createManualInvoice(){
 async function loadInvoices(preferredContractor){
   try{
     populateManualInvoiceForm();
-    // The invoice register is company-wide. A workspace selection must not hide
-    // an invoice that has just been imported for another project or contractor.
-    var invoiceContractors = CONTRACTORS.map(function(c){ return c.name; });
+    // The invoice register inherits the selected workspace project. Contractor
+    // remains a useful secondary filter because a project can have many suppliers.
+    var invoiceContractors = filteredContractors().map(function(c){ return c.name; });
     if(activeContractor && !invoiceContractors.includes(activeContractor)) invoiceContractors.push(activeContractor);
     var results = await Promise.all(invoiceContractors.map(function(name){
-      return fetch(API+'/invoices?contractor='+encodeURIComponent(name))
+      return fetch(API+'/invoices?contractor='+encodeURIComponent(name)+'&project='+encodeURIComponent(activeProjectName||''))
         .then(function(r){ return r.ok ? r.json() : []; })
         .catch(function(){ return []; });
     }));
@@ -8332,7 +8355,7 @@ function renderBoreholeDetails() {
     return (parseFloat(a.drill_order)||9999) - (parseFloat(b.drill_order)||9999);
   });
   syncBoreholeDetailsProjectFilter(allRows);
-  const projectFilter = document.getElementById('details-project-filter')?.value || '';
+  const projectFilter = activeProjectName || '';
   const statusFilter = document.getElementById('details-status-filter')?.value || '';
   const search = (document.getElementById('details-search')?.value || '').trim().toLowerCase();
   const rows = allRows.filter(function(b) {
@@ -8605,7 +8628,7 @@ function renderDrillingSchedule() {
   });
   syncScheduleProjectFilter(baseRows);
   syncScheduleRigFilter(baseRows);
-  const projectFilter = document.getElementById('schedule-project-filter')?.value || '';
+  const projectFilter = activeProjectName || '';
   const statusFilter = document.getElementById('schedule-status-filter')?.value || '';
   const rigFilter = document.getElementById('schedule-rig-filter')?.value || '';
   const range = ensureScheduleRange(baseRows);
@@ -9291,6 +9314,14 @@ function showWorkspaceGate() {
 }
 
 function syncWorkspaceControls() {
+  ['period-project-context','budget-project-context','cost-contract-project-context','details-project-context','schedule-project-context'].forEach(function(id){
+    var node=document.getElementById(id);
+    if(node)node.textContent=activeProjectName||'No project selected';
+  });
+  var poProject=document.getElementById('po-project');
+  if(poProject)poProject.value=activeProjectName||'';
+  var tenementProject=document.getElementById('ten-project');
+  if(tenementProject)tenementProject.value=activeProjectName||'';
   var clientSelect = document.getElementById('bh-client-select');
   if(clientSelect) clientSelect.value = activeClientId ? String(activeClientId) : '';
   buildProgramSelector();
@@ -9303,10 +9334,6 @@ function syncWorkspaceControls() {
   buildProjectBudgetSelectors();
   if(budgetProgram) budgetProgram.value = activeProgram;
   if(budgetProject) budgetProject.value = activeProjectName;
-  var reportProject = document.getElementById('period-project-select');
-  if(reportProject && Array.from(reportProject.options).some(function(option){ return option.value === activeProjectName; })) {
-    reportProject.value = activeProjectName;
-  }
   var importClient = document.getElementById('import-client-select');
   var importProject = document.getElementById('import-project-select');
   if(importClient) importClient.value = activeClientId ? String(activeClientId) : '';
@@ -9314,7 +9341,7 @@ function syncWorkspaceControls() {
   populateImportScopeOptions();
 }
 
-function confirmWorkspaceSelection() {
+async function confirmWorkspaceSelection() {
   var clientSelect = document.getElementById('workspace-client-select');
   var projectSelect = document.getElementById('workspace-project-select');
   var error = document.getElementById('workspace-gate-error');
@@ -9333,6 +9360,10 @@ function confirmWorkspaceSelection() {
   sessionStorage.setItem('drillops_client_id', String(activeClientId));
   sessionStorage.setItem('drillops_project', activeProjectName);
   sessionStorage.setItem('drillops_program', activeProgram);
+  await loadProjectContractors();
+  ensureActiveContractorInProgram();
+  buildContractorSwitcher();
+  renderDrawerContractors();
   setProgramControls();
   syncWorkspaceControls();
   var client = clientById(activeClientId);
@@ -9356,6 +9387,10 @@ async function changeWorkspace() {
   dailyReportsData = [];
   productionRawData = [];
   productionFilteredData = [];
+  await loadProjectContractors();
+  ensureActiveContractorInProgram();
+  buildContractorSwitcher();
+  renderDrawerContractors();
   await loadProjectBudgets();
   syncWorkspaceControls();
   await updateDbCount();
@@ -9441,7 +9476,7 @@ function renderClientProjectHierarchy() {
   });
 }
 
-function activateProjectFromRegister(projectId){
+async function activateProjectFromRegister(projectId){
   var project=projects.find(function(item){return Number(item.id)===Number(projectId);});
   if(!project)return;
   activeClientId=Number(project.client_id)||null;
@@ -9450,6 +9485,9 @@ function activateProjectFromRegister(projectId){
   sessionStorage.setItem('drillops_client_id',String(activeClientId||''));
   sessionStorage.setItem('drillops_project',activeProjectName);
   sessionStorage.setItem('drillops_program',activeProgram);
+  await loadProjectContractors();
+  ensureActiveContractorInProgram();
+  buildContractorSwitcher();
   syncWorkspaceControls();
   var label=document.getElementById('workspace-context-label');
   var client=clientById(activeClientId);
@@ -9459,11 +9497,26 @@ function activateProjectFromRegister(projectId){
 }
 
 async function openProjectCostContracts(projectId){
+  var project=projects.find(function(item){return Number(item.id)===Number(projectId);});
+  if(project&&project.name!==activeProjectName){
+    activeClientId=Number(project.client_id)||null;
+    activeProjectName=project.name;
+    activeProgram=projectProgram(project);
+    sessionStorage.setItem('drillops_client_id',String(activeClientId||''));
+    sessionStorage.setItem('drillops_project',activeProjectName);
+    sessionStorage.setItem('drillops_program',activeProgram);
+    await loadProjectContractors();
+    ensureActiveContractorInProgram();
+    buildContractorSwitcher();
+    syncWorkspaceControls();
+    var label=document.getElementById('workspace-context-label');
+    var client=clientById(activeClientId);
+    if(label)label.textContent=(client?client.name+' / ':'')+activeProjectName;
+  }
   var button=document.querySelector('.drawer-nav-item[data-page="cost-contracts"]');
   if(button)drawerNav(button);
   await loadCostContracts();
-  var filter=document.getElementById('cost-contract-project-filter');
-  if(filter){filter.value=String(projectId);renderCostContracts();}
+  renderCostContracts();
 }
 
 async function saveProjectHierarchyField(element, field) {
@@ -9512,20 +9565,19 @@ function contractDateDisplay(value){
 function populateCostContractProjectOptions(){
   const filter=document.getElementById('cost-contract-project-filter');
   const dialog=document.getElementById('cost-contract-project');
-  const currentFilter=filter?.value||'';
-  const currentDialog=dialog?.value||'';
-  const options=projects.filter(function(project){return project.status!=='Inactive';}).map(function(project){
+  const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+  const scopedProjects=workspaceProject?[workspaceProject]:[];
+  const options=scopedProjects.map(function(project){
     const client=clientById(project.client_id);
     return '<option value="'+Number(project.id)+'">'+esc((client?client.name+' / ':'')+project.name)+'</option>';
   }).join('');
   if(filter){
-    filter.innerHTML='<option value="">All projects</option>'+options;
-    if(projects.some(function(project){return String(project.id)===currentFilter;}))filter.value=currentFilter;
+    filter.innerHTML=options||'<option value=""></option>';
+    filter.value=workspaceProject?String(workspaceProject.id):'';
   }
   if(dialog){
-    dialog.innerHTML='<option value="">Select project</option>'+options;
-    const preferred=currentDialog||String((projects.find(function(project){return project.name===activeProjectName;})||{}).id||'');
-    if(preferred)dialog.value=preferred;
+    dialog.innerHTML=options||'<option value="">No workspace project</option>';
+    dialog.value=workspaceProject?String(workspaceProject.id):'';
   }
 }
 
@@ -9535,8 +9587,10 @@ async function loadCostContracts(){
   if(!projects.length)await fetchProjects();
   populateCostContractProjectOptions();
   try{
+    const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+    const projectQuery=workspaceProject?'&project_id='+encodeURIComponent(workspaceProject.id):'';
     const responses=await Promise.all([
-      fetch(API+'/cost-contracts?_='+Date.now(),{cache:'no-store'}),
+      fetch(API+'/cost-contracts?_='+Date.now()+projectQuery,{cache:'no-store'}),
       fetch(API+'/rate-library-summary?_='+Date.now(),{cache:'no-store'})
     ]);
     if(!responses[0].ok)throw new Error(await responses[0].text());
@@ -9558,15 +9612,17 @@ async function loadCostContracts(){
 function renderRateLibrarySummary(){
   const body=document.getElementById('rate-library-summary-body');
   if(!body)return;
-  const totalLines=rateLibrarySummaryData.reduce(function(sum,row){
+  const linkedNames=new Set(filteredContractors().map(function(item){return item.name;}));
+  const visibleRows=rateLibrarySummaryData.filter(function(row){return linkedNames.has(row.contractor);});
+  const totalLines=visibleRows.reduce(function(sum,row){
     return sum+Number(row.drilling_rates||0)+Number(row.hourly_rates||0)+Number(row.consumable_rates||0);
   },0);
-  const contractors=new Set(rateLibrarySummaryData.map(function(row){return row.contractor;}));
+  const contractors=new Set(visibleRows.map(function(row){return row.contractor;}));
   const setText=function(id,value){const node=document.getElementById(id);if(node)node.textContent=Number(value||0).toLocaleString('en-AU');};
-  setText('rate-library-schedule-count',rateLibrarySummaryData.length);
+  setText('rate-library-schedule-count',visibleRows.length);
   setText('rate-library-contractor-count',contractors.size);
   setText('rate-library-line-count',totalLines);
-  body.innerHTML=rateLibrarySummaryData.map(function(row){
+  body.innerHTML=visibleRows.map(function(row){
     const linked=Number(row.contract_count||0);
     return '<tr>'
       +'<td style="font-weight:750;">'+esc(row.contractor)+'</td>'
@@ -9577,7 +9633,7 @@ function renderRateLibrarySummary(){
       +'<td><span style="font-weight:700;">'+linked+'</span><div style="font-size:10px;color:var(--muted);">'+Number(row.active_contract_count||0)+' active</div></td>'
       +'<td><button class="btn-primary" type="button" onclick="createContractFromLibrary(decodeURIComponent(&apos;'+attr(encodeURIComponent(row.contractor))+'&apos;),decodeURIComponent(&apos;'+attr(encodeURIComponent(row.year))+'&apos;))">Use for project</button></td>'
       +'</tr>';
-  }).join('')||'<tr><td colspan="7" class="contract-empty">No reusable rate schedules are configured yet. Open Manage rate library to add one.</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="contract-empty">No reusable rate schedules are linked to '+esc(activeProjectName||'this project')+'. Open Manage rate library to add one.</td></tr>';
 }
 
 function openRateLibraryEditor(){
@@ -9601,7 +9657,8 @@ function renderCostContracts(){
   const body=document.getElementById('cost-contract-body');
   if(!body)return;
   const search=String(document.getElementById('cost-contract-search')?.value||'').trim().toLowerCase();
-  const projectId=document.getElementById('cost-contract-project-filter')?.value||'';
+  const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+  const projectId=workspaceProject?String(workspaceProject.id):'';
   const rows=costContractsData.filter(function(contract){
     const text=[contract.name,contract.project_name,contract.client_name,contract.contractor,contract.rate_year].join(' ').toLowerCase();
     return (!activeCostContractStatus||contract.status===activeCostContractStatus)
@@ -9634,11 +9691,12 @@ function showCostContractDialog(preferredProjectId,preferredContractor,preferred
   document.getElementById('cost-contract-year').innerHTML='<option value="">Loading schedules...</option>';
   document.getElementById('cost-contract-notes').value='';
   const contractor=document.getElementById('cost-contract-contractor');
-  contractor.innerHTML=CONTRACTORS.filter(function(item){return item.active!==false;}).map(function(item){
+  const availableContractors=filteredContractors().filter(function(item){return item.active!==false;});
+  contractor.innerHTML=availableContractors.map(function(item){
     return '<option value="'+attr(item.name)+'">'+esc(item.name)+'</option>';
   }).join('');
-  const drilling=CONTRACTORS.find(function(item){return contractorCategory(item)==='Drilling';});
-  if(preferredContractor&&CONTRACTORS.some(function(item){return item.name===preferredContractor;}))contractor.value=preferredContractor;
+  const drilling=availableContractors.find(function(item){return contractorCategory(item)==='Drilling';});
+  if(preferredContractor&&availableContractors.some(function(item){return item.name===preferredContractor;}))contractor.value=preferredContractor;
   else if(drilling)contractor.value=drilling.name;
   document.getElementById('cost-contract-copy-library').checked=true;
   loadCostContractYears(preferredYear);
@@ -9972,15 +10030,8 @@ function buildProjectBudgetSelectors(){
     programSel.value=current===''?'':(programs.includes(current)?current:'');
   }
   if(projectSel){
-    const current=projectSel.value;
-    const program=programSel?programSel.value:activeProgram;
-    const names=knownProjectNames().filter(function(name){
-      if(!program)return true;
-      const budgetMatch=(projectBudgetsData||[]).some(function(r){return r.project===name&&(!r.program||r.program===program);});
-      return budgetMatch||projectProgramForName(name)===program;
-    });
-    projectSel.innerHTML='<option value="">All Projects</option>'+names.map(function(name){return '<option value="'+attr(name)+'">'+esc(name)+'</option>';}).join('');
-    if(names.includes(current))projectSel.value=current;
+    projectSel.innerHTML='<option value="'+attr(activeProjectName||'')+'">'+esc(activeProjectName||'No project selected')+'</option>';
+    projectSel.value=activeProjectName||'';
   }
 }
 
@@ -10306,8 +10357,8 @@ async function loadProjectBudgets(){
 }
 
 function projectBudgetFilteredRows(){
-  const program=document.getElementById('budget-program-filter')?.value||'';
-  const project=document.getElementById('budget-project-filter')?.value||'';
+  const program=activeProgram||document.getElementById('budget-program-filter')?.value||'';
+  const project=activeProjectName||'';
   return (projectBudgetsData||[]).filter(function(r){
     if(program&&r.program!==program)return false;
     if(project&&r.project!==project)return false;
