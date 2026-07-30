@@ -1759,7 +1759,7 @@ tbody td[contenteditable=true]:focus {
     <div class="drawer-section">
       <div class="drawer-section-title">Navigation</div>
       <div class="drawer-nav-list">
-        <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Budgets, contracts &amp; rates</span></button>
+        <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients, contracts &amp; rates</span></button>
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
@@ -1997,10 +1997,10 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
-    <!-- Project Budgets -->
+    <!-- Projects -->
     <section class="page management-page" id="page-project-budgets">
       <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab active" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab active" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
         <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
         <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
       </nav>
@@ -2030,43 +2030,12 @@ tbody td[contenteditable=true]:focus {
           </table>
         </div>
       </div>
-      <div style="font-size:15px;font-weight:750;color:var(--text);margin:20px 0 10px;">Project budgets</div>
-      <div class="kpi-grid" style="margin-bottom:14px;">
-        <div class="kpi-card"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div></div>
-        <div class="kpi-card"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div></div>
-        <div class="kpi-card"><div class="kpi-label">Support / Other</div><div class="kpi-value" id="budget-kpi-support">--</div></div>
-        <div class="kpi-card"><div class="kpi-label">Rows</div><div class="kpi-value" id="budget-kpi-rows">--</div></div>
-      </div>
-      <div class="chart-card" style="margin-bottom:14px;">
-        <div style="display:grid;grid-template-columns:150px minmax(180px,1fr) auto auto auto auto;gap:8px;align-items:end;">
-          <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()"></select></div>
-          <div class="filter-group"><label>Workspace project</label><span class="workspace-scope-note" id="budget-project-context">Selected at entry</span><select id="budget-project-filter" onchange="renderProjectBudgets()" hidden></select></div>
-          <button class="btn-primary" type="button" onclick="addProjectBudgetRow()">Add budget row</button>
-          <button class="btn-secondary" type="button" onclick="seedCarboroughBudgets()">Load Carborough Downs</button>
-          <button class="btn-secondary" type="button" onclick="document.getElementById('project-budget-csv').click()">Import CSV</button>
-          <button class="btn-ghost" type="button" onclick="downloadProjectBudgetTemplate()">Template</button>
-          <input id="project-budget-csv" type="file" accept=".csv" onchange="importProjectBudgetCSV(this)" style="display:none;"/>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <div class="table-toolbar">
-          <div class="table-count"><span id="budget-row-count">0</span> budget rows</div>
-        </div>
-        <div class="tbl-scroll" style="max-height:520px;">
-          <table>
-            <thead>
-              <tr><th>Program</th><th>Project</th><th>Section</th><th>Contractor</th><th>Category</th><th>Budget</th><th>Allocation</th><th>Notes</th><th></th></tr>
-            </thead>
-            <tbody id="project-budget-body"></tbody>
-          </table>
-        </div>
-      </div>
     </section>
 
     <!-- Cost Contracts -->
     <section class="page management-page" id="page-cost-contracts">
       <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
         <button class="project-workspace-tab active" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
         <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
       </nav>
@@ -2617,7 +2586,7 @@ tbody td[contenteditable=true]:focus {
     <!-- Rate Library -->
     <section class="page" id="page-rates">
       <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects &amp; Budgets</button>
+        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
         <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
         <button class="project-workspace-tab active" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
       </nav>
@@ -4050,7 +4019,7 @@ function triggerPageLoad(page){
   if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
   if(page==='boreholes')    loadBoreholes();
   if(page==='production')   loadDailyProduction();
-  if(page==='project-budgets') loadProjectBudgets();
+  if(page==='project-budgets') renderClientProjectHierarchy();
   if(page==='cost-contracts') loadCostContracts();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
