@@ -1,16 +1,18 @@
 # DrillOps — Field Operations App
 
+> Before deploying the current backend and portal, complete [AUTHENTICATION.md](AUTHENTICATION.md).
+
 A private web application for importing, viewing, and analysing daily drilling reports.
 
 ## Architecture
 
 ```
 DrillOps/
-├── backend/          ← FastAPI + SQLite (deploy to Render)
+├── backend/          ← FastAPI + Supabase PostgreSQL (deploy to Render)
 │   ├── main.py
 │   ├── requirements.txt
 │   └── render.yaml
-└── frontend/         ← Static HTML/JS (deploy to GitHub Pages)
+└── docs/             ← Static HTML/JS (deploy to GitHub Pages)
     └── index.html
 ```
 

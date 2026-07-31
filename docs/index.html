@@ -1714,18 +1714,23 @@ tbody td[contenteditable=true]:focus {
           <div style="background:#fff;padding:40px 36px;border-radius:16px;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
             <div style="font-size:22px;font-weight:700;color:#111827;margin-bottom:4px;">Sign in</div>
             <div style="font-size:13px;color:#6b7280;margin-bottom:24px;">Access your drilling operations dashboard</div>
+            <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Email</label>
+            <input id="login-email" type="email" placeholder="name@company.com" autocomplete="username"
+              style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:14px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
+              onfocus="this.style.borderColor='#2563eb';this.style.background='#fff'"
+              onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
             <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Password</label>
             <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"
               style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:16px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
               onfocus="this.style.borderColor='#2563eb';this.style.background='#fff'"
               onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
-            <button onclick="doLogin()" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;"
+            <button id="login-button" onclick="doLogin()" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;"
               onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
-              Access DrillOps
+              Sign in securely
             </button>
             <div id="login-error" style="color:#dc2626;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div>
             <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e5ea;text-align:center;">
-              <div style="font-size:11px;color:#9ca3af;">Secure Access</div>
+              <div style="font-size:11px;color:#9ca3af;">Protected by Supabase Auth</div>
             </div>
           </div>
         </div>
@@ -1939,25 +1944,16 @@ tbody td[contenteditable=true]:focus {
         </div>
 
         <div class="chart-card">
-          <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('account-panel-body').classList.toggle('open');">User Accounts <span class="arrow">▼</span></button>
+          <button class="filter-toggle open" onclick="this.classList.toggle('open');document.getElementById('account-panel-body').classList.toggle('open');">Authenticated Account <span class="arrow">▼</span></button>
           <div class="filter-body open" id="account-panel-body" style="display:block;padding:14px;">
-            <div class="table-wrap" style="margin-bottom:12px;">
-              <div class="table-toolbar"><div class="table-count"><span id="user-count">—</span> users</div></div>
-              <div class="tbl-scroll" style="max-height:260px;"><table id="user-table">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
-                <tbody id="user-body"></tbody>
-              </table></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+              <div>
+                <div id="authenticated-user-name" style="font-weight:700;color:var(--text);">Signed in</div>
+                <div id="authenticated-user-email" style="font-size:12px;color:var(--muted);margin-top:3px;"></div>
+              </div>
+              <button class="drawer-danger-btn" style="width:auto;margin:0;padding:9px 14px;" onclick="doLogout()">Sign out</button>
             </div>
-            <div class="account-settings-grid">
-              <div class="filter-group"><label>Name</label><input id="user-name" placeholder="Jane Smith"/></div>
-              <div class="filter-group"><label>Email</label><input id="user-email" placeholder="jane@company.com"/></div>
-              <div class="filter-group"><label>Role</label><select id="user-role"><option>Admin</option><option>Manager</option><option>Field User</option><option>Viewer</option></select></div>
-              <div class="filter-group"><label>Status</label><select id="user-status"><option>Active</option><option>Pending</option><option>Disabled</option></select></div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-              <button class="btn-primary" onclick="addUserAccount()">Add User</button>
-              <button class="btn-ghost" onclick="clearUserForm()">Clear</button>
-            </div>
+            <p class="drawer-help-text" style="margin-top:12px;">Users and project memberships are managed in Supabase. Local browser-only accounts have been removed.</p>
           </div>
         </div>
       </div>
@@ -1983,11 +1979,8 @@ tbody td[contenteditable=true]:focus {
 
       <div class="account-settings-grid">
         <div class="chart-card">
-          <div class="chart-title">Session Password</div>
-          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
-            <input class="drawer-input" id="new-password" type="password" placeholder="New password"/>
-            <button class="btn-primary" onclick="changePassword()">Set</button>
-          </div>
+          <div class="chart-title">Session Security</div>
+          <p class="drawer-help-text">Your access token refreshes automatically and is cleared when you sign out.</p>
         </div>
         <div class="chart-card">
           <div class="chart-title">Data Management</div>
@@ -3013,30 +3006,129 @@ tbody td[contenteditable=true]:focus {
 </div>
 <div id="toast"></div>
 
+<script src="./config.js"></script>
 <script>
-// ── Password ──────────────────────────────────────────────────────────────────
-let APP_PASSWORD = sessionStorage.getItem('drillops_pw') || 'DrillOps2025';
-function doLogin() {
-  if (document.getElementById('login-password').value === APP_PASSWORD) {
-    sessionStorage.setItem('drillops_auth','1');
+// ── Supabase authentication ──────────────────────────────────────────────────
+const API = window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'
+  ? 'http://localhost:8000' : 'https://api.drillops.com.au';
+const AUTH_STORAGE_KEY='drillops_supabase_session';
+const nativeFetch=window.fetch.bind(window);
+let authSession=null;
+let portalInitialized=false;
+let authenticatedUser=null;
+
+function authConfig(){
+  const config=window.DRILLOPS_CONFIG||{};
+  const url=String(config.supabaseUrl||'').replace(/\/$/,'');
+  const key=String(config.supabasePublishableKey||'');
+  if(!url||!key)throw new Error('Authentication is not configured. Add the Supabase URL and publishable key to docs/config.js.');
+  return {url,key};
+}
+
+function saveAuthSession(session){
+  authSession=session;
+  if(session)sessionStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
+  else sessionStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function loadStoredAuthSession(){
+  try{return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY)||'null');}
+  catch(error){sessionStorage.removeItem(AUTH_STORAGE_KEY);return null;}
+}
+
+async function authRequest(grantType,payload){
+  const config=authConfig();
+  const response=await nativeFetch(config.url+'/auth/v1/token?grant_type='+encodeURIComponent(grantType),{
+    method:'POST',
+    headers:{apikey:config.key,'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.message||data.error_description||'Authentication failed');
+  saveAuthSession(data);
+  return data;
+}
+
+async function accessToken(){
+  if(!authSession)authSession=loadStoredAuthSession();
+  if(!authSession)return '';
+  const expiresAt=Number(authSession.expires_at||0);
+  if(!expiresAt||expiresAt*1000>Date.now()+90000)return authSession.access_token;
+  const refreshed=await authRequest('refresh_token',{refresh_token:authSession.refresh_token});
+  return refreshed.access_token;
+}
+
+window.fetch=async function(input,options={}){
+  const requestUrl=typeof input==='string'?input:input.url;
+  const targetOrigin=new URL(requestUrl,window.location.href).origin;
+  if(targetOrigin!==new URL(API).origin)return nativeFetch(input,options);
+  const token=await accessToken();
+  if(!token)throw new Error('Authentication required');
+  const headers=new Headers(options.headers||(input instanceof Request?input.headers:undefined));
+  headers.set('Authorization','Bearer '+token);
+  const response=await nativeFetch(input,{...options,headers});
+  if(response.status===401){
+    saveAuthSession(null);
+    showLogin('Your session expired. Please sign in again.');
+  }
+  return response;
+};
+
+function showLogin(message=''){
+  document.getElementById('login-screen').style.display='block';
+  document.body.classList.add('workspace-locked');
+  document.getElementById('login-error').textContent=message;
+}
+
+async function verifyPortalAccount(){
+  const response=await fetch(API+'/mobile/me',{cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
+  if(data.role!=='System Administrator'){
+    throw new Error('This management portal currently requires the System Administrator role.');
+  }
+  authenticatedUser=data;
+  const name=document.getElementById('authenticated-user-name');
+  const email=document.getElementById('authenticated-user-email');
+  if(name)name.textContent=data.name+' · '+data.role;
+  if(email)email.textContent=data.email;
+}
+
+async function doLogin(){
+  const button=document.getElementById('login-button');
+  const error=document.getElementById('login-error');
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  const password=document.getElementById('login-password').value;
+  if(!email||!password){error.textContent='Email and password are required.';return;}
+  button.disabled=true;button.textContent='Signing in…';error.textContent='';
+  try{
+    await authRequest('password',{email,password});
+    await verifyPortalAccount();
     document.getElementById('login-screen').style.display='none';
-  } else {
-    const e=document.getElementById('login-error');
-    e.textContent='Incorrect password';
-    document.getElementById('login-password').value='';
-    setTimeout(()=>e.textContent='',3000);
+    await initializePortal();
+  }catch(authenticationError){
+    saveAuthSession(null);
+    error.textContent=authenticationError.message||'Sign-in failed.';
+  }finally{
+    button.disabled=false;button.textContent='Sign in securely';
   }
 }
-function changePassword(){
-  const np=document.getElementById('new-password').value.trim();
-  if(!np){toast('Enter a new password','err');return;}
-  APP_PASSWORD=np;
-  sessionStorage.setItem('drillops_pw',np);
-  document.getElementById('new-password').value='';
-  toast('✓ Password updated for this session');
+
+async function doLogout(){
+  try{
+    const config=authConfig();
+    const token=await accessToken();
+    if(token)await nativeFetch(config.url+'/auth/v1/logout',{
+      method:'POST',headers:{apikey:config.key,Authorization:'Bearer '+token}
+    });
+  }catch(error){}
+  saveAuthSession(null);
+  sessionStorage.clear();
+  window.location.reload();
 }
-document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-if(sessionStorage.getItem('drillops_auth')==='1') document.getElementById('login-screen').style.display='none';
+
+document.getElementById('login-email').addEventListener('keydown',event=>{if(event.key==='Enter')document.getElementById('login-password').focus();});
+document.getElementById('login-password').addEventListener('keydown',event=>{if(event.key==='Enter')doLogin();});
 
 // ── API fetch with retry (handles Render cold starts) ────────────────────────
 async function apiFetch(url, options={}, retries=2){
@@ -3053,10 +3145,6 @@ async function apiFetch(url, options={}, retries=2){
     }
   }
 }
-
-// ── Config ────────────────────────────────────────────────────────────────────
-const API = window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'
-  ? 'http://localhost:8000' : 'https://api.drillops.com.au';
 
 // Contractors — loaded from backend, stored locally
 const PLANNING_CONTRACTOR = 'Company';
@@ -3531,64 +3619,6 @@ function doClearContractor(){
 document.getElementById('clear-btn').addEventListener('click',doClearContractor);
 // sidebar removed
 
-// ── User accounts ────────────────────────────────────────────────────────────
-function userAccountsKey(){
-  return 'drillops_user_accounts';
-}
-function seedUserAccounts(){
-  return [
-    {name:'Workspace Admin',email:'admin@drillops.local',role:'Admin',status:'Active'},
-    {name:'Field Manager',email:'manager@drillops.local',role:'Manager',status:'Active'}
-  ];
-}
-function loadUserAccounts(){
-  try{
-    userAccountsData=JSON.parse(localStorage.getItem(userAccountsKey())||'null')||seedUserAccounts();
-  }catch(e){
-    userAccountsData=seedUserAccounts();
-  }
-  saveUserAccounts();
-  renderUserAccounts();
-}
-function saveUserAccounts(){
-  localStorage.setItem(userAccountsKey(),JSON.stringify(userAccountsData));
-}
-function renderUserAccounts(){
-  const body=document.getElementById('user-body');
-  const count=document.getElementById('user-count');
-  if(!body)return;
-  if(count)count.textContent=userAccountsData.length;
-  body.innerHTML=userAccountsData.map((u,i)=>`
-    <tr>
-      <td>${esc(u.name)}</td>
-      <td>${esc(u.email)}</td>
-      <td>${esc(u.role)}</td>
-      <td><span class="tenement-risk ${u.status==='Active'?'ok':u.status==='Pending'?'warn':'crit'}">${esc(u.status)}</span></td>
-      <td><button class="btn-csv" onclick="removeUserAccount(${i})">Remove</button></td>
-    </tr>`).join('')||'<tr><td colspan="5"><div class="empty-state">No users yet</div></td></tr>';
-}
-function clearUserForm(){
-  ['user-name','user-email'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const role=document.getElementById('user-role');if(role)role.value='Admin';
-  const status=document.getElementById('user-status');if(status)status.value='Active';
-}
-function addUserAccount(){
-  const name=document.getElementById('user-name').value.trim();
-  const email=document.getElementById('user-email').value.trim();
-  if(!name||!email){toast('User name and email required','err');return;}
-  const user={name,email,role:document.getElementById('user-role').value,status:document.getElementById('user-status').value};
-  const existing=userAccountsData.findIndex(u=>u.email.toLowerCase()===email.toLowerCase());
-  if(existing>=0)userAccountsData[existing]=user;
-  else userAccountsData.push(user);
-  saveUserAccounts();renderUserAccounts();clearUserForm();toast('User account saved');
-}
-function removeUserAccount(index){
-  const user=userAccountsData[index];
-  if(!user||!confirm('Remove '+user.email+'?'))return;
-  userAccountsData.splice(index,1);
-  saveUserAccounts();renderUserAccounts();toast('User removed','warn');
-}
-
 // ── Global State ──────────────────────────────────────────────────────────────
 let activeContractor = sessionStorage.getItem('drillops_contractor') || 'Allianz Drilling';
 let activeClientId = null;
@@ -3607,7 +3637,6 @@ let costingHolesData=[], costingDatesData=[], costingLinesData=[];
 let drillingRatesData=[], hourlyRatesData=[];
 let posData=[];
 let tenementsData=[];
-let userAccountsData=[];
 let charts={};
 let activeRateYear=null;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
@@ -4017,7 +4046,7 @@ function triggerPageLoad(page){
   updateContractorSwitcherVisibility(page);
   // Always reload fresh data when switching tabs — no caching
   if(page==='importer')     {};
-  if(page==='contractors')  { renderContractorsPage(); loadUserAccounts(); }
+  if(page==='contractors')  { renderContractorsPage(); }
   if(page==='boreholes')    loadBoreholes();
   if(page==='production')   loadDailyProduction();
   if(page==='project-budgets') renderClientProjectHierarchy();
@@ -10934,7 +10963,9 @@ function highlightBhRow(holeId) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-(async()=>{
+async function initializePortal(){
+  if(portalInitialized)return;
+  portalInitialized=true;
   await fetchContractors();
   await fetchProjects();
   await showWorkspaceGate();
@@ -10949,6 +10980,20 @@ function highlightBhRow(holeId) {
   await loadBoreholes();
   filterBoreholesByProject();
   setTimeout(()=>loadAnalytics('all'),200);
+}
+
+(async()=>{
+  authSession=loadStoredAuthSession();
+  if(!authSession){showLogin();return;}
+  try{
+    await accessToken();
+    await verifyPortalAccount();
+    document.getElementById('login-screen').style.display='none';
+    await initializePortal();
+  }catch(error){
+    saveAuthSession(null);
+    showLogin(error.message||'Please sign in again.');
+  }
 })();
 </script>
 </body>

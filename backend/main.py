@@ -25,15 +25,18 @@ from psycopg2.pool import ThreadedConnectionPool
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from security import DrillOpsAuthMiddleware
 
 app = FastAPI(title="DrillOps API", version="3.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "https://drillops.com.au,https://www.drillops.com.au",
+    ).split(",")
+    if origin.strip()
+]
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
@@ -207,6 +210,18 @@ def get_conn():
             discard = discard or bool(conn.closed)
             _db_pool.putconn(conn, close=discard)
         _db_pool_slots.release()
+
+
+# Every non-public request must carry a valid Supabase JWT. The new /mobile
+# routes enforce project/organisation permissions; unscoped legacy routes are
+# restricted to DrillOps system administrators.
+app.add_middleware(DrillOpsAuthMiddleware, get_conn=get_conn)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("shutdown")
@@ -9589,3 +9604,8 @@ def reset_db(contractor: Optional[str]=Query(None)):
                     cur.execute(f"DELETE FROM {tbl}")
         conn.commit()
     return {"status":"cleared","contractor":contractor or "all"}
+
+
+from mobile_api import create_mobile_router
+
+app.include_router(create_mobile_router(get_conn))
