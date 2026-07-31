@@ -93,6 +93,8 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
     <div class="scroll"><table><thead><tr><th>Consumable</th><th>Occurrences</th><th>Total Qty</th><th>Unit</th><th>Total Cost</th></tr></thead><tbody id="consumables-body"></tbody></table></div>
   </div>
 </main>
+<script src="./config.js"></script>
+<script src="./auth-guard.js"></script>
 <script>
 const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
 const params=new URLSearchParams(window.location.search);
