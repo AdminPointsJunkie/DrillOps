@@ -6,7 +6,7 @@
 <title>Daily Report | DrillOps</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#1f5f8b;--green:#27ae60;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#315d49;--green:#27ae60;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
 main{max-width:1540px;margin:0 auto;padding:18px;}
@@ -16,7 +16,7 @@ main{max-width:1540px;margin:0 auto;padding:18px;}
 .meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;}
 .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 button,.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;cursor:pointer;}
-button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#254b3a;}
 button:disabled{cursor:not-allowed;opacity:.45;background:#f8fafc;color:#7b8794;border-color:#d8e0ea;}
 .report-nav-position{display:inline-flex;align-items:center;padding:0 2px;color:var(--muted);font-size:11px;font-weight:750;white-space:nowrap;}
 select,textarea{border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-size:12px;}
@@ -55,9 +55,9 @@ thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:u
 tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
 tbody td[contenteditable=true]{cursor:text;outline:none;}
 tbody td[contenteditable=true]:hover{background:#f0f4ff;}
-tbody td[contenteditable=true]:focus{background:#e8f0ff;box-shadow:inset 0 0 0 2px var(--accent);}
+tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2px var(--accent);}
 tr.saving td{background:#fff7e6;}
-.code{font-family:var(--mono);font-size:11px;color:#174d72;font-weight:700;}
+.code{font-family:var(--mono);font-size:11px;color:#254b3a;font-weight:700;}
 .flag{display:inline-flex;border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:3px 8px;font-size:10px;font-weight:800;margin-top:8px;}
 .approval-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;}
 .approval-row{display:grid;grid-template-columns:220px minmax(0,1fr) auto;gap:10px;align-items:start;}
@@ -69,8 +69,8 @@ tr.saving td{background:#fff7e6;}
 .approval-status.approved{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .approval-status.rejected{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
 .approval-status.query{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
-.approval-status.locked{background:#eef2ff;color:#243b80;border:1px solid #bdc9ff;}
-.lock-btn.locked{background:#1f3f82;color:#fff;border-color:#1f3f82;}
+.approval-status.locked{background:#eef2ff;color:#315d49;border:1px solid #bdc9ff;}
+.lock-btn.locked{background:#19201d;color:#fff;border-color:#19201d;}
 .log-list{display:flex;flex-direction:column;gap:10px;margin-top:10px;max-height:170px;overflow:auto;}
 .log-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;color:#334155;}
 .log-icon{font-size:13px;line-height:1.3;}
@@ -80,12 +80,13 @@ tr.saving td{background:#fff7e6;}
 .weekly-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px;}
 .weekly-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;}
 .weekly-card-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;}
-.weekly-card-value{font-size:18px;font-weight:800;color:#0f172a;}
+.weekly-card-value{font-size:18px;font-weight:800;color:#19201d;}
 .weekly-card-meta{font-size:12px;color:#607083;margin-top:4px;line-height:1.4;}
 .work-note{max-width:520px;line-height:1.45;}
 @media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
 @media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}}
 </style>
+<link rel="stylesheet" href="./drillops-theme.css"/>
 </head>
 <body>
 <main>
@@ -760,11 +761,11 @@ function renderMccWeeklyReport(rows,consumables,crew){
   document.getElementById('notes').innerHTML=descriptions.length?'<ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'No work descriptions recorded.';
   const activityTable=document.getElementById('activity-body').closest('table');
   activityTable.querySelector('thead').innerHTML='<tr><th>Time</th><th>Program</th><th>Workstream</th><th>Person</th><th>Role</th><th>Hours</th><th>Work Performed</th><th>Cost</th></tr>';
-  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(noteField(r,'Created by'))+'</td><td>'+esc(noteField(r,'Role'))+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td style="font-weight:800;color:#0f172a;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No weekly activities found.</td></tr>';
+  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(noteField(r,'Created by'))+'</td><td>'+esc(noteField(r,'Role'))+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No weekly activities found.</td></tr>';
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Program</th><th>Workstream</th><th>Hours/Qty</th><th>Schedule</th><th>Rate</th><th>Total</th></tr>';
   const equipmentDisplay=rows.filter(r=>noteField(r,'Equipment')||String(r.notes||'').includes('Charge type: Equipment'));
-  document.getElementById('equipment-body').innerHTML=equipmentDisplay.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(noteField(r,'Equipment')||equipmentName(r))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+esc(r.rate_basis||'')+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#0f172a;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentDisplay.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(noteField(r,'Equipment')||equipmentName(r))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+esc(r.rate_basis||'')+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport);
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
@@ -843,7 +844,7 @@ function renderReport(rows,consumables,crew){
     +'<td contenteditable="true" data-col="unit_rate">'+((r.unit_rate!=null)?cur(r.unit_rate):'')+'</td>'
     +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
     +'</tr>').join('')
-    +(equipmentRows.length?'<tr><td colspan="5"></td><td style="font-weight:800;color:#0f172a;">Sub-total</td><td style="font-weight:800;color:#0f172a;">'+cur(equipmentSubtotal)+'</td></tr>':'<tr><td colspan="7" class="empty">No equipment recorded.</td></tr>');
+    +(equipmentRows.length?'<tr><td colspan="5"></td><td style="font-weight:800;color:#19201d;">Sub-total</td><td style="font-weight:800;color:#19201d;">'+cur(equipmentSubtotal)+'</td></tr>':'<tr><td colspan="7" class="empty">No equipment recorded.</td></tr>');
   equipmentBody.querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportEquipmentEdit(cell));
     cell.addEventListener('keydown',e=>{

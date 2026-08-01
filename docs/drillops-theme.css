@@ -1,0 +1,166 @@
+/* DrillOps mineral design system
+   Graphite anchors the product, warm stone keeps dense workspaces calm,
+   eucalyptus carries actions, and leaf green is reserved for highlights. */
+:root {
+  color-scheme: light;
+  --graphite: #19201d;
+  --graphite-soft: #2c3531;
+  --stone: #f2f0e9;
+  --stone-soft: #faf9f5;
+  --eucalyptus: #315d49;
+  --eucalyptus-dark: #254b3a;
+  --eucalyptus-soft: #e5eee1;
+  --leaf: #a8cf72;
+
+  --bg: var(--stone);
+  --bg2: #ffffff;
+  --bg3: var(--stone-soft);
+  --panel: #ffffff;
+  --card: #ffffff;
+  --border: #deded5;
+  --line: #deded5;
+  --accent: var(--eucalyptus);
+  --accent-light: var(--eucalyptus-soft);
+  --accent-hover: var(--eucalyptus-dark);
+  --blue: var(--eucalyptus);
+  --purple: #69776f;
+  --navy: var(--graphite);
+  --orange: var(--eucalyptus);
+  --ink: var(--graphite);
+  --text: var(--graphite);
+  --text2: #3f4b45;
+  --muted: #66706b;
+  --muted2: #929a95;
+  --green: #397554;
+  --green-light: #e8f2e8;
+  --yellow: #a56c18;
+  --yellow-light: #fbf2dc;
+  --amber: #93621d;
+  --red: #a6423f;
+  --red-light: #f9e9e6;
+  --shadow: 0 1px 3px rgba(25, 32, 29, 0.08);
+  --shadow-md: 0 14px 34px rgba(25, 32, 29, 0.11);
+}
+
+body {
+  background: linear-gradient(180deg, #faf9f5 0, var(--stone) 280px);
+  color: var(--graphite);
+}
+
+::selection { background: rgba(168, 207, 114, 0.45); color: var(--graphite); }
+:focus-visible { outline: 3px solid rgba(49, 93, 73, 0.28); outline-offset: 2px; }
+
+/* Core portal chrome */
+.logo { color: var(--eucalyptus); }
+.workspace-scope-note,
+.production-context {
+  border-color: #bed1bf;
+  background: var(--eucalyptus-soft);
+  color: var(--eucalyptus-dark);
+}
+.workspace-scope-note::before { color: var(--leaf); }
+.workspace-gate { background: rgba(25, 32, 29, 0.74); }
+.workspace-gate-card,
+.entity-dialog,
+dialog { box-shadow: 0 28px 80px rgba(25, 32, 29, 0.28); }
+.workspace-gate-brand { color: var(--eucalyptus); }
+
+.con-btn.active,
+.hole-btn.active {
+  background: var(--eucalyptus);
+  border-color: var(--eucalyptus);
+}
+#drawer-overlay { background: rgba(25, 32, 29, 0.38); }
+#drawer { background: var(--stone-soft); border-color: var(--border); }
+.drawer-nav-item:hover,
+.nav-item:hover { background: #eef1eb; color: var(--graphite); }
+.drawer-nav-item.active,
+.nav-item.active,
+.project-workspace-tab.active {
+  background: var(--eucalyptus-soft);
+  color: var(--eucalyptus-dark);
+  box-shadow: inset 3px 0 0 var(--eucalyptus);
+}
+
+.kpi,
+.chart-card,
+.filter-bar,
+.table-wrap,
+.card,
+.panel,
+.report-detail {
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+.kpi::before { background: var(--eucalyptus); }
+.section-title,
+.kpi-value,
+.value,
+.title { color: var(--graphite); }
+.filter-body,
+.table-head,
+.report-head,
+.timeline,
+.notes,
+.approval-panel,
+.weekly-card,
+.metric { background: var(--stone-soft); }
+thead th { background: #efeee8; color: #5e6963; border-color: var(--border); }
+tbody td { border-color: #ecebe5; }
+tbody tr:hover,
+.data-table tbody tr:hover { background: #f8f7f2; }
+tbody td[contenteditable="true"]:hover { background: #eef3ea; }
+tbody td[contenteditable="true"]:focus {
+  background: var(--eucalyptus-soft);
+  box-shadow: inset 0 0 0 2px var(--eucalyptus);
+}
+
+.btn-primary,
+.btn.primary,
+.workspace-gate-action,
+.login-submit {
+  background: var(--eucalyptus);
+  border-color: var(--eucalyptus);
+  color: #fff;
+}
+.btn-primary:hover,
+.btn.primary:hover,
+.workspace-gate-action:hover,
+.login-submit:hover { background: var(--eucalyptus-dark); }
+button:hover,
+.btn:hover { border-color: #93aa9d; color: var(--eucalyptus-dark); background: #f0f3ed; }
+input:focus,
+select:focus,
+textarea:focus { border-color: var(--eucalyptus) !important; }
+
+/* Field portal */
+body > header { background: var(--graphite); box-shadow: 0 2px 18px rgba(25, 32, 29, 0.2); }
+body > header .brand span { color: var(--leaf); }
+.identity { color: #bdc8c1; }
+.tabs { background: #e3e4dd; }
+.tab.active { color: var(--eucalyptus-dark); box-shadow: var(--shadow); }
+.badge,
+.notification.unread .dot { background: var(--leaf); color: var(--graphite); }
+.status.submitted,
+.pending { color: var(--eucalyptus-dark); background: var(--eucalyptus-soft); }
+.status.approved,
+.approved { color: #2f6849; background: #e8f2e8; }
+.status.query,
+.query,
+.flag { color: #795119; background: #fbf2dc; }
+.status.rejected,
+.rejected { color: #8d3836; background: #f9e9e6; }
+.notice { border-color: #dfcb9e; background: #fbf5e8; color: #6f5629; }
+.toast { background: var(--graphite); }
+.code { color: var(--eucalyptus-dark); }
+
+/* Keep the public account wall's approved homepage palette intact. */
+#login-screen { background: #fff; color: var(--graphite); }
+#login-screen .marketing-button { background: var(--leaf); color: var(--graphite); }
+#login-screen .marketing-button:hover { background: #bce083; }
+#login-screen .marketing-button.ghost { background: transparent; color: #fff; }
+
+@media print {
+  body { background: #fff; }
+  .kpi, .panel, .report-detail, .table-wrap { box-shadow: none; }
+}
