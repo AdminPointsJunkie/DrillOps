@@ -520,6 +520,48 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-mini-table th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px;border-bottom:1px solid var(--border);text-align:left;}
 .period-mini-table td{padding:8px;border-bottom:1px solid #eef2f7;color:var(--text2);vertical-align:top;}
 .period-mini-table .num{text-align:right;font-family:var(--font-mono);white-space:nowrap;}
+.period-code-row{cursor:pointer;transition:background .14s ease,box-shadow .14s ease;}
+.period-code-row:hover,.period-code-row:focus{background:#eef4ea;box-shadow:inset 3px 0 0 var(--accent);outline:0;}
+.period-code-row td:first-child{font-weight:750;color:var(--accent);}
+.period-code-open{display:inline-flex;align-items:center;gap:7px;}
+.period-code-open::after{content:'View lines';font:700 9px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);opacity:0;transform:translateX(-4px);transition:opacity .14s ease,transform .14s ease;}
+.period-code-row:hover .period-code-open::after,.period-code-row:focus .period-code-open::after{opacity:1;transform:translateX(0);}
+.period-table-hint{margin:-3px 0 8px;color:var(--muted);font-size:11px;}
+.period-drilldown-dialog{width:min(1240px,calc(100vw - 32px));max-height:min(880px,calc(100vh - 32px));border:0;border-radius:14px;padding:0;background:#fff;color:var(--text);box-shadow:0 30px 90px rgba(9,24,42,.34);overflow:hidden;}
+.period-drilldown-dialog::backdrop{background:rgba(20,31,45,.62);backdrop-filter:blur(5px);}
+.period-drilldown-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px 16px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.period-drilldown-eyebrow{margin-bottom:5px;color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;}
+.period-drilldown-title{font-size:21px;font-weight:820;letter-spacing:-.35px;color:var(--text);}
+.period-drilldown-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45;}
+.period-drilldown-close{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border:1px solid var(--border);border-radius:50%;background:#fff;color:var(--text);font-size:21px;line-height:1;cursor:pointer;}
+.period-drilldown-close:hover{border-color:var(--accent);color:var(--accent);}
+.period-drilldown-body{padding:18px 22px 22px;overflow:auto;max-height:calc(100vh - 130px);}
+.period-drilldown-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:18px;}
+.period-drilldown-kpi{padding:11px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;}
+.period-drilldown-kpi span{display:block;margin-bottom:4px;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
+.period-drilldown-kpi strong{font-size:18px;font-weight:820;color:var(--text);}
+.period-drilldown-section{margin-top:17px;}
+.period-drilldown-section:first-of-type{margin-top:0;}
+.period-drilldown-section-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:7px;font-size:11px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.period-drilldown-section-title span{font-size:10px;font-weight:600;letter-spacing:0;text-transform:none;}
+.period-drilldown-scroll{overflow:auto;border:1px solid var(--border);border-radius:8px;}
+.period-drilldown-table{width:100%;min-width:780px;border-collapse:collapse;font-size:11px;}
+.period-drilldown-table.line-items{min-width:1180px;}
+.period-drilldown-table th{position:sticky;top:0;z-index:1;padding:8px 9px;background:#eef1f3;border-bottom:1px solid #d7dde3;color:#5f6c67;text-align:left;font-size:9px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;}
+.period-drilldown-table td{padding:8px 9px;border-bottom:1px solid #edf0f2;color:var(--text2);vertical-align:top;}
+.period-drilldown-table tr:last-child td{border-bottom:0;}
+.period-drilldown-table tbody tr:hover td{background:#fafbf8;}
+.period-drilldown-table .num{text-align:right;font-family:var(--font-mono);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.period-drilldown-table .source{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.period-drilldown-table .notes{min-width:260px;max-width:420px;white-space:normal;line-height:1.4;}
+.period-drilldown-table tfoot td{position:sticky;bottom:0;background:#e8eee9;border-top:2px solid var(--accent);font-weight:850;color:var(--text);}
+@media(max-width:700px){
+  .period-drilldown-dialog{width:calc(100vw - 16px);max-height:calc(100vh - 16px);}
+  .period-drilldown-head{padding:16px;}
+  .period-drilldown-body{padding:14px 16px 18px;max-height:calc(100vh - 100px);}
+  .period-drilldown-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .period-code-open::after{display:none;}
+}
 .period-support-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:14px;break-inside:avoid;}
 .period-support-total{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:12px;}
 .period-support-card{border:1px solid var(--border);border-radius:7px;background:#fff;padding:10px 12px;}
@@ -2084,6 +2126,41 @@ tbody td[contenteditable=true]:focus {
   </form>
 </dialog>
 
+<dialog class="period-drilldown-dialog" id="period-code-drilldown" aria-labelledby="period-code-drilldown-title">
+  <div class="period-drilldown-head">
+    <div>
+      <div class="period-drilldown-eyebrow">Cost code drill-down</div>
+      <div class="period-drilldown-title" id="period-code-drilldown-title">Activity line items</div>
+      <div class="period-drilldown-meta" id="period-code-drilldown-meta"></div>
+    </div>
+    <button class="period-drilldown-close" type="button" aria-label="Close activity line items" onclick="document.getElementById('period-code-drilldown').close()">&times;</button>
+  </div>
+  <div class="period-drilldown-body">
+    <div class="period-drilldown-kpis">
+      <div class="period-drilldown-kpi"><span>Line items</span><strong id="period-code-line-count">0</strong></div>
+      <div class="period-drilldown-kpi"><span>Total hours</span><strong id="period-code-hours">0.00</strong></div>
+      <div class="period-drilldown-kpi"><span>Total metres</span><strong id="period-code-metres">0.00</strong></div>
+      <div class="period-drilldown-kpi"><span>Total value</span><strong id="period-code-value">$0.00</strong></div>
+    </div>
+    <section class="period-drilldown-section">
+      <div class="period-drilldown-section-title">Pivot by report and hole <span id="period-code-pivot-count"></span></div>
+      <div class="period-drilldown-scroll"><table class="period-drilldown-table">
+        <thead><tr><th>Date</th><th>Plod / source</th><th>Hole</th><th>Shift</th><th class="num">Lines</th><th class="num">Hours</th><th class="num">Metres</th><th class="num">Value</th></tr></thead>
+        <tbody id="period-code-pivot-body"></tbody>
+        <tfoot id="period-code-pivot-foot"></tfoot>
+      </table></div>
+    </section>
+    <section class="period-drilldown-section">
+      <div class="period-drilldown-section-title">Underlying line items <span>Filtered to the selected report period</span></div>
+      <div class="period-drilldown-scroll"><table class="period-drilldown-table line-items">
+        <thead><tr><th>Date</th><th>Plod / source</th><th>Hole</th><th>Shift</th><th>Time</th><th class="num">Duration</th><th class="num">Metres</th><th class="num">Qty</th><th class="num">Unit rate</th><th class="num">Value</th><th>Notes</th></tr></thead>
+        <tbody id="period-code-line-body"></tbody>
+        <tfoot id="period-code-line-foot"></tfoot>
+      </table></div>
+    </section>
+  </div>
+</dialog>
+
 <div class="shell">
   <!-- Sidebar -->
   
@@ -2182,25 +2259,6 @@ tbody td[contenteditable=true]:focus {
             <p class="drawer-help-text" style="margin-top:12px;">Users and project memberships are managed in Supabase. Local browser-only accounts have been removed.</p>
           </div>
         </div>
-      </div>
-
-      <div class="chart-card" style="margin-top:14px;">
-        <div class="chart-title">Contractor Cost Centre / Expense GL Assignment</div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.55;">
-          <strong>TECEXP</strong> is the Ironbark Exploration cost centre. Only contractors assigned to Ironbark appear in this forecast. The four-digit value is the contractor's Expense GL account used by the forecast. The current TECEXP forecast displays 4200, 4250 and 4350; another Finance account such as 4300 can still be assigned here.
-        </p>
-        <div class="tbl-scroll">
-          <table>
-            <thead><tr><th>Contractor</th><th>Category</th><th>Programs</th><th>Sites</th><th>Cost centre</th><th>Expense GL</th><th>Account</th><th></th></tr></thead>
-            <tbody id="contractor-gl-body"></tbody>
-          </table>
-        </div>
-        <datalist id="contractor-gl-options">
-          <option value="4200">Consulting Services</option>
-          <option value="4250">Contractors</option>
-          <option value="4300">Other Finance account</option>
-          <option value="4350">Drilling Services</option>
-        </datalist>
       </div>
 
       <div class="account-settings-grid">
@@ -5680,6 +5738,87 @@ function reportCodeGroup(row,code){
   return 'Chargeable / Other';
 }
 
+function periodLineSource(row){
+  const source=String(row.source_file||'').split(/[\\/]/).pop();
+  return source?source.replace(/\.[^.]+$/,''):'Manual entry';
+}
+
+function periodCodePivot(rows){
+  const pivot=new Map();
+  rows.forEach(function(row){
+    const source=periodLineSource(row);
+    const key=[row.date||'',source,rowHole(row),row.shift||''].join('|');
+    if(!pivot.has(key))pivot.set(key,{date:row.date||'',source:source,hole:rowHole(row)||'--',shift:row.shift||'--',count:0,hours:0,metres:0,value:0});
+    const item=pivot.get(key);
+    item.count+=1;
+    item.hours+=parseDurationHours(row.total_time);
+    item.metres+=numVal(row.total_metres);
+    item.value+=numVal(row.line_cost);
+  });
+  return Array.from(pivot.values()).sort(function(a,b){
+    return reportDateSortKey(b.date)-reportDateSortKey(a.date)||a.source.localeCompare(b.source)||a.hole.localeCompare(b.hole);
+  });
+}
+
+function openPeriodCodeDrilldown(code,group){
+  const holes=holeLookup();
+  const rows=periodFilteredRows().filter(function(row){
+    const rowCode=reportActivityCode(row,holes);
+    return rowCode===code&&reportCodeGroup(row,rowCode)===group;
+  }).sort(function(a,b){
+    return reportDateSortKey(b.date)-reportDateSortKey(a.date)||periodLineSource(a).localeCompare(periodLineSource(b))||String(a.time_from||'').localeCompare(String(b.time_from||''));
+  });
+  if(!rows.length){toast('No source line items found for '+code,'warn');return;}
+  const pivot=periodCodePivot(rows);
+  const hours=rows.reduce(function(sum,row){return sum+parseDurationHours(row.total_time);},0);
+  const metres=rows.reduce(function(sum,row){return sum+numVal(row.total_metres);},0);
+  const value=rows.reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
+  const period=selectedPeriod();
+  const project=period.project||activeProjectName||'All projects';
+  setPeriodText('period-code-drilldown-title',code);
+  setPeriodText('period-code-drilldown-meta',group+' | '+project+' | '+(period.from||'start')+' to '+(period.to||'end'));
+  setPeriodText('period-code-line-count',rows.length.toLocaleString());
+  setPeriodText('period-code-hours',hours.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}));
+  setPeriodText('period-code-metres',metres.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}));
+  setPeriodText('period-code-value',cur(value));
+  setPeriodText('period-code-pivot-count',pivot.length+' report / hole combination'+(pivot.length===1?'':'s'));
+  document.getElementById('period-code-pivot-body').innerHTML=pivot.map(function(item){
+    return '<tr>'
+      +'<td>'+esc(item.date||'--')+'</td>'
+      +'<td class="source" title="'+attr(item.source)+'">'+esc(item.source)+'</td>'
+      +'<td>'+esc(item.hole)+'</td>'
+      +'<td>'+esc(item.shift)+'</td>'
+      +'<td class="num">'+item.count.toLocaleString()+'</td>'
+      +'<td class="num">'+item.hours.toFixed(2)+'</td>'
+      +'<td class="num">'+item.metres.toFixed(2)+'</td>'
+      +'<td class="num">'+cur(item.value)+'</td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('period-code-pivot-foot').innerHTML='<tr><td colspan="4">Total</td><td class="num">'+rows.length.toLocaleString()+'</td><td class="num">'+hours.toFixed(2)+'</td><td class="num">'+metres.toFixed(2)+'</td><td class="num">'+cur(value)+'</td></tr>';
+  document.getElementById('period-code-line-body').innerHTML=rows.map(function(row){
+    const time=[row.time_from,row.time_to].filter(Boolean).join('–')||'--';
+    const duration=parseDurationHours(row.total_time);
+    const quantity=numberFromAny(row.quantity);
+    const unitRate=numberFromAny(row.unit_rate);
+    return '<tr>'
+      +'<td>'+esc(row.date||'--')+'</td>'
+      +'<td class="source" title="'+attr(periodLineSource(row))+'">'+esc(periodLineSource(row))+'</td>'
+      +'<td>'+esc(rowHole(row)||'--')+'</td>'
+      +'<td>'+esc(row.shift||'--')+'</td>'
+      +'<td>'+esc(time)+'</td>'
+      +'<td class="num">'+(duration?duration.toFixed(2):'--')+'</td>'
+      +'<td class="num">'+(numVal(row.total_metres)?numVal(row.total_metres).toFixed(2):'--')+'</td>'
+      +'<td class="num">'+(quantity==null?'--':quantity.toFixed(2))+'</td>'
+      +'<td class="num">'+(unitRate==null?'--':cur(unitRate))+'</td>'
+      +'<td class="num">'+cur(row.line_cost)+'</td>'
+      +'<td class="notes">'+esc(row.notes||'--')+'</td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('period-code-line-foot').innerHTML='<tr><td colspan="5">Total</td><td class="num">'+hours.toFixed(2)+'</td><td class="num">'+metres.toFixed(2)+'</td><td></td><td></td><td class="num">'+cur(value)+'</td><td></td></tr>';
+  const dialog=document.getElementById('period-code-drilldown');
+  if(dialog&&!dialog.open)dialog.showModal();
+}
+
 function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTotal){
   const el=document.getElementById('period-cost-breakdown');
   if(!el)return;
@@ -5710,9 +5849,16 @@ function renderPeriodCostBreakdown(rows,consumables,holes,budgetTotal,actualTota
     +(types.map(function(r){return '<tr><td>'+esc(r.type)+'</td><td class="num">'+(r.metres?r.metres.toFixed(1):'--')+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="3">No costs in period.</td></tr>')
     +'</tbody></table>'
     +'<div class="period-section-title">Codes and Recurrences</div>'
+    +'<div class="period-table-hint">Select a code to view its pivot summary and every underlying activity line.</div>'
     +'<table class="period-mini-table"><thead><tr><th>Code</th><th>Group</th><th>Occurrences</th><th>Value</th></tr></thead><tbody>'
-    +(codes.map(function(r){return '<tr><td>'+esc(r.code)+'</td><td>'+esc(r.group)+'</td><td class="num">'+r.count+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="4">No activity codes in period.</td></tr>')
+    +(codes.map(function(r){return '<tr class="period-code-row" tabindex="0" role="button" aria-label="View '+attr(r.code)+' line items" data-code="'+attr(r.code)+'" data-group="'+attr(r.group)+'"><td><span class="period-code-open">'+esc(r.code)+'</span></td><td>'+esc(r.group)+'</td><td class="num">'+r.count+'</td><td class="num">'+cur(r.value)+'</td></tr>';}).join('')||'<tr><td colspan="4">No activity codes in period.</td></tr>')
     +'</tbody></table>';
+  el.querySelectorAll('.period-code-row').forEach(function(row){
+    row.addEventListener('click',function(){openPeriodCodeDrilldown(row.dataset.code,row.dataset.group);});
+    row.addEventListener('keydown',function(event){
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();openPeriodCodeDrilldown(row.dataset.code,row.dataset.group);}
+    });
+  });
 }
 
 function contractorSummaryKey(value){
