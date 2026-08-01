@@ -3084,14 +3084,18 @@ async function verifyPortalAccount(){
   const response=await fetch(API+'/mobile/me',{cache:'no-store'});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
-  if(data.role!=='System Administrator'){
-    throw new Error('This management portal currently requires the System Administrator role.');
+  const returnTo=sessionStorage.getItem('drillops_return_to')||'';
+  if(data.role!=='System Administrator'||returnTo.startsWith('./field.html')){
+    sessionStorage.removeItem('drillops_return_to');
+    window.location.replace(returnTo.startsWith('./field.html')?returnTo:'./field.html');
+    return false;
   }
   authenticatedUser=data;
   const name=document.getElementById('authenticated-user-name');
   const email=document.getElementById('authenticated-user-email');
   if(name)name.textContent=data.name+' · '+data.role;
   if(email)email.textContent=data.email;
+  return true;
 }
 
 async function doLogin(){
@@ -3103,7 +3107,7 @@ async function doLogin(){
   button.disabled=true;button.textContent='Signing in…';error.textContent='';
   try{
     await authRequest('password',{email,password});
-    await verifyPortalAccount();
+    if(!await verifyPortalAccount())return;
     document.getElementById('login-screen').style.display='none';
     await initializePortal();
   }catch(authenticationError){
@@ -10987,7 +10991,7 @@ async function initializePortal(){
   if(!authSession){showLogin();return;}
   try{
     await accessToken();
-    await verifyPortalAccount();
+    if(!await verifyPortalAccount())return;
     document.getElementById('login-screen').style.display='none';
     await initializePortal();
   }catch(error){

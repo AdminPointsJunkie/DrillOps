@@ -13,3 +13,11 @@ services:
         value: authenticated
       - key: CORS_ALLOWED_ORIGINS
         value: https://drillops.com.au,https://www.drillops.com.au
+      - key: DRILLOPS_WEB_URL
+        value: https://www.drillops.com.au
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false

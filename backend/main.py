@@ -25,6 +25,7 @@ from psycopg2.pool import ThreadedConnectionPool
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -1128,6 +1129,7 @@ def init_db():
 
 
 init_db()
+ensure_dar_schema(get_conn)
 
 MCC_SCHEDULE_DATE = "23 April 2026"
 MCC_SCHEDULE_RATES = [
