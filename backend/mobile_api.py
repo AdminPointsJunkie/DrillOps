@@ -528,6 +528,12 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
             "name": user_profile["display_name"] or auth.email.split("@")[0],
             "email": auth.email,
             "role": ROLE_LABELS[primary],
+            "management_portal_access": user_profile["system_role"] == "system_admin",
+            "default_portal": (
+                "management"
+                if user_profile["system_role"] == "system_admin"
+                else "field"
+            ),
             "permissions": [],
         }
 
