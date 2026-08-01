@@ -3336,12 +3336,18 @@ async function verifyPortalAccount(){
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
   const returnTo=safeReturnTo();
-  if(returnTo){
+  const hasManagementAccess=data.management_portal_access===true||data.role==='System Administrator';
+  const returnPage=returnTo?new URL(returnTo,window.location.href).pathname.split('/').pop():'';
+  // A system administrator signing in from the main website should land in the
+  // management portal. Preserve direct links to individual records, but ignore
+  // a stale generic field-portal return route left by an earlier session.
+  if(returnTo&&(!hasManagementAccess||returnPage!=='field.html')){
     sessionStorage.removeItem('drillops_return_to');
     window.location.replace(returnTo);
     return false;
   }
-  if(data.role!=='System Administrator'){
+  sessionStorage.removeItem('drillops_return_to');
+  if(!hasManagementAccess){
     window.location.replace('./field.html');
     return false;
   }
