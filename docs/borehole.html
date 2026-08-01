@@ -6,7 +6,7 @@
 <title>Borehole Details | DrillOps</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#1f5f8b;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#315d49;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
 main{max-width:1540px;margin:0 auto;padding:18px;}
@@ -16,7 +16,7 @@ h1{font-size:22px;margin:0 0 6px;font-weight:800;}
 .actions{display:flex;gap:8px;flex-wrap:wrap;}
 button,.btn,select{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;}
 button{cursor:pointer}
-button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#254b3a;}
 .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px;}
 .kpi,.panel{background:var(--panel);border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);}
 .kpi{padding:13px 14px;}
@@ -30,7 +30,7 @@ button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
 thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
 tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
-.code{font-family:var(--mono);font-weight:800;color:#174d72;}
+.code{font-family:var(--mono);font-weight:800;color:#254b3a;}
 .status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;}
 .Planned{background:#f1f5f9;color:#475569}.InProgress{background:#fff7e6;color:#a05a00}.Complete{background:#ecfdf3;color:#147a39}.Cancelled{background:#fff1f2;color:#b42335}
 .detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
@@ -40,6 +40,7 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
 @media(max-width:1000px){.kpis,.grid,.detail-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.kpis,.grid,.detail-grid{grid-template-columns:1fr}.head{flex-direction:column}}
 </style>
+<link rel="stylesheet" href="./drillops-theme.css"/>
 </head>
 <body>
 <main>

@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#1f5f8b;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#315d49;--green:#16a34a;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
 main{max-width:1540px;margin:0 auto;padding:18px;}
@@ -16,7 +16,7 @@ h1{font-size:22px;margin:0 0 6px;font-weight:800;}
 .meta{color:var(--muted);display:flex;gap:9px;flex-wrap:wrap;}
 .actions{display:flex;gap:8px;flex-wrap:wrap;}
 button,.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;cursor:pointer;}
-button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#174d72;}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#254b3a;}
 .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px;}
 .kpi,.panel{background:var(--panel);border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);}
 .kpi{padding:13px 14px;}
@@ -33,12 +33,12 @@ table{width:100%;border-collapse:collapse;font-size:12.5px;}
 thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
 tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
 .group-row td{background:#f8fafc;color:#647285;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;}
-.code{font-family:var(--mono);font-weight:800;color:#174d72;}
+.code{font-family:var(--mono);font-weight:800;color:#254b3a;}
 .status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;}
 .approved{background:#ecfdf3;color:#147a39;}
 .rejected{background:#fff1f2;color:#b42335;}
 .query{background:#fff7e6;color:#a05a00;}
-.pending{background:#eef4ff;color:#174d72;}
+.pending{background:#e5eee1;color:#254b3a;}
 .empty{padding:18px;color:var(--muted);}
 .log-list{display:flex;flex-direction:column;gap:10px;}
 .log-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;border-bottom:1px solid #edf0f3;padding-bottom:10px;}
@@ -47,6 +47,7 @@ tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
 @media print{body{background:#fff}main{max-width:none;padding:0}.actions{display:none}.panel,.kpi{box-shadow:none}.scroll{max-height:none;overflow:visible}}
 </style>
+<link rel="stylesheet" href="./drillops-theme.css"/>
 </head>
 <body>
 <main>
@@ -171,7 +172,7 @@ function chart(id,type,labels,data,label,colors){
   const el=document.getElementById(id);
   if(!el||typeof Chart==='undefined')return;
   const isLine=type==='line';
-  new Chart(el.getContext('2d'),{type,data:{labels,datasets:[{label,data,backgroundColor:isLine?'#fff':(colors||'#1f5f8b'),borderColor:Array.isArray(colors)?colors[0]:(colors||'#1f5f8b'),borderWidth:isLine?2:1,pointBackgroundColor:Array.isArray(colors)?colors[0]:(colors||'#1f5f8b'),pointBorderColor:'#fff',pointBorderWidth:isLine?2:0,pointRadius:isLine?3:0,pointHoverRadius:isLine?5:0,tension:isLine?0.25:0,fill:false}]},options:{plugins:{legend:{display:type==='doughnut'}},scales:type==='doughnut'?{}:{x:{ticks:{color:'#687789',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#687789'},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}});
+  new Chart(el.getContext('2d'),{type,data:{labels,datasets:[{label,data,backgroundColor:isLine?'#fff':(colors||'#315d49'),borderColor:Array.isArray(colors)?colors[0]:(colors||'#315d49'),borderWidth:isLine?2:1,pointBackgroundColor:Array.isArray(colors)?colors[0]:(colors||'#315d49'),pointBorderColor:'#fff',pointBorderWidth:isLine?2:0,pointRadius:isLine?3:0,pointHoverRadius:isLine?5:0,tension:isLine?0.25:0,fill:false}]},options:{plugins:{legend:{display:type==='doughnut'}},scales:type==='doughnut'?{}:{x:{ticks:{color:'#687789',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#687789'},grid:{color:'#e5e7eb'}}},responsive:true,maintainAspectRatio:true}});
 }
 async function loadRangeReport(){
   document.getElementById('report-meta').innerHTML='<span>'+esc(contractor)+'</span><span>'+esc(displayDate(from))+' to '+esc(displayDate(to))+'</span>';
@@ -200,7 +201,7 @@ async function loadRangeReport(){
     const byDate={};
     reports.forEach(r=>{const d=isoDate(r.date);if(!byDate[d])byDate[d]={cost:0,metres:0};byDate[d].cost+=r.cost;byDate[d].metres+=r.metres;});
     const dates=Object.keys(byDate).sort();
-    chart('daily-cost-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].cost.toFixed(2)),'Cost','#1f5f8b');
+    chart('daily-cost-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].cost.toFixed(2)),'Cost','#315d49');
     chart('daily-metres-chart','line',dates.map(displayDate),dates.map(d=>+byDate[d].metres.toFixed(2)),'Metres','#27ae60');
     document.getElementById('daily-body').innerHTML=reports.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(reportName(r,i))+'</td><td><span class="status '+statusFor(r)+'">'+esc(statusFor(r))+'</span></td><td>'+esc(r.hole)+'</td><td>'+esc(r.rig)+'</td><td>'+r.rows.length+'</td><td>'+r.metres.toFixed(2)+'</td><td>'+r.hours.toFixed(2)+'</td><td>'+cur(r.cost)+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">No daily reports found.</td></tr>';
     document.getElementById('metres-drilled-body').innerHTML=drilled.map(d=>'<tr><td>'+esc(d.item)+'</td><td>'+d.count+'</td><td>'+cur(d.rate)+'</td><td>'+d.metres.toFixed(2)+'</td><td>10%</td><td>'+cur(d.cost)+'</td></tr>').join('')||'<tr><td colspan="6" class="empty">No drilled metres found in this date range.</td></tr>';
