@@ -57,63 +57,44 @@
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;overflow-x:hidden;}
 
 /* Login */
-#login-screen{position:fixed;inset:0;z-index:9998;background:#0f172a;overflow-y:auto;}
-.landing-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 28px;}
-.landing-cta{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:8px;background:#f5661b;color:#fff;text-decoration:none;font-weight:750;box-shadow:0 10px 24px rgba(245,102,27,.24);}
-.landing-cta:hover{background:#df5510;}
-.landing-cta.secondary{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);box-shadow:none;}
-.landing-cta.secondary:hover{background:rgba(255,255,255,.14);}
-.product-walkthrough{background:#f5f7fa;padding:88px 28px;color:#0b2239;}
-.walkthrough-inner{width:min(1180px,100%);margin:0 auto;}
-.walkthrough-kicker{margin-bottom:10px;color:#f5661b;font-size:12px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;}
-.walkthrough-title{max-width:760px;font-size:clamp(34px,5vw,58px);line-height:1.05;letter-spacing:-2px;}
-.walkthrough-lead{max-width:720px;margin:18px 0 42px;color:#526273;font-size:17px;line-height:1.7;}
-.workflow-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:56px;}
-.workflow-step{padding:24px;border:1px solid #dde4eb;border-radius:16px;background:#fff;box-shadow:0 14px 34px rgba(12,34,57,.06);}
-.workflow-step-number{display:grid;place-items:center;width:34px;height:34px;margin-bottom:18px;border-radius:50%;background:#0b2a45;color:#fff;font-weight:800;}
-.workflow-step h3{margin-bottom:8px;font-size:18px;}
-.workflow-step p{color:#667587;line-height:1.65;}
-.surface-section{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:24px;align-items:stretch;margin:24px 0;}
-.surface-copy,.surface-visual{border-radius:20px;background:#fff;border:1px solid #dde4eb;overflow:hidden;box-shadow:0 18px 48px rgba(12,34,57,.08);}
-.surface-copy{display:flex;flex-direction:column;justify-content:center;padding:42px;}
-.surface-label{color:#f5661b;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;}
-.surface-copy h3{margin:10px 0 14px;font-size:30px;letter-spacing:-.8px;}
-.surface-copy p{color:#607082;font-size:15px;line-height:1.7;}
-.feature-list{display:grid;gap:12px;margin-top:24px;}
-.feature-list span{display:flex;gap:10px;align-items:flex-start;color:#263c51;font-weight:650;}
-.feature-list span::before{content:'✓';display:grid;place-items:center;flex:0 0 22px;height:22px;border-radius:50%;background:#e8f8ef;color:#159653;font-size:12px;}
-.portal-preview{min-height:460px;padding:20px;background:#eef2f6;}
-.portal-window{height:100%;min-height:420px;border-radius:12px;background:#fff;overflow:hidden;border:1px solid #dce3ea;}
-.portal-bar{display:flex;align-items:center;justify-content:space-between;height:54px;padding:0 18px;border-bottom:1px solid #e4e9ee;font-weight:800;color:#0e3453;}
-.portal-context{padding:6px 10px;border-radius:999px;background:#eaf2f9;color:#235f8c;font-size:11px;}
-.portal-body{display:grid;grid-template-columns:120px 1fr;min-height:366px;}
-.portal-nav{padding:18px 12px;background:#f8fafc;border-right:1px solid #e4e9ee;}
-.portal-nav span{display:block;margin-bottom:8px;padding:9px;border-radius:6px;color:#728094;font-size:10px;}
-.portal-nav span.active{background:#e9f2fb;color:#1f5f8b;font-weight:800;}
-.portal-main{padding:22px;}
-.portal-main h4{font-size:20px;margin-bottom:15px;}
-.portal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-.portal-kpi{padding:14px;border:1px solid #e1e7ed;border-radius:8px;}
-.portal-kpi strong{display:block;font-size:22px;margin-bottom:5px;}
-.portal-kpi small{color:#7b8795;}
-.portal-approval{display:flex;justify-content:space-between;gap:16px;padding:16px;border-radius:9px;background:#f8fafc;border:1px solid #e1e7ed;}
-.portal-approval p{margin:4px 0 0;color:#718094;font-size:11px;}
-.approval-chip{align-self:center;padding:6px 10px;border-radius:999px;background:#fff4e8;color:#c85211;font-size:10px;font-weight:800;white-space:nowrap;}
-.device-gallery{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:24px 0;}
-.device-card{position:relative;min-height:560px;padding:36px;border-radius:20px;background:#09263f;color:#fff;overflow:hidden;box-shadow:0 20px 48px rgba(9,38,63,.18);}
-.device-card h3{font-size:28px;margin:8px 0 8px;}
-.device-card p{max-width:470px;color:#bed0df;line-height:1.6;}
-.device-shot{display:block;margin:30px auto 0;max-height:410px;max-width:100%;width:auto;border-radius:18px;box-shadow:0 20px 45px rgba(0,0,0,.32);}
-.device-card.ipad .device-shot{max-height:360px;border-radius:12px;}
-.download-panel{display:grid;grid-template-columns:1fr auto;gap:38px;align-items:center;margin-top:54px;padding:42px;border-radius:22px;background:linear-gradient(135deg,#0b2b46,#123e61);color:#fff;box-shadow:0 24px 60px rgba(9,38,63,.2);}
-.download-panel h3{max-width:650px;margin:10px 0 12px;font-size:34px;letter-spacing:-1px;}
-.download-panel p{max-width:650px;color:#c3d3e0;font-size:15px;line-height:1.7;}
-.download-link{display:inline-flex;align-items:center;gap:10px;margin-top:22px;padding:12px 16px;border-radius:9px;background:#f5661b;color:#fff;text-decoration:none;font-weight:800;}
-.qr-wrap{padding:14px;border-radius:16px;background:#fff;text-align:center;color:#263c51;}
-.qr-wrap img{display:block;width:190px;height:190px;image-rendering:pixelated;}
-.qr-wrap small{display:block;margin-top:8px;font-weight:700;}
-@media(max-width:900px){.workflow-steps,.device-gallery{grid-template-columns:1fr;}.surface-section{grid-template-columns:1fr;}.download-panel{grid-template-columns:1fr;text-align:left;}.qr-wrap{width:max-content;}.portal-preview{min-height:400px;}}
-@media(max-width:560px){.product-walkthrough{padding:64px 16px;}.walkthrough-title{letter-spacing:-1.2px;}.surface-copy,.device-card,.download-panel{padding:26px;}.portal-preview{padding:10px;}.portal-body{grid-template-columns:1fr;}.portal-nav{display:none;}.portal-kpis{grid-template-columns:1fr;}.device-card{min-height:500px;}.qr-wrap img{width:160px;height:160px;}}
+#login-screen{position:fixed;inset:0;z-index:9998;background:#fff;overflow-y:auto;color:#19201d;}
+.marketing-nav{position:sticky;top:0;z-index:10;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:34px;height:78px;padding:0 max(28px,calc((100vw - 1160px)/2));background:rgba(11,22,40,.96);backdrop-filter:blur(16px);color:#fff;}
+.marketing-logo{margin-right:auto;color:#fff;text-decoration:none;font-size:25px;font-weight:800;letter-spacing:-.7px;}.marketing-logo span{color:#ff6a1a;}
+.marketing-nav-link{color:#d6dce5;text-decoration:none;font-weight:600;font-size:13px;}.marketing-nav-link:hover{color:#fff;}
+.marketing-button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 20px;border-radius:7px;background:#ff6a1a;color:#fff;text-decoration:none;font-weight:750;border:0;cursor:pointer;}.marketing-button:hover{background:#ea5909;}
+.marketing-button.ghost{border:1px solid rgba(255,255,255,.28);background:transparent;}.marketing-button.ghost:hover{background:rgba(255,255,255,.08);}
+.marketing-hero{position:relative;min-height:820px;padding:94px 24px 0;overflow:hidden;background:#0b1628;color:#fff;text-align:center;}
+.marketing-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 24%,rgba(31,95,139,.38),transparent 40%),linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:auto,52px 52px,52px 52px;}
+.marketing-hero-content{position:relative;z-index:1;width:min(950px,100%);margin:0 auto;}
+.marketing-eyebrow{color:#ff6a1a;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;}
+.marketing-hero h1{margin:20px auto 20px;max-width:940px;font-size:clamp(48px,7vw,82px);line-height:1.02;letter-spacing:-3.2px;}
+.marketing-hero-copy{max-width:720px;margin:0 auto;color:#b9c4d2;font-size:20px;line-height:1.55;}
+.marketing-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:32px;}
+.product-stage{position:relative;z-index:2;width:min(980px,92vw);height:430px;margin:70px auto 0;}
+.stage-ipad{position:absolute;left:0;right:90px;top:0;padding:10px;border-radius:18px;background:#202b3d;box-shadow:0 28px 90px rgba(0,0,0,.46);}
+.stage-ipad img{display:block;width:100%;border-radius:10px;}
+.stage-phone{position:absolute;right:0;bottom:-110px;width:205px;padding:8px;border-radius:28px;background:#202b3d;box-shadow:0 26px 70px rgba(0,0,0,.5);}
+.stage-phone img{display:block;width:100%;border-radius:21px;}
+.marketing-strip{display:flex;justify-content:center;gap:52px;flex-wrap:wrap;padding:30px 24px;border-bottom:1px solid #e6eaf0;background:#fff;color:#68758a;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;}
+.marketing-section{padding:110px 24px;background:#fff;}.marketing-section.soft{background:#f5f7fa;}.marketing-inner{width:min(1160px,100%);margin:0 auto;}
+.marketing-center{text-align:center;}.marketing-section h2{max-width:880px;margin:14px auto 18px;font-size:clamp(38px,5vw,60px);line-height:1.08;letter-spacing:-2.4px;}.marketing-lead{max-width:720px;margin:0 auto;color:#657187;font-size:17px;line-height:1.7;}
+.capability-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:52px;}.capability{min-height:166px;padding:28px;border:1px solid #dfe4eb;border-radius:10px;background:#fff;box-shadow:0 8px 24px rgba(13,27,48,.04);}.capability-icon{display:grid;place-items:center;width:42px;height:42px;margin-bottom:24px;border-radius:8px;background:#eaf3f9;color:#1f5f8b;font-size:20px;}.capability h3{margin-bottom:9px;font-size:18px;}.capability p{color:#6b778b;line-height:1.6;}
+.showcase{display:grid;grid-template-columns:.8fr 1.2fr;gap:72px;align-items:center;}.showcase-copy h2{margin:14px 0 18px;font-size:clamp(38px,5vw,58px);}.showcase-copy p{color:#657187;font-size:16px;line-height:1.7;}.check-list{display:grid;gap:14px;margin-top:28px;}.check-list span{display:flex;gap:12px;font-weight:650;line-height:1.45;}.check-list span::before{content:'✓';display:grid;place-items:center;flex:0 0 24px;height:24px;border-radius:50%;background:#e9f7ef;color:#168a4a;}
+.portal-canvas{padding:18px;border-radius:16px;background:#e9edf2;box-shadow:0 28px 70px rgba(13,27,48,.15);}.portal-window{overflow:hidden;border:1px solid #dfe4eb;border-radius:9px;background:#fff;}.portal-bar{display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 18px;border-bottom:1px solid #e4e9ee;font-weight:800;color:#153b5c;}.portal-context{padding:6px 10px;border-radius:999px;background:#eaf2f9;color:#235f8c;font-size:10px;}.portal-body{display:grid;grid-template-columns:120px 1fr;min-height:380px;}.portal-nav{padding:18px 12px;background:#f8fafc;border-right:1px solid #e4e9ee;}.portal-nav span{display:block;margin-bottom:7px;padding:9px;border-radius:6px;color:#728094;font-size:10px;}.portal-nav span.active{background:#e9f2fb;color:#1f5f8b;font-weight:800;}.portal-main{padding:24px;}.portal-main h4{font-size:21px;margin-bottom:16px;}.portal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px;}.portal-kpi{padding:14px;border:1px solid #e1e7ed;border-radius:7px;}.portal-kpi strong{display:block;font-size:20px;margin-bottom:5px;}.portal-kpi small{color:#7b8795;}.portal-approval{display:flex;justify-content:space-between;gap:12px;padding:15px;border-radius:7px;background:#f8fafc;border:1px solid #e1e7ed;}.portal-approval p{margin-top:4px;color:#718094;font-size:10px;}.approval-chip{align-self:center;padding:6px 9px;border-radius:999px;background:#fff0e6;color:#c85211;font-size:9px;font-weight:800;white-space:nowrap;}
+.workflow-row{display:grid;grid-template-columns:repeat(3,1fr);margin-top:54px;border-top:1px solid #dfe4eb;border-bottom:1px solid #dfe4eb;}.workflow-item{padding:34px 32px;border-right:1px solid #dfe4eb;}.workflow-item:last-child{border-right:0;}.workflow-number{color:#ff6a1a;font-size:12px;font-weight:900;letter-spacing:1.5px;}.workflow-item h3{margin:13px 0 8px;font-size:21px;}.workflow-item p{color:#6b778b;line-height:1.65;}
+.mobile-showcase{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;}.mobile-visual{position:relative;min-height:630px;border-radius:20px;background:#0b1628;overflow:hidden;}.mobile-ipad{position:absolute;left:40px;top:58px;width:76%;border-radius:12px;box-shadow:0 26px 70px rgba(0,0,0,.45);}.mobile-phone{position:absolute;right:28px;bottom:-45px;width:31%;border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.55);}
+.download-band{display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;padding:58px;border-radius:14px;background:#0b1628;color:#fff;}.download-band h2{margin:14px 0 14px;font-size:44px;}.download-band p{max-width:650px;color:#b9c4d2;font-size:16px;line-height:1.7;}.download-band .marketing-button{margin-top:24px;}.qr-wrap{display:block;padding:14px;border-radius:12px;background:#fff;color:#263c51;text-align:center;text-decoration:none;}.qr-wrap img{display:block;width:190px;height:190px;image-rendering:pixelated;}.qr-wrap small{display:block;margin-top:8px;font-weight:800;}
+.login-section{padding:100px 24px;background:#eef2f6;}.login-shell{display:grid;grid-template-columns:1fr 390px;gap:80px;align-items:center;width:min(960px,100%);margin:0 auto;}.login-copy h2{font-size:48px;line-height:1.08;letter-spacing:-1.8px;}.login-copy p{margin-top:16px;color:#647187;font-size:17px;line-height:1.7;}.login-card{padding:36px;border:1px solid #dfe4eb;border-radius:12px;background:#fff;box-shadow:0 20px 50px rgba(13,27,48,.09);}.login-card h3{font-size:23px;margin-bottom:5px;}.login-card>p{margin-bottom:24px;color:#778397;}.login-card label{display:block;margin:0 0 6px;font-size:12px;font-weight:700;}.login-card input{width:100%;margin-bottom:15px;padding:12px 13px;border:1px solid #dfe4eb;border-radius:7px;background:#f8fafc;font:14px var(--font);outline:0;}.login-card input:focus{border-color:#1f5f8b;background:#fff;}.login-submit{width:100%;padding:13px;border:0;border-radius:7px;background:#1f5f8b;color:#fff;font:750 14px var(--font);cursor:pointer;}.login-submit:hover{background:#174a6e;}.login-security{margin-top:18px;padding-top:16px;border-top:1px solid #e7ebef;color:#98a1af;font-size:11px;text-align:center;}.marketing-footer{display:flex;justify-content:space-between;gap:20px;padding:24px max(28px,calc((100vw - 1160px)/2));background:#08111f;color:#788496;font-size:11px;}
+.legacy-landing,.product-walkthrough,.legacy-footer{display:none!important;}
+/* Mineral palette: graphite, warm stone and eucalyptus. */
+.marketing-nav{background:rgba(25,32,29,.96);}.marketing-logo span,.marketing-eyebrow,.workflow-number{color:#a8cf72;}
+.marketing-button{background:#a8cf72;color:#19201d;}.marketing-button:hover{background:#bce083;}.marketing-button.ghost{color:#fff;background:transparent;}
+.marketing-hero,.mobile-visual,.download-band{background:#19201d;}.marketing-hero::before{background:radial-gradient(circle at 50% 24%,rgba(107,151,119,.3),transparent 42%),linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:auto,52px 52px,52px 52px;}
+.marketing-section.soft,.login-section{background:#f2f0e9;}.marketing-strip{background:#faf9f5;border-color:#dfded7;color:#66706b;}
+.capability-icon,.portal-context,.portal-nav span.active{background:#e5eee1;color:#315d49;}.check-list span::before{background:#e5eee1;color:#315d49;}.approval-chip{background:#eef2df;color:#526b28;}.portal-bar{color:#315d49;}
+.portal-canvas{background:#e3e1da;}.login-submit{background:#315d49;}.login-submit:hover{background:#254b3a;}.marketing-footer{background:#121714;color:#7f8984;}
+@media(max-width:900px){.marketing-nav-link{display:none;}.marketing-hero{min-height:720px;padding-top:72px;}.product-stage{height:340px;margin-top:54px;}.stage-ipad{right:55px;}.stage-phone{width:150px;bottom:-65px;}.capability-grid,.workflow-row{grid-template-columns:1fr 1fr;}.workflow-item{border-bottom:1px solid #dfe4eb;}.showcase,.mobile-showcase,.login-shell{grid-template-columns:1fr;}.showcase{gap:44px;}.mobile-showcase{gap:40px;}.mobile-visual{min-height:560px;}.download-band{grid-template-columns:1fr;}.qr-wrap{width:max-content;}.login-shell{gap:40px;}}
+@media(max-width:560px){.marketing-nav{height:66px;padding:0 16px;gap:12px;}.marketing-nav .marketing-button{min-height:40px;padding:0 12px;font-size:12px;}.marketing-logo{font-size:22px;}.marketing-hero{min-height:660px;padding:68px 16px 0;}.marketing-hero h1{font-size:45px;letter-spacing:-2px;}.marketing-hero-copy{font-size:17px;}.product-stage{height:250px;width:100%;margin-top:45px;}.stage-ipad{right:35px;padding:6px;border-radius:10px;}.stage-phone{width:105px;right:3px;bottom:-25px;padding:5px;border-radius:17px;}.marketing-strip{gap:18px;padding:24px 16px;font-size:9px;}.marketing-section{padding:76px 16px;}.marketing-section h2{font-size:38px;letter-spacing:-1.5px;}.capability-grid,.workflow-row{grid-template-columns:1fr;}.workflow-item{border-right:0;}.portal-canvas{padding:8px;}.portal-body{grid-template-columns:1fr;}.portal-nav{display:none;}.portal-kpis{grid-template-columns:1fr;}.portal-approval{display:block;}.approval-chip{display:inline-block;margin-top:10px;}.mobile-visual{min-height:440px;}.mobile-ipad{left:18px;top:42px;width:82%;}.mobile-phone{right:12px;width:34%;}.download-band{padding:34px 24px;}.download-band h2{font-size:36px;}.qr-wrap img{width:160px;height:160px;}.login-section{padding:76px 16px;}.login-copy h2{font-size:38px;}.login-card{padding:28px 22px;}.marketing-footer{padding:22px 16px;flex-direction:column;}}
 
 /* Header */
 header{display:flex;align-items:center;justify-content:flex-start;gap:16px;padding:0 24px;height:60px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:900;box-shadow:var(--shadow);}
@@ -1729,7 +1710,7 @@ tbody td[contenteditable=true]:focus {
   <div style="min-height:100vh;display:flex;flex-direction:column;">
 
     <!-- Hero -->
-    <div style="flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 40%,#2563eb 100%);position:relative;overflow:hidden;">
+    <div class="legacy-landing" style="flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 40%,#2563eb 100%);position:relative;overflow:hidden;">
       <!-- Decorative grid -->
       <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,0.05) 1px,transparent 1px);background-size:32px 32px;"></div>
       <div style="position:absolute;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:rgba(37,99,235,0.15);filter:blur(80px);"></div>
@@ -1775,20 +1756,20 @@ tbody td[contenteditable=true]:focus {
             <div style="font-size:22px;font-weight:700;color:#111827;margin-bottom:4px;">Sign in</div>
             <div style="font-size:13px;color:#6b7280;margin-bottom:24px;">Access your drilling operations dashboard</div>
             <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Email</label>
-            <input id="login-email" type="email" placeholder="name@company.com" autocomplete="username"
+            <input id="legacy-login-email" type="email" placeholder="name@company.com" autocomplete="username"
               style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:14px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
               onfocus="this.style.borderColor='#2563eb';this.style.background='#fff'"
               onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
             <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Password</label>
-            <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"
+            <input id="legacy-login-password" type="password" placeholder="Enter password" autocomplete="current-password"
               style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:16px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
               onfocus="this.style.borderColor='#2563eb';this.style.background='#fff'"
               onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
-            <button id="login-button" onclick="doLogin()" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;"
+            <button id="legacy-login-button" onclick="doLogin()" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;"
               onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
               Sign in securely
             </button>
-            <div id="login-error" style="color:#dc2626;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div>
+            <div id="legacy-login-error" style="color:#dc2626;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div>
             <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e5ea;text-align:center;">
               <div style="font-size:11px;color:#9ca3af;">Protected by Supabase Auth</div>
             </div>
@@ -1855,8 +1836,109 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
+    <nav class="marketing-nav" aria-label="Main navigation">
+      <a class="marketing-logo" href="#top">Drill<span>Ops</span></a>
+      <a class="marketing-nav-link" href="#platform">Platform</a>
+      <a class="marketing-nav-link" href="#workflow">Workflow</a>
+      <a class="marketing-nav-link" href="#mobile-apps">Mobile apps</a>
+      <a class="marketing-nav-link" href="#portal-login">Sign in</a>
+      <a class="marketing-button" href="https://apps.apple.com/au/app/id6796881116">Get the app</a>
+    </nav>
+
+    <section class="marketing-hero" id="top">
+      <div class="marketing-hero-content">
+        <div class="marketing-eyebrow">Drilling operations, connected</div>
+        <h1>Run every drilling day from one workspace.</h1>
+        <p class="marketing-hero-copy">Bring mining clients, drill contractors and project managers together—from the first field entry to approval, cost control and reporting.</p>
+        <div class="marketing-actions">
+          <a class="marketing-button" href="#platform">Explore the platform</a>
+          <a class="marketing-button ghost" href="#portal-login">Sign in to DrillOps</a>
+        </div>
+      </div>
+      <div class="product-stage" aria-label="DrillOps on iPad and iPhone">
+        <div class="stage-ipad"><img src="./assets/app/ipad-overview.png" alt="DrillOps project overview on iPad"/></div>
+        <div class="stage-phone"><img src="./assets/app/iphone-new-dar.png" alt="DrillOps Daily Activity Report on iPhone"/></div>
+      </div>
+    </section>
+
+    <div class="marketing-strip" aria-label="Teams supported by DrillOps">
+      <span>Mining clients</span><span>Drill contractors</span><span>Project managers</span><span>Field crews</span>
+    </div>
+
+    <section class="marketing-section soft" id="platform">
+      <div class="marketing-inner marketing-center">
+        <div class="marketing-eyebrow">One drilling management platform</div>
+        <h2>Clients and contractors, finally aligned.</h2>
+        <p class="marketing-lead">The operational tools your teams need to deliver better drilling programs—without passing spreadsheets, PDFs and approval emails back and forth.</p>
+        <div class="capability-grid">
+          <article class="capability"><div class="capability-icon">⌁</div><h3>Field activities</h3><p>Capture shift activity, metres, delays, crew and conditions at the source.</p></article>
+          <article class="capability"><div class="capability-icon">◎</div><h3>Client portal</h3><p>Give client and project teams live visibility without exposing unrelated projects.</p></article>
+          <article class="capability"><div class="capability-icon">✓</div><h3>DAR approvals</h3><p>Submit, query, reject and approve daily reports with a complete audit trail.</p></article>
+          <article class="capability"><div class="capability-icon">↗</div><h3>Program reporting</h3><p>Turn approved field data into operational dashboards and management reporting.</p></article>
+          <article class="capability"><div class="capability-icon">⌖</div><h3>Borehole planning</h3><p>Plan and monitor the drilling program alongside its live operational results.</p></article>
+          <article class="capability"><div class="capability-icon">$</div><h3>Cost control</h3><p>Connect reports, schedules of rates, purchase orders and invoice reconciliation.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="marketing-section">
+      <div class="marketing-inner showcase">
+        <div class="showcase-copy">
+          <div class="marketing-eyebrow">Web portal</div>
+          <h2>Full program control, not just drilling data.</h2>
+          <p>Start with the client and project, then manage the entire drilling picture from a secure browser workspace.</p>
+          <div class="check-list"><span>Track metres, reports, costs and budget position</span><span>Review contractor submissions and approval history</span><span>Manage boreholes, contractors and project deliverables</span></div>
+        </div>
+        <div class="portal-canvas" aria-label="DrillOps web portal preview">
+          <div class="portal-window">
+            <div class="portal-bar"><span>DrillOps</span><span class="portal-context">Argo · Ironbark</span></div>
+            <div class="portal-body">
+              <div class="portal-nav"><span class="active">Overview</span><span>Daily reports</span><span>Boreholes</span><span>Contractors</span><span>Invoices</span></div>
+              <div class="portal-main"><h4>Project overview</h4><div class="portal-kpis"><div class="portal-kpi"><strong>1,248 m</strong><small>Drilled</small></div><div class="portal-kpi"><strong>18</strong><small>DARs</small></div><div class="portal-kpi"><strong>92%</strong><small>Approved</small></div></div><div class="portal-approval"><div><strong>Daily Activity Report · IBK-014</strong><p>Night shift · 68.4 m · submitted by contractor</p></div><span class="approval-chip">Awaiting review</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="marketing-section soft" id="workflow">
+      <div class="marketing-inner marketing-center">
+        <div class="marketing-eyebrow">A clear operational handover</div>
+        <h2>From rig activity to an approved record.</h2>
+        <p class="marketing-lead">Every person works in the same client-and-project context, while permissions keep each responsibility clear.</p>
+        <div class="workflow-row">
+          <article class="workflow-item"><div class="workflow-number">01 · SELECT</div><h3>Choose client and project</h3><p>No operational data is shown until the correct workspace is selected.</p></article>
+          <article class="workflow-item"><div class="workflow-number">02 · SUBMIT</div><h3>Complete the daily report</h3><p>The contractor records the shift and submits the DAR from iPhone, iPad or web.</p></article>
+          <article class="workflow-item"><div class="workflow-number">03 · APPROVE</div><h3>Review and act</h3><p>The client approves, queries or rejects the report with in-app and email notifications.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="marketing-section" id="mobile-apps">
+      <div class="marketing-inner mobile-showcase">
+        <div class="mobile-visual"><img class="mobile-ipad" src="./assets/app/ipad-overview.png" alt="DrillOps overview displayed on iPad" loading="lazy"/><img class="mobile-phone" src="./assets/app/iphone-new-dar.png" alt="DrillOps DAR form displayed on iPhone" loading="lazy"/></div>
+        <div class="showcase-copy"><div class="marketing-eyebrow">iPhone + iPad</div><h2>The field workflow, wherever the work happens.</h2><p>Give supervisors and crews a purpose-built mobile experience while project teams keep the broader view.</p><div class="check-list"><span>Fast DAR entry designed for the field</span><span>Responsive iPad oversight and review</span><span>Shared notifications and approval status</span></div></div>
+      </div>
+    </section>
+
+    <section class="marketing-section soft">
+      <div class="marketing-inner download-band">
+        <div><div class="marketing-eyebrow">DrillOps for iOS and iPadOS</div><h2>Take the connected drill program into the field.</h2><p>Scan the QR code or open the App Store listing on your Apple device. Download availability begins after Apple completes its review.</p><a class="marketing-button" href="https://apps.apple.com/au/app/id6796881116">Open on the App Store</a></div>
+        <a class="qr-wrap" href="https://apps.apple.com/au/app/id6796881116" aria-label="Open DrillOps on the App Store"><img src="./assets/app/drillops-app-store-qr.png" alt="QR code for the DrillOps App Store listing"/><small>Scan to download</small></a>
+      </div>
+    </section>
+
+    <section class="login-section" id="portal-login">
+      <div class="login-shell">
+        <div class="login-copy"><div class="marketing-eyebrow">Secure portal access</div><h2>Your drilling workspace is ready.</h2><p>Sign in with the account issued by your DrillOps organisation. Client and project access is controlled by role.</p></div>
+        <div class="login-card"><h3>Sign in</h3><p>Access your DrillOps web portal</p><label for="login-email">Email</label><input id="login-email" type="email" placeholder="name@company.com" autocomplete="username"/><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"/><button class="login-submit" id="login-button" onclick="doLogin()">Sign in securely</button><div id="login-error" style="color:#b42318;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div><div class="login-security">Protected by Supabase Auth</div></div>
+      </div>
+    </section>
+
+    <footer class="marketing-footer"><span>DrillOps · Field Operations Intelligence</span><span>&copy; 2026 DrillOps Pty</span></footer>
+
     <!-- Footer -->
-    <div style="background:#0f172a;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;">
+    <div class="legacy-footer" style="background:#0f172a;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;">
       <div style="font-size:11px;color:rgba(255,255,255,0.3);">DrillOps v3.0 &mdash; Field Operations Intelligence</div>
       <div style="font-size:11px;color:rgba(255,255,255,0.3);">&copy; 2026 DrillOps</div>
     </div>
