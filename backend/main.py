@@ -2474,6 +2474,197 @@ def clock_from_minutes(clock_minutes):
     return f"{mins // 60}:{mins % 60:02d}"
 
 
+COREPLAN_SEQUENCE_FIELDS = (
+    "order",
+    "sequence",
+    "activity_order",
+    "activity_sequence",
+    "sort_order",
+    "sort",
+    "position",
+    "index",
+)
+COREPLAN_START_FIELDS = (
+    "time_from",
+    "start_time",
+    "started_at",
+    "start_at",
+    "from_time",
+    "start",
+    "start_clock",
+)
+COREPLAN_END_FIELDS = (
+    "time_to",
+    "end_time",
+    "ended_at",
+    "end_at",
+    "to_time",
+    "end",
+    "end_clock",
+)
+
+
+def coreplan_clock_minutes(value):
+    """Read a CorePlan clock value without inventing a time."""
+    if value in (None, ""):
+        return None
+    match = re.search(
+        r"(?:^|T|\s)(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?",
+        str(value).strip(),
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    hours, minutes = int(match.group(1)), int(match.group(2))
+    meridiem = (match.group(3) or "").upper()
+    if meridiem == "AM" and hours == 12:
+        hours = 0
+    elif meridiem == "PM" and hours < 12:
+        hours += 12
+    if hours > 23 or minutes > 59:
+        return None
+    return hours * 60 + minutes
+
+
+def coreplan_row_clock(row, fields):
+    for field in fields:
+        value = coreplan_clock_minutes(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def coreplan_row_sequence(row):
+    for field in COREPLAN_SEQUENCE_FIELDS:
+        value = coreplan_float(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def coreplan_shift_start_minutes(details):
+    for field in COREPLAN_START_FIELDS + ("shift_start",):
+        value = coreplan_clock_minutes(details.get(field))
+        if value is not None:
+            return value
+    shift = str(details.get("workshift") or "").lower()
+    if "night" in shift:
+        return 18 * 60
+    if "afternoon" in shift:
+        return 12 * 60
+    return 6 * 60
+
+
+def coreplan_timeline_entries(sections, details, legacy_timeline=False):
+    """Return CorePlan drilling/time rows in their source sequence.
+
+    Older imports always put every drilling interval before the time breakdown
+    and then fabricated clock times from 06:00. CorePlan exports can provide a
+    global order/sequence (or explicit clocks) across both sections. We only
+    synthesise a continuous timeline when that ordering is unambiguous.
+    """
+    entries = []
+    for kind, section_name in (("drilling", "Drilling Intervals"), ("time", "Time Breakdown")):
+        for section_index, row in enumerate(sections.get(section_name) or []):
+            entries.append({
+                "kind": kind,
+                "section_index": section_index,
+                "row": row,
+                "duration_hours": coreplan_float(row.get("duration_hours")) or 0,
+                "sequence": coreplan_row_sequence(row),
+                "start": coreplan_row_clock(row, COREPLAN_START_FIELDS),
+                "end": coreplan_row_clock(row, COREPLAN_END_FIELDS),
+            })
+
+    timed = [entry for entry in entries if entry["duration_hours"] > 0]
+    timings = {}
+    if not timed:
+        return entries, timings, False
+
+    if legacy_timeline:
+        # Reproduce the former importer exactly so the repair guard can
+        # recognise its generated timestamps in already-stored reports.
+        ordered = sorted(
+            [entry for entry in entries if entry["kind"] == "drilling"],
+            key=lambda entry: coreplan_float(entry["row"].get("order")) or 0,
+        )
+        ordered += [entry for entry in entries if entry["kind"] == "time"]
+        current_time = 6 * 60
+        for entry in ordered:
+            if entry["duration_hours"] <= 0:
+                continue
+            finish = add_minutes(current_time, entry["duration_hours"])
+            timings[(entry["kind"], entry["section_index"])] = (
+                clock_from_minutes(current_time),
+                clock_from_minutes(finish),
+            )
+            current_time = finish
+        return ordered, timings, True
+
+    explicit_starts = [entry["start"] for entry in timed]
+    if all(value is not None for value in explicit_starts):
+        ordered = sorted(
+            entries,
+            key=lambda entry: (
+                entry["start"] is None,
+                entry["start"] if entry["start"] is not None else 10**9,
+                entry["section_index"],
+            ),
+        )
+        for entry in timed:
+            start = entry["start"]
+            finish = entry["end"]
+            if finish is None:
+                finish = add_minutes(start, entry["duration_hours"])
+            timings[(entry["kind"], entry["section_index"])] = (
+                clock_from_minutes(start),
+                clock_from_minutes(finish),
+            )
+        return ordered, timings, True
+
+    sequences = [entry["sequence"] for entry in timed]
+    has_unique_sequence = (
+        all(value is not None for value in sequences)
+        and len(set(sequences)) == len(sequences)
+    )
+    if has_unique_sequence:
+        ordered = sorted(
+            entries,
+            key=lambda entry: (
+                entry["sequence"] is None,
+                entry["sequence"] if entry["sequence"] is not None else 10**9,
+                entry["kind"],
+                entry["section_index"],
+            ),
+        )
+        current_time = coreplan_shift_start_minutes(details)
+        for entry in ordered:
+            if entry["duration_hours"] <= 0:
+                continue
+            finish = add_minutes(current_time, entry["duration_hours"])
+            timings[(entry["kind"], entry["section_index"])] = (
+                clock_from_minutes(current_time),
+                clock_from_minutes(finish),
+            )
+            current_time = finish
+        return ordered, timings, True
+
+    # Preserve any row-level clocks that really are present, even when the
+    # remaining rows cannot be placed. Unknown rows stay untimed rather than
+    # being forced ahead of or behind the drilling interval.
+    for entry in timed:
+        if entry["start"] is None:
+            continue
+        finish = entry["end"]
+        if finish is None:
+            finish = add_minutes(entry["start"], entry["duration_hours"])
+        timings[(entry["kind"], entry["section_index"])] = (
+            clock_from_minutes(entry["start"]),
+            clock_from_minutes(finish),
+        )
+    return entries, timings, False
+
+
 def coreplan_bit_type(row):
     text = f"{row.get('type','')} {row.get('drill_bit','')} {row.get('drilling_events','')}".upper()
     if "HQ" in text:
@@ -2529,7 +2720,7 @@ def parse_coreplan_sections(text):
     return sections
 
 
-def parse_coreplan_plod_csv(content, filename, contractor):
+def parse_coreplan_plod_csv(content, filename, contractor, legacy_timeline=False):
     text = content.decode("utf-8-sig", errors="replace")
     sections = parse_coreplan_sections(text)
     details = (sections.get("Details") or [{}])[0]
@@ -2564,15 +2755,25 @@ def parse_coreplan_plod_csv(content, filename, contractor):
     }
 
     acts = []
-    current_time = 6 * 60
+    timeline_entries, timeline_times, _ = coreplan_timeline_entries(
+        sections,
+        details,
+        legacy_timeline=legacy_timeline,
+    )
 
-    def base_activity(row, code, notes, duration_hours=None, line_cost=None, unit_rate=None, quantity=None, rate_basis=None):
-        nonlocal current_time
+    def base_activity(
+        row,
+        code,
+        notes,
+        duration_hours=None,
+        line_cost=None,
+        unit_rate=None,
+        quantity=None,
+        rate_basis=None,
+        timeline_key=None,
+    ):
         duration_hours = coreplan_float(duration_hours) or 0
-        time_from = clock_from_minutes(current_time) if duration_hours else ""
-        time_to = clock_from_minutes(add_minutes(current_time, duration_hours)) if duration_hours else ""
-        if duration_hours:
-            current_time = add_minutes(current_time, duration_hours)
+        time_from, time_to = timeline_times.get(timeline_key, ("", ""))
         hole = row.get("hole_name") or default_hole
         return {
             "source_file": filename, "contractor": contractor,
@@ -2589,38 +2790,45 @@ def parse_coreplan_plod_csv(content, filename, contractor):
             "po_id": None,
         }
 
-    interval_rows = sorted(sections.get("Drilling Intervals") or [], key=lambda r: coreplan_float(r.get("order")) or 0)
-    for row in interval_rows:
-        metres_from = coreplan_float(row.get("depth_from"))
-        metres_to = coreplan_float(row.get("depth_to"))
-        metres = None
-        if metres_from is not None and metres_to is not None:
-            metres = max(0, round(metres_to - metres_from, 2))
-        if not metres and not coreplan_float(row.get("duration_hours")):
+    for entry in timeline_entries:
+        row = entry["row"]
+        timeline_key = (entry["kind"], entry["section_index"])
+        if entry["kind"] == "drilling":
+            metres_from = coreplan_float(row.get("depth_from"))
+            metres_to = coreplan_float(row.get("depth_to"))
+            metres = None
+            if metres_from is not None and metres_to is not None:
+                metres = max(0, round(metres_to - metres_from, 2))
+            if not metres and not coreplan_float(row.get("duration_hours")):
+                continue
+            unit_rate = coreplan_money(row.get("cost_per_m"))
+            line_cost = coreplan_money(row.get("cost"))
+            code = coreplan_drill_code(row)
+            notes = "; ".join(x for x in [
+                row.get("type") or "",
+                row.get("drill_bit") or "",
+                row.get("drilling_events") or "",
+            ] if x)
+            act = base_activity(
+                row,
+                code,
+                notes,
+                row.get("duration_hours"),
+                line_cost=line_cost,
+                unit_rate=unit_rate,
+                quantity=metres,
+                rate_basis=(f"CorePlan ${unit_rate:,.2f}/m x {metres:.2f}m" if unit_rate is not None and metres is not None else "CorePlan drilling interval"),
+                timeline_key=timeline_key,
+            )
+            act.update({
+                "bit_type": coreplan_bit_type(row),
+                "metres_from": metres_from,
+                "metres_to": metres_to,
+                "total_metres": metres,
+            })
+            acts.append(act)
             continue
-        unit_rate = coreplan_money(row.get("cost_per_m"))
-        line_cost = coreplan_money(row.get("cost"))
-        code = coreplan_drill_code(row)
-        notes = "; ".join(x for x in [
-            row.get("type") or "",
-            row.get("drill_bit") or "",
-            row.get("drilling_events") or "",
-        ] if x)
-        act = base_activity(
-            row, code, notes, row.get("duration_hours"),
-            line_cost=line_cost, unit_rate=unit_rate, quantity=metres,
-            rate_basis=(f"CorePlan ${unit_rate:,.2f}/m x {metres:.2f}m" if unit_rate is not None and metres is not None else "CorePlan drilling interval")
-        )
-        act.update({
-            "bit_type": coreplan_bit_type(row),
-            "metres_from": metres_from,
-            "metres_to": metres_to,
-            "total_metres": metres,
-        })
-        acts.append(act)
 
-    time_rows = sections.get("Time Breakdown") or []
-    for row in time_rows:
         category = row.get("category") or ""
         notes = row.get("notes") or category
         duration = row.get("duration_hours")
@@ -2628,10 +2836,15 @@ def parse_coreplan_plod_csv(content, filename, contractor):
         line_cost = coreplan_money(row.get("cost"))
         code = coreplan_category_code(category, notes)
         acts.append(base_activity(
-            row, code, notes, duration,
-            line_cost=line_cost, unit_rate=unit_rate,
+            row,
+            code,
+            notes,
+            duration,
+            line_cost=line_cost,
+            unit_rate=unit_rate,
             quantity=coreplan_float(duration),
-            rate_basis=(f"CorePlan ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan time breakdown")
+            rate_basis=(f"CorePlan ${unit_rate:,.2f}/hr x {(coreplan_float(duration) or 0):.2f}h" if unit_rate is not None else "CorePlan time breakdown"),
+            timeline_key=timeline_key,
         ))
 
     for row in sections.get("Minimum Drilling Costs") or []:
@@ -4222,6 +4435,163 @@ async def ai_fix_import_rates(request: Request):
     }
 
 
+def coreplan_timeline_fingerprint(row):
+    """Identify one imported timeline row without relying on its fabricated clock."""
+    def text_value(value):
+        return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+
+    def number_value(value):
+        number = coreplan_float(value)
+        return None if number is None else round(number, 4)
+
+    return (
+        text_value(row.get("hole_num")),
+        text_value(row.get("code")),
+        text_value(row.get("notes")),
+        text_value(row.get("total_time")),
+        text_value(row.get("bit_type")),
+        text_value(row.get("diameter")),
+        number_value(row.get("metres_from")),
+        number_value(row.get("metres_to")),
+        number_value(row.get("total_metres")),
+    )
+
+
+def coreplan_timeline_repair_plan(content, filename, contractor):
+    """Build conservative old-clock -> source-clock corrections for one CSV."""
+    _, legacy_rows, _, _, _ = parse_coreplan_plod_csv(
+        content,
+        filename,
+        contractor,
+        legacy_timeline=True,
+    )
+    _, source_rows, _, _, _ = parse_coreplan_plod_csv(content, filename, contractor)
+
+    legacy_groups = {}
+    source_groups = {}
+    for row in legacy_rows:
+        legacy_groups.setdefault(coreplan_timeline_fingerprint(row), []).append(row)
+    for row in source_rows:
+        source_groups.setdefault(coreplan_timeline_fingerprint(row), []).append(row)
+
+    plan = []
+    for fingerprint, old_rows in legacy_groups.items():
+        new_rows = source_groups.get(fingerprint) or []
+        # Ambiguous/missing matches are deliberately ignored rather than risking
+        # a change to a different imported line item.
+        if len(old_rows) != len(new_rows):
+            continue
+        for old_row, new_row in zip(old_rows, new_rows):
+            expected = (str(old_row.get("time_from") or ""), str(old_row.get("time_to") or ""))
+            desired = (str(new_row.get("time_from") or ""), str(new_row.get("time_to") or ""))
+            if expected != desired:
+                plan.append({
+                    "fingerprint": fingerprint,
+                    "expected": expected,
+                    "desired": desired,
+                })
+    return plan
+
+
+def repair_imported_coreplan_timelines():
+    """Correct the legacy drilling-first clocks using each stored source CSV.
+
+    A row is changed only when its identity and current clocks still match the
+    legacy importer exactly. That guard preserves any timeline the user has
+    already edited, while allowing approved/locked reports to shed importer-
+    generated timestamps that were never present in the DAR.
+    """
+    result = {
+        "sources_scanned": 0,
+        "sources_changed": 0,
+        "rows_updated": 0,
+        "rows_skipped": 0,
+        "sources_failed": 0,
+    }
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT filename, contractor, pdf_data
+                FROM source_files
+                WHERE file_type='coreplan_csv' AND pdf_data IS NOT NULL
+                ORDER BY id
+                """
+            )
+            sources = [dict(row) for row in cur.fetchall()]
+
+            for source in sources:
+                result["sources_scanned"] += 1
+                filename = source.get("filename") or ""
+                contractor = source.get("contractor") or "Mitchells Drilling"
+                try:
+                    plan = coreplan_timeline_repair_plan(
+                        bytes(source["pdf_data"]),
+                        filename,
+                        contractor,
+                    )
+                except Exception as exc:
+                    result["sources_failed"] += 1
+                    print(f"CorePlan timeline plan failed for {filename}: {exc}")
+                    continue
+                if not plan:
+                    continue
+
+                cur.execute(
+                    """
+                    SELECT * FROM activities
+                    WHERE contractor=%s AND source_file=%s
+                    ORDER BY id
+                    """,
+                    (contractor, filename),
+                )
+                stored_groups = {}
+                for row in cur.fetchall():
+                    stored_groups.setdefault(coreplan_timeline_fingerprint(row), []).append(dict(row))
+
+                source_updates = 0
+                used_ids = set()
+                for change in plan:
+                    match = next(
+                        (
+                            row for row in stored_groups.get(change["fingerprint"], [])
+                            if row["id"] not in used_ids
+                            and (
+                                str(row.get("time_from") or ""),
+                                str(row.get("time_to") or ""),
+                            ) == change["expected"]
+                        ),
+                        None,
+                    )
+                    if not match:
+                        result["rows_skipped"] += 1
+                        continue
+                    used_ids.add(match["id"])
+                    cur.execute(
+                        """
+                        UPDATE activities
+                        SET time_from=%s, time_to=%s
+                        WHERE id=%s
+                          AND COALESCE(time_from, '')=%s
+                          AND COALESCE(time_to, '')=%s
+                        """,
+                        (
+                            change["desired"][0],
+                            change["desired"][1],
+                            match["id"],
+                            change["expected"][0],
+                            change["expected"][1],
+                        ),
+                    )
+                    source_updates += cur.rowcount
+
+                if source_updates:
+                    result["sources_changed"] += 1
+                    result["rows_updated"] += source_updates
+            conn.commit()
+    return result
+
+
 def cleanup_coreplan_doubleups_for_contractor(contractor: str):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -4349,6 +4719,15 @@ def repair_minimum_shift_rows_on_startup():
             sync_allianz_minimum_shift_topups(contractor)
         except Exception as exc:
             print(f"minimum shift repair failed for {contractor}: {exc}")
+
+
+@app.on_event("startup")
+def repair_coreplan_timelines_on_startup():
+    try:
+        result = repair_imported_coreplan_timelines()
+        print(f"CorePlan timeline repair: {result}")
+    except Exception as exc:
+        print(f"CorePlan timeline repair failed: {exc}")
 
 
 @app.post("/imports/cleanup-coreplan-doubleups")

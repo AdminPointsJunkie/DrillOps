@@ -862,7 +862,7 @@ function renderTimeline(rows,totalHours){
   const sorted=rows.slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const starts=sorted.map(r=>parseClockMinutes(r.time_from)).filter(v=>v!=null);
   const ends=sorted.map(r=>{const explicit=parseClockMinutes(r.time_to);if(explicit!=null)return explicit;const start=parseClockMinutes(r.time_from);return start==null?null:start+Math.round(parseDurationHours(r.total_time)*60);}).filter(v=>v!=null);
-  if(!starts.length||!ends.length){target.innerHTML='<div class="empty">No time data recorded for this report.</div>';return;}
+  if(!starts.length||!ends.length){target.innerHTML='<div class="empty">The imported DAR did not provide a reliable cross-section activity sequence, so DrillOps has not invented shift times. Activity durations remain available in the line items below.</div>';return;}
   let min=Math.min(...starts),max=Math.max(...ends);
   if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
   const span=Math.max(60,max-min);
