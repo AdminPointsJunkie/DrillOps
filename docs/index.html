@@ -1932,7 +1932,32 @@ tbody td[contenteditable=true]:focus {
     <section class="login-section" id="portal-login">
       <div class="login-shell">
         <div class="login-copy"><div class="marketing-eyebrow">Secure portal access</div><h2>Your drilling workspace is ready.</h2><p>Sign in with the account issued by your DrillOps organisation. Client and project access is controlled by role.</p></div>
-        <div class="login-card"><h3>Sign in</h3><p>Access your DrillOps web portal</p><label for="login-email">Email</label><input id="login-email" type="email" placeholder="name@company.com" autocomplete="username"/><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"/><button class="login-submit" id="login-button" onclick="doLogin()">Sign in securely</button><div id="login-error" style="color:#b42318;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div><div class="login-security">Protected by Supabase Auth</div></div>
+        <div class="login-card">
+          <div id="login-panel">
+            <h3>Sign in</h3>
+            <p>Access your DrillOps web portal</p>
+            <label for="login-email">Email</label>
+            <input id="login-email" type="email" placeholder="name@company.com" autocomplete="username"/>
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"/>
+            <button class="login-submit" id="login-button" onclick="doLogin()">Sign in securely</button>
+            <button class="login-forgot" id="forgot-password-button" type="button" onclick="requestPasswordReset()">Forgot your password?</button>
+            <div id="login-error" class="login-feedback error"></div>
+          </div>
+          <div id="password-reset-panel" hidden>
+            <h3>Choose a new password</h3>
+            <p>Use at least eight characters for your new DrillOps password.</p>
+            <label for="new-password">New password</label>
+            <input id="new-password" type="password" placeholder="New password" autocomplete="new-password"/>
+            <label for="confirm-password">Confirm password</label>
+            <input id="confirm-password" type="password" placeholder="Confirm password" autocomplete="new-password"/>
+            <div class="password-reset-actions">
+              <button class="login-submit" id="update-password-button" type="button" onclick="updateRecoveredPassword()">Update password</button>
+            </div>
+            <div id="password-reset-error" class="login-feedback error"></div>
+          </div>
+          <div class="login-security">Protected by Supabase Auth</div>
+        </div>
       </div>
     </section>
 
@@ -3228,13 +3253,25 @@ function authConfig(){
 
 function saveAuthSession(session){
   authSession=session;
-  if(session)sessionStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
-  else sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  if(session){
+    localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  }else{
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  }
 }
 
 function loadStoredAuthSession(){
-  try{return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY)||'null');}
-  catch(error){sessionStorage.removeItem(AUTH_STORAGE_KEY);return null;}
+  try{
+    const session=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||sessionStorage.getItem(AUTH_STORAGE_KEY)||'null');
+    if(session){
+      localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+    return session;
+  }
+  catch(error){localStorage.removeItem(AUTH_STORAGE_KEY);sessionStorage.removeItem(AUTH_STORAGE_KEY);return null;}
 }
 
 async function authRequest(grantType,payload){
@@ -3281,14 +3318,31 @@ function showLogin(message=''){
   document.getElementById('login-error').textContent=message;
 }
 
+function safeReturnTo(){
+  const requested=new URLSearchParams(window.location.search).get('return_to')||'';
+  const value=requested||sessionStorage.getItem('drillops_return_to')||'';
+  if(!value.startsWith('./'))return '';
+  try{
+    const target=new URL(value,window.location.href);
+    const page=target.pathname.split('/').pop();
+    const allowed=new Set(['field.html','report.html','range-report.html','borehole.html']);
+    if(target.origin!==window.location.origin||!allowed.has(page))return '';
+    return './'+page+target.search;
+  }catch(error){return '';}
+}
+
 async function verifyPortalAccount(){
   const response=await fetch(API+'/mobile/me',{cache:'no-store'});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
-  const returnTo=sessionStorage.getItem('drillops_return_to')||'';
-  if(data.role!=='System Administrator'||returnTo.startsWith('./field.html')){
+  const returnTo=safeReturnTo();
+  if(returnTo){
     sessionStorage.removeItem('drillops_return_to');
-    window.location.replace(returnTo.startsWith('./field.html')?returnTo:'./field.html');
+    window.location.replace(returnTo);
+    return false;
+  }
+  if(data.role!=='System Administrator'){
+    window.location.replace('./field.html');
     return false;
   }
   authenticatedUser=data;
@@ -3316,6 +3370,83 @@ async function doLogin(){
     error.textContent=authenticationError.message||'Sign-in failed.';
   }finally{
     button.disabled=false;button.textContent='Sign in securely';
+  }
+}
+
+async function requestPasswordReset(){
+  const button=document.getElementById('forgot-password-button');
+  const feedback=document.getElementById('login-error');
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  if(!email){feedback.textContent='Enter your email address first.';return;}
+  button.disabled=true;button.textContent='Sending reset link…';feedback.classList.remove('error');feedback.textContent='';
+  try{
+    const config=authConfig();
+    const redirectTo=window.location.origin+window.location.pathname;
+    const response=await nativeFetch(config.url+'/auth/v1/recover?redirect_to='+encodeURIComponent(redirectTo),{
+      method:'POST',
+      headers:{apikey:config.key,'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.message||data.error_description||'The reset email could not be sent.');
+    feedback.textContent='If that email belongs to a DrillOps account, a password reset link is on its way.';
+  }catch(error){
+    feedback.classList.add('error');
+    feedback.textContent=error.message||'The reset email could not be sent.';
+  }finally{
+    button.disabled=false;button.textContent='Forgot your password?';
+  }
+}
+
+function loadRecoverySessionFromUrl(){
+  const values=new URLSearchParams(window.location.hash.replace(/^#/,''));
+  if(values.get('type')!=='recovery'||!values.get('access_token'))return false;
+  const expiresIn=Number(values.get('expires_in')||3600);
+  saveAuthSession({
+    access_token:values.get('access_token'),
+    refresh_token:values.get('refresh_token')||'',
+    token_type:values.get('token_type')||'bearer',
+    expires_in:expiresIn,
+    expires_at:Math.floor(Date.now()/1000)+expiresIn
+  });
+  document.getElementById('login-panel').hidden=true;
+  document.getElementById('password-reset-panel').hidden=false;
+  showLogin();
+  window.history.replaceState(null,'',window.location.pathname+window.location.search);
+  document.getElementById('new-password').focus();
+  return true;
+}
+
+async function updateRecoveredPassword(){
+  const button=document.getElementById('update-password-button');
+  const feedback=document.getElementById('password-reset-error');
+  const password=document.getElementById('new-password').value;
+  const confirmation=document.getElementById('confirm-password').value;
+  if(password.length<8){feedback.textContent='Use at least eight characters.';return;}
+  if(password!==confirmation){feedback.textContent='The passwords do not match.';return;}
+  button.disabled=true;button.textContent='Updating password…';feedback.textContent='';
+  try{
+    const config=authConfig();
+    const token=await accessToken();
+    if(!token)throw new Error('This password reset link has expired. Request a new one.');
+    const response=await nativeFetch(config.url+'/auth/v1/user',{
+      method:'PUT',
+      headers:{apikey:config.key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({password})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.message||data.error_description||'Your password could not be updated.');
+    saveAuthSession(null);
+    document.getElementById('password-reset-panel').hidden=true;
+    document.getElementById('login-panel').hidden=false;
+    document.getElementById('login-password').value='';
+    document.getElementById('login-error').classList.remove('error');
+    document.getElementById('login-error').textContent='Password updated. Sign in with your new password.';
+    document.getElementById('login-password').focus();
+  }catch(error){
+    feedback.textContent=error.message||'Your password could not be updated.';
+  }finally{
+    button.disabled=false;button.textContent='Update password';
   }
 }
 
@@ -11188,6 +11319,7 @@ async function initializePortal(){
 }
 
 (async()=>{
+  if(loadRecoverySessionFromUrl())return;
   authSession=loadStoredAuthSession();
   if(!authSession){showLogin();return;}
   try{

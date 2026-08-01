@@ -135,7 +135,11 @@ textarea:focus { border-color: var(--eucalyptus) !important; }
 
 /* Field portal */
 body > header { background: var(--graphite); box-shadow: 0 2px 18px rgba(25, 32, 29, 0.2); }
+body > header .logo { color: #fff; }
+body > header .logo span,
 body > header .brand span { color: var(--leaf); }
+body > header .header-meta { color: #bdc8c1; }
+body > header #db-count { color: var(--leaf); }
 .identity { color: #bdc8c1; }
 .tabs { background: #e3e4dd; }
 .tab.active { color: var(--eucalyptus-dark); box-shadow: var(--shadow); }
@@ -154,11 +158,47 @@ body > header .brand span { color: var(--leaf); }
 .toast { background: var(--graphite); }
 .code { color: var(--eucalyptus-dark); }
 
+/* Readable secondary copy across dense operational screens. */
+.drawer-subtitle,
+.drawer-nav-meta,
+.drawer-help-text,
+.kpi-sub,
+#ccf-asof,
+#ccf-plan-sub,
+#bh-kpi-days,
+.date-sort { color: #5d6963; }
+main label,
+#drawer label,
+.entity-dialog label,
+.workspace-gate label { color: #5d6963 !important; }
+
 /* Keep the public account wall's approved homepage palette intact. */
 #login-screen { background: #fff; color: var(--graphite); }
 #login-screen .marketing-button { background: var(--leaf); color: var(--graphite); }
 #login-screen .marketing-button:hover { background: #bce083; }
 #login-screen .marketing-button.ghost { background: transparent; color: #fff; }
+.login-forgot {
+  display: block;
+  margin: 13px auto 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--eucalyptus);
+  font: 700 12px var(--font);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.login-forgot:hover { color: var(--eucalyptus-dark); background: transparent; }
+.login-feedback {
+  min-height: 18px;
+  margin-top: 10px;
+  color: var(--eucalyptus-dark);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+.login-feedback.error { color: var(--red); }
+.password-reset-actions { display: grid; gap: 10px; }
 
 @media print {
   body { background: #fff; }
