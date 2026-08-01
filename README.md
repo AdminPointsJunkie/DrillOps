@@ -2,6 +2,8 @@
 
 > Before deploying the current backend and portal, complete [AUTHENTICATION.md](AUTHENTICATION.md).
 
+> For native DAR submission, approval, in-app alerts, and email delivery, see [DAR_NOTIFICATIONS.md](DAR_NOTIFICATIONS.md).
+
 A private web application for importing, viewing, and analysing daily drilling reports.
 
 ## Architecture

@@ -23,6 +23,7 @@
   async function accessToken(){
     const current=loadSession();
     if(!current){
+      sessionStorage.setItem('drillops_return_to','./field.html'+window.location.search);
       window.location.replace('./index.html');
       throw new Error('Authentication required');
     }
@@ -36,6 +37,7 @@
     const refreshed=await response.json().catch(()=>({}));
     if(!response.ok){
       sessionStorage.removeItem(storageKey);
+      sessionStorage.setItem('drillops_return_to','./field.html'+window.location.search);
       window.location.replace('./index.html');
       throw new Error('Session expired');
     }
@@ -54,6 +56,7 @@
     const response=await nativeFetch(input,{...options,headers});
     if(response.status===401){
       sessionStorage.removeItem(storageKey);
+      sessionStorage.setItem('drillops_return_to','./field.html'+window.location.search);
       window.location.replace('./index.html');
     }
     return response;
