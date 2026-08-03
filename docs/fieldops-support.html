@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-<header><div class="bar"><div class="brand">Drill<span>Ops</span></div><nav><a href="/">DrillOps</a><a href="/fieldops-privacy.html">Privacy</a></nav></div></header>
+<header><div class="bar"><div class="brand">Drill<span>Ops</span></div><nav><a href="/fieldops.html">FieldOps</a><a href="/">DrillOps</a><a href="/fieldops-privacy.html">Privacy</a></nav></div></header>
 <main>
   <h1>FieldOps Support</h1>
   <p>FieldOps is an on-device field camera, GPS track recorder, waypoint manager and mapping tool for iPhone and iPad.</p>
@@ -32,8 +32,8 @@
   <h2>Permissions</h2>
   <p>Allow Location for coordinates, maps, waypoints and tracks; Camera for photographs; Motion for headings and angles; and Photos Add access when saving a photograph. Background location is used only while an active track is being recorded.</p>
 
-  <h2>EPSG:20355 and DXF</h2>
-  <p>Choose <code>EPSG:20355 — AGD84 / AMG zone 55</code> in Settings to display projected coordinates. ASCII DXF imports are interpreted as EPSG:20355 metres and support LINE, LWPOLYLINE, POLYLINE/VERTEX, POINT, CIRCLE and ARC geometry. Binary DXF files are not supported.</p>
+  <h2>Coordinate systems and DXF</h2>
+  <p>FieldOps supports WGS 84, GDA2020, GDA94, AGD84 and AGD66 in geographic or projected UTM, MGA and AMG coordinates, including <code>EPSG:20355 — AGD84 / AMG zone 55</code>. When importing an ASCII DXF, choose the drawing's source datum, coordinate type, axis order or grid zone, hemisphere and units. LINE, LWPOLYLINE, POLYLINE/VERTEX, POINT, CIRCLE and ARC geometry are supported. Binary DXF files are not supported.</p>
 
   <h2>Measurement accuracy</h2>
   <p>GPS, compass and motion readings are limited by the device, satellite visibility and magnetic interference. Use calibrated survey equipment for certified survey work, legal boundaries or safety-critical measurements.</p>
