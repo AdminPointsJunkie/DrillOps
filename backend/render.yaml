@@ -17,6 +17,10 @@ services:
         value: https://www.drillops.com.au
       - key: RESEND_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-sol
       - key: EMAIL_FROM
         sync: false
       - key: EMAIL_REPLY_TO

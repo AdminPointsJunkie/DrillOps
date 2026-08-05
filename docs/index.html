@@ -2210,7 +2210,7 @@ tbody td[contenteditable=true]:focus {
         <!-- Handwritten OCR -->
         <div class="chart-card" style="padding:24px;border:1.5px solid var(--accent);">
           <div class="chart-title" style="color:var(--accent);">Handwritten Drill Logs (AI OCR)</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Scanned handwritten logs (DEPCO etc). Uses Google Gemini AI to read handwriting.</p>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Scanned handwritten logs (DEPCO etc). Uses OpenAI vision to read handwriting.</p>
           <div class="upload-zone" id="ocr-drop-zone" style="margin-bottom:10px;border-color:var(--accent);position:relative;">
             <input type="file" id="ocr-file-input" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
             <div style="font-size:28px;margin-bottom:4px;">&#x1F916;</div>
@@ -4587,7 +4587,7 @@ function renderImportCheck(check){
   if(!check)return '';
   const warnings=check.warnings||[];
   const cls=check.status==='needs_review'||warnings.some(w=>w.severity==='critical')?'err':check.status==='ok'?'ok':'skip';
-  const label=check.status==='ok'?'Gemini check passed':check.status==='unavailable'?'Import QA checks':'Gemini check needs review';
+  const label=check.status==='ok'?'OpenAI check passed':check.status==='unavailable'?'Import QA checks':'OpenAI check needs review';
   const shown=warnings.slice(0,5).map(function(w){
     const row=w.row?' row '+esc(w.row):'';
     const code=w.code?' '+esc(w.code):'';
@@ -4608,7 +4608,7 @@ async function auditExistingImports(){
     const res=await fetch(`${API}/imports/qa-existing`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:activeContractor,limit:500,use_gemini:false})
+      body:JSON.stringify({contractor:activeContractor,limit:500,use_openai:false})
     });
     const d=await res.json();
     if(!res.ok)throw new Error(d.detail||JSON.stringify(d).slice(0,180));
@@ -7757,7 +7757,7 @@ invSidebarBtn.addEventListener('click', async()=>{
   if(document.getElementById('page-invoices').classList.contains('active')) await loadInvoices(importedContractor);
 });
 
-// ── OCR Import (handwritten drill logs via Gemini) ────────────────────────────
+// ── OCR Import (handwritten drill logs via OpenAI) ────────────────────────────
 var ocrFileInput = document.getElementById('ocr-file-input');
 var ocrImportBtn = document.getElementById('ocr-import-btn');
 var ocrPendingFiles = [];
@@ -7923,7 +7923,7 @@ async function previewNextOcrFile() {
   ocrCurrentFile = ocrPendingFiles[ocrPreviewIndex];
   ocrImportBtn.innerHTML = '<span class="spinner"></span>AI reading...';
   var log = document.getElementById('ocr-import-log');
-  log.innerHTML += '<div style="color:var(--accent);">\u23f3 Previewing ' + esc(ocrCurrentFile.name) + ' with Gemini AI...</div>';
+  log.innerHTML += '<div style="color:var(--accent);">\u23f3 Previewing ' + esc(ocrCurrentFile.name) + ' with OpenAI...</div>';
   var fd = new FormData();
   fd.append('file', ocrCurrentFile);
   try {

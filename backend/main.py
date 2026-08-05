@@ -44,22 +44,87 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is not set.")
 
 # Keep the production model configurable so future model migrations do not
-# require touching every Gemini-powered workflow.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash"
+# require touching every OpenAI-powered workflow.
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-sol").strip() or "gpt-5.6-sol"
+OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
-def gemini_generate_content_url(api_key: str) -> str:
-    return f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
-
-
-def gemini_response_text(result: dict) -> str:
-    """Join every text part returned by Gemini into one response body."""
-    parts = result["candidates"][0]["content"]["parts"]
+def openai_response_text(result: dict) -> str:
+    """Join all assistant text returned by the OpenAI Responses API."""
     return "".join(
         part.get("text", "")
-        for part in parts
-        if isinstance(part, dict) and not part.get("thought", False)
+        for item in result.get("output", [])
+        if isinstance(item, dict) and item.get("type") == "message"
+        for part in item.get("content", [])
+        if isinstance(part, dict) and part.get("type") == "output_text"
     ).strip()
+
+
+async def openai_generate_json(
+    prompt: str,
+    *,
+    schema: Optional[dict] = None,
+    image_data_url: Optional[str] = None,
+    max_output_tokens: int = 8192,
+    timeout: float = 90.0,
+) -> tuple[dict, str]:
+    """Generate a JSON object with optional original-detail image input."""
+    if not OPENAI_API_KEY:
+        raise HTTPException(
+            500,
+            "OPENAI_API_KEY not configured on server. Add it in Render environment variables.",
+        )
+
+    content = [{"type": "input_text", "text": prompt}]
+    if image_data_url:
+        content.append({
+            "type": "input_image",
+            "image_url": image_data_url,
+            "detail": "original",
+        })
+
+    text_format = {"type": "json_object"}
+    if schema is not None:
+        text_format = {
+            "type": "json_schema",
+            "name": "drillops_result",
+            "strict": True,
+            "schema": schema,
+        }
+
+    payload = {
+        "model": OPENAI_MODEL,
+        "input": [{"role": "user", "content": content}],
+        "reasoning": {"effort": "low"},
+        "max_output_tokens": max_output_tokens,
+        "text": {"format": text_format},
+        "store": False,
+    }
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(OPENAI_RESPONSES_URL, headers=headers, json=payload)
+    except Exception as e:
+        raise HTTPException(502, f"OpenAI request failed: {str(e)}")
+
+    if resp.status_code != 200:
+        raise HTTPException(502, f"OpenAI API error: {resp.status_code} - {resp.text[:300]}")
+
+    result = resp.json()
+    text = openai_response_text(result)
+    if not text:
+        status = result.get("status", "unknown")
+        reason = (result.get("incomplete_details") or {}).get("reason", "no output text")
+        raise HTTPException(422, f"OpenAI returned no JSON ({status}: {reason})")
+    try:
+        return json.loads(text), text
+    except json.JSONDecodeError as e:
+        raise HTTPException(422, f"Could not parse OpenAI JSON response: {str(e)}")
 
 CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
@@ -3499,7 +3564,7 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
 
     if suggested_code and suggested_code != original_code:
         updates["code"] = suggested_code
-        reason = f"Gemini matched code '{original_code}' to schedule code '{suggested_code}'. " + reason
+        reason = f"OpenAI matched code '{original_code}' to schedule code '{suggested_code}'. " + reason
 
     if not updates:
         return None
@@ -3517,8 +3582,8 @@ def calculate_activity_rate_fix(row, rate_context, suggested_code=None):
     return {"updates": changed, "reason": reason.strip()}
 
 
-async def gemini_suggest_schedule_codes(contractor, rows, hourly_rates):
-    if not os.environ.get("GEMINI_API_KEY") or not rows:
+async def openai_suggest_schedule_codes(contractor, rows, hourly_rates):
+    if not OPENAI_API_KEY or not rows:
         return {}
     schedule = [
         {"code": r.get("code"), "description": r.get("description"), "rate": r.get("rate"), "unit": r.get("unit")}
@@ -3550,22 +3615,8 @@ SCHEDULE:
 ROWS:
 {json.dumps(compact_rows, indent=2, default=str)}
 """
-    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-        if resp.status_code != 200:
-            return {}
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-        parsed = json.loads(text)
+        parsed, _ = await openai_generate_json(prompt, max_output_tokens=4096, timeout=60.0)
         valid_codes = {r.get("code") for r in hourly_rates}
         out = {}
         for item in parsed.get("suggestions", []):
@@ -3578,8 +3629,8 @@ ROWS:
         return {}
 
 
-async def gemini_suggest_consumable_matches(contractor, rows, consumable_rates):
-    if not os.environ.get("GEMINI_API_KEY") or not rows:
+async def openai_suggest_consumable_matches(contractor, rows, consumable_rates):
+    if not OPENAI_API_KEY or not rows:
         return {}
     schedule = [
         {"product": r.get("product"), "description": r.get("description"), "unit_price": r.get("unit_price"), "unit": r.get("unit")}
@@ -3603,22 +3654,8 @@ CONSUMABLE SCHEDULE:
 IMPORTED CONSUMABLES:
 {json.dumps(compact_rows, indent=2, default=str)}
 """
-    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-        if resp.status_code != 200:
-            return {}
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-        parsed = json.loads(text)
+        parsed, _ = await openai_generate_json(prompt, max_output_tokens=4096, timeout=60.0)
         products = {(r.get("product") or "").strip().upper(): r for r in consumable_rates}
         out = {}
         for item in parsed.get("suggestions", []):
@@ -3735,10 +3772,10 @@ def local_import_qa(acts, cons, crew, rate_context=None):
     return warnings
 
 
-async def gemini_import_qa(filename, contractor, header, source_text, acts, cons, crew, rate_context=None):
+async def openai_import_qa(filename, contractor, header, source_text, acts, cons, crew, rate_context=None):
     local_warnings = local_import_qa(acts, cons, crew, rate_context)
-    if not os.environ.get("GEMINI_API_KEY"):
-        return {"status": "unavailable", "summary": "Gemini import QA not run because GEMINI_API_KEY is not configured.", "warnings": local_warnings}
+    if not OPENAI_API_KEY:
+        return {"status": "unavailable", "summary": "OpenAI import QA not run because OPENAI_API_KEY is not configured.", "warnings": local_warnings}
 
     compact_acts = [
         {k: r.get(k) for k in ["date","hole_num","site_name","time_from","time_to","total_time","bit_type","diameter","metres_from","metres_to","total_metres","code","notes","unit_rate","quantity","line_cost","rate_basis"]}
@@ -3790,28 +3827,14 @@ PARSED CONSUMABLES:
 PARSED CREW:
 {json.dumps(compact_crew, indent=2, default=str)}
 """
-    url = gemini_generate_content_url(os.environ.get("GEMINI_API_KEY", ""))
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-        if resp.status_code != 200:
-            return {"status": "partial", "summary": f"Gemini import QA failed: HTTP {resp.status_code}", "warnings": local_warnings}
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-        result = json.loads(text)
+        result, _ = await openai_generate_json(prompt, max_output_tokens=4096, timeout=60.0)
         result["warnings"] = (result.get("warnings") or []) + local_warnings
         if result.get("warnings") and result.get("status") == "ok":
             result["status"] = "needs_review"
         return result
     except Exception as e:
-        return {"status": "partial", "summary": f"Gemini import QA could not parse a result: {str(e)}", "warnings": local_warnings}
+        return {"status": "partial", "summary": f"OpenAI import QA failed: {str(e)}", "warnings": local_warnings}
 
 
 def infer_report_contractor(selected_contractor: str, filename: str = "", header: dict = None, source_text: str = "") -> str:
@@ -4153,7 +4176,7 @@ async def import_pdf(
                 c["line_cost"] = None
 
         if contractor == "Allianz Drilling":
-            import_check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)
+            import_check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)
 
         with conn.cursor() as cur:
             if acts:
@@ -4201,7 +4224,8 @@ async def qa_existing_imports(request: Request):
     payload = await request.json()
     contractor = payload.get("contractor", "Allianz Drilling")
     limit = int(payload.get("limit") or 25)
-    use_gemini = bool(payload.get("use_gemini", True))
+    # Accept the previous flag name while deployed frontends transition.
+    use_openai = bool(payload.get("use_openai", payload.get("use_gemini", True)))
     if limit < 1:
         limit = 1
     if limit > 500:
@@ -4252,7 +4276,7 @@ async def qa_existing_imports(request: Request):
                     "hole_num": acts[0].get("hole_num") if acts else "",
                     "site_name": acts[0].get("site_name") if acts else "",
                 }
-                check = await gemini_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context) if use_gemini else {
+                check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context) if use_openai else {
                     "status": "local",
                     "summary": "Local schedule-of-rates checks only.",
                     "warnings": local_import_qa(acts, cons, crew, rate_context),
@@ -4316,7 +4340,7 @@ async def ai_fix_import_rates(request: Request):
                 and (r.get("code") or "") not in hourly_codes
                 and ((r.get("line_cost") is not None) or (r.get("notes") or ""))
             ]
-            code_suggestions = await gemini_suggest_schedule_codes(contractor, fuzzy_activity_rows, all_hr)
+            code_suggestions = await openai_suggest_schedule_codes(contractor, fuzzy_activity_rows, all_hr)
 
             activity_changes = []
             for row in activities:
@@ -4351,7 +4375,7 @@ async def ai_fix_import_rates(request: Request):
                 product = (row.get("consumable") or row.get("type") or "").strip().upper()
                 if product and product not in product_lookup and product.replace(" ", "") not in product_lookup:
                     fuzzy_consumables.append(row)
-            consumable_matches = await gemini_suggest_consumable_matches(contractor, fuzzy_consumables, all_cr)
+            consumable_matches = await openai_suggest_consumable_matches(contractor, fuzzy_consumables, all_cr)
 
             consumable_changes = []
             new_consumable_rates = []
@@ -4367,7 +4391,7 @@ async def ai_fix_import_rates(request: Request):
                 reason = "Matched imported consumable to schedule."
                 if match and match.get("product"):
                     rate_row = match["product"]
-                    reason = "Gemini matched consumable to schedule product. " + (match.get("reason") or "")
+                    reason = "OpenAI matched consumable to schedule product. " + (match.get("reason") or "")
                 elif not rate_row:
                     unit_price = row_num(row.get("unit_price"))
                     year = rate_year_for_row(row)
@@ -7414,13 +7438,13 @@ def rematch_all(contractor: str = Query(...)):
 
 @app.post("/reconciliation/ai-audit")
 async def ai_audit_reconciliation(request: Request):
-    """Use Gemini AI to intelligently audit invoices against EOS field data."""
+    """Use OpenAI to intelligently audit invoices against EOS field data."""
     payload = await request.json()
     contractor = payload.get("contractor", "Allianz Drilling")
     month = payload.get("month", "")
 
-    if not GEMINI_API_KEY:
-        raise HTTPException(500, "GEMINI_API_KEY not configured on server. Add it in Render environment variables.")
+    if not OPENAI_API_KEY:
+        raise HTTPException(500, "OPENAI_API_KEY not configured on server. Add it in Render environment variables.")
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -7531,33 +7555,12 @@ Provide your audit as JSON with this exact structure:
 
 Return ONLY valid JSON. No markdown fences. No text outside the JSON object."""
 
-    url = gemini_generate_content_url(GEMINI_API_KEY)
-    gemini_payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192}
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(url, json=gemini_payload)
+        audit, _ = await openai_generate_json(prompt, max_output_tokens=8192, timeout=90.0)
     except Exception as e:
-        raise HTTPException(502, f"Gemini request failed: {str(e)}")
-
-    if resp.status_code != 200:
-        raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-
-    result = resp.json()
-    try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
-        text = text.strip()
-        if text.startswith("```"): text = text.split("\n", 1)[1]
-        if text.endswith("```"): text = text[:-3]
-        text = text.strip()
-        if text.lower().startswith("json"): text = text[4:].strip()
-        audit = json.loads(text)
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        raw = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        return {"status": "partial", "raw_response": raw[:3000], "error": str(e)}
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(502, f"OpenAI request failed: {str(e)}")
 
     return {"status": "ok", "audit": audit}
 
@@ -8518,7 +8521,7 @@ def delete_project(project_id: int):
     return {"status": "deleted"}
 
 
-# ── Gemini Vision OCR for handwritten drill logs ──────────────────────────────
+# ── OpenAI vision OCR for handwritten drill logs ──────────────────────────────
 
 CONTRACT_STATUSES = {"Active", "Pending Approval", "Draft", "Ended"}
 CONTRACT_RATE_SECTIONS = {
@@ -9644,10 +9647,8 @@ async def update_cost_centre_forecast(row_id: int, request: Request):
     return dict(row)
 
 
-# Gemini Vision OCR
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-GEMINI_PROMPT = """You are reading a scanned handwritten drilling End-of-Shift report (DEPCO Drill Log format).
+# OpenAI vision OCR
+OPENAI_OCR_PROMPT = """You are reading a scanned handwritten drilling End-of-Shift report (DEPCO Drill Log format).
 
 Extract ALL data from this image into a JSON object with these exact fields:
 
@@ -9689,7 +9690,7 @@ IMPORTANT RULES:
 - Return ONLY valid JSON, no markdown, no explanation
 """
 
-GEMINI_OCR_RESPONSE_SCHEMA = {
+OPENAI_OCR_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "log_number": {"type": ["string", "null"]},
@@ -9737,10 +9738,10 @@ GEMINI_OCR_RESPONSE_SCHEMA = {
 }
 
 
-async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
-    """Send a PDF page image to Gemini Vision and extract structured data."""
-    if not GEMINI_API_KEY:
-        raise HTTPException(500, "GEMINI_API_KEY not configured on server")
+async def ocr_with_openai(pdf_bytes: bytes) -> dict:
+    """Send a PDF page image to OpenAI vision and extract structured data."""
+    if not OPENAI_API_KEY:
+        raise HTTPException(500, "OPENAI_API_KEY not configured on server")
 
     # Convert PDF to image using pdfplumber
     from PIL import Image
@@ -9758,68 +9759,23 @@ async def ocr_with_gemini(pdf_bytes: bytes) -> dict:
 
     b64_image = base64.b64encode(img_bytes).decode('utf-8')
 
-    # Call Gemini API
-    url = gemini_generate_content_url(GEMINI_API_KEY)
+    image_data_url = f"data:image/png;base64,{b64_image}"
+    for attempt, token_limit in enumerate((16000, 32000)):
+        try:
+            data, _ = await openai_generate_json(
+                OPENAI_OCR_PROMPT,
+                schema=OPENAI_OCR_RESPONSE_SCHEMA,
+                image_data_url=image_data_url,
+                max_output_tokens=token_limit,
+                timeout=120.0,
+            )
+            return data
+        except HTTPException as e:
+            if attempt == 0 and e.status_code == 422 and "max_output_tokens" in str(e.detail):
+                continue
+            raise
 
-    payload = {
-        "contents": [{
-            "parts": [
-                {"text": GEMINI_PROMPT},
-                {
-                    "inline_data": {
-                        "mime_type": "image/png",
-                        "data": b64_image
-                    }
-                }
-            ]
-        }],
-        "generationConfig": {
-            "temperature": 0.1,
-            # Gemini 3.5 Flash can spend much of this allowance on thinking.
-            # OCR is structured extraction, so keep thinking low and allow the
-            # model's full output capacity for the JSON response.
-            "maxOutputTokens": 65536,
-            "thinkingConfig": {
-                "thinkingLevel": "low",
-            },
-            "responseFormat": {
-                "text": {
-                    "mimeType": "APPLICATION_JSON",
-                    "schema": GEMINI_OCR_RESPONSE_SCHEMA,
-                }
-            },
-        }
-    }
-
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        for attempt in range(2):
-            resp = await client.post(url, json=payload)
-            if resp.status_code != 200:
-                raise HTTPException(502, f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-
-            result = resp.json()
-            try:
-                text = gemini_response_text(result)
-                # Clean up - remove markdown fences if present
-                text = text.strip()
-                if text.startswith("```"):
-                    text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                text = text.strip()
-                if text.startswith("json"):
-                    text = text[4:].strip()
-                return json.loads(text)
-            except (KeyError, IndexError, json.JSONDecodeError) as e:
-                finish_reason = result.get("candidates", [{}])[0].get("finishReason", "unknown")
-                if finish_reason == "MAX_TOKENS" and attempt == 0:
-                    continue
-                raise HTTPException(
-                    422,
-                    f"Could not parse Gemini response ({finish_reason}): {str(e)}",
-                )
-
-    raise HTTPException(422, "Gemini OCR did not return a complete response")
+    raise HTTPException(422, "OpenAI OCR did not return a complete response")
 
 
 @app.post("/import/ocr")
@@ -9829,7 +9785,7 @@ async def import_ocr_pdf(
     program: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
-    """Import a handwritten drill log PDF using reviewed or fresh Gemini OCR data."""
+    """Import a handwritten drill log PDF using reviewed or fresh OpenAI OCR data."""
     filename = file.filename
     content = await file.read()
 
@@ -9857,7 +9813,7 @@ async def import_ocr_pdf(
     else:
         # Keep direct API compatibility, but the UI normally previews and reviews first.
         try:
-            data = await ocr_with_gemini(content)
+            data = await ocr_with_openai(content)
         except HTTPException:
             raise
         except Exception as e:
@@ -9950,7 +9906,7 @@ async def preview_ocr_pdf(
 ):
     """Preview OCR results without saving — for testing."""
     content = await file.read()
-    data = await ocr_with_gemini(content)
+    data = await ocr_with_openai(content)
     return {"ocr_data": data, "activity_count": len(data.get("activities", []))}
 
 
