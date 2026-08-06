@@ -3561,7 +3561,7 @@ function boreholePlanningContractor(){return PLANNING_CONTRACTOR;}
 
 let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || 'null') ||
   [{name:'Allianz Drilling',short_code:'ALZ',category:'Drilling'},{name:'Mitchells Drilling',short_code:'MIT',category:'Drilling'},
-   {name:'DEPCO Drilling',short_code:'DEP',category:'Drilling'},
+   {name:'DEPCO Drilling',short_code:'DEP',category:'Drilling',program:'Exploration,Gas Riser,SIS'},
    {name:'MCC Group',short_code:'MCC',category:'Labour',program:'Exploration,Gas Riser,SIS'},{name:'King Konstruct',short_code:'KK',category:'Earthworks'},
    {name:'CHMS',short_code:'CHMS',category:'Earthworks'},
    {name:'Weatherfords',short_code:'WFD',category:'Geological Support'},
@@ -3653,6 +3653,7 @@ function reportDrillingContractor(){
 }
 
 function contractorInProgram(c, program) {
+  if(c&&c.name==='DEPCO Drilling')return true;
   return !program || contractorPrograms(c).includes(program);
 }
 
@@ -3660,7 +3661,9 @@ function filteredContractors() {
   const programContractors=CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
   if(!activeProjectName||!projectContractorsData.length)return programContractors;
   const linkedNames=new Set(projectContractorsData.map(function(row){return String(row.contractor||'').toLowerCase();}));
-  const linked=programContractors.filter(function(c){return linkedNames.has(String(c.name||'').toLowerCase());});
+  const linked=programContractors.filter(function(c){
+    return c.name==='DEPCO Drilling'||linkedNames.has(String(c.name||'').toLowerCase());
+  });
   return linked.length?linked:programContractors;
 }
 

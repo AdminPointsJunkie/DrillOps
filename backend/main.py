@@ -161,6 +161,11 @@ DEFAULT_CONTRACTOR_CATEGORIES = {
     "Earth Works": "Earthworks",
 }
 
+DEFAULT_CONTRACTOR_PROGRAMS = {
+    "MCC Group": "Exploration,Gas Riser,SIS",
+    "DEPCO Drilling": "Exploration,Gas Riser,SIS",
+}
+
 CONTRACTOR_EXPENSE_GL_LABELS = {
     "4200": "Consulting Services",
     "4250": "Contractors",
@@ -3244,7 +3249,7 @@ def get_contractors():
     with get_conn() as conn:
         with conn.cursor() as cur:
             for name, code in CONTRACTORS:
-                programs = "Exploration,Gas Riser,SIS" if name == "MCC Group" else "Exploration"
+                programs = DEFAULT_CONTRACTOR_PROGRAMS.get(name, "Exploration")
                 category = DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc")
                 expense_gl = default_contractor_expense_gl(category)
                 cur.execute("""
@@ -3260,6 +3265,19 @@ def get_contractors():
                 WHERE name = 'MCC Group'
                   AND (
                     COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
+                    OR COALESCE(expense_gl, '') = ''
+                  )
+            """)
+            cur.execute("""
+                UPDATE contractors
+                SET short_code = COALESCE(NULLIF(short_code, ''), 'DEP'),
+                    category = 'Drilling',
+                    program = 'Exploration,Gas Riser,SIS',
+                    expense_gl = COALESCE(NULLIF(expense_gl, ''), '4350')
+                WHERE name = 'DEPCO Drilling'
+                  AND (
+                    COALESCE(program, '') <> 'Exploration,Gas Riser,SIS'
+                    OR COALESCE(category, '') <> 'Drilling'
                     OR COALESCE(expense_gl, '') = ''
                   )
             """)
