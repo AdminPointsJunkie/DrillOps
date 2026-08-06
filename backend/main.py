@@ -129,6 +129,7 @@ async def openai_generate_json(
 CONTRACTORS = [
     ("Allianz Drilling",   "ALZ"),
     ("Mitchells Drilling", "MIT"),
+    ("DEPCO Drilling",     "DEP"),
     ("MCC Group",          "MCC"),
     ("CHMS",               "CHMS"),
     ("King Konstruct",     "KK"),
@@ -146,6 +147,7 @@ CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support
 DEFAULT_CONTRACTOR_CATEGORIES = {
     "Allianz Drilling": "Drilling",
     "Mitchells Drilling": "Drilling",
+    "DEPCO Drilling": "Drilling",
     "MCC Group": "Labour",
     "CHMS": "Earthworks",
     "King Konstruct": "Earthworks",
@@ -570,6 +572,47 @@ def apply_mitchells_contract_exceptions():
                   )
                 """
             )
+        conn.commit()
+
+
+def apply_depco_import_exceptions():
+    """Move unmistakably DEPCO-named imports to the canonical contractor."""
+    filename_condition = "UPPER(BTRIM(COALESCE({column}, ''))) LIKE 'DEPCO%'"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for table in ("activities", "consumables", "crew"):
+                cur.execute(
+                    f"""
+                    UPDATE {table}
+                    SET contractor='DEPCO Drilling'
+                    WHERE contractor IS DISTINCT FROM 'DEPCO Drilling'
+                      AND {filename_condition.format(column='source_file')}
+                    """
+                )
+
+            # These tables have a compound unique key. Remove only a misplaced
+            # duplicate when the correctly classified record already exists.
+            for table in ("source_files", "imported_files"):
+                cur.execute(
+                    f"""
+                    DELETE FROM {table} misplaced
+                    WHERE misplaced.contractor IS DISTINCT FROM 'DEPCO Drilling'
+                      AND {filename_condition.format(column='misplaced.filename')}
+                      AND EXISTS (
+                          SELECT 1 FROM {table} correct
+                          WHERE correct.filename=misplaced.filename
+                            AND correct.contractor='DEPCO Drilling'
+                      )
+                    """
+                )
+                cur.execute(
+                    f"""
+                    UPDATE {table}
+                    SET contractor='DEPCO Drilling'
+                    WHERE contractor IS DISTINCT FROM 'DEPCO Drilling'
+                      AND {filename_condition.format(column='filename')}
+                    """
+                )
         conn.commit()
 
 
@@ -1422,6 +1465,7 @@ remove_legacy_mcc_earthworks_seed()
 repair_mcc_weekly_activity_costs()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
+apply_depco_import_exceptions()
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
@@ -9788,6 +9832,8 @@ async def import_ocr_pdf(
     """Import a handwritten drill log PDF using reviewed or fresh OpenAI OCR data."""
     filename = file.filename
     content = await file.read()
+    if str(filename or "").strip().upper().startswith("DEPCO"):
+        contractor = "DEPCO Drilling"
 
     # Check if already imported
     with get_conn() as conn:
