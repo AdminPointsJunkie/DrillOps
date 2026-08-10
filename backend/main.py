@@ -1224,6 +1224,19 @@ def init_db():
                     conn.rollback()
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoice_attachments (
+                    id           SERIAL PRIMARY KEY,
+                    invoice_id   INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                    filename     TEXT NOT NULL,
+                    content_type TEXT,
+                    file_size    INTEGER NOT NULL DEFAULT 0,
+                    file_data    BYTEA NOT NULL,
+                    uploaded_at  TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_invoice_attachments_invoice ON invoice_attachments (invoice_id, uploaded_at)")
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoice_imports (
                     filename  TEXT,
                     contractor TEXT DEFAULT 'Allianz Drilling',
@@ -7323,6 +7336,11 @@ def get_invoices(
                             inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
                     except Exception:
                         inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                    try:
+                        cur.execute("SELECT COUNT(*) AS attachment_count FROM invoice_attachments WHERE invoice_id=%s", (inv["id"],))
+                        inv["attachment_count"] = int(cur.fetchone()["attachment_count"] or 0)
+                    except Exception:
+                        inv["attachment_count"] = 0
 
                 return invoices
     except Exception as e:
@@ -7335,6 +7353,95 @@ def get_invoice_lines(invoice_id: int):
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY line_date NULLS LAST, id", (invoice_id,))
             return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/invoices/{invoice_id}/attachments")
+def get_invoice_attachments(invoice_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM invoices WHERE id=%s", (invoice_id,))
+            if not cur.fetchone():
+                raise HTTPException(404, "Invoice not found")
+            cur.execute("""
+                SELECT id, filename, content_type, file_size, uploaded_at
+                FROM invoice_attachments
+                WHERE invoice_id=%s
+                ORDER BY uploaded_at DESC, id DESC
+            """, (invoice_id,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+@app.post("/invoices/{invoice_id}/attachments")
+async def upload_invoice_attachment(invoice_id: int, file: UploadFile = File(...)):
+    filename = re.split(r"[\\/]", str(file.filename or "").strip())[-1]
+    filename = filename.replace("\r", "").replace("\n", "")
+    if not filename:
+        raise HTTPException(400, "Attachment filename is required")
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "Attachment is empty")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(413, "Attachment exceeds the 20 MB limit")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT source_file FROM invoices WHERE id=%s", (invoice_id,))
+            invoice = cur.fetchone()
+            if not invoice:
+                raise HTTPException(404, "Invoice not found")
+            if not str(invoice["source_file"] or "").startswith("manual:"):
+                raise HTTPException(400, "Attachments can only be managed for manually added invoices")
+            cur.execute("""
+                INSERT INTO invoice_attachments
+                    (invoice_id, filename, content_type, file_size, file_data)
+                VALUES (%s,%s,%s,%s,%s)
+                RETURNING id, filename, content_type, file_size, uploaded_at
+            """, (
+                invoice_id,
+                filename,
+                str(file.content_type or "application/octet-stream"),
+                len(content),
+                psycopg2.Binary(content),
+            ))
+            attachment = dict(cur.fetchone())
+        conn.commit()
+    return attachment
+
+
+@app.get("/invoices/{invoice_id}/attachments/{attachment_id}")
+def download_invoice_attachment(invoice_id: int, attachment_id: int):
+    from fastapi.responses import Response
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT filename, content_type, file_data
+                FROM invoice_attachments
+                WHERE id=%s AND invoice_id=%s
+            """, (attachment_id, invoice_id))
+            attachment = cur.fetchone()
+            if not attachment:
+                raise HTTPException(404, "Attachment not found")
+    safe_filename = str(attachment["filename"] or f"attachment_{attachment_id}")
+    safe_filename = safe_filename.replace('"', "").replace("\r", "").replace("\n", "")
+    return Response(
+        content=bytes(attachment["file_data"]),
+        media_type=attachment["content_type"] or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{safe_filename}"'},
+    )
+
+
+@app.delete("/invoices/{invoice_id}/attachments/{attachment_id}")
+def delete_invoice_attachment(invoice_id: int, attachment_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM invoice_attachments WHERE id=%s AND invoice_id=%s RETURNING id",
+                (attachment_id, invoice_id),
+            )
+            if not cur.fetchone():
+                raise HTTPException(404, "Attachment not found")
+        conn.commit()
+    return {"status": "deleted"}
 
 
 

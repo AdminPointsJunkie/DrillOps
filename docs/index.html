@@ -135,6 +135,12 @@ body.workspace-locked{overflow:hidden;}
 .entity-dialog-field input,.entity-dialog-field select,.entity-dialog-field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text);font:500 13px var(--font);outline:none;}
 .entity-dialog-field input:focus,.entity-dialog-field select:focus,.entity-dialog-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
 .entity-dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:16px 26px 22px;}
+.invoice-attachment-list{display:flex;flex-direction:column;gap:8px;min-height:72px;}
+.invoice-attachment-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);}
+.invoice-attachment-name{flex:1;min-width:0;font-size:12px;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.invoice-attachment-meta{font-size:10px;color:var(--muted);white-space:nowrap;}
+.invoice-paperclip{position:relative;background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:14px;line-height:1;padding:4px 7px;border-radius:4px;}
+.invoice-paperclip-count{font-size:9px;font-weight:800;margin-left:2px;vertical-align:top;}
 @media(max-width:680px){
   .workspace-gate-card{padding:24px;}
   .workspace-gate-fields{grid-template-columns:1fr;}
@@ -2135,6 +2141,27 @@ tbody td[contenteditable=true]:focus {
   </form>
 </dialog>
 
+<dialog class="entity-dialog" id="invoice-attachment-dialog" aria-labelledby="invoice-attachment-title">
+  <div class="entity-dialog-header">
+    <div>
+      <div class="entity-dialog-title" id="invoice-attachment-title">Invoice attachments</div>
+      <div class="entity-dialog-copy" id="invoice-attachment-copy">Upload and manage supporting files for this manually added invoice.</div>
+    </div>
+    <button class="btn-ghost" type="button" onclick="closeInvoiceAttachments()">Close</button>
+  </div>
+  <div class="entity-dialog-body" style="display:block;">
+    <input id="invoice-attachment-id" type="hidden"/>
+    <div class="entity-dialog-field full">
+      <label for="invoice-attachment-files">Add attachments (20 MB maximum per file)</label>
+      <input id="invoice-attachment-files" type="file" multiple onchange="uploadInvoiceAttachments(this.files)"/>
+    </div>
+    <div id="invoice-attachment-list" class="invoice-attachment-list" style="margin-top:16px;"></div>
+  </div>
+  <div class="entity-dialog-actions">
+    <button class="btn-secondary" type="button" onclick="closeInvoiceAttachments()">Done</button>
+  </div>
+</dialog>
+
 <dialog class="period-drilldown-dialog" id="period-code-drilldown" aria-labelledby="period-code-drilldown-title">
   <div class="period-drilldown-head">
     <div>
@@ -2931,6 +2958,8 @@ tbody td[contenteditable=true]:focus {
             <option value="Paid">Paid</option>
             <option value="Query">Query</option>
             <option value="Rejected">Rejected</option>
+            <option value="Approved">Approved</option>
+            <option value="Not Approved">Not Approved</option>
           </select>
           <button class="btn-csv" onclick="downloadCSV('invoices')">⬇ CSV</button>
         </div>
@@ -2960,7 +2989,7 @@ tbody td[contenteditable=true]:focus {
           <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
           <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
           <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
-          <div class="filter-group"><label>Status</label><select id="manual-inv-status"><option>Unpaid</option><option>Paid</option><option>Query</option><option>Rejected</option></select></div>
+          <div class="filter-group"><label>Status</label><select id="manual-inv-status"><option>Unpaid</option><option>Paid</option><option>Query</option><option>Rejected</option><option>Approved</option><option>Not Approved</option></select></div>
           <div class="filter-group" style="grid-column:span 2;"><label>Description</label><input id="manual-inv-description" placeholder="Line description"></div>
           <div class="filter-group"><label>Category</label><select id="manual-inv-category"><option value="">Auto</option><option>labour</option><option>equipment</option><option>active</option><option>standby</option><option>travel</option><option>setup</option><option>consumable</option><option>other</option></select></div>
           <div class="filter-group"><label>Qty</label><input id="manual-inv-qty" type="number" step="0.01" value="1" oninput="updateManualInvoiceTotals()"></div>
@@ -8260,8 +8289,8 @@ function renderInvoices(rows){
   document.getElementById('inv-kpi-query').textContent = queryCount;
 
   // Build PO options per contractor for dropdown
-  var STATUS_CLR = {Paid:'#16a34a',Unpaid:'#dc2626',Query:'#d97706',Rejected:'#6b7280'};
-  var STATUS_OPTS = ['Unpaid','Paid','Query','Rejected'];
+  var STATUS_CLR = {Paid:'#16a34a',Unpaid:'#dc2626',Query:'#d97706',Rejected:'#6b7280',Approved:'#16a34a','Not Approved':'#dc2626'};
+  var STATUS_OPTS = ['Unpaid','Paid','Query','Rejected','Approved','Not Approved'];
   var MONTH_OPTS = ['','01/2025','02/2025','03/2025','04/2025','05/2025','06/2025','07/2025','08/2025','09/2025','10/2025','11/2025','12/2025',
                     '01/2026','02/2026','03/2026','04/2026','05/2026','06/2026','07/2026','08/2026','09/2026','10/2026','11/2026','12/2026'];
 
@@ -8277,6 +8306,7 @@ function renderInvoices(rows){
     var accounted = (parseInt(r.exact_matches || 0) || 0) + (parseInt(r.close_matches || 0) || 0);
     var lineSummary = r.line_count ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+accounted+'/'+r.line_count+' accounted</div>' : '';
     var hasPdf = r.source_file && String(r.source_file).indexOf('manual:') !== 0;
+    var isManual = r.source_file && String(r.source_file).indexOf('manual:') === 0;
     return '<tr data-inv-id="'+r.id+'"'+(Number(r.id)===Number(selectedInvoiceBreakdownId)?' class="active"':'')+'>'
       +'<td contenteditable="true" data-col="invoice_number" style="color:var(--accent);font-weight:700;">'+esc(r.invoice_number||'')+'</td>'
       +'<td contenteditable="true" data-col="contractor" style="font-size:12px;">'+esc(r.contractor||'')+'</td>'
@@ -8294,6 +8324,7 @@ function renderInvoices(rows){
       +'<td style="font-size:11px;color:var(--muted);text-align:center;">v'+(r.version||1)+'</td>'
       +'<td style="display:flex;gap:4px;align-items:center;">'
         +(r.id&&hasPdf?'<button onclick="viewInvoicePdf('+r.id+')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':'')
+        +(r.id&&isManual?'<button class="invoice-paperclip" onclick="openInvoiceAttachments('+r.id+')" title="Manage attachments" aria-label="Manage attachments">&#128206;<span class="invoice-paperclip-count">'+(parseInt(r.attachment_count||0)||'')+'</span></button>':'')
         +(r.id?'<button onclick="loadInvoiceBreakdown('+r.id+')" style="background:transparent;border:1.5px solid var(--border);color:var(--text2);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">Breakdown</button>':'')
         +lineSummary
         +'<button onclick="deleteInvoice('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;">\u2715</button>'
@@ -8359,6 +8390,103 @@ async function deleteInvoice(id){
 
 function viewInvoicePdf(invoiceId) {
   window.open(API+'/invoices/'+invoiceId+'/pdf', '_blank');
+}
+
+function invoiceAttachmentSize(bytes) {
+  var value = parseInt(bytes || 0) || 0;
+  if(value < 1024) return value + ' B';
+  if(value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB';
+  return (value / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function openInvoiceAttachments(invoiceId) {
+  var invoice = invoicesData.find(function(r){ return Number(r.id) === Number(invoiceId); }) || {};
+  document.getElementById('invoice-attachment-id').value = invoiceId;
+  document.getElementById('invoice-attachment-title').textContent = (invoice.invoice_number || 'Invoice') + ' attachments';
+  document.getElementById('invoice-attachment-files').value = '';
+  var dialog = document.getElementById('invoice-attachment-dialog');
+  if(dialog && !dialog.open) dialog.showModal();
+  await loadInvoiceAttachments(invoiceId);
+}
+
+function closeInvoiceAttachments() {
+  var dialog = document.getElementById('invoice-attachment-dialog');
+  if(dialog && dialog.open) dialog.close();
+}
+
+async function loadInvoiceAttachments(invoiceId) {
+  var list = document.getElementById('invoice-attachment-list');
+  list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:14px 0;">Loading attachments...</div>';
+  try {
+    var res = await fetch(API+'/invoices/'+encodeURIComponent(invoiceId)+'/attachments');
+    if(!res.ok) throw new Error(await res.text());
+    var attachments = await res.json();
+    if(!Array.isArray(attachments)) attachments = [];
+    var invoice = syncInvoiceLocal(invoiceId, {attachment_count: attachments.length});
+    list.innerHTML = attachments.map(function(a){
+      var uploaded = a.uploaded_at ? new Date(a.uploaded_at).toLocaleString('en-AU') : '';
+      return '<div class="invoice-attachment-row">'
+        +'<div class="invoice-attachment-name" title="'+attr(a.filename||'Attachment')+'">'+esc(a.filename||'Attachment')+'</div>'
+        +'<div class="invoice-attachment-meta">'+esc(invoiceAttachmentSize(a.file_size))+(uploaded?' &middot; '+esc(uploaded):'')+'</div>'
+        +'<button class="btn-ghost" type="button" onclick="viewInvoiceAttachment('+invoiceId+','+a.id+')">Open</button>'
+        +'<button class="btn-ghost" type="button" style="color:var(--red);" onclick="deleteInvoiceAttachment('+invoiceId+','+a.id+')">Delete</button>'
+        +'</div>';
+    }).join('') || '<div style="font-size:12px;color:var(--muted);padding:14px 0;">No attachments yet.</div>';
+    if(invoice) renderInvoices((function(){
+      var cfilt = (document.getElementById('inv-contractor-filter') || {}).value || '';
+      var sfilt = (document.getElementById('inv-status-filter') || {}).value || '';
+      return invoicesData.filter(function(r){
+        return (!cfilt || r.contractor === cfilt) && (!sfilt || r.status === sfilt);
+      });
+    })());
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--red);padding:14px 0;">Could not load attachments.</div>';
+  }
+}
+
+async function uploadInvoiceAttachments(files) {
+  var invoiceId = parseInt(document.getElementById('invoice-attachment-id').value || 0);
+  files = Array.from(files || []);
+  if(!invoiceId || !files.length) return;
+  var oversized = files.find(function(file){ return file.size > 20 * 1024 * 1024; });
+  if(oversized) {
+    toast(oversized.name + ' exceeds the 20 MB limit','err');
+    document.getElementById('invoice-attachment-files').value = '';
+    return;
+  }
+  var input = document.getElementById('invoice-attachment-files');
+  input.disabled = true;
+  try {
+    for(var i=0; i<files.length; i++) {
+      var body = new FormData();
+      body.append('file', files[i]);
+      var res = await fetch(API+'/invoices/'+encodeURIComponent(invoiceId)+'/attachments', {method:'POST', body:body});
+      if(!res.ok) throw new Error(await res.text());
+    }
+    toast(files.length === 1 ? 'Attachment added' : files.length + ' attachments added');
+    await loadInvoiceAttachments(invoiceId);
+  } catch(e) {
+    toast('Upload failed: '+((e && e.message) || 'attachment was not saved'),'err');
+  } finally {
+    input.disabled = false;
+    input.value = '';
+  }
+}
+
+function viewInvoiceAttachment(invoiceId, attachmentId) {
+  window.open(API+'/invoices/'+encodeURIComponent(invoiceId)+'/attachments/'+encodeURIComponent(attachmentId), '_blank');
+}
+
+async function deleteInvoiceAttachment(invoiceId, attachmentId) {
+  if(!confirm('Delete this attachment?')) return;
+  try {
+    var res = await fetch(API+'/invoices/'+encodeURIComponent(invoiceId)+'/attachments/'+encodeURIComponent(attachmentId), {method:'DELETE'});
+    if(!res.ok) throw new Error(await res.text());
+    toast('Attachment deleted','warn');
+    await loadInvoiceAttachments(invoiceId);
+  } catch(e) {
+    toast('Delete failed: '+((e && e.message) || 'attachment was not removed'),'err');
+  }
 }
 
 async function loadInvoiceBreakdown(invoiceId) {
