@@ -3399,7 +3399,7 @@ function safeReturnTo(){
 }
 
 async function verifyPortalAccount(){
-  const response=await fetch(API+'/mobile/me',{cache:'no-store'});
+  const response=await apiFetch(API+'/mobile/me',{cache:'no-store'},2);
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
   const returnTo=safeReturnTo();
@@ -3532,6 +3532,7 @@ async function doLogout(){
     });
   }catch(error){}
   saveAuthSession(null);
+  ['drillops_client_id','drillops_project','drillops_program','drillops_active_page'].forEach(function(key){localStorage.removeItem(key);});
   sessionStorage.clear();
   window.location.reload();
 }
@@ -3578,7 +3579,7 @@ const CONTRACTOR_GL_LABELS = {
   '4250':'Contractors',
   '4350':'Drilling Services'
 };
-let activeProgram = sessionStorage.getItem('drillops_program') || 'Exploration';
+let activeProgram = localStorage.getItem('drillops_program') || sessionStorage.getItem('drillops_program') || 'Exploration';
 
 function contractorPrograms(c) {
   const raw = c && (c.programs || c.program);
@@ -3713,6 +3714,7 @@ function drawerNav(btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
   pageEl.classList.add('active');
+  localStorage.setItem('drillops_active_page',page);
   triggerPageLoad(page);
   // Update drawer nav highlight
   document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
@@ -3734,6 +3736,7 @@ function openProjectWorkspaceSection(section){
   document.querySelectorAll('.page').forEach(function(item){item.classList.remove('active');});
   document.querySelector('.nav-item[data-page="project-budgets"]')?.classList.add('active');
   pageEl.classList.add('active');
+  localStorage.setItem('drillops_active_page',page);
   document.querySelectorAll('.drawer-nav-item').forEach(function(item){item.classList.remove('active');});
   document.querySelector('.drawer-nav-item[data-page="project-budgets"]')?.classList.add('active');
   document.querySelectorAll('.project-workspace-tab').forEach(function(tab){
@@ -4136,7 +4139,7 @@ function ensureActiveContractorInProgram(){
 }
 async function switchProgram(program){
   activeProgram=program||'';
-  sessionStorage.setItem('drillops_program',activeProgram);
+  saveWorkspaceSelection();
   setProgramControls();
   ensureActiveContractorInProgram();
   projects=[];
@@ -9827,11 +9830,52 @@ var clients = [];
 var projects = [];
 var workspaceGateResolve = null;
 var workspaceStarted = false;
+const WORKSPACE_CLIENT_KEY = 'drillops_client_id';
+const WORKSPACE_PROJECT_KEY = 'drillops_project';
+const WORKSPACE_PROGRAM_KEY = 'drillops_program';
+
+function storedWorkspaceValue(key) {
+  return localStorage.getItem(key) || sessionStorage.getItem(key) || '';
+}
+
+function saveWorkspaceSelection() {
+  var values = {};
+  values[WORKSPACE_CLIENT_KEY] = String(activeClientId || '');
+  values[WORKSPACE_PROJECT_KEY] = activeProjectName || '';
+  values[WORKSPACE_PROGRAM_KEY] = activeProgram || '';
+  Object.keys(values).forEach(function(key) {
+    localStorage.setItem(key, values[key]);
+    sessionStorage.setItem(key, values[key]);
+  });
+}
+
+function restoreWorkspaceSelection() {
+  var clientId = Number(storedWorkspaceValue(WORKSPACE_CLIENT_KEY) || 0);
+  var projectName = storedWorkspaceValue(WORKSPACE_PROJECT_KEY);
+  var project = projects.find(function(item) {
+    return Number(item.client_id) === clientId
+      && item.name === projectName
+      && item.status !== 'Inactive';
+  });
+  var client = clients.find(function(item) {
+    return Number(item.id) === clientId && item.status !== 'Inactive';
+  });
+  if(!client || !project) return false;
+  activeClientId = clientId;
+  activeProjectName = project.name;
+  activeProgram = storedWorkspaceValue(WORKSPACE_PROGRAM_KEY) || projectProgram(project);
+  saveWorkspaceSelection();
+  var label = document.getElementById('workspace-context-label');
+  if(label) label.textContent = client.name + ' / ' + activeProjectName;
+  document.getElementById('workspace-gate').classList.remove('open');
+  document.body.classList.remove('workspace-locked');
+  return true;
+}
 
 function populateWorkspaceClientOptions() {
   var select = document.getElementById('workspace-client-select');
   if(!select) return;
-  var preferred = activeClientId || Number(sessionStorage.getItem('drillops_client_id') || 0);
+  var preferred = activeClientId || Number(storedWorkspaceValue(WORKSPACE_CLIENT_KEY) || 0);
   select.innerHTML = '<option value="">Select client</option>';
   clients.filter(function(client){ return client.status !== 'Inactive'; }).forEach(function(client) {
     var option = document.createElement('option');
@@ -9848,7 +9892,7 @@ function populateWorkspaceProjectOptions() {
   var projectSelect = document.getElementById('workspace-project-select');
   if(!clientSelect || !projectSelect) return;
   var clientId = Number(clientSelect.value || 0);
-  var preferred = activeProjectName || sessionStorage.getItem('drillops_project') || '';
+  var preferred = activeProjectName || storedWorkspaceValue(WORKSPACE_PROJECT_KEY);
   projectSelect.innerHTML = clientId
     ? '<option value="">Select project</option>'
     : '<option value="">Select client first</option>';
@@ -9926,9 +9970,7 @@ async function confirmWorkspaceSelection() {
   activeClientId = clientId;
   activeProjectName = project.name;
   activeProgram = projectProgram(project);
-  sessionStorage.setItem('drillops_client_id', String(activeClientId));
-  sessionStorage.setItem('drillops_project', activeProjectName);
-  sessionStorage.setItem('drillops_program', activeProgram);
+  saveWorkspaceSelection();
   await loadProjectContractors();
   ensureActiveContractorInProgram();
   buildContractorSwitcher();
@@ -10052,9 +10094,7 @@ async function activateProjectFromRegister(projectId){
   activeClientId=Number(project.client_id)||null;
   activeProjectName=project.name;
   activeProgram=projectProgram(project);
-  sessionStorage.setItem('drillops_client_id',String(activeClientId||''));
-  sessionStorage.setItem('drillops_project',activeProjectName);
-  sessionStorage.setItem('drillops_program',activeProgram);
+  saveWorkspaceSelection();
   await loadProjectContractors();
   ensureActiveContractorInProgram();
   buildContractorSwitcher();
@@ -10072,9 +10112,7 @@ async function openProjectCostContracts(projectId){
     activeClientId=Number(project.client_id)||null;
     activeProjectName=project.name;
     activeProgram=projectProgram(project);
-    sessionStorage.setItem('drillops_client_id',String(activeClientId||''));
-    sessionStorage.setItem('drillops_project',activeProjectName);
-    sessionStorage.setItem('drillops_program',activeProgram);
+    saveWorkspaceSelection();
     await loadProjectContractors();
     ensureActiveContractorInProgram();
     buildContractorSwitcher();
@@ -11491,8 +11529,10 @@ async function initializePortal(){
   portalInitialized=true;
   await fetchContractors();
   await fetchProjects();
-  await showWorkspaceGate();
+  if(!restoreWorkspaceSelection()) await showWorkspaceGate();
   workspaceStarted = true;
+  await loadProjectContractors();
+  ensureActiveContractorInProgram();
   buildContractorSwitcher();
   updateContractorSwitcherVisibility(document.querySelector('.page.active')?.id?.replace('page-','')||'boreholes');
   syncWorkspaceControls();
@@ -11502,6 +11542,9 @@ async function initializePortal(){
   await loadActivities();
   await loadBoreholes();
   filterBoreholesByProject();
+  var savedPage=localStorage.getItem('drillops_active_page')||'';
+  var savedPageButton=document.querySelector('.drawer-nav-item[data-page="'+savedPage+'"]');
+  if(savedPageButton&&savedPage!=='boreholes')drawerNav(savedPageButton);
   setTimeout(()=>loadAnalytics('all'),200);
 }
 
@@ -11512,11 +11555,21 @@ async function initializePortal(){
   try{
     await accessToken();
     if(!await verifyPortalAccount())return;
-    document.getElementById('login-screen').style.display='none';
-    await initializePortal();
   }catch(error){
     saveAuthSession(null);
     showLogin(error.message||'Please sign in again.');
+    return;
+  }
+  document.getElementById('login-screen').style.display='none';
+  try{
+    await initializePortal();
+  }catch(error){
+    portalInitialized=false;
+    console.error('Portal startup error:',error);
+    var gateError=document.getElementById('workspace-gate-error');
+    if(gateError)gateError.textContent='DrillOps could not finish loading. Refresh to retry; your sign-in and workspace have been kept.';
+    document.getElementById('workspace-gate').classList.add('open');
+    document.body.classList.add('workspace-locked');
   }
 })();
 </script>
