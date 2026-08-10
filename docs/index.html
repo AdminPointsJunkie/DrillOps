@@ -2576,6 +2576,8 @@ tbody td[contenteditable=true]:focus {
           </div>
           <div class="period-section-title">Headline Figures</div>
           <div class="period-kpis">
+            <div class="period-kpi"><div class="label">Holes Completed</div><div class="value" id="period-holes-completed">--</div><div class="sub" id="period-holes-completed-sub">Completed during selected period</div></div>
+            <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
             <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
             <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
             <div class="period-kpi"><div class="label">Support Costs</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Earthworks / support / misc</div></div>
@@ -5130,17 +5132,27 @@ function periodPlannedBoreholes(rows){
 }
 
 function periodRelevantProjectHoles(projectHoles,activeHoles){
-  const byId=new Map();
-  (projectHoles||[]).concat(activeHoles||[]).forEach(function(b){
-    const id=String((b&&b.hole_id)||'').trim();
-    if(id&&!byId.has(id))byId.set(id,b);
+  // A period report must contain only holes evidenced by activity inside the
+  // selected range. Project-wide completed holes belong to planning, not to
+  // every historical period report.
+  return uniqueBoreholesById(activeHoles||[]);
+}
+
+function periodHoleStatusSummary(reportHoles,period,allRows){
+  const completed=[];
+  const inProgress=[];
+  (reportHoles||[]).forEach(function(b){
+    const dates=(allRows||[]).filter(function(r){return rowMatchesBorehole(r,b);})
+      .map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+    const completionDate=dates[dates.length-1]||'';
+    const completedInPeriod=boreholeIsComplete(b)
+      && completionDate
+      && (!period.from||completionDate>=period.from)
+      && (!period.to||completionDate<=period.to);
+    if(completedInPeriod)completed.push(b);
+    else inProgress.push(b);
   });
-  const relevantIds=new Set((activeHoles||[]).map(function(b){return String((b&&b.hole_id)||'').trim();}).filter(Boolean));
-  (projectHoles||[]).forEach(function(b){
-    const id=String((b&&b.hole_id)||'').trim();
-    if(id&&boreholeIsComplete(b))relevantIds.add(id);
-  });
-  return Array.from(relevantIds).map(function(id){return byId.get(id);}).filter(Boolean);
+  return {completed:completed,inProgress:inProgress};
 }
 
 function buildPeriodProjectOptions(){
@@ -5428,9 +5440,15 @@ function renderPeriodReport(){
   const consumables=periodFilteredConsumables();
   const supportInvoices=periodFilteredSupportInvoices();
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
-  const activeHoles=activeIds.map(function(id){return holes.get(id);}).filter(Boolean);
+  const activeHoles=uniqueBoreholesById(activeIds.map(function(id){return holes.get(id);}).filter(Boolean));
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
   const reportHoles=periodRelevantProjectHoles(projectHoles,activeHoles);
+  const allActivitySource=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
+  const allProjectRows=(allActivitySource||[]).filter(function(r){
+    if(!period.project&&!rowMatchesActiveProgram(r))return false;
+    return rowMatchesPeriodProject(r,holes,period.project);
+  });
+  const holeStatusSummary=periodHoleStatusSummary(reportHoles,period,allProjectRows);
   const drillingReports=groupDailyReports(rows,consumables);
   const groupedConsumableKeys=new Set(drillingReports.map(function(report){return report.key;}));
   const ungroupedConsumableCost=consumables.filter(function(row){
@@ -5461,6 +5479,10 @@ function renderPeriodReport(){
   setPeriodText('period-print-title',projectLabel+' - '+activeProgramLabel()+' Drilling Report');
   shell.textContent=projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
   setPeriodText('period-print-meta',projectLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today);
+  setPeriodText('period-holes-completed',holeStatusSummary.completed.length.toLocaleString());
+  setPeriodText('period-holes-completed-sub','Final activity recorded in selected period');
+  setPeriodText('period-holes-in-progress',holeStatusSummary.inProgress.length.toLocaleString());
+  setPeriodText('period-holes-in-progress-sub','Active in period, not completed by period end');
   setPeriodText('period-budget-total',cur(budgetTotal));
   setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.3 per-hole budget':'Borehole budget fallback'));
   const drillingSummaryEl=document.getElementById('period-drilling-summary');
@@ -5492,7 +5514,7 @@ function renderPeriodReport(){
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
   renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost);
   renderPeriodStandbyReasons(rows);
-  renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles);
+  renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary);
 }
 
 function setPeriodText(id,value){
@@ -6160,17 +6182,15 @@ function renderPeriodStandbyReasons(rows){
     +'</tbody></table></div>';
 }
 
-function renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles){
+function renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary){
   const el=document.getElementById('period-progress-issues');
   if(!el)return;
   const relevant=reportHoles&&reportHoles.length?reportHoles:periodRelevantProjectHoles(projectHoles,activeHoles);
-  const completed=relevant.filter(boreholeIsComplete).map(function(b){return b.hole_id;});
-  const activeSet=new Set((activeHoles||[]).map(function(b){return b.hole_id;}));
-  const carried=relevant.filter(function(b){return !boreholeIsComplete(b)&&activeSet.has(b.hole_id);}).map(function(b){return b.hole_id;});
+  const statusSummary=holeStatusSummary||periodHoleStatusSummary(relevant,selectedPeriod(),periodReportActivitiesData||activitiesData);
   const notes=Array.from(new Set(rows.map(function(r){return r.notes||'';}).filter(function(n){return n&&String(n).toLowerCase().match(/delay|standby|fatigue|lost|breakdown|repair|access|issue|move|ground/);}))).slice(0,4);
   const items=[
-    {label:'Completed',value:completed.length||0},
-    {label:'Carried forward',value:carried.length||0},
+    {label:'Completed',value:statusSummary.completed.length||0},
+    {label:'In Progress',value:statusSummary.inProgress.length||0},
     {label:'Report holes',value:relevant.length||0},
     {label:'Exceptions',value:notes.length||0}
   ];
