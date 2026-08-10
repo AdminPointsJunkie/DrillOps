@@ -4039,7 +4039,7 @@ let activeProjectName = '';
 let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
+let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
@@ -4143,7 +4143,7 @@ async function switchProgram(program){
   projectBudgetsData=[];
   periodSourceBudgetData=null;
   bhData=[];
-  activitiesData=[];consumablesData=[];crewData=[];dailyReportsData=[];productionRawData=[];productionFilteredData=[];
+  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];productionRawData=[];productionFilteredData=[];
   buildContractorSwitcher();
   renderDrawerContractors();
   await fetchProjects();
@@ -4301,6 +4301,7 @@ function applyActivityReportBundle(bundle){
   bundle=bundle||{};
   activitiesData=bundle.activities||[];
   consumablesData=bundle.consumables||[];
+  reportConsumablesData=consumablesData.slice();
   crewData=bundle.crew||[];
   reportApprovalsByKey={};
   (bundle.report_approvals||[]).forEach(function(r){
@@ -4361,7 +4362,7 @@ function groupDailyReports(rows,reportConsumables){
   });
   const groups=[...map.values()];
   const groupsByKey=new Map(groups.map(function(group){return [group.key,group];}));
-  const sourceConsumables=Array.isArray(reportConsumables)?reportConsumables:(consumablesData||[]);
+  const sourceConsumables=Array.isArray(reportConsumables)?reportConsumables:(reportConsumablesData||consumablesData||[]);
   sourceConsumables.forEach(function(c){
     const group=relatedDailyReportGroup(c,groups,groupsByKey);
     if(group)group.consumableCost+=parseFloat(c.line_cost)||0;
@@ -4423,7 +4424,7 @@ async function switchContractor(name){
   renderDrawerContractors();
   // Reset all state
   filterOpts={dates:[],holes:[],sites:[],codes:[]};
-  activitiesData=[];consumablesData=[];crewData=[];anomaliesData=[];
+  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];anomaliesData=[];
   costingHolesData=[];costingDatesData=[];costingLinesData=[];
   posData=[];drillingRatesData=[];hourlyRatesData=[];
   // Reload current page
@@ -9951,6 +9952,7 @@ async function changeWorkspace() {
   bhData = [];
   activitiesData = [];
   consumablesData = [];
+  reportConsumablesData = [];
   crewData = [];
   dailyReportsData = [];
   productionRawData = [];
