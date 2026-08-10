@@ -2442,7 +2442,7 @@ tbody td[contenteditable=true]:focus {
         </div>
       </div>
       <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
-        <div class="kpi"><div class="kpi-label">Version 5.3 Program Budget</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">2 Jul 2026 per-hole baseline</div></div>
+        <div class="kpi"><div class="kpi-label">Version 5.4 Program Budget</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">28 Jul 2026 per-hole baseline</div></div>
         <div class="kpi"><div class="kpi-label" id="ccf-current-accrued-label">Current Month Accrued to Date</div><div class="kpi-value" id="ccf-current-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
         <div class="kpi"><div class="kpi-label">Remaining Workbook Program</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">All hole-linked contractors</div></div>
         <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
@@ -2464,7 +2464,7 @@ tbody td[contenteditable=true]:focus {
             <tbody id="ccf-sheet-body"></tbody>
           </table>
         </div>
-        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the Version 5.3 per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by drill order, spread over each hole's drill days and stop when that hole finishes. Live Borehole Planning statuses preserve later cancellations. The current-month column is actual-only. Rest of Month is forecast-only and is already included once in the 2026 Reforecast total; do not add it to that total again.</div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the Version 5.4 per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by hole ID, with drill order as a fallback, spread over each hole's drill days and stop when that hole finishes. Live Borehole Planning statuses preserve later operational changes. The current-month column is actual-only. Rest of Month is forecast-only and is already included once in the 2026 Reforecast total; do not add it to that total again.</div>
       </div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="table-toolbar">
@@ -5357,11 +5357,20 @@ function periodSourceBudgetRows(period,metrics){
     return projectNamesMatch(metric.borehole&&metric.borehole.project,sourceProject);
   });
   if(!relevant.length)return [];
-  const byOrder=new Map(sourceHoles.map(function(row){return [Number(row&&row[0]),row];}));
+  const sourceStatuses=new Map((Array.isArray(source.boreholes)?source.boreholes:[]).map(function(row){return [String(row&&row.hole_id||''),String(row&&row.source_status||'').toLowerCase()];}));
+  const byId=new Map(sourceHoles.map(function(row){return [String(row&&row[1]||''),row];}));
+  const byOrder=new Map();
+  sourceHoles.forEach(function(row){
+    const order=Number(row&&row[0]);
+    const current=byOrder.get(order);
+    const incomingCancelled=['cancelled','abandoned'].includes(sourceStatuses.get(String(row&&row[1]||'')));
+    const currentCancelled=current?['cancelled','abandoned'].includes(sourceStatuses.get(String(current[1]||''))):true;
+    if(!current||(currentCancelled&&!incomingCancelled))byOrder.set(order,row);
+  });
   const totals=definitions.map(function(){return 0;});
   relevant.forEach(function(metric){
     const order=Number(metric.borehole&&metric.borehole.drill_order);
-    const sourceRow=byOrder.get(order);
+    const sourceRow=byId.get(String(metric.borehole&&metric.borehole.hole_id||''))||byOrder.get(order);
     definitions.forEach(function(definition,index){
       const sourceAmount=sourceRow?numVal(sourceRow[3+index]):0;
       const amount=definition.key==='mitchells'
@@ -5382,8 +5391,8 @@ function periodSourceBudgetRows(period,metrics){
       canonical_section:section,
       vendor:definition.name||definition.key,
       budget_amount:amount,
-      allocation:'Version 5.3 per-hole source',
-      notes:'Source: '+String(source.source||'Version 5.3 workbook'),
+      allocation:'Version 5.4 per-hole source',
+      notes:'Source: '+String(source.source||'Version 5.4 workbook'),
       source_budget:true
     };
   }).filter(Boolean);
@@ -5399,8 +5408,8 @@ function periodSourceBudgetRows(period,metrics){
       canonical_section:'MISC',
       vendor:'Unallocated Support',
       budget_amount:unallocated,
-      allocation:'Borehole total less mapped Version 5.3 contractor lines',
-      notes:'Retains support budget on report holes that do not have a matching Version 5.3 source row.',
+      allocation:'Borehole total less mapped Version 5.4 contractor lines',
+      notes:'Retains support budget on report holes that do not have a matching Version 5.4 source row.',
       source_budget:true
     });
   }
@@ -5524,7 +5533,7 @@ function renderPeriodReport(){
   setPeriodText('period-holes-in-progress',holeStatusSummary.inProgress.length.toLocaleString());
   setPeriodText('period-holes-in-progress-sub','Started in period and still In Progress');
   setPeriodText('period-budget-total',cur(budgetTotal));
-  setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.3 per-hole budget':'Borehole budget fallback'));
+  setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.4 per-hole budget':'Borehole budget fallback'));
   const drillingSummaryEl=document.getElementById('period-drilling-summary');
   if(drillingSummaryEl){
     drillingSummaryEl.textContent=cur(totalDrillingCost)+' / '+cur(drillingBudgetTotal);

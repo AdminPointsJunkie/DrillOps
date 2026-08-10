@@ -9209,15 +9209,106 @@ def delete_project_budget(budget_id: int):
 
 
 @lru_cache(maxsize=1)
-def load_ironbark_budget_v5_3():
-    """Load the audited Version 5.3 per-hole contractor budget extracted from the source workbook."""
+def load_ironbark_budget_v5_4():
+    """Load the audited Version 5.4 per-hole contractor budget extracted from the source workbook."""
     source_path = os.path.join(
         os.path.dirname(__file__),
         "data",
-        "ironbark_2026_budget_v5_3.json",
+        "ironbark_2026_budget_v5_4.json",
     )
     with open(source_path, "r", encoding="utf-8") as source_file:
         return json.load(source_file)
+
+
+@app.on_event("startup")
+def sync_ironbark_budget_v5_4():
+    """Refresh the company BH plan from Version 5.4 without overwriting live operations."""
+    source = load_ironbark_budget_v5_4()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for borehole in source.get("boreholes", []):
+                source_status = str(borehole.get("source_status") or "Planned").strip().lower()
+                if source_status == "drilled":
+                    imported_status = "Complete"
+                elif source_status in {"cancelled", "abandoned"}:
+                    imported_status = "Cancelled"
+                else:
+                    imported_status = "Planned"
+                lat, lng = agd84_amg55_to_wgs84(
+                    borehole.get("easting"),
+                    borehole.get("northing"),
+                )
+                cur.execute("""
+                    INSERT INTO boreholes
+                    (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
+                     bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
+                     seam_tk,lat,lng,status,notes,drilling_budget_total,earthworks_budget_total,
+                     geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total)
+                    VALUES ('Company',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (contractor,hole_id) DO UPDATE SET
+                        project=EXCLUDED.project,
+                        planned_year=EXCLUDED.planned_year,
+                        site_id=EXCLUDED.site_id,
+                        drill_order=EXCLUDED.drill_order,
+                        days_budgeted=EXCLUDED.days_budgeted,
+                        bh_type=EXCLUDED.bh_type,
+                        bit_type=EXCLUDED.bit_type,
+                        purpose=EXCLUDED.purpose,
+                        easting=EXCLUDED.easting,
+                        northing=EXCLUDED.northing,
+                        rl=EXCLUDED.rl,
+                        chip_depth=EXCLUDED.chip_depth,
+                        eoh_depth=EXCLUDED.eoh_depth,
+                        total_core=EXCLUDED.total_core,
+                        seam_tk=EXCLUDED.seam_tk,
+                        lat=EXCLUDED.lat,
+                        lng=EXCLUDED.lng,
+                        status=CASE
+                            WHEN LOWER(COALESCE(boreholes.status,'')) IN ('complete','in progress','cancelled')
+                            THEN boreholes.status
+                            ELSE EXCLUDED.status
+                        END,
+                        notes=CASE
+                            WHEN COALESCE(BTRIM(boreholes.notes),'')=''
+                              OR boreholes.notes LIKE 'Budget Version %% classification:%%'
+                            THEN EXCLUDED.notes
+                            ELSE boreholes.notes
+                        END,
+                        drilling_budget_total=EXCLUDED.drilling_budget_total,
+                        earthworks_budget_total=EXCLUDED.earthworks_budget_total,
+                        geophysical_budget_total=EXCLUDED.geophysical_budget_total,
+                        geological_support_budget_total=EXCLUDED.geological_support_budget_total,
+                        misc_budget_total=EXCLUDED.misc_budget_total,
+                        budget_total=EXCLUDED.budget_total
+                """, (
+                    borehole.get("project") or "Ironbark",
+                    str(borehole.get("planned_year") or "2026"),
+                    borehole.get("site_id") or borehole.get("hole_id"),
+                    borehole.get("hole_id"),
+                    borehole.get("drill_order"),
+                    borehole.get("days_budgeted"),
+                    borehole.get("bh_type") or borehole.get("type"),
+                    borehole.get("bit_type"),
+                    borehole.get("purpose"),
+                    borehole.get("easting"),
+                    borehole.get("northing"),
+                    borehole.get("rl"),
+                    borehole.get("chip_depth"),
+                    borehole.get("eoh_depth"),
+                    borehole.get("total_core"),
+                    borehole.get("seam_tk"),
+                    lat,
+                    lng,
+                    imported_status,
+                    borehole.get("notes"),
+                    borehole.get("drilling_budget_total"),
+                    borehole.get("earthworks_budget_total"),
+                    borehole.get("geophysical_budget_total"),
+                    borehole.get("geological_support_budget_total"),
+                    borehole.get("misc_budget_total"),
+                    borehole.get("budget_total"),
+                ))
+        conn.commit()
 
 
 @app.get("/project-budget-source")
@@ -9228,7 +9319,7 @@ def get_project_budget_source(
     """Return the audited per-hole contractor budget used by period reports."""
     if project.strip().lower() != "ironbark" or year != 2026:
         raise HTTPException(404, "No audited contractor budget source is available for this project and year.")
-    source = load_ironbark_budget_v5_3()
+    source = load_ironbark_budget_v5_4()
     return {
         "project": "Ironbark",
         "year": 2026,
@@ -9239,6 +9330,7 @@ def get_project_budget_source(
         "total": source.get("total"),
         "contractors": source.get("contractors", []),
         "holes": source.get("holes", []),
+        "boreholes": source.get("boreholes", []),
     }
 
 
@@ -9515,17 +9607,35 @@ def get_cost_centre_forecast(
             "database_total_budget": round(float(hole.get("budget_total") or 0), 2),
         })
 
-    # Phase every contractor component from the current Ironbark Version 5.3 budget
-    # workbook against the live Borehole Planning sequence. Matching by drill
-    # order preserves the source budget when a planned hole is renamed to its
-    # operating hole id. Each assigned rig keeps its own scheduling cursor.
-    workbook_budget = load_ironbark_budget_v5_3()
+    # Phase every contractor component from the current Ironbark Version 5.4 budget
+    # workbook against the live Borehole Planning sequence. Exact hole IDs are
+    # preferred; drill order remains the fallback when an operating hole was
+    # renamed. Each assigned rig keeps its own scheduling cursor.
+    workbook_budget = load_ironbark_budget_v5_4()
     budget_definitions = workbook_budget.get("contractors", [])
-    budget_holes_by_order = {
-        int(source_row[0]): source_row
+    budget_holes_by_id = {
+        str(source_row[1]): source_row
         for source_row in workbook_budget.get("holes", [])
-        if source_row and source_row[0] is not None
+        if source_row and len(source_row) > 1 and source_row[1]
     }
+    budget_holes_by_order = {}
+    source_status_by_id = {
+        str(borehole.get("hole_id")): str(borehole.get("source_status") or "").lower()
+        for borehole in workbook_budget.get("boreholes", [])
+        if borehole.get("hole_id")
+    }
+    for source_row in workbook_budget.get("holes", []):
+        if not source_row or source_row[0] is None:
+            continue
+        order = int(source_row[0])
+        current = budget_holes_by_order.get(order)
+        incoming_cancelled = source_status_by_id.get(str(source_row[1])) in {"cancelled", "abandoned"}
+        current_cancelled = (
+            source_status_by_id.get(str(current[1])) in {"cancelled", "abandoned"}
+            if current else True
+        )
+        if current is None or (current_cancelled and not incoming_cancelled):
+            budget_holes_by_order[order] = source_row
     expense_labels = {
         "4200": "4200 - Consulting Services",
         "4250": "4250 - Contractors",
@@ -9557,7 +9667,10 @@ def get_cost_centre_forecast(
     geophysics_date_fallback_holes = []
     if geophysics_definition_index is not None:
         for hole in completed_holes:
-            source_row = budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+            source_row = (
+                budget_holes_by_id.get(str(hole.get("hole_id") or ""))
+                or budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+            )
             if not source_row:
                 geophysics_missing_source_holes.append(hole.get("hole_id"))
                 continue
@@ -9606,7 +9719,7 @@ def get_cost_centre_forecast(
                 "Weatherfords / Epiroc",
                 "4200",
                 unbilled_cents / 100,
-                "Version 5.3 per-hole budget accrual (uninvoiced geophysical logging)",
+                "Version 5.4 per-hole budget accrual (uninvoiced geophysical logging)",
             )
 
     geophysics_accrual_summary = {
@@ -9622,12 +9735,15 @@ def get_cost_centre_forecast(
         },
         "missing_source_holes": geophysics_missing_source_holes,
         "date_fallback_holes": geophysics_date_fallback_holes,
-        "allocation_method": "Weatherfords and Epiroc are one geophysical logging line. Completed holes accrue the Version 5.3 per-hole budget in their completion month; invoices received from either supplier reduce the oldest outstanding accrual before the remaining open-hole budget is forecast.",
+        "allocation_method": "Weatherfords and Epiroc are one geophysical logging line. Completed holes accrue the Version 5.4 per-hole budget in their completion month; invoices received from either supplier reduce the oldest outstanding accrual before the remaining open-hole budget is forecast.",
     }
 
     for hole in plan_rows:
         remaining = float(hole["remaining_drilling"] or 0)
-        source_row = budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+        source_row = (
+            budget_holes_by_id.get(str(hole.get("hole_id") or ""))
+            or budget_holes_by_order.get(int(hole.get("drill_order") or -1))
+        )
         source_line_items = []
         source_total = 0.0
         if source_row:
@@ -9761,7 +9877,7 @@ def get_cost_centre_forecast(
         "missing_days_holes": sum(1 for row in plan_rows if float(row.get("days_budgeted") or 0) <= 0),
         "first_forecast_start": min((row["forecast_start"] for row in plan_rows), default=None),
         "latest_forecast_end": max((row["forecast_end"] for row in plan_rows), default=None),
-        "allocation_method": "Activity Reports are authoritative for completed holes and days already consumed on the current hole. The schedule uses only Borehole Planning budget days: the active hole uses its budget days less its reported calendar days already consumed, and every future hole uses its full budgeted days. Per-hole contractor values come from the 2 July 2026 Version 5.3 Ironbark budget workbook and stop when the drilling sequence stops.",
+        "allocation_method": "Activity Reports are authoritative for completed holes and days already consumed on the current hole. The schedule uses only Borehole Planning budget days: the active hole uses its budget days less its reported calendar days already consumed, and every future hole uses its full budgeted days. Per-hole contractor values come from the 28 July 2026 Version 5.4 Ironbark budget workbook and stop when the drilling sequence stops.",
     }
 
     return {
