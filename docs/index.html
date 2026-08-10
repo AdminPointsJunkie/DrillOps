@@ -5106,6 +5106,10 @@ function boreholeIsComplete(b){
   return String((b&&b.status)||'').trim().toLowerCase().indexOf('complete')===0;
 }
 
+function boreholeIsInProgress(b){
+  return String((b&&b.status)||'').trim().toLowerCase()==='in progress';
+}
+
 function uniqueBoreholesById(rows){
   const byId=new Map();
   (rows||[]).forEach(function(b){
@@ -5141,18 +5145,24 @@ function periodRelevantProjectHoles(projectHoles,activeHoles){
 function periodHoleStatusSummary(reportHoles,period,allRows){
   const completed=[];
   const inProgress=[];
+  const excluded=[];
   (reportHoles||[]).forEach(function(b){
     const dates=(allRows||[]).filter(function(r){return rowMatchesBorehole(r,b);})
       .map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+    const startDate=dates[0]||'';
     const completionDate=dates[dates.length-1]||'';
     const completedInPeriod=boreholeIsComplete(b)
       && completionDate
       && (!period.from||completionDate>=period.from)
       && (!period.to||completionDate<=period.to);
     if(completedInPeriod)completed.push(b);
-    else inProgress.push(b);
+    else if(boreholeIsInProgress(b)
+      && startDate
+      && (!period.from||startDate>=period.from)
+      && (!period.to||startDate<=period.to))inProgress.push(b);
+    else excluded.push(b);
   });
-  return {completed:completed,inProgress:inProgress};
+  return {completed:completed,inProgress:inProgress,excluded:excluded};
 }
 
 function buildPeriodProjectOptions(){
@@ -5442,13 +5452,14 @@ function renderPeriodReport(){
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=uniqueBoreholesById(activeIds.map(function(id){return holes.get(id);}).filter(Boolean));
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
-  const reportHoles=periodRelevantProjectHoles(projectHoles,activeHoles);
   const allActivitySource=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
   const allProjectRows=(allActivitySource||[]).filter(function(r){
     if(!period.project&&!rowMatchesActiveProgram(r))return false;
     return rowMatchesPeriodProject(r,holes,period.project);
   });
-  const holeStatusSummary=periodHoleStatusSummary(reportHoles,period,allProjectRows);
+  const periodCandidates=periodRelevantProjectHoles(projectHoles,activeHoles);
+  const holeStatusSummary=periodHoleStatusSummary(periodCandidates,period,allProjectRows);
+  const reportHoles=holeStatusSummary.completed.concat(holeStatusSummary.inProgress);
   const drillingReports=groupDailyReports(rows,consumables);
   const groupedConsumableKeys=new Set(drillingReports.map(function(report){return report.key;}));
   const ungroupedConsumableCost=consumables.filter(function(row){
@@ -5482,7 +5493,7 @@ function renderPeriodReport(){
   setPeriodText('period-holes-completed',holeStatusSummary.completed.length.toLocaleString());
   setPeriodText('period-holes-completed-sub','Final activity recorded in selected period');
   setPeriodText('period-holes-in-progress',holeStatusSummary.inProgress.length.toLocaleString());
-  setPeriodText('period-holes-in-progress-sub','Active in period, not completed by period end');
+  setPeriodText('period-holes-in-progress-sub','Started in period and still In Progress');
   setPeriodText('period-budget-total',cur(budgetTotal));
   setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.3 per-hole budget':'Borehole budget fallback'));
   const drillingSummaryEl=document.getElementById('period-drilling-summary');
@@ -6185,7 +6196,7 @@ function renderPeriodStandbyReasons(rows){
 function renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary){
   const el=document.getElementById('period-progress-issues');
   if(!el)return;
-  const relevant=reportHoles&&reportHoles.length?reportHoles:periodRelevantProjectHoles(projectHoles,activeHoles);
+  const relevant=Array.isArray(reportHoles)?reportHoles:periodRelevantProjectHoles(projectHoles,activeHoles);
   const statusSummary=holeStatusSummary||periodHoleStatusSummary(relevant,selectedPeriod(),periodReportActivitiesData||activitiesData);
   const notes=Array.from(new Set(rows.map(function(r){return r.notes||'';}).filter(function(n){return n&&String(n).toLowerCase().match(/delay|standby|fatigue|lost|breakdown|repair|access|issue|move|ground/);}))).slice(0,4);
   const items=[
