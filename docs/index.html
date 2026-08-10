@@ -4239,6 +4239,27 @@ function reportKeyFor(row){
   }
   return [row.contractor||reportDrillingContractor()||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
 }
+function relatedDailyReportGroup(row,groups,groupsByKey){
+  const exact=groupsByKey.get(reportKeyFor(row));
+  if(exact)return exact;
+
+  // Some imported consumables do not retain the source filename even though
+  // the report detail correctly treats them as part of that day's report.
+  // Fall back only when the date/hole identifies one report, so an unlinked
+  // cost is never duplicated across multiple reports from the same shift.
+  if(row.source_file)return null;
+  let candidates=groups.filter(function(group){
+    return (!row.contractor||row.contractor===group.contractor)
+      && (!row.date||row.date===group.date);
+  });
+  if(row.hole_num){
+    const holeMatches=candidates.filter(function(group){
+      return group.holeSet.has(row.hole_num)||group.hole===row.hole_num;
+    });
+    if(holeMatches.length)candidates=holeMatches;
+  }
+  return candidates.length===1?candidates[0]:null;
+}
 function reportRecordHole(report){
   return report&&report.recordHole!=null?report.recordHole:(report&&report.hole)||'';
 }
@@ -4339,17 +4360,16 @@ function groupDailyReports(rows,reportConsumables){
     if(!g.shift&&r.shift)g.shift=r.shift;
   });
   const groups=[...map.values()];
-  const consumablesByKey=new Map();
+  const groupsByKey=new Map(groups.map(function(group){return [group.key,group];}));
   const sourceConsumables=Array.isArray(reportConsumables)?reportConsumables:(consumablesData||[]);
   sourceConsumables.forEach(function(c){
-    const key=reportKeyFor(c);
-    consumablesByKey.set(key,(consumablesByKey.get(key)||0)+(parseFloat(c.line_cost)||0));
+    const group=relatedDailyReportGroup(c,groups,groupsByKey);
+    if(group)group.consumableCost+=parseFloat(c.line_cost)||0;
   });
   groups.forEach(function(g,i){
     const holes=[...g.holeSet].filter(Boolean);
     if(holes.length>1)g.hole=holes.length+' holes';
     else if(holes.length===1)g.hole=holes[0];
-    g.consumableCost=consumablesByKey.get(g.key)||0;
     g.cost=g.activityCost+g.consumableCost;
     g.id=reportIdFor(g,i);
     g.driller=crewData.filter(function(c){
