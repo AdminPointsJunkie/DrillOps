@@ -9,6 +9,7 @@ import os
 import base64
 import json
 import csv
+from datetime import date as calendar_date
 from math import ceil
 from contextlib import contextmanager
 from functools import lru_cache
@@ -5413,6 +5414,109 @@ async def delete_activity_reports(request: Request):
                 totals["reports"] += 1
         conn.commit()
     return {"status": "deleted", **totals}
+
+
+@app.patch("/activity-reports/date")
+async def update_activity_report_date(request: Request):
+    """Change a report date everywhere it is repeated across imported line items."""
+    payload = await request.json()
+    contractor = str(payload.get("contractor") or "").strip()
+    old_date = str(payload.get("date") or payload.get("report_date") or "").strip()
+    new_date = str(payload.get("new_date") or "").strip()
+    hole_num = str(payload.get("hole") or payload.get("hole_num") or "").strip()
+    source_file = str(payload.get("source") or payload.get("source_file") or "").strip()
+
+    if not contractor:
+        raise HTTPException(400, "contractor is required")
+    if not old_date:
+        raise HTTPException(400, "current report date is required")
+    if not source_file and not hole_num:
+        raise HTTPException(400, "source file or hole is required")
+    try:
+        calendar_date.fromisoformat(new_date)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "new_date must use YYYY-MM-DD")
+    if new_date == old_date:
+        return {
+            "status": "unchanged",
+            "old_date": old_date,
+            "new_date": new_date,
+            "activities": 0,
+            "consumables": 0,
+            "crew": 0,
+            "approvals": 0,
+            "locks": 0,
+            "topup_preferences": 0,
+        }
+
+    if source_file:
+        line_where = "contractor=%(contractor)s AND COALESCE(source_file,'')=%(source_file)s"
+        metadata_where = """
+            contractor=%(contractor)s
+            AND COALESCE(report_date,'')=%(old_date)s
+            AND COALESCE(source_file,'')=%(source_file)s
+        """
+    else:
+        line_where = """
+            contractor=%(contractor)s
+            AND COALESCE(date,'')=%(old_date)s
+            AND COALESCE(hole_num,'')=%(hole_num)s
+            AND COALESCE(source_file,'')=''
+        """
+        metadata_where = """
+            contractor=%(contractor)s
+            AND COALESCE(report_date,'')=%(old_date)s
+            AND COALESCE(hole_num,'')=%(hole_num)s
+            AND COALESCE(source_file,'')=''
+        """
+
+    params = {
+        "contractor": contractor,
+        "old_date": old_date,
+        "new_date": new_date,
+        "hole_num": hole_num,
+        "source_file": source_file,
+    }
+    totals = {
+        "activities": 0,
+        "consumables": 0,
+        "crew": 0,
+        "approvals": 0,
+        "locks": 0,
+        "topup_preferences": 0,
+    }
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for table, counter in (
+                ("activities", "activities"),
+                ("consumables", "consumables"),
+                ("crew", "crew"),
+            ):
+                cur.execute(f"UPDATE {table} SET date=%(new_date)s WHERE {line_where}", params)
+                totals[counter] = max(cur.rowcount, 0)
+
+            if not any(totals[name] for name in ("activities", "consumables", "crew")):
+                raise HTTPException(404, "No associated report line items found")
+
+            for table, counter in (
+                ("report_approvals", "approvals"),
+                ("activity_sheet_locks", "locks"),
+                ("minimum_shift_topup_preferences", "topup_preferences"),
+            ):
+                cur.execute(
+                    f"UPDATE {table} SET report_date=%(new_date)s WHERE {metadata_where}",
+                    params,
+                )
+                totals[counter] = max(cur.rowcount, 0)
+        conn.commit()
+
+    return {
+        "status": "updated",
+        "old_date": old_date,
+        "new_date": new_date,
+        **totals,
+    }
 
 
 @app.post("/activities/assign-project")

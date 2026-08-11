@@ -19,9 +19,12 @@ button,.btn{display:inline-flex;align-items:center;justify-content:center;paddin
 button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#254b3a;}
 button:disabled{cursor:not-allowed;opacity:.45;background:#f8fafc;color:#7b8794;border-color:#d8e0ea;}
 .report-nav-position{display:inline-flex;align-items:center;padding:0 2px;color:var(--muted);font-size:11px;font-weight:750;white-space:nowrap;}
-select,textarea{border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-size:12px;}
+select,textarea,input{border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-size:12px;}
 select{padding:8px 10px;font-weight:650;}
 textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
+.report-date-editor{display:inline-flex;align-items:center;gap:6px;}
+.report-date-editor input{padding:5px 7px;font-weight:700;color:#1f2d3d;}
+.report-date-editor button{padding:5px 9px;font-size:11px;}
 .body{padding:16px;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
 .kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
@@ -399,6 +402,64 @@ function reportNavigationDateKey(value){
   if(dm)return Date.UTC(parseInt(dm[3]),parseInt(dm[2])-1,parseInt(dm[1]));
   const parsed=Date.parse(text);
   return Number.isFinite(parsed)?parsed:0;
+}
+function isoReportDate(value){
+  const text=String(value||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(text))return text;
+  const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0');
+  const parsed=new Date(text);
+  return isNaN(parsed)?'':parsed.toISOString().slice(0,10);
+}
+function updateStoredNavigationDate(newDate){
+  if(!navigationToken)return;
+  const storageKey='drillops-report-navigation:'+navigationToken;
+  try{
+    const saved=JSON.parse(localStorage.getItem(storageKey)||'null');
+    if(!saved||!Array.isArray(saved.reports))return;
+    saved.reports.forEach(function(report){
+      const matches=source
+        ? report.source===source&&report.date===reportDate
+        : !report.source&&report.date===reportDate&&String(report.hole||'')===String(hole||'');
+      if(matches){
+        report.date=newDate;
+        report.key=report.source
+          ? [report.contractor||contractor,newDate,report.source].join('|')
+          : [report.contractor||contractor,newDate,report.hole||'','Manual entry'].join('|');
+      }
+    });
+    localStorage.setItem(storageKey,JSON.stringify(saved));
+  }catch(e){}
+}
+async function saveReportDate(){
+  const input=document.getElementById('report-date-input');
+  const button=document.getElementById('report-date-save');
+  const newDate=input&&input.value;
+  if(!newDate){alert('Choose a valid report date.');return;}
+  if(newDate===reportDate)return;
+  if(!confirm('Change this report date from '+reportDate+' to '+newDate+' for all associated line items?'))return;
+  button.disabled=true;
+  button.textContent='Saving...';
+  try{
+    const res=await fetch(API+'/activity-reports/date',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor,date:reportDate,new_date:newDate,hole,source})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const result=await res.json();
+    updateStoredNavigationDate(newDate);
+    const msg={contractor,date:newDate,old_date:reportDate,source_file:source,hole_num:hole,report_date_updated:true,at:Date.now()};
+    try{if(activityBroadcast)activityBroadcast.postMessage(msg);}catch(e){}
+    try{localStorage.setItem('drillops-activity-updated',JSON.stringify(msg));}catch(e){}
+    const nextParams=new URLSearchParams(window.location.search);
+    nextParams.set('date',newDate);
+    window.location.replace('report.html?'+nextParams.toString());
+  }catch(e){
+    alert('Could not update report date: '+e.message);
+    button.disabled=false;
+    button.textContent='Save date';
+  }
 }
 function navigationReportsFromRows(rows){
   const reports=new Map();
@@ -792,7 +853,8 @@ function renderReport(rows,consumables,crew){
   const driller=relatedCrew.filter(c=>String(c.role||'').toLowerCase().includes('drill')).map(c=>c.name)[0]||'';
   const reportHoles=[...new Set(rows.map(rowHoleLabel).filter(Boolean))];
   const holeText=reportHoles.length>1?reportHoles.length+' holes':(reportHoles[0]?'Hole '+reportHoles[0]:(hole?'Hole '+hole:''));
-  document.getElementById('meta').innerHTML=[reportDate,holeText,first.drill_rig?'Rig '+first.drill_rig:'',first.shift||'',driller].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
+  const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="date" value="'+attr(isoReportDate(reportDate))+'" aria-label="Report date"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
+  document.getElementById('meta').innerHTML=[dateEditor].concat([holeText,first.drill_rig?'Rig '+first.drill_rig:'',first.shift||'',driller].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>')).join('');
   const notes=rows.map(r=>r.notes).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
   const flags=[];
   if(metres===0&&cost>0)flags.push('Cost with zero metres');
