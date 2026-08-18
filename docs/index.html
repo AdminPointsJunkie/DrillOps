@@ -485,6 +485,23 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
 .period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.exploration-metres-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;}
+.exploration-metres-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:13px;break-inside:avoid;}
+.exploration-metres-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.exploration-metres-site{font-size:15px;font-weight:820;color:var(--text);}
+.exploration-metres-code{display:inline-flex;margin-left:6px;padding:2px 6px;border-radius:999px;background:#e5eee1;color:var(--accent);font-size:9px;font-weight:850;vertical-align:2px;}
+.exploration-metres-asof{font-size:10px;color:var(--muted);white-space:nowrap;}
+.exploration-metres-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px;}
+.exploration-metres-kpi{border:1px solid #e0e6ed;border-radius:6px;background:#fff;padding:8px 9px;}
+.exploration-metres-kpi span{display:block;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
+.exploration-metres-kpi strong{display:block;margin-top:4px;color:var(--text);font-family:var(--font-mono);font-size:15px;}
+.exploration-depth-bar{display:flex;height:12px;overflow:hidden;border-radius:999px;background:#e5eaf1;margin-bottom:9px;}
+.exploration-depth-bar span{display:block;height:100%;min-width:0;}
+.exploration-depth-band-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+.exploration-depth-band{font-size:10px;color:var(--muted);line-height:1.35;}
+.exploration-depth-band i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;}
+.exploration-depth-band b{display:block;color:var(--text2);font-family:var(--font-mono);font-size:10px;margin-top:2px;}
+.exploration-metres-note{margin:-4px 0 14px;color:var(--muted);font-size:10px;line-height:1.45;}
 .ccf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;}
 .ccf-head p{margin:5px 0 0;color:var(--muted);font-size:12px;max-width:760px;line-height:1.5;}
 .ccf-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
@@ -658,6 +675,14 @@ body.period-print-prep .period-map-print{display:block!important;height:250px!im
   .period-map-print{display:block!important;height:250px!important;}
   .period-map-print,.period-map-print *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   .period-visual-card,.period-visual-card *,.period-hole-track,.period-hole-fill,.period-legend i{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  .exploration-metres-card,.exploration-metres-card *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  .exploration-metres-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin-bottom:8px!important;}
+  .exploration-metres-card{padding:9px!important;}
+  .exploration-metres-head{margin-bottom:7px!important;}
+  .exploration-metres-kpis{gap:5px!important;margin-bottom:7px!important;}
+  .exploration-metres-kpi{padding:5px 6px!important;}
+  .exploration-metres-kpi strong{font-size:12px!important;}
+  .exploration-depth-band b{font-size:8.5px!important;}
   .period-visual-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
   .period-hole-track{background:#e5eaf1!important;border:1px solid #d9e0ea!important;box-sizing:border-box!important;}
   .period-hole-fill{background:#315d49!important;min-width:2px!important;}
@@ -1076,6 +1101,7 @@ tbody td[contenteditable=true]:focus {
   .kpi-row,
   .report-summary-grid,
   .report-kpis,
+  .exploration-metres-grid,
   .filter-body.open {
     grid-template-columns:1fr;
   }
@@ -2614,6 +2640,11 @@ tbody td[contenteditable=true]:focus {
             <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
             <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
           </div>
+          <div class="period-section-title period-print-section-start">2026 Exploration Drilling Metres</div>
+          <div class="exploration-metres-grid" id="exploration-metres-summary">
+            <div class="exploration-metres-card">Loading annual drilling metres...</div>
+          </div>
+          <div class="exploration-metres-note" id="exploration-metres-note">Annual actuals are sourced from exploration drilling activity reports; remaining metres are sourced from Borehole Planning.</div>
           <div class="period-layout">
             <div>
               <div class="period-section-title">Cost Breakdown</div>
@@ -4073,7 +4104,7 @@ let activeProjectName = '';
 let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, costCentreForecastData=null;
+let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null;
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
@@ -4176,6 +4207,7 @@ async function switchProgram(program){
   projects=[];
   projectBudgetsData=[];
   periodSourceBudgetData=null;
+  explorationMetresSummaryData=null;
   bhData=[];
   activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];productionRawData=[];productionFilteredData=[];
   buildContractorSwitcher();
@@ -5237,7 +5269,8 @@ async function loadReportsPage(preserveRange){
       fetch(API+'/activity-report-data?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}),
       loadPeriodSupportInvoices(),
       fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
-      fetch(API+'/project-budget-source?project='+encodeURIComponent(activeProjectName||'')+'&year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
+      fetch(API+'/project-budget-source?project='+encodeURIComponent(activeProjectName||'')+'&year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
+      fetch(API+'/exploration-metres-summary?year=2026&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
     ]);
     applyActivityReportBundle(results[0]);
     periodReportActivitiesData=activitiesData;
@@ -5247,6 +5280,7 @@ async function loadReportsPage(preserveRange){
     periodSupportInvoicesData=results[1]||[];
     projectBudgetsData=results[2]||[];
     periodSourceBudgetData=results[3]||null;
+    explorationMetresSummaryData=results[4]||null;
     await ensureReportBoreholes();
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
@@ -5557,6 +5591,7 @@ function renderPeriodReport(){
   setPeriodText('period-extra-costs','Standby and extras');
   setPeriodText('period-penetration',penetration>0?penetration.toFixed(2)+' m/h':'--');
   setPeriodText('period-penetration-sub',drillHours>0?drillHours.toFixed(1)+' drill h':'No drilling hours');
+  renderExplorationMetresSummary();
   renderPeriodMap(reportHoles);
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
@@ -8399,6 +8434,38 @@ async function deleteInvoice(id){
 
 function viewInvoicePdf(invoiceId) {
   window.open(API+'/invoices/'+invoiceId+'/pdf', '_blank');
+}
+
+function renderExplorationMetresSummary(){
+  const el=document.getElementById('exploration-metres-summary');
+  const note=document.getElementById('exploration-metres-note');
+  if(!el)return;
+  const data=explorationMetresSummaryData;
+  const sites=Array.isArray(data&&data.sites)?data.sites:[];
+  if(!sites.length){
+    el.innerHTML='<div class="exploration-metres-card"><div class="empty-state">Annual exploration metres are unavailable.</div></div>';
+    if(note)note.textContent='The annual activity or Borehole Planning source could not be loaded.';
+    return;
+  }
+  const colors=['#315d49','#5f8f73','#d39a2c','#a85745'];
+  el.innerHTML=sites.map(function(site){
+    const bands=Array.isArray(site.depth_bands)?site.depth_bands:[];
+    const openLabel=(site.open_holes||0)+' open hole'+(Number(site.open_holes)===1?'':'s');
+    return '<div class="exploration-metres-card">'
+      +'<div class="exploration-metres-head"><div class="exploration-metres-site">'+esc(site.site_name||site.site_code)+'<span class="exploration-metres-code">'+esc(site.site_code)+'</span></div><div class="exploration-metres-asof">As at '+esc(data.as_of||'--')+'</div></div>'
+      +'<div class="exploration-metres-kpis">'
+      +'<div class="exploration-metres-kpi"><span>Drilled in 2026</span><strong>'+numVal(site.actual_metres).toLocaleString('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1})+' m</strong></div>'
+      +'<div class="exploration-metres-kpi"><span>Remaining</span><strong>'+numVal(site.remaining_metres).toLocaleString('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1})+' m</strong></div>'
+      +'<div class="exploration-metres-kpi"><span>Open plan</span><strong>'+esc(openLabel)+'</strong></div>'
+      +'</div>'
+      +'<div class="exploration-depth-bar" aria-label="Depth band proportions">'+bands.map(function(band,index){return '<span title="'+attr(band.label+' m: '+numVal(band.metres).toFixed(1)+' m ('+numVal(band.proportion).toFixed(1)+'%)')+'" style="width:'+Math.max(0,numVal(band.proportion)).toFixed(1)+'%;background:'+colors[index%colors.length]+'"></span>';}).join('')+'</div>'
+      +'<div class="exploration-depth-band-list">'+bands.map(function(band,index){return '<div class="exploration-depth-band"><span><i style="background:'+colors[index%colors.length]+'"></i>'+esc(band.label)+' m</span><b>'+numVal(band.metres).toFixed(1)+' m · '+numVal(band.proportion).toFixed(1)+'%</b></div>';}).join('')+'</div>'
+      +'</div>';
+  }).join('');
+  if(note){
+    const deduplicated=sites.reduce(function(sum,site){return sum+numVal(site.deduplicated_rows);},0);
+    note.textContent='Actuals: 2026 Drill Core and Chip/Open Hole activity intervals; '+deduplicated+' exact duplicate interval'+(deduplicated===1?'':'s')+' removed. Remaining: open Borehole Planning EOH balance; completed and cancelled holes excluded.';
+  }
 }
 
 function invoiceAttachmentSize(bytes) {

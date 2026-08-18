@@ -28,6 +28,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Reque
 from fastapi.middleware.cors import CORSMiddleware
 from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
+from exploration_metres import summarize_exploration_metres
 
 app = FastAPI(title="DrillOps API", version="3.0")
 
@@ -5809,6 +5810,41 @@ def get_analytics(contractor: str = Query(...), hole: Optional[str] = Query(None
         }
     except Exception as e:
         raise HTTPException(500, f"Analytics error: {str(e)}")
+
+
+@app.get("/exploration-metres-summary")
+def get_exploration_metres_summary(year: int = Query(2026, ge=2000, le=2100)):
+    """Annual CD and IB drilling metres, remaining plan, and depth bands."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT date, hole_num, site_name, code, metres_from, metres_to,
+                       total_metres, source_file, contractor
+                FROM activities
+                WHERE code IN ('Drill_Core', 'Drill_Chip_or_Open_hole')
+                  AND (UPPER(COALESCE(hole_num,'')) LIKE 'CD%%'
+                       OR UPPER(COALESCE(hole_num,'')) LIKE 'IB%%')
+                  AND COALESCE(date,'') LIKE %s
+                ORDER BY date, hole_num, metres_from, id
+                """,
+                (f"%{year}%",),
+            )
+            activities = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT contractor, planned_year, project, hole_id, site_id,
+                       status, eoh_depth
+                FROM boreholes
+                WHERE contractor='Company'
+                  AND planned_year=%s
+                  AND project IN ('Carborough Downs', 'Ironbark')
+                ORDER BY project, drill_order NULLS LAST, hole_id
+                """,
+                (str(year),),
+            )
+            boreholes = [dict(row) for row in cur.fetchall()]
+    return summarize_exploration_metres(activities, boreholes, year)
 
 
 @app.get("/costing")
