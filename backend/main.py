@@ -3945,6 +3945,46 @@ def apply_import_activity_scope(
     return rows
 
 
+def import_marker_blocks_reimport(cur, filename: str, contractor: str) -> bool:
+    """Return true only when an import marker still has real report line data.
+
+    Crew rows and report metadata can outlive a previously deleted report.  They
+    must not permanently block the user from importing the source file again.
+    """
+    cur.execute(
+        "SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
+        (filename, contractor),
+    )
+    if not cur.fetchone():
+        return False
+    cur.execute(
+        """
+        SELECT EXISTS (
+          SELECT 1 FROM activities WHERE contractor=%(contractor)s AND source_file=%(filename)s
+          UNION ALL
+          SELECT 1 FROM consumables WHERE contractor=%(contractor)s AND source_file=%(filename)s
+        ) AS has_report_data
+        """,
+        {"contractor": contractor, "filename": filename},
+    )
+    if bool(cur.fetchone()["has_report_data"]):
+        return True
+
+    for table, file_column in (
+        ("crew", "source_file"),
+        ("report_approvals", "source_file"),
+        ("activity_sheet_locks", "source_file"),
+        ("minimum_shift_topup_preferences", "source_file"),
+        ("source_files", "filename"),
+        ("imported_files", "filename"),
+    ):
+        cur.execute(
+            f"DELETE FROM {table} WHERE contractor=%s AND {file_column}=%s",
+            (contractor, filename),
+        )
+    return False
+
+
 @app.post("/import")
 async def import_pdf(
     file: UploadFile = File(...),
@@ -3965,9 +4005,7 @@ async def import_pdf(
 
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
+                if import_marker_blocks_reimport(cur, filename, contractor):
                     return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
                 if acts:
                     psycopg2.extras.execute_batch(cur, """
@@ -4013,10 +4051,9 @@ async def import_pdf(
 
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
+                if import_marker_blocks_reimport(cur, filename, contractor):
                     return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
+            conn.commit()
 
         acts = restore_coreplan_activity_line_costs(acts)
         acts = adjust_imported_minimum_shift_rows(acts, contractor)
@@ -4154,10 +4191,9 @@ async def import_pdf(
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                        (filename, contractor))
-            if cur.fetchone():
+            if import_marker_blocks_reimport(cur, filename, contractor):
                 return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
+        conn.commit()
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -5457,15 +5493,18 @@ async def delete_activity_reports(request: Request):
                         f"""
                         SELECT EXISTS (
                           SELECT 1 FROM activities WHERE {where}
-                          UNION ALL
-                          SELECT 1 FROM consumables WHERE {where}
-                          UNION ALL
-                          SELECT 1 FROM crew WHERE {where}
                         ) AS still_used
                         """,
                         row_params,
                     )
                     delete_report_metadata = not bool(cur.fetchone()["still_used"])
+                    if delete_report_metadata:
+                        for table, counter in (
+                            ("consumables", "consumables"),
+                            ("crew", "crew"),
+                        ):
+                            cur.execute(f"DELETE FROM {table} WHERE {where}", row_params)
+                            totals[counter] += max(cur.rowcount, 0)
                 else:
                     for table, counter in (
                         ("activities", "activities"),
@@ -10342,10 +10381,9 @@ async def import_ocr_pdf(
     # Check if already imported
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM imported_files WHERE filename=%s AND contractor=%s",
-                        (filename, contractor))
-            if cur.fetchone():
+            if import_marker_blocks_reimport(cur, filename, contractor):
                 return {"status": "skipped", "filename": filename}
+        conn.commit()
 
     if ocr_data is not None:
         if len(ocr_data) > 1_000_000:
