@@ -39,6 +39,12 @@ MCC_SCHEDULE_RATES = [
     ("MCC_D11_DOZER", "D11 Dozer", 225.00, "hour", "equipment", ["d11 dozer"]),
     ("MCC_D10_DOZER", "D10 Dozer", 185.00, "hour", "equipment", ["d10 dozer"]),
 ]
+MCC_CUSTOM_RATES = [
+    ("MCC_BACKHOE", "Backhoe", 65.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
+    ("MCC_VAC_TRUCK", "Vacuum Truck", 810.00, "day", "equipment", ["vac truck", "vacuum truck", "isuzu npr400 vac truck", "mcc39"]),
+]
+MCC_CUSTOM_RATE_CODES = {row[0] for row in MCC_CUSTOM_RATES}
+MCC_RATE_TABLE = MCC_SCHEDULE_RATES + MCC_CUSTOM_RATES
 
 
 def _normalise(value):
@@ -49,7 +55,7 @@ def mcc_schedule_match(value, group=None):
     haystack = _normalise(value)
     if not haystack:
         return None
-    for code, description, rate, unit, rate_group, aliases in MCC_SCHEDULE_RATES:
+    for code, description, rate, unit, rate_group, aliases in MCC_RATE_TABLE:
         if group and rate_group != group:
             continue
         for alias in aliases + [description]:
@@ -61,6 +67,7 @@ def mcc_schedule_match(value, group=None):
                     "rate": rate,
                     "unit": unit,
                     "group": rate_group,
+                    "source": "custom" if code in MCC_CUSTOM_RATE_CODES else "schedule",
                 }
     return None
 
@@ -80,8 +87,10 @@ def apply_mcc_schedule_rate(row, rate_group, rate_text):
         "quantity": quantity,
         "line_cost": line_cost,
         "rate_basis": (
-            f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} "
-            f"(${match['rate']:,.2f}/{match['unit']}); excludes accommodation and diesel"
+            f"MCC custom rate - {match['description']} (${match['rate']:,.2f}/{match['unit']})"
+            if match["source"] == "custom"
+            else f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} "
+                 f"(${match['rate']:,.2f}/{match['unit']}); excludes accommodation and diesel"
         ),
     })
     return True

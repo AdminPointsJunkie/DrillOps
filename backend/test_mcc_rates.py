@@ -1,6 +1,7 @@
 import unittest
 
 from mcc_rates import (
+    MCC_CUSTOM_RATES,
     MCC_SCHEDULE_RATES,
     apply_mcc_schedule_rate,
     mcc_schedule_match,
@@ -52,10 +53,12 @@ class MCCRatesTests(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_site_services_assets_match_schedule(self):
-        self.assertIsNone(mcc_schedule_match("LD04 CAT Backhoe 432", "equipment"))
+        self.assertEqual(len(MCC_CUSTOM_RATES), 2)
+        self.assertEqual(mcc_schedule_match("LD04 CAT Backhoe 432", "equipment")["rate"], 65.0)
         self.assertEqual(mcc_schedule_match("WT01 HINO FM500 WATER TRUCK", "equipment")["rate"], 80.0)
         self.assertEqual(mcc_schedule_match("EX16 HITACHI ZX135US-7 EXCAVATOR", "equipment")["rate"], 85.0)
-        self.assertIsNone(mcc_schedule_match("MCC39 ISUZU NPR400 VAC TRUCK", "equipment"))
+        vac = mcc_schedule_match("MCC39 ISUZU NPR400 VAC TRUCK", "equipment")
+        self.assertEqual((vac["rate"], vac["unit"], vac["source"]), (810.0, "day", "custom"))
 
     def test_assigns_hourly_and_daily_costs(self):
         hourly = {"quantity": 5.9}
@@ -68,6 +71,12 @@ class MCCRatesTests(unittest.TestCase):
         self.assertTrue(apply_mcc_schedule_rate(daily, "equipment", "Light Vehicle"))
         self.assertEqual(daily["quantity"], 1)
         self.assertEqual(daily["line_cost"], 105.0)
+
+        vacuum_truck = {"quantity": 3.5}
+        self.assertTrue(apply_mcc_schedule_rate(vacuum_truck, "equipment", "MCC39 VAC TRUCK"))
+        self.assertEqual(vacuum_truck["quantity"], 1)
+        self.assertEqual(vacuum_truck["line_cost"], 810.0)
+        self.assertEqual(vacuum_truck["rate_basis"], "MCC custom rate - Vacuum Truck ($810.00/day)")
 
         missing_hours = {"quantity": None}
         self.assertTrue(apply_mcc_schedule_rate(missing_hours, "labour", "Labourer"))

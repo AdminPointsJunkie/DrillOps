@@ -30,9 +30,10 @@ from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
 from exploration_metres import summarize_exploration_metres
 from mcc_rates import (
+    MCC_CUSTOM_RATE_CODES,
+    MCC_RATE_TABLE,
     MCC_SCHEDULE_DATE,
     MCC_SCHEDULE_EXCLUSIONS,
-    MCC_SCHEDULE_RATES,
     apply_mcc_schedule_rate,
     mcc_schedule_match,
 )
@@ -1308,8 +1309,11 @@ def mcc_reprice_from_row(row):
     match = None
     if code.startswith("MCC_"):
         match = next((
-            {"code": c, "description": d, "rate": r, "unit": u, "group": g}
-            for c, d, r, u, g, _aliases in MCC_SCHEDULE_RATES
+            {
+                "code": c, "description": d, "rate": r, "unit": u, "group": g,
+                "source": "custom" if c in MCC_CUSTOM_RATE_CODES else "schedule",
+            }
+            for c, d, r, u, g, _aliases in MCC_RATE_TABLE
             if c == code
         ), None)
     if match is None:
@@ -1329,7 +1333,11 @@ def mcc_reprice_from_row(row):
         "unit_rate": match["rate"],
         "quantity": qty,
         "line_cost": round(match["rate"] * qty, 2),
-        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}; excludes accommodation and diesel",
+        "rate_basis": (
+            f"MCC custom rate - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}"
+            if match.get("source") == "custom"
+            else f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}; excludes accommodation and diesel"
+        ),
     }
 
 
@@ -1408,8 +1416,9 @@ def seed_2025_rates():
 def seed_mcc_2026_rates():
     rows = []
     for contractor in ("MCC Group",):
-        for code, desc, rate, unit, group, _aliases in MCC_SCHEDULE_RATES:
-            rows.append((contractor, "2026", code, f"{desc} ({group}; MCC schedule {MCC_SCHEDULE_DATE}; {MCC_SCHEDULE_EXCLUSIONS})", rate, unit))
+        for code, desc, rate, unit, group, _aliases in MCC_RATE_TABLE:
+            source = "MCC custom rate" if code in MCC_CUSTOM_RATE_CODES else f"MCC schedule {MCC_SCHEDULE_DATE}; {MCC_SCHEDULE_EXCLUSIONS}"
+            rows.append((contractor, "2026", code, f"{desc} ({group}; {source})", rate, unit))
     with get_conn() as conn:
         with conn.cursor() as cur:
             for row in rows:
@@ -1423,17 +1432,12 @@ def seed_mcc_2026_rates():
                         INSERT INTO hourly_rates (contractor, year, code, description, rate, unit)
                         VALUES (%s, %s, %s, %s, %s, %s)
                     """, row)
-            # MCC_BACKHOE was previously inferred from the asset description,
-            # but no backhoe rate exists in the signed schedule.
-            cur.execute("""
-                DELETE FROM hourly_rates
-                WHERE contractor='MCC Group' AND year='2026' AND code='MCC_BACKHOE'
-            """)
             cur.execute("""
                 UPDATE activities
-                SET code='', unit_rate=NULL, quantity=NULL, line_cost=NULL,
-                    rate_basis='MCC Site Services PDF - rate not listed in signed schedule'
-                WHERE contractor='MCC Group' AND code='MCC_BACKHOE'
+                SET unit_rate=NULL, line_cost=NULL,
+                    rate_basis='MCC custom rate pending recalculation'
+                WHERE contractor='MCC Group'
+                  AND code IN ('MCC_BACKHOE', 'MCC_VAC_TRUCK')
             """)
             cur.execute("""
                 UPDATE activities
