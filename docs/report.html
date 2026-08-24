@@ -137,32 +137,32 @@ tr.saving td{background:#fff7e6;}
         <div class="log-list" id="approval-log"></div>
       </div>
       <div class="kpis">
-        <div class="kpi"><div class="label">Depth</div><div class="value" id="kpi-depth">--</div></div>
-        <div class="kpi"><div class="label">Duration</div><div class="value" id="kpi-duration">--</div></div>
-        <div class="kpi"><div class="label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
-        <div class="kpi"><div class="label">Drilling Cost</div><div class="value" id="kpi-drilling-cost">--</div></div>
-        <div class="kpi"><div class="label">Support Cost</div><div class="value" id="kpi-support-cost">--</div></div>
-        <div class="kpi"><div class="label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
-        <div class="kpi"><div class="label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
-        <div class="kpi"><div class="label">Activities</div><div class="value" id="kpi-activities">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-depth-label">Depth</div><div class="value" id="kpi-depth">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-duration-label">Duration</div><div class="value" id="kpi-duration">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-cost-label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-drilling-cost-label">Drilling Cost</div><div class="value" id="kpi-drilling-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-support-cost-label">Support Cost</div><div class="value" id="kpi-support-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-consumable-cost-label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-costm-label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-activities-label">Activities</div><div class="value" id="kpi-activities">--</div></div>
       </div>
-      <div class="subtitle">Metres Drilled</div>
+      <div class="subtitle" id="allocation-title">Metres Drilled</div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="scroll">
           <table><thead><tr><th>Item</th><th>Unit Rate</th><th>Metres</th><th>GST</th><th>Total</th></tr></thead><tbody id="metres-drilled-body"></tbody></table>
         </div>
       </div>
-      <div class="subtitle">Shift Timeline</div>
+      <div class="subtitle" id="timeline-title">Shift Timeline</div>
       <div class="timeline" id="timeline"></div>
-      <div class="subtitle">Report Notes</div>
+      <div class="subtitle" id="notes-title">Report Notes</div>
       <div class="notes" id="notes"></div>
-      <div class="subtitle">Activities</div>
+      <div class="subtitle" id="activities-title">Activities</div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <div class="scroll">
           <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Charge/Hr</th><th>Charge/m</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
         </div>
       </div>
-      <div class="subtitle">Equipment</div>
+      <div class="subtitle" id="equipment-title">Equipment</div>
       <div class="table-wrap" style="margin-bottom:14px;">
         <table><thead><tr><th>Hole</th><th>Equipment</th><th>Unit</th><th>Duration</th><th>Notes</th><th>Charge/Unit</th><th>Total</th></tr></thead><tbody id="equipment-body"></tbody></table>
       </div>
@@ -290,7 +290,7 @@ function rowHoleLabel(row){
 function belongsToThisReport(row){
   const sourceMatches=!source||!row.source_file||row.source_file===source;
   const holeMatches=source?true:(!hole||row.hole_num===hole);
-  const programMatches=!program||!row.program||row.program===program;
+  const programMatches=contractor==='MCC Group'||!program||!row.program||String(row.program).split(',').map(p=>p.trim()).includes(program);
   return (!row.contractor||row.contractor===contractor)
     && (!reportDate||row.date===reportDate)
     && holeMatches
@@ -785,48 +785,73 @@ function groupByKey(rows,keyFn){
   rows.forEach(r=>{const key=keyFn(r);if(!map.has(key))map.set(key,[]);map.get(key).push(r);});
   return [...map.entries()];
 }
-function renderMccWeeklyReport(rows,consumables,crew){
-  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.project||a.location||'').localeCompare(b.project||b.location||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+function mccPerson(row){
+  return noteField(row,'Operator')||noteField(row,'Tradesperson/Labourer')||noteField(row,'Supervisor')||noteField(row,'Created by');
+}
+function mccEquipment(row){return noteField(row,'Equipment')||row.drill_rig||'';}
+function renderMccSiteServicesReport(rows,consumables,crew){
+  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const totalCost=rows.reduce((s,r)=>s+num(r.line_cost),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
-  const labourRows=rows.filter(r=>String(r.notes||'').includes('Charge type: Labour')||String(r.code||'').match(/OPERATOR|SUPERVISOR|LABOUR|TRADE|MANAGER/));
-  const equipmentRows=rows.filter(r=>String(r.notes||'').includes('Charge type: Equipment')||String(r.code||'').match(/EXCAVATOR|VEHICLE|TRUCK|LOADER|DOZER|GRADER|HIRE|BACKHOE/));
+  const labourRows=rows.filter(r=>/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(r.code||'')));
+  const equipmentRows=rows.filter(r=>!labourRows.includes(r));
   const unpricedRows=rows.filter(r=>r.line_cost==null||r.line_cost==='');
   const totalHours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
-  const workstreams=[...new Set(rows.map(r=>r.project||r.location||noteField(r,'Workstream')).filter(Boolean))];
-  const people=[...new Set(rows.map(r=>noteField(r,'Created by')).filter(Boolean))];
-  const programs=[...new Set(rows.map(r=>r.program||noteField(r,'Program')).filter(Boolean))];
-  document.getElementById('title').textContent='MCC Weekly Earthworks - '+(programs.join(', ')||program||'Weekly activities');
-  document.getElementById('meta').innerHTML=[reportDate,workstreams.join(' / '),source].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('');
+  const workGroups=[...new Set(rows.flatMap(r=>String(r.program||'').split(',').map(v=>v.trim())).filter(Boolean))];
+  const siteIds=[...new Set(rows.flatMap(r=>String(r.site_name||'').split(',').map(v=>v.trim())).filter(Boolean))];
+  const equipmentCost=equipmentRows.reduce((s,r)=>s+num(r.line_cost),0);
+  const labourCost=labourRows.reduce((s,r)=>s+num(r.line_cost),0);
+  const materialCost=relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="date" value="'+attr(isoReportDate(reportDate))+'" aria-label="Report date"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
+  document.getElementById('title').textContent='MCC Earthworks & Site Services';
+  document.title='MCC Earthworks & Site Services | DrillOps';
+  document.getElementById('meta').innerHTML=[dateEditor].concat([siteIds.join(', '),source].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>')).join('');
   document.getElementById('flags').innerHTML=unpricedRows.length?'<span class="flag">'+unpricedRows.length+' unpriced row(s)</span>':'';
-  document.getElementById('kpi-depth').textContent='--';
+  document.getElementById('kpi-depth-label').textContent='Work Groups';
+  document.getElementById('kpi-duration-label').textContent='Total Hours';
+  document.getElementById('kpi-cost-label').textContent='Total Cost';
+  document.getElementById('kpi-drilling-cost-label').textContent='Equipment Cost';
+  document.getElementById('kpi-support-cost-label').textContent='Labour Cost';
+  document.getElementById('kpi-consumable-cost-label').textContent='Materials Cost';
+  document.getElementById('kpi-costm-label').textContent='Site IDs';
+  document.getElementById('kpi-activities-label').textContent='Service Lines';
+  document.getElementById('kpi-depth').textContent=workGroups.length;
   document.getElementById('kpi-duration').textContent=totalHours.toFixed(2)+' h';
   document.getElementById('kpi-cost').textContent=cur(totalCost);
-  document.getElementById('kpi-drilling-cost').textContent=cur(0);
-  document.getElementById('kpi-support-cost').textContent=cur(totalCost);
-  document.getElementById('kpi-consumable-cost').textContent=cur(relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0));
-  document.getElementById('kpi-costm').textContent='--';
+  document.getElementById('kpi-drilling-cost').textContent=cur(equipmentCost);
+  document.getElementById('kpi-support-cost').textContent=cur(labourCost);
+  document.getElementById('kpi-consumable-cost').textContent=cur(materialCost);
+  document.getElementById('kpi-costm').textContent=siteIds.length;
   document.getElementById('kpi-activities').textContent=rows.length;
-  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[r.program||'',r.project||r.location||'Unallocated'].join('|')).map(([key,items])=>{
+  document.getElementById('allocation-title').textContent='Work Group & Site Allocation';
+  const allocationTable=document.getElementById('metres-drilled-body').closest('table');
+  allocationTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Service Lines</th><th>Hours</th><th>Total</th></tr>';
+  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[r.program||'Unassigned',r.site_name||'Unassigned'].join('|')).map(([key,items])=>{
     const parts=key.split('|'),cost=items.reduce((s,r)=>s+num(r.line_cost),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
-    return '<tr><td>'+esc((parts[0]?parts[0]+' - ':'')+(parts[1]||'Unallocated'))+'</td><td>'+items.length+' row(s)</td><td>'+hours.toFixed(2)+' h</td><td>10%</td><td>'+cur(cost)+'</td></tr>';
+    return '<tr><td>'+esc(parts[0])+'</td><td>'+esc(parts[1])+'</td><td>'+items.length+'</td><td>'+hours.toFixed(2)+' h</td><td>'+cur(cost)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No weekly activity allocation found.</td></tr>';
-  const labourCost=labourRows.reduce((s,r)=>s+num(r.line_cost),0),equipmentCost=equipmentRows.reduce((s,r)=>s+num(r.line_cost),0);
+  document.getElementById('timeline-title').textContent='Earthworks Cost Summary';
   document.getElementById('timeline').innerHTML='<div class="weekly-summary">'
-    +'<div class="weekly-card"><div class="weekly-card-title">Labour</div><div class="weekly-card-value">'+cur(labourCost)+'</div><div class="weekly-card-meta">'+labourRows.length+' priced line(s)</div></div>'
     +'<div class="weekly-card"><div class="weekly-card-title">Equipment</div><div class="weekly-card-value">'+cur(equipmentCost)+'</div><div class="weekly-card-meta">'+equipmentRows.length+' priced line(s)</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">People</div><div class="weekly-card-value">'+people.length+'</div><div class="weekly-card-meta">'+esc(people.join(', ')||'No names recorded')+'</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">Workstreams</div><div class="weekly-card-value">'+workstreams.length+'</div><div class="weekly-card-meta">'+esc(workstreams.join(' / ')||'Unallocated')+'</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Labour</div><div class="weekly-card-value">'+cur(labourCost)+'</div><div class="weekly-card-meta">'+labourRows.length+' line(s)</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Materials</div><div class="weekly-card-value">'+cur(materialCost)+'</div><div class="weekly-card-meta">'+relatedConsumables.length+' line(s)</div></div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Unpriced</div><div class="weekly-card-value">'+unpricedRows.length+'</div><div class="weekly-card-meta">line(s) requiring review</div></div>'
     +'</div>';
+  document.getElementById('notes-title').textContent='Work Completed';
   const descriptions=[...new Set(rows.map(workDescription).filter(Boolean))];
   document.getElementById('notes').innerHTML=descriptions.length?'<ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'No work descriptions recorded.';
+  document.getElementById('activities-title').textContent='Site Services Line Items';
   const activityTable=document.getElementById('activity-body').closest('table');
-  activityTable.querySelector('thead').innerHTML='<tr><th>Time</th><th>Program</th><th>Workstream</th><th>Person</th><th>Role</th><th>Hours</th><th>Work Performed</th><th>Cost</th></tr>';
-  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(noteField(r,'Created by'))+'</td><td>'+esc(noteField(r,'Role'))+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No weekly activities found.</td></tr>';
+  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Equipment / Person</th><th>Hours</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Cost</th></tr>';
+  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
+  document.getElementById('activity-body').querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
+    cell.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cell.blur();}});
+  });
+  document.getElementById('equipment-title').textContent='Equipment Detail';
   const equipmentTable=document.getElementById('equipment-body').closest('table');
-  equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Program</th><th>Workstream</th><th>Hours/Qty</th><th>Schedule</th><th>Rate</th><th>Total</th></tr>';
-  const equipmentDisplay=rows.filter(r=>noteField(r,'Equipment')||String(r.notes||'').includes('Charge type: Equipment'));
-  document.getElementById('equipment-body').innerHTML=equipmentDisplay.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(noteField(r,'Equipment')||equipmentName(r))+'</td><td>'+esc(r.program||noteField(r,'Program')||'')+'</td><td>'+esc(r.project||r.location||noteField(r,'Workstream')||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+esc(r.rate_basis||'')+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport);
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
@@ -836,7 +861,7 @@ function renderMccWeeklyReport(rows,consumables,crew){
 }
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
-  if(rows.some(isMccWeeklyRow))return renderMccWeeklyReport(rows,consumables,crew);
+  if(rows.some(isMccWeeklyRow))return renderMccSiteServicesReport(rows,consumables,crew);
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const equipmentRows=rows.filter(isEquipmentRow);
   const activityRows=rows.filter(r=>!isEquipmentRow(r));

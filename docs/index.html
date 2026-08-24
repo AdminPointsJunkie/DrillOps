@@ -6625,7 +6625,7 @@ function createDailyReportNavigationContext(){
 
 function dailyReportUrl(report,navigationToken){
   const params=new URLSearchParams({
-    contractor:reportDrillingContractor(),
+    contractor:report.contractor||activeContractor||reportDrillingContractor(),
     program:activeProgram||'',
     date:report.date||'',
     hole:reportRecordHole(report),
