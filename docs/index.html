@@ -2242,8 +2242,8 @@ tbody td[contenteditable=true]:focus {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
         <!-- EOS Daily Reports -->
         <div class="chart-card" style="padding:24px;">
-          <div class="chart-title">EOS Daily Reports</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Typed/digital drilling report PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
+          <div class="chart-title">Daily Operational Reports</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Drilling report PDFs, Weatherford GDB logging PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
             <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace client
               <select id="import-client-select" disabled style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
@@ -2259,9 +2259,9 @@ tbody td[contenteditable=true]:focus {
           <div class="upload-zone" id="drop-zone" style="margin-bottom:10px;position:relative;">
             <input type="file" id="file-input" multiple accept=".pdf,.csv,.xlsx" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
             <div class="up-icon" style="font-size:28px;">&#x1F4C4;</div>
-            <p>Drop EOS PDFs / CSVs / XLSX sheets or click</p>
+            <p>Drop operational PDFs / CSVs / XLSX sheets or click</p>
           </div>
-          <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import EOS Reports</button>
+          <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Reports</button>
           <button id="audit-imports-btn" type="button" onclick="auditExistingImports()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit Existing EOS Rates</button>
           <button id="fix-imports-btn" type="button" onclick="fixExistingImportRates()" style="width:100%;margin-top:8px;padding:9px;background:#fff7e6;color:#a05a00;border:1.5px solid #f4d39b;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Fix EOS Rates</button>
           <button id="cleanup-imports-btn" type="button" onclick="cleanupCorePlanDoubleups()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--red);border:1.5px solid var(--red);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Remove CorePlan Double-ups</button>
@@ -4634,11 +4634,11 @@ fileInput.addEventListener('change',e=>{
   const invoices=files.filter(f=>looksLikeInvoice(f.name));
   if(invoices.length){
     toast(`⚠ "${invoices[0].name}" looks like an invoice — use the 🧾 Invoice import below`,'warn');
-    fileInput.value='';pendingFiles=[];importBtn.disabled=true;importBtn.textContent='Import EOS Reports';return;
+    fileInput.value='';pendingFiles=[];importBtn.disabled=true;importBtn.textContent='Import Reports';return;
   }
   pendingFiles=files;
   importBtn.disabled=pendingFiles.length===0;
-  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} EOS report(s)`:'Import EOS Reports';
+  importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} report(s)`:'Import Reports';
 });
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
@@ -4685,7 +4685,7 @@ function renderImportCheck(check){
   if(!check)return '';
   const warnings=check.warnings||[];
   const cls=check.status==='needs_review'||warnings.some(w=>w.severity==='critical')?'err':check.status==='ok'?'ok':'skip';
-  const label=check.status==='ok'?'OpenAI check passed':check.status==='unavailable'?'Import QA checks':'OpenAI check needs review';
+  const label=check.label||(check.status==='ok'?'OpenAI check passed':check.status==='unavailable'?'Import QA checks':'OpenAI check needs review');
   const shown=warnings.slice(0,5).map(function(w){
     const row=w.row?' row '+esc(w.row):'';
     const code=w.code?' '+esc(w.code):'';

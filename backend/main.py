@@ -29,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
 from exploration_metres import summarize_exploration_metres
+from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
 
@@ -3929,6 +3930,8 @@ def infer_report_contractor(selected_contractor: str, filename: str = "", header
     # inherit whichever contractor happens to be active in the upload UI.
     if filename_upper.endswith(".CSV"):
         return "Mitchells Drilling"
+    if is_weatherford_gdb(source_text, filename):
+        return "Weatherfords"
     # Report identity is stronger evidence than the upload card selected in the UI.
     # In particular, ADR001 PDFs must never be filed under Mitchells accidentally.
     if filename_upper.startswith("ADR001") or rig.startswith(("ADR", "ALZ")) or "ALLIANZ" in report_haystack:
@@ -4082,22 +4085,36 @@ async def import_pdf(
                 "consumables":len(cons),"crew":len(crew),
                 "import_check":{"status":"ok","summary":"CorePlan CSV imported using Mitchells/CorePlan structured export.","warnings":[]}}
 
+    tables = []
     try:
         with pdfplumber.open(BytesIO(content)) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+            if is_weatherford_gdb(text, filename):
+                for page in pdf.pages:
+                    tables.extend(page.extract_tables() or [])
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
-    header = parse_header(text)
-    fmt = detect_pdf_format(text)
+    weatherford_report = is_weatherford_gdb(text, filename)
+    source_file_type = "weatherford_gdb" if weatherford_report else "eos"
     import_check = None
-    contractor = infer_report_contractor(contractor, filename, header, text)
-    if fmt == "adr001":
-        acts = parse_activities_adr001(text, header, filename, contractor)
+    if weatherford_report:
+        contractor = "Weatherfords"
+        try:
+            header, acts, crew = parse_weatherford_gdb(text, tables, filename, contractor)
+        except ValueError as e:
+            raise HTTPException(400, f"Could not read Weatherford GDB report: {e}")
+        cons = []
     else:
-        acts = parse_activities(text, header, filename, contractor)
-    cons = parse_consumables(text, header, filename, contractor)
-    crew = parse_crew(text, header, filename, contractor)
+        header = parse_header(text)
+        fmt = detect_pdf_format(text)
+        contractor = infer_report_contractor(contractor, filename, header, text)
+        if fmt == "adr001":
+            acts = parse_activities_adr001(text, header, filename, contractor)
+        else:
+            acts = parse_activities(text, header, filename, contractor)
+        cons = parse_consumables(text, header, filename, contractor)
+        crew = parse_crew(text, header, filename, contractor)
     acts = apply_import_activity_scope(acts, contractor, program, project, client)
 
     with get_conn() as conn:
@@ -4218,7 +4235,7 @@ async def import_pdf(
             # Fallback
             if lc is None and hours > 0 and code:
                 r = _get_hr(code, year)
-                if r is None:
+                if r is None and contractor != "Weatherfords":
                     r = _get_hr("H_Active", year)
                 if r is not None:
                     ur = r; qty = round(hours,2); lc = round(r*hours,2); rb = f"fallback ${r:,.2f}/hr x {hours:.2f}h"
@@ -4252,7 +4269,24 @@ async def import_pdf(
                 c["unit_price"] = None
                 c["line_cost"] = None
 
-        if contractor == "Allianz Drilling":
+        if weatherford_report:
+            missing_codes = sorted({row.get("code") for row in acts if row.get("code") and row.get("line_cost") is None})
+            import_check = {
+                "status": "needs_review" if missing_codes else "ok",
+                "label": "Weatherford import check",
+                "summary": (
+                    f"Imported {len(acts)} GDB operation rows; add Weatherfords rates for "
+                    + ", ".join(missing_codes)
+                    if missing_codes
+                    else f"Imported and priced {len(acts)} Weatherford GDB operation rows."
+                ),
+                "warnings": ([{
+                    "severity": "warning",
+                    "code": ", ".join(missing_codes),
+                    "issue": "No matching Weatherfords rate was found; operation rows were retained without cost.",
+                }] if missing_codes else []),
+            }
+        elif contractor == "Allianz Drilling":
             import_check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)
 
         with conn.cursor() as cur:
@@ -4284,8 +4318,8 @@ async def import_pdf(
                         (filename, contractor))
             cur.execute("""
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                VALUES (%s, %s, 'eos', %s) ON CONFLICT (filename, contractor) DO NOTHING
-            """, (filename, contractor, psycopg2.Binary(content)))
+                VALUES (%s, %s, %s, %s) ON CONFLICT (filename, contractor) DO NOTHING
+            """, (filename, contractor, source_file_type, psycopg2.Binary(content)))
         conn.commit()
 
     return {"status":"imported","filename":filename,"rows":len(acts),
