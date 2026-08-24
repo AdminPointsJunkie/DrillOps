@@ -396,6 +396,30 @@ async function saveReportEquipmentEdit(cell){
   }
 }
 async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
+async function openSourcePdf(){
+  if(!source)return;
+  const button=document.getElementById('pdf-btn');
+  const original=button.textContent;
+  const tab=window.open('about:blank','_blank');
+  if(!tab){alert('Allow pop-ups for DrillOps to open the source PDF.');return;}
+  tab.opener=null;
+  button.disabled=true;
+  button.textContent='Opening...';
+  try{
+    const url=API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor);
+    const response=await fetch(url);
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const objectUrl=URL.createObjectURL(await response.blob());
+    tab.location.replace(objectUrl);
+    setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+  }catch(error){
+    tab.close();
+    alert('Could not open the attached PDF: '+error.message);
+  }finally{
+    button.disabled=false;
+    button.textContent=original;
+  }
+}
 function reportNavigationDateKey(value){
   const text=String(value||'').trim();
   const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -857,7 +881,8 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
   pdf.style.display=source?'inline-flex':'none';
-  pdf.onclick=()=>{if(source)window.open(API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor),'_blank');};
+  pdf.textContent='Source PDF';
+  pdf.onclick=openSourcePdf;
 }
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
@@ -942,7 +967,8 @@ function renderReport(rows,consumables,crew){
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
   pdf.style.display=source?'inline-flex':'none';
-  pdf.onclick=()=>{if(source)window.open(API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor),'_blank');};
+  pdf.textContent='Source PDF';
+  pdf.onclick=openSourcePdf;
 }
 function renderTimeline(rows,totalHours){
   const target=document.getElementById('timeline');
