@@ -5398,6 +5398,7 @@ async def delete_activity_reports(request: Request):
     with get_conn() as conn:
         with conn.cursor() as cur:
             for report in reports:
+                report_total_before = sum(value for key, value in totals.items() if key != "reports")
                 report_date = report.get("date") or report.get("report_date") or ""
                 hole_num = report.get("hole") or report.get("hole_num") or ""
                 source_file = report.get("source") or report.get("source_file") or ""
@@ -5417,10 +5418,17 @@ async def delete_activity_reports(request: Request):
                     "source_file": source_file,
                 }
                 if source_file:
-                    where = """
-                        contractor=%(contractor)s
-                        AND COALESCE(source_file,'')=%(source_file)s
-                    """
+                    if report_date:
+                        where = """
+                            contractor=%(contractor)s
+                            AND COALESCE(source_file,'')=%(source_file)s
+                            AND COALESCE(date,'')=%(date)s
+                        """
+                    else:
+                        where = """
+                            contractor=%(contractor)s
+                            AND COALESCE(source_file,'')=%(source_file)s
+                        """
                 else:
                     where = """
                         contractor=%(contractor)s
@@ -5437,10 +5445,17 @@ async def delete_activity_reports(request: Request):
                     totals[counter] += max(cur.rowcount, 0)
 
                 if source_file:
-                    meta_where = """
-                        contractor=%(contractor)s
-                        AND COALESCE(source_file,'')=%(source_file)s
-                    """
+                    if report_date:
+                        meta_where = """
+                            contractor=%(contractor)s
+                            AND COALESCE(source_file,'')=%(source_file)s
+                            AND COALESCE(report_date,'')=%(report_date)s
+                        """
+                    else:
+                        meta_where = """
+                            contractor=%(contractor)s
+                            AND COALESCE(source_file,'')=%(source_file)s
+                        """
                 else:
                     meta_where = """
                         contractor=%(contractor)s
@@ -5481,7 +5496,14 @@ async def delete_activity_reports(request: Request):
                             (contractor, source_file),
                         )
                         totals["source_files"] += max(cur.rowcount, 0)
-                totals["reports"] += 1
+                report_total_after = sum(value for key, value in totals.items() if key != "reports")
+                if report_total_after > report_total_before:
+                    totals["reports"] += 1
+            if not any(value for key, value in totals.items() if key != "reports"):
+                raise HTTPException(
+                    404,
+                    f"No matching activity report rows found for contractor {contractor}",
+                )
         conn.commit()
     return {"status": "deleted", **totals}
 

@@ -6501,7 +6501,14 @@ async function bulkSetReportLocks(locked){
 async function bulkDeleteReports(){
   const reports=selectedReportRows();
   if(!reports.length){toast('Select reports first','warn');return;}
-  const contractor=reportDrillingContractor();
+  const contractors=Array.from(new Set(reports.map(function(report){
+    return String(report.contractor||activeContractor||'').trim();
+  }).filter(Boolean)));
+  if(contractors.length!==1){
+    toast('Selected reports must belong to one contractor','err');
+    return;
+  }
+  const contractor=contractors[0];
   const label=reports.slice(0,5).map(function(r){return (r.id||r.date||'Report')+' '+(r.hole||'');}).join('\\n');
   const more=reports.length>5?'\\n...and '+(reports.length-5)+' more':'';
   if(!confirm('Delete '+reports.length+' selected activity report(s) and their database rows?\\n\\n'+label+more+'\\n\\nThis cannot be undone.'))return;
@@ -6524,15 +6531,23 @@ async function bulkDeleteReports(){
       body:JSON.stringify(payload)
     });
     if(res.status===404){
-      res=await fetch(API+'/activity-reports',{
-        method:'DELETE',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
-      });
+      const postError=await res.clone().text();
+      if(postError.includes('"Not Found"')){
+        res=await fetch(API+'/activity-reports',{
+          method:'DELETE',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(payload)
+        });
+      }else{
+        throw new Error(postError);
+      }
     }
     if(res.status===404)throw new Error('The API delete route is not deployed yet. Wait for the backend deploy to finish, then refresh and try again.');
     if(!res.ok)throw new Error(await res.text());
     const result=await res.json();
+    if(!(result.activities||result.consumables||result.crew||result.approvals||result.locks)){
+      throw new Error('No matching '+contractor+' report rows were deleted. Refresh and try again.');
+    }
     toast('Deleted '+(result.reports||reports.length)+' report(s), '+(result.activities||0)+' activity row(s)');
     selectedDailyReportKey=null;
     closeDailyReportDetail();
