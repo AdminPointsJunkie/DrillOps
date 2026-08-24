@@ -29,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
 from exploration_metres import summarize_exploration_metres
+from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -1271,12 +1272,12 @@ MCC_SCHEDULE_RATES = [
     ("MCC_PROJECT_MANAGER", "Project Manager", 140.00, "hour", "labour", ["project manager"]),
     ("MCC_LIGHT_VEHICLE", "Light Vehicle", 105.00, "day", "equipment", ["light vehicle", "light vehicles", "lv"]),
     ("MCC_5T_EXCAVATOR", "5t Excavator", 50.00, "hour", "equipment", ["5t excavator", "pc45 excavator", "komatsu pc45", "ex02"]),
-    ("MCC_13T_EXCAVATOR", "13t Excavator", 85.00, "hour", "equipment", ["13t excavator"]),
+    ("MCC_13T_EXCAVATOR", "13t Excavator", 85.00, "hour", "equipment", ["13t excavator", "hitachi 135 excavator", "hitachi zx135us-7 excavator", "zx135", "ex16"]),
     ("MCC_BACKHOE", "Backhoe", 85.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
     ("MCC_36T_EXCAVATOR", "36t Excavator", 115.00, "hour", "equipment", ["36t excavator"]),
     ("MCC_SKID_STEER", "Skid Steer", 50.00, "hour", "equipment", ["skid steer"]),
     ("MCC_10T_BODY_TIP_TRUCK", "10t Body Tip Truck", 50.00, "hour", "equipment", ["10t body tip truck"]),
-    ("MCC_BODY_WATER_TRUCK", "Body Water Truck", 80.00, "hour", "equipment", ["body water truck"]),
+    ("MCC_BODY_WATER_TRUCK", "Body Water Truck", 80.00, "hour", "equipment", ["body water truck", "water truck", "hino fm500 water truck", "wt01"]),
     ("MCC_105HP_TRACTOR", "105 Horsepower Tractor", 85.00, "hour", "equipment", ["105 horsepower tractor"]),
     ("MCC_SMALL_TOOL_HIRE", "Small Tool Hire", 50.00, "day", "equipment", ["small tool hire", "chainsaw", "whipper snipper"]),
     ("MCC_355MM_POLYWELDER", "355mm Polywelder", 150.00, "day", "equipment", ["355mm polywelder", "polywelder"]),
@@ -4089,14 +4090,19 @@ async def import_pdf(
     try:
         with pdfplumber.open(BytesIO(content)) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
-            if is_weatherford_gdb(text, filename):
+            if is_weatherford_gdb(text, filename) or is_mcc_site_services_report(text, filename):
                 for page in pdf.pages:
                     tables.extend(page.extract_tables() or [])
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
     weatherford_report = is_weatherford_gdb(text, filename)
-    source_file_type = "weatherford_gdb" if weatherford_report else "eos"
+    mcc_site_services_report = is_mcc_site_services_report(text, filename)
+    source_file_type = (
+        "weatherford_gdb" if weatherford_report
+        else "mcc_site_services_pdf" if mcc_site_services_report
+        else "eos"
+    )
     import_check = None
     if weatherford_report:
         contractor = "Weatherfords"
@@ -4105,6 +4111,35 @@ async def import_pdf(
         except ValueError as e:
             raise HTTPException(400, f"Could not read Weatherford GDB report: {e}")
         cons = []
+    elif mcc_site_services_report:
+        contractor = "MCC Group"
+        try:
+            header, acts, cons, crew, text = parse_mcc_site_services(
+                text, tables, filename, contractor
+            )
+        except ValueError as e:
+            raise HTTPException(400, f"Could not read MCC Site Services report: {e}")
+        for row in acts:
+            rate_group = row.pop("_mcc_activity_type", "")
+            rate_text = row.pop("_mcc_rate_text", "")
+            rate = mcc_schedule_match(rate_text, rate_group)
+            if not rate:
+                continue
+            quantity = 1 if rate["unit"] == "day" else row.get("quantity")
+            row.update({
+                "code": rate["code"],
+                "unit_rate": rate["rate"],
+                "quantity": quantity,
+                "line_cost": round(float(quantity) * float(rate["rate"]), 2)
+                             if quantity is not None else None,
+                "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']})",
+            })
+        import_check = {
+            "status": "ok",
+            "label": "MCC Site Services import check",
+            "summary": "MCC Site Services equipment and labour activities imported with separate Work Group and Site ID values.",
+            "warnings": [],
+        }
     else:
         header = parse_header(text)
         fmt = detect_pdf_format(text)
@@ -4115,7 +4150,31 @@ async def import_pdf(
             acts = parse_activities(text, header, filename, contractor)
         cons = parse_consumables(text, header, filename, contractor)
         crew = parse_crew(text, header, filename, contractor)
+    extracted_programs = [row.get("program") for row in acts] if mcc_site_services_report else []
     acts = apply_import_activity_scope(acts, contractor, program, project, client)
+    if mcc_site_services_report:
+        for row, extracted_program in zip(acts, extracted_programs):
+            if extracted_program:
+                row["program"] = extracted_program
+        missing_sites = sum(not str(row.get("site_name") or "").strip() for row in acts)
+        missing_codes = sum(not str(row.get("code") or "").strip() for row in acts)
+        warnings = []
+        if missing_sites:
+            warnings.append({
+                "severity": "warning",
+                "issue": f"{missing_sites} activity row(s) have no Site ID in the source description; assign them in the activity log.",
+            })
+        if missing_codes:
+            warnings.append({
+                "severity": "warning",
+                "issue": f"{missing_codes} activity row(s) did not match the MCC schedule and need a code/rate review.",
+            })
+        import_check.update({
+            "status": "needs_review" if warnings else "ok",
+            "summary": f"Imported {len(acts)} MCC Site Services activities with separate Work Group and Site ID values"
+                       + (f"; {len(warnings)} review item(s)." if warnings else "."),
+            "warnings": warnings,
+        })
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -4157,6 +4216,8 @@ async def import_pdf(
 
         def _price_row(row):
             if contractor == "Weatherfords" and str(row.get("rate_basis") or "").startswith("Weatherford"):
+                return row
+            if mcc_site_services_report and str(row.get("code") or "").startswith("MCC_"):
                 return row
             code = row.get("code","") or ""
             total_time = row.get("total_time","") or ""

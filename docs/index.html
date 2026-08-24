@@ -2750,7 +2750,7 @@ tbody td[contenteditable=true]:focus {
         <div class="tbl-scroll">
           <table id="act-table">
             <thead><tr>
-              <th>Date</th><th>Hole #</th><th>Site</th>
+              <th>Date</th><th>Hole #</th><th>Work Group</th><th>Site ID</th>
               <th>Time From</th><th>Time To</th><th>Duration</th>
               <th>Bit Type</th><th>Ø</th>
               <th>From m</th><th>To m</th><th>Metres</th>
@@ -4180,7 +4180,7 @@ function filterBoreholesForActiveProgram(rows){
 function rowMatchesActiveProgram(row){
   if(activeProjectName && row && row.project && !projectNamesMatch(row.project, activeProjectName)) return false;
   if(!activeProgram)return true;
-  if(row&&row.program)return row.program===activeProgram;
+  if(row&&row.program)return String(row.program).split(',').map(function(p){return p.trim();}).includes(activeProgram);
   if(row&&row.project)return projectMatchesActiveProgram(row.project);
   const text=[row&&row.location,row&&row.contract,row&&row.notes,row&&row.source_file].join(' ').toLowerCase();
   if(text.includes('arg-002')||text.includes('gas riser'))return activeProgram==='Gas Riser';
@@ -4870,7 +4870,7 @@ async function loadActivities(){
     renderActivities(activitiesData);
   }catch(e){
     renderDailyReportSummary([]);
-    document.getElementById('act-body').innerHTML='<tr><td colspan="18" style="color:var(--red);padding:20px">API offline</td></tr>';
+    document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
 }
 
@@ -4943,11 +4943,12 @@ function renderActivities(rows){
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="18"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="19"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`
     <tr data-id="${r.id}">
       <td contenteditable="true" data-col="date">${esc(r.date)}</td>
       <td contenteditable="true" data-col="hole_num">${esc(r.hole_num)}</td>
+      <td contenteditable="true" data-col="program">${esc(r.program||'')}</td>
       <td contenteditable="true" data-col="site_name">${esc(r.site_name)}</td>
       <td contenteditable="true" data-col="time_from">${esc(r.time_from)}</td>
       <td contenteditable="true" data-col="time_to">${esc(r.time_to)}</td>
