@@ -614,12 +614,15 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-visual-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;min-height:150px;}
 .period-visual-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;}
 .period-hole-bars{display:flex;flex-direction:column;gap:8px;}
-.period-hole-bar{display:grid;grid-template-columns:minmax(72px,0.18fr) minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:12px;}
+.period-hole-bar{display:grid;grid-template-columns:minmax(72px,0.18fr) minmax(0,1fr) 168px;gap:8px;align-items:center;font-size:12px;}
 .period-hole-label{font-weight:750;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .period-hole-track{height:16px;background:#e5eaf1;border-radius:999px;overflow:hidden;display:flex;}
 .period-hole-fill{height:100%;background:#315d49;border-radius:999px;}
 .period-hole-fill.cost{background:#315d49;}
 .period-hole-fill.budget{background:#16a34a;}
+.period-hole-fill.cost-budget{background:#16a34a;flex:0 0 auto;}
+.period-hole-fill.cost-budget.has-over{border-radius:999px 0 0 999px;}
+.period-hole-fill.cost-over{background:#dc2626;border-radius:0 999px 999px 0;flex:0 0 auto;}
 .period-hole-fill.over{background:#dc2626;}
 .period-hole-fill.not-coded{background:#f59e0b;}
 .period-hole-value{text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text2);white-space:nowrap;}
@@ -687,6 +690,8 @@ body.period-print-prep .period-map-print{display:block!important;height:250px!im
   .period-hole-track{background:#e5eaf1!important;border:1px solid #d9e0ea!important;box-sizing:border-box!important;}
   .period-hole-fill{background:#315d49!important;min-width:2px!important;}
   .period-hole-fill.cost{background:#315d49!important;}
+  .period-hole-fill.cost-budget{background:#16a34a!important;}
+  .period-hole-fill.cost-over{background:#dc2626!important;}
   .period-hole-fill.over{background:#dc2626!important;}
   .period-hole-fill.not-coded{background:#f59e0b!important;}
   .period-legend i{box-shadow:inset 0 0 0 9px currentColor!important;}
@@ -5831,11 +5836,19 @@ function renderPeriodHoleGraphics(metrics){
     const needsCoding=periodHoleNeedsCoding(m);
     const noDrillingCost=needsCoding&&Number(m.drillingCharged||0)<=0;
     const title=noDrillingCost?'Not Coded - completed hole has no matched drilling charge':'Drilling '+cur(m.drillingCharged)+' / Drill budget '+cur(m.drillingBudget);
-    const value=noDrillingCost?'Not Coded':cur(m.drillingCharged);
-    const width=noDrillingCost?0:Math.min(100,(m.drillingCharged/maxCost)*100);
+    const moneyWhole=function(value){return '$'+Math.round(Number(value)||0).toLocaleString('en-AU');};
+    const value=noDrillingCost?'Not Coded':moneyWhole(m.drillingCharged)+' / '+moneyWhole(m.drillingBudget);
+    const budgetSpend=noDrillingCost?0:(m.drillingBudget>0?Math.min(m.drillingCharged,m.drillingBudget):m.drillingCharged);
+    const overSpend=noDrillingCost?0:Math.max(0,m.drillingCharged-m.drillingBudget);
+    const budgetWidth=Math.min(100,(budgetSpend/maxCost)*100);
+    const overWidth=over?Math.min(100-budgetWidth,(overSpend/maxCost)*100):0;
+    const fill=noDrillingCost
+      ?'<div class="period-hole-fill not-coded" style="width:0"></div>'
+      :'<div class="period-hole-fill cost-budget '+(over?'has-over':'')+'" style="width:'+budgetWidth.toFixed(1)+'%"></div>'
+        +(over?'<div class="period-hole-fill cost-over" style="width:'+overWidth.toFixed(1)+'%"></div>':'');
     return '<div class="period-hole-bar">'
       +'<div class="period-hole-label" title="'+attr(m.id)+'">'+esc(m.id)+'</div>'
-      +'<div class="period-hole-track" title="'+attr(title)+'"><div class="period-hole-fill cost '+(noDrillingCost?'not-coded':(over?'over':''))+'" style="width:'+width.toFixed(1)+'%"></div></div>'
+      +'<div class="period-hole-track" title="'+attr(title)+'">'+fill+'</div>'
       +'<div class="period-hole-value '+(noDrillingCost?'not-coded-text':'')+'">'+value+'</div>'
       +'</div>';
   }).join('');
@@ -5850,7 +5863,7 @@ function renderPeriodHoleGraphics(metrics){
       +'<div class="period-hole-value '+(needsCoding?'not-coded-text':'')+'">'+value+'</div>'
       +'</div>';
   }).join('');
-  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Drilling Spend Per Hole</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#315d49"></i>Drilling spend</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
+  el.innerHTML='<div class="period-visual-card"><div class="period-visual-title">Drilling Spend Per Hole (Actual / Budget)</div><div class="period-hole-bars">'+costBars+'</div><div class="period-legend"><span><i style="background:#16a34a"></i>Within drill budget</span><span><i style="background:#dc2626"></i>Over drill budget</span></div></div>'
     +'<div class="period-visual-card"><div class="period-visual-title">Penetration Rate</div><div class="period-hole-bars">'+penBars+'</div><div class="period-legend"><span><i style="background:#315d49"></i>Metres per drilling hour</span></div></div>';
 }
 
