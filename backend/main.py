@@ -5402,13 +5402,22 @@ async def delete_activity_reports(request: Request):
                 report_date = report.get("date") or report.get("report_date") or ""
                 hole_num = report.get("hole") or report.get("hole_num") or ""
                 source_file = report.get("source") or report.get("source_file") or ""
+                raw_activity_ids = report.get("activity_ids") or []
+                if not isinstance(raw_activity_ids, list):
+                    raise HTTPException(400, "activity_ids must be a list")
+                try:
+                    activity_ids = sorted({int(row_id) for row_id in raw_activity_ids})
+                except (TypeError, ValueError):
+                    raise HTTPException(400, "activity_ids must contain integers")
+                if len(activity_ids) > 10000:
+                    raise HTTPException(400, "Too many activity rows")
                 key = {
                     "contractor": contractor,
                     "report_date": report_date,
                     "hole_num": hole_num,
                     "source_file": source_file,
                 }
-                if not (report_date or hole_num or source_file):
+                if not (activity_ids or report_date or hole_num or source_file):
                     continue
 
                 row_params = {
@@ -5436,13 +5445,34 @@ async def delete_activity_reports(request: Request):
                         AND COALESCE(hole_num,'')=%(hole_num)s
                         AND COALESCE(source_file,'')=%(source_file)s
                     """
-                for table, counter in (
-                    ("activities", "activities"),
-                    ("consumables", "consumables"),
-                    ("crew", "crew"),
-                ):
-                    cur.execute(f"DELETE FROM {table} WHERE {where}", row_params)
-                    totals[counter] += max(cur.rowcount, 0)
+                delete_report_metadata = True
+                if activity_ids:
+                    cur.execute(
+                        "DELETE FROM activities WHERE contractor=%s AND id=ANY(%s)",
+                        (contractor, activity_ids),
+                    )
+                    totals["activities"] += max(cur.rowcount, 0)
+                    cur.execute(
+                        f"""
+                        SELECT EXISTS (
+                          SELECT 1 FROM activities WHERE {where}
+                          UNION ALL
+                          SELECT 1 FROM consumables WHERE {where}
+                          UNION ALL
+                          SELECT 1 FROM crew WHERE {where}
+                        ) AS still_used
+                        """,
+                        row_params,
+                    )
+                    delete_report_metadata = not bool(cur.fetchone()["still_used"])
+                else:
+                    for table, counter in (
+                        ("activities", "activities"),
+                        ("consumables", "consumables"),
+                        ("crew", "crew"),
+                    ):
+                        cur.execute(f"DELETE FROM {table} WHERE {where}", row_params)
+                        totals[counter] += max(cur.rowcount, 0)
 
                 if source_file:
                     if report_date:
@@ -5463,13 +5493,14 @@ async def delete_activity_reports(request: Request):
                         AND COALESCE(hole_num,'')=%(hole_num)s
                         AND COALESCE(source_file,'')=%(source_file)s
                     """
-                for table, counter in (
-                    ("report_approvals", "approvals"),
-                    ("activity_sheet_locks", "locks"),
-                    ("minimum_shift_topup_preferences", "topup_preferences"),
-                ):
-                    cur.execute(f"DELETE FROM {table} WHERE {meta_where}", key)
-                    totals[counter] += max(cur.rowcount, 0)
+                if delete_report_metadata:
+                    for table, counter in (
+                        ("report_approvals", "approvals"),
+                        ("activity_sheet_locks", "locks"),
+                        ("minimum_shift_topup_preferences", "topup_preferences"),
+                    ):
+                        cur.execute(f"DELETE FROM {table} WHERE {meta_where}", key)
+                        totals[counter] += max(cur.rowcount, 0)
 
                 if source_file:
                     cur.execute(

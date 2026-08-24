@@ -6522,7 +6522,12 @@ async function bulkDeleteReports(){
     const payload={
       contractor:contractor,
       reports:reports.map(function(r){
-        return {date:r.date||'',hole:reportRecordHole(r),source:r.sourceFile||''};
+        return {
+          date:r.date||'',
+          hole:reportRecordHole(r),
+          source:r.sourceFile||'',
+          activity_ids:(r.rows||[]).map(function(row){return Number(row.id);}).filter(Number.isInteger)
+        };
       })
     };
     let res=await fetch(API+'/activity-reports/delete',{
