@@ -4156,6 +4156,8 @@ async def import_pdf(
             return None
 
         def _price_row(row):
+            if contractor == "Weatherfords" and str(row.get("rate_basis") or "").startswith("Weatherford"):
+                return row
             code = row.get("code","") or ""
             total_time = row.get("total_time","") or ""
             hours = 0
@@ -4270,21 +4272,17 @@ async def import_pdf(
                 c["line_cost"] = None
 
         if weatherford_report:
-            missing_codes = sorted({row.get("code") for row in acts if row.get("code") and row.get("line_cost") is None})
+            pricing_warnings = list(header.get("pricing_warnings") or [])
+            expected_cost = float(header.get("expected_cost_ex_gst") or 0)
             import_check = {
-                "status": "needs_review" if missing_codes else "ok",
+                "status": "needs_review" if pricing_warnings else "ok",
                 "label": "Weatherford import check",
-                "summary": (
-                    f"Imported {len(acts)} GDB operation rows; add Weatherfords rates for "
-                    + ", ".join(missing_codes)
-                    if missing_codes
-                    else f"Imported and priced {len(acts)} Weatherford GDB operation rows."
-                ),
-                "warnings": ([{
+                "summary": f"Expected cost ${expected_cost:,.2f} ex GST from quote 202510022"
+                           + ("; review excluded items." if pricing_warnings else "."),
+                "warnings": [{
                     "severity": "warning",
-                    "code": ", ".join(missing_codes),
-                    "issue": "No matching Weatherfords rate was found; operation rows were retained without cost.",
-                }] if missing_codes else []),
+                    "issue": warning,
+                } for warning in pricing_warnings],
             }
         elif contractor == "Allianz Drilling":
             import_check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)

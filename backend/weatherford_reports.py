@@ -4,6 +4,16 @@ import re
 from datetime import datetime, timedelta
 
 
+WEATHERFORD_QUOTE_REFERENCE = "202510022"
+WEATHERFORD_CALLOUT_DAY = 2650.0
+WEATHERFORD_ADDITIONAL_HOUR = 200.0
+WEATHERFORD_EXCESS_KM = 2.45
+WEATHERFORD_MEALS_DAY = 125.0
+WEATHERFORD_TELEVIEWER_DAY = 150.0
+WEATHERFORD_PROCESSING_HOLE = 250.0
+WEATHERFORD_INDEMNITY_RATE = 0.04
+
+
 def is_weatherford_gdb(text: str, filename: str = "") -> bool:
     haystack = f"{filename}\n{text[:5000]}".upper()
     return (
@@ -47,6 +57,14 @@ def _header_table_values(tables, label: str):
     }
 
 
+def _value_for(values: dict, label: str) -> str:
+    wanted = _label(label)
+    for key, value in values.items():
+        if wanted == _label(key) or wanted in _label(key):
+            return value
+    return ""
+
+
 def _line_value(text: str, label: str) -> str:
     match = re.search(rf"{re.escape(label)}\s*:\s*([^\n]*)", text, re.IGNORECASE)
     return _clean(match.group(1)) if match else ""
@@ -72,6 +90,90 @@ def _duration_hours(duration: str):
         return round(hours + minutes / 60.0, 2)
     except (TypeError, ValueError):
         return None
+
+
+def _quote_charge_row(header: dict, filename: str, contractor: str, code: str,
+                      description: str, quantity: float, unit_rate: float,
+                      rate_basis: str) -> dict:
+    row = _base_row(filename, contractor, header)
+    row.update({
+        "code": code,
+        "notes": f"Expected charge - {description} | Quote {WEATHERFORD_QUOTE_REFERENCE}",
+        "rate_year": "2026",
+        "unit_rate": round(unit_rate, 4),
+        "quantity": round(quantity, 2),
+        "line_cost": round(quantity * unit_rate, 2),
+        "rate_basis": f"Weatherford quote {WEATHERFORD_QUOTE_REFERENCE}: {rate_basis}",
+    })
+    return row
+
+
+def _expected_quote_charges(header: dict, operation_rows: list[dict], filename: str,
+                            contractor: str) -> tuple[list[dict], list[str]]:
+    charges = []
+    warnings = []
+    rentals = WEATHERFORD_CALLOUT_DAY
+    charges.append(_quote_charge_row(
+        header, filename, contractor, "WFD_Callout_Day", "logging unit callout",
+        1, WEATHERFORD_CALLOUT_DAY, "$2,650 per unit/day (10 hours base to base)",
+    ))
+
+    worked_hours = _duration_hours(header.get("total_time", ""))
+    if worked_hours is None:
+        warnings.append("Total day length is missing; additional hours could not be estimated.")
+    elif worked_hours > 10:
+        additional_hours = round(worked_hours - 10, 2)
+        charges.append(_quote_charge_row(
+            header, filename, contractor, "WFD_Additional_Hours", "hours beyond the 10-hour callout",
+            additional_hours, WEATHERFORD_ADDITIONAL_HOUR, "$200 per additional hour",
+        ))
+
+    chargeable_km = header.get("distance_over_100_km")
+    total_km = header.get("distance_km")
+    if chargeable_km is None and total_km is not None:
+        chargeable_km = max(total_km - 100.0, 0.0)
+    if chargeable_km is None:
+        warnings.append("Base-to-base kilometres are blank; any mileage charge is excluded.")
+    elif chargeable_km > 0:
+        charges.append(_quote_charge_row(
+            header, filename, contractor, "WFD_Excess_Kilometres", "kilometres beyond the 100 km/day allowance",
+            chargeable_km, WEATHERFORD_EXCESS_KM, "$2.45 per kilometre over 100 km/day",
+        ))
+
+    meal_values = header.get("meals", [])
+    if any("wft supplied" in str(value).lower() for value in meal_values):
+        charges.append(_quote_charge_row(
+            header, filename, contractor, "WFD_Meals_Subsistence", "Weatherford-supplied meals and subsistence",
+            1, WEATHERFORD_MEALS_DAY, "$125 daily charge",
+        ))
+
+    used_sondes = {str(value).upper() for value in header.get("used_sondes", [])}
+    televiewers = []
+    if any(sonde.startswith("OTV") for sonde in used_sondes):
+        televiewers.append(("WFD_OTV_Rental", "optical televiewer rental"))
+    if any(sonde.startswith(("ATV", "ALT")) for sonde in used_sondes):
+        televiewers.append(("WFD_ATV_Rental", "acoustic televiewer rental"))
+    for code, description in televiewers:
+        rentals += WEATHERFORD_TELEVIEWER_DAY
+        charges.append(_quote_charge_row(
+            header, filename, contractor, code, description,
+            1, WEATHERFORD_TELEVIEWER_DAY, "$150 per tool/day",
+        ))
+
+    if any(row.get("code") == "P200" for row in operation_rows):
+        charges.append(_quote_charge_row(
+            header, filename, contractor, "WFD_Data_Processing", "additional WellCAD data processing",
+            1, WEATHERFORD_PROCESSING_HOLE, "$250 per logged hole",
+        ))
+
+    charges.append(_quote_charge_row(
+        header, filename, contractor, "WFD_Indemnity_Waiver", "downhole indemnity waiver",
+        rentals, WEATHERFORD_INDEMNITY_RATE, "4% of logging unit and televiewer rentals",
+    ))
+
+    if "wft supplied" in str(header.get("accommodation", "")).lower():
+        warnings.append("Weatherford supplied accommodation; accommodation cost + 15% is excluded until the base cost is known.")
+    return charges, warnings
 
 
 def _base_row(filename: str, contractor: str, header: dict) -> dict:
@@ -114,6 +216,7 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
     report_values = _header_table_values(tables, "Date:")
     shift_values = _header_table_values(tables, "Shift Start")
     depth_values = _header_table_values(tables, "Driller Depth")
+    meal_values = _header_table_values(tables, "Breakfast")
 
     client_line = _line_value(text, "CLIENT")
     client = re.split(r"\s+Site Number\s*:?", client_line, flags=re.IGNORECASE)[0].strip()
@@ -135,6 +238,12 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
         "engineer": report_values.get("Engineer", ""),
         "shift_start": shift_values.get("Shift Start (hh:mm)", "") or shift_values.get("Shift Start", ""),
         "shift_length": shift_values.get("Shift Length (hh:mm)", "") or shift_values.get("Shift Length", ""),
+        "total_time": _value_for(shift_values, "Total Time"),
+        "travel_time": _value_for(shift_values, "Travel Time"),
+        "distance_km": _number(_value_for(shift_values, "Distance (km)")),
+        "distance_over_100_km": _number(_value_for(shift_values, "Distance >100 km")),
+        "meals": [_value_for(meal_values, meal) for meal in ("Breakfast", "Lunch", "Dinner")],
+        "accommodation": _value_for(meal_values, "Accom"),
         "eticket": eticket,
         "driller_depth": _number(depth_values.get("Driller Depth")),
         "logger_td": _number(depth_values.get("Logger TD")),
@@ -145,6 +254,7 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
         raise ValueError("Weatherford logging operations table was not found")
 
     activities = []
+    used_sondes = []
     for raw_row in operations_table[2:]:
         row = list(raw_row or []) + [""] * 9
         operation = _clean(row[0])
@@ -156,6 +266,8 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
 
         code, description = operation_match.groups()
         serial = _clean(row[1])
+        if serial:
+            used_sondes.append(serial)
         report_date = _clean(row[2]) or header["date"]
         start = _clean(row[3])
         duration = _clean(row[7])
@@ -178,6 +290,11 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
             "metres_to": _number(row[5]),
             "code": code,
             "notes": " | ".join(notes),
+            "rate_year": "2026",
+            "unit_rate": 0.0,
+            "quantity": _duration_hours(duration),
+            "line_cost": 0.0,
+            "rate_basis": "Weatherford operational detail; priced through quote charge rows",
         })
         activities.append(activity)
 
@@ -196,4 +313,8 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
 
     if not activities:
         raise ValueError("Weatherford report contained no importable operation rows")
-    return header, activities, crew
+    header["used_sondes"] = used_sondes
+    charge_rows, pricing_warnings = _expected_quote_charges(header, activities, filename, contractor)
+    header["pricing_warnings"] = pricing_warnings
+    header["expected_cost_ex_gst"] = round(sum(row["line_cost"] for row in charge_rows), 2)
+    return header, activities + charge_rows, crew
