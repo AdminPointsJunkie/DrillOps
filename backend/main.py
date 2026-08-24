@@ -5313,7 +5313,8 @@ def get_activity_report_data(
         params["holes"] = hole_list
         activity_conds.append("a.hole_num=ANY(%(holes)s)")
 
-    site_list = [s.strip() for s in (sites or "").split(",") if s.strip()]
+    site_separator = "|||" if "|||" in (sites or "") else ","
+    site_list = [s.strip() for s in (sites or "").split(site_separator) if s.strip()]
     if site_list:
         params["sites"] = site_list
         activity_conds.append("a.site_name=ANY(%(sites)s)")

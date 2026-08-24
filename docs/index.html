@@ -4844,11 +4844,20 @@ function togglePanel(panelId,labelId,labelWord){
   if(label)label.textContent=panel.classList.contains('collapsed')?'Show '+word:'Hide '+word;
 }
 
+function activityFilterParam(id,delimiter=','){
+  const select=document.getElementById(id);
+  if(!select)return'';
+  const available=[...select.options].map(function(option){return option.value;}).filter(Boolean);
+  const selected=[...select.selectedOptions].map(function(option){return option.value;}).filter(Boolean);
+  if(!selected.length||selected.length===available.length)return'';
+  return selected.join(delimiter);
+}
+
 async function loadActivities(){
-  var dates=getSelVals('f-dates').filter(function(d){return d;}).join(',');
-  var holes=getSelVals('f-holes').filter(function(d){return d;}).join(',');
-  var sites=getSelVals('f-sites').filter(function(d){return d;}).join(',');
-  var codes=getSelVals('f-codes').filter(function(d){return d;}).join(',');
+  var dates=activityFilterParam('f-dates');
+  var holes=activityFilterParam('f-holes');
+  var sites=activityFilterParam('f-sites','|||');
+  var codes=activityFilterParam('f-codes');
   var search=(document.getElementById('f-search')?document.getElementById('f-search').value:'').trim();
   var p=new URLSearchParams({contractor:activeContractor});
   if(dates)p.set('dates',dates);
