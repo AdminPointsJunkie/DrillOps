@@ -4192,6 +4192,7 @@ function rowMatchesActiveProgram(row){
   return !!(bh&&boreholeMatchesActiveProgram(bh));
 }
 function filterRowsForActiveProgram(rows){
+  if(activeContractor==='MCC Group')return rows||[];
   return (rows||[]).filter(rowMatchesActiveProgram);
 }
 function ensureActiveContractorInProgram(){
