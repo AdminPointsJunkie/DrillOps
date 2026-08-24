@@ -29,6 +29,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from dar_workflow import ensure_dar_schema
 from security import DrillOpsAuthMiddleware
 from exploration_metres import summarize_exploration_metres
+from mcc_rates import (
+    MCC_SCHEDULE_DATE,
+    MCC_SCHEDULE_EXCLUSIONS,
+    MCC_SCHEDULE_RATES,
+    apply_mcc_schedule_rate,
+    mcc_schedule_match,
+)
 from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
@@ -1261,62 +1268,6 @@ def init_db():
 init_db()
 ensure_dar_schema(get_conn)
 
-MCC_SCHEDULE_DATE = "23 April 2026"
-MCC_SCHEDULE_RATES = [
-    ("MCC_LABOURER", "Labourer", 85.00, "hour", "labour", ["labourer"]),
-    ("MCC_CONSTRUCTION_TRADE", "Construction Trade", 100.00, "hour", "labour", ["construction trade", "construc4on trade"]),
-    ("MCC_MECHANICAL_TRADE", "Mechanical Trade", 115.00, "hour", "labour", ["mechanical trade"]),
-    ("MCC_PUMP_CREW_OPERATOR", "Pump Crew Operator", 95.00, "hour", "labour", ["pump crew operator"]),
-    ("MCC_MULTI_SKILLED_OPERATOR", "Multi Skilled Operator", 100.00, "hour", "labour", ["multi skilled operator", "mul4 skilled operator"]),
-    ("MCC_SUPERVISOR", "Supervisor", 120.00, "hour", "labour", ["supervisor"]),
-    ("MCC_PROJECT_MANAGER", "Project Manager", 140.00, "hour", "labour", ["project manager"]),
-    ("MCC_LIGHT_VEHICLE", "Light Vehicle", 105.00, "day", "equipment", ["light vehicle", "light vehicles", "lv"]),
-    ("MCC_5T_EXCAVATOR", "5t Excavator", 50.00, "hour", "equipment", ["5t excavator", "pc45 excavator", "komatsu pc45", "ex02"]),
-    ("MCC_13T_EXCAVATOR", "13t Excavator", 85.00, "hour", "equipment", ["13t excavator", "hitachi 135 excavator", "hitachi zx135us-7 excavator", "zx135", "ex16"]),
-    ("MCC_BACKHOE", "Backhoe", 85.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
-    ("MCC_36T_EXCAVATOR", "36t Excavator", 115.00, "hour", "equipment", ["36t excavator"]),
-    ("MCC_SKID_STEER", "Skid Steer", 50.00, "hour", "equipment", ["skid steer"]),
-    ("MCC_10T_BODY_TIP_TRUCK", "10t Body Tip Truck", 50.00, "hour", "equipment", ["10t body tip truck"]),
-    ("MCC_BODY_WATER_TRUCK", "Body Water Truck", 80.00, "hour", "equipment", ["body water truck", "water truck", "hino fm500 water truck", "wt01"]),
-    ("MCC_105HP_TRACTOR", "105 Horsepower Tractor", 85.00, "hour", "equipment", ["105 horsepower tractor"]),
-    ("MCC_SMALL_TOOL_HIRE", "Small Tool Hire", 50.00, "day", "equipment", ["small tool hire", "chainsaw", "whipper snipper"]),
-    ("MCC_355MM_POLYWELDER", "355mm Polywelder", 150.00, "day", "equipment", ["355mm polywelder", "polywelder"]),
-    ("MCC_TRAILER_HIRE", "Trailer Hire", 100.00, "day", "equipment", ["trailer hire"]),
-    ("MCC_EQUIPMENT_ATTACHMENT", "Attachment for Equipment", 25.00, "hour", "equipment", ["attachment for equipment", "grader", "auger", "rock breaker", "slasher"]),
-    ("MCC_120T_EXCAVATOR", "120t Excavator", 220.00, "hour", "equipment", ["120t excavator"]),
-    ("MCC_90T_EXCAVATOR", "90t Excavator", 180.00, "hour", "equipment", ["90t excavator"]),
-    ("MCC_100T_DUMP_WATER_TRUCK", "100t Dump Truck Class/Water Truck", 165.00, "hour", "equipment", ["100t dump truck", "100t water truck"]),
-    ("MCC_40T_ARTICULATED_WATER_TRUCK", "40t Articulated Water Truck", 130.00, "hour", "equipment", ["40t articulated water truck", "40t ar4culated water truck"]),
-    ("MCC_IT_LOADER", "IT Loader 15-20t Class", 85.00, "hour", "equipment", ["it loader", "15-20t class"]),
-    ("MCC_LOADER_110T", "Loader 110t Class", 230.00, "hour", "equipment", ["loader 110t"]),
-    ("MCC_SERVICE_TRUCK", "Service Truck", 80.00, "hour", "equipment", ["service truck"]),
-    ("MCC_14_GRADER", "14ft Grader", 125.00, "hour", "equipment", ["14ft grader", "14^ grader", "14 grader"]),
-    ("MCC_16_GRADER", "16ft Grader", 145.00, "hour", "equipment", ["16ft grader", "16^ grader", "16 grader"]),
-    ("MCC_30T_ARTICULATED_DUMP_TRUCK", "30t Articulated Dump Truck", 105.00, "hour", "equipment", ["30t articulated dump truck", "30t ar4culated dump truck"]),
-    ("MCC_40T_ARTICULATED_DUMP_TRUCK", "40t Articulated Dump Truck", 130.00, "hour", "equipment", ["40t articulated dump truck", "40t ar4culated dump truck"]),
-    ("MCC_D11_DOZER", "D11 Dozer", 225.00, "hour", "equipment", ["d11 dozer"]),
-    ("MCC_D10_DOZER", "D10 Dozer", 185.00, "hour", "equipment", ["d10 dozer"]),
-]
-
-
-def _norm_rate_text(value):
-    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
-
-
-def mcc_schedule_match(value, group=None):
-    haystack = _norm_rate_text(value)
-    if not haystack:
-        return None
-    for code, desc, rate, unit, rate_group, aliases in MCC_SCHEDULE_RATES:
-        if group and rate_group != group:
-            continue
-        for alias in aliases + [desc]:
-            needle = _norm_rate_text(alias)
-            if needle and (needle == haystack or needle in haystack or haystack in needle):
-                return {"code": code, "description": desc, "rate": rate, "unit": unit, "group": rate_group}
-    return None
-
-
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def note_field_value(text, label):
     prefix = f"{label.lower()}:"
@@ -1371,14 +1322,14 @@ def mcc_reprice_from_row(row):
     hours = mcc_row_hours(row)
     qty = 1 if match["unit"] == "day" else round(hours, 2)
     if qty <= 0:
-        qty = 1
+        return None
     return {
         "code": match["code"],
         "rate_year": mcc_row_year(row),
         "unit_rate": match["rate"],
         "quantity": qty,
         "line_cost": round(match["rate"] * qty, 2),
-        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}",
+        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {match['description']} ${match['rate']:,.2f}/{match['unit']} x {qty:g}; excludes accommodation and diesel",
     }
 
 
@@ -1458,18 +1409,41 @@ def seed_mcc_2026_rates():
     rows = []
     for contractor in ("MCC Group",):
         for code, desc, rate, unit, group, _aliases in MCC_SCHEDULE_RATES:
-            rows.append((contractor, "2026", code, f"{desc} ({group}; MCC schedule {MCC_SCHEDULE_DATE})", rate, unit))
+            rows.append((contractor, "2026", code, f"{desc} ({group}; MCC schedule {MCC_SCHEDULE_DATE}; {MCC_SCHEDULE_EXCLUSIONS})", rate, unit))
     with get_conn() as conn:
         with conn.cursor() as cur:
             for row in rows:
                 cur.execute("""
-                    INSERT INTO hourly_rates (contractor, year, code, description, rate, unit)
-                    SELECT %s, %s, %s, %s, %s, %s
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM hourly_rates
-                        WHERE contractor=%s AND year=%s AND code=%s
-                    )
-                """, (*row, row[0], row[1], row[2]))
+                    UPDATE hourly_rates
+                    SET description=%s, rate=%s, unit=%s
+                    WHERE contractor=%s AND year=%s AND code=%s
+                """, (row[3], row[4], row[5], row[0], row[1], row[2]))
+                if cur.rowcount == 0:
+                    cur.execute("""
+                        INSERT INTO hourly_rates (contractor, year, code, description, rate, unit)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, row)
+            # MCC_BACKHOE was previously inferred from the asset description,
+            # but no backhoe rate exists in the signed schedule.
+            cur.execute("""
+                DELETE FROM hourly_rates
+                WHERE contractor='MCC Group' AND year='2026' AND code='MCC_BACKHOE'
+            """)
+            cur.execute("""
+                UPDATE activities
+                SET code='', unit_rate=NULL, quantity=NULL, line_cost=NULL,
+                    rate_basis='MCC Site Services PDF - rate not listed in signed schedule'
+                WHERE contractor='MCC Group' AND code='MCC_BACKHOE'
+            """)
+            cur.execute("""
+                UPDATE activities
+                SET quantity=NULL, line_cost=NULL,
+                    rate_basis='MCC schedule 23 April 2026 - Labourer ($85.00/hour); hours not provided; excludes accommodation and diesel'
+                WHERE contractor='MCC Group'
+                  AND code='MCC_LABOURER'
+                  AND source_file ILIKE '%%SiteServicesReport%%'
+                  AND COALESCE(NULLIF(TRIM(total_time), ''), '0:00') IN ('0', '0.0', '0:00')
+            """)
         conn.commit()
 
 
@@ -3232,7 +3206,7 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                         "unit_rate": rate["rate"],
                         "quantity": quantity,
                         "line_cost": line_cost,
-                        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']})",
+                        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']}); excludes accommodation and diesel",
                     }
                     acts.append(row)
             if created_by:
@@ -4122,18 +4096,7 @@ async def import_pdf(
         for row in acts:
             rate_group = row.pop("_mcc_activity_type", "")
             rate_text = row.pop("_mcc_rate_text", "")
-            rate = mcc_schedule_match(rate_text, rate_group)
-            if not rate:
-                continue
-            quantity = 1 if rate["unit"] == "day" else row.get("quantity")
-            row.update({
-                "code": rate["code"],
-                "unit_rate": rate["rate"],
-                "quantity": quantity,
-                "line_cost": round(float(quantity) * float(rate["rate"]), 2)
-                             if quantity is not None else None,
-                "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']})",
-            })
+            apply_mcc_schedule_rate(row, rate_group, rate_text)
         import_check = {
             "status": "ok",
             "label": "MCC Site Services import check",
@@ -4158,6 +4121,10 @@ async def import_pdf(
                 row["program"] = extracted_program
         missing_sites = sum(not str(row.get("site_name") or "").strip() for row in acts)
         missing_codes = sum(not str(row.get("code") or "").strip() for row in acts)
+        missing_quantities = sum(
+            bool(str(row.get("code") or "").strip()) and row.get("line_cost") is None
+            for row in acts
+        )
         warnings = []
         if missing_sites:
             warnings.append({
@@ -4168,6 +4135,11 @@ async def import_pdf(
             warnings.append({
                 "severity": "warning",
                 "issue": f"{missing_codes} activity row(s) did not match the MCC schedule and need a code/rate review.",
+            })
+        if missing_quantities:
+            warnings.append({
+                "severity": "warning",
+                "issue": f"{missing_quantities} activity row(s) matched a rate but have no hours/quantity in the source, so no cost was assigned.",
             })
         import_check.update({
             "status": "needs_review" if warnings else "ok",
