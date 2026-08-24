@@ -813,6 +813,10 @@ function mccPerson(row){
   return noteField(row,'Operator')||noteField(row,'Tradesperson/Labourer')||noteField(row,'Supervisor')||noteField(row,'Created by');
 }
 function mccEquipment(row){return noteField(row,'Equipment')||row.drill_rig||'';}
+function mccDecimalHours(row){
+  const hours=row.quantity!=null&&String(row.rate_basis||'').toLowerCase().includes('/hour')?num(row.quantity):parseDurationHours(row.total_time);
+  return hours.toFixed(2);
+}
 function renderMccSiteServicesReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
@@ -861,13 +865,16 @@ function renderMccSiteServicesReport(rows,consumables,crew){
     +'<div class="weekly-card"><div class="weekly-card-title">Materials</div><div class="weekly-card-value">'+cur(materialCost)+'</div><div class="weekly-card-meta">'+relatedConsumables.length+' line(s)</div></div>'
     +'<div class="weekly-card"><div class="weekly-card-title">Unpriced</div><div class="weekly-card-value">'+unpricedRows.length+'</div><div class="weekly-card-meta">line(s) requiring review</div></div>'
     +'</div>';
-  document.getElementById('notes-title').textContent='Work Completed';
+  document.getElementById('notes-title').textContent='Report Notes & Work Completed';
   const descriptions=[...new Set(rows.map(workDescription).filter(Boolean))];
-  document.getElementById('notes').innerHTML=descriptions.length?'<ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'No work descriptions recorded.';
+  const reportNotes=[...new Set(rows.map(r=>noteField(r,'Report note')).filter(Boolean))];
+  document.getElementById('notes').innerHTML=(reportNotes.length?'<p><strong>Notes / Delays</strong></p><ul>'+reportNotes.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')
+    +(descriptions.length?'<p><strong>Work completed</strong></p><ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')
+    ||'No report notes or work descriptions recorded.';
   document.getElementById('activities-title').textContent='Site Services Line Items';
   const activityTable=document.getElementById('activity-body').closest('table');
   activityTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Equipment / Person</th><th>Hours</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Cost</th></tr>';
-  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+esc(r.total_time||'')+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
+  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+mccDecimalHours(r)+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
   document.getElementById('activity-body').querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
     cell.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cell.blur();}});
@@ -875,10 +882,10 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('equipment-title').textContent='Equipment Detail';
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
-  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+esc(r.quantity!=null?r.quantity:(r.total_time||''))+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccDecimalHours(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport);
-  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
   pdf.style.display=source?'inline-flex':'none';
   pdf.textContent='Source PDF';

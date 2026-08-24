@@ -101,6 +101,28 @@ def _number(value):
         return None
 
 
+def _report_notes(tables: list) -> list[str]:
+    notes = []
+    section_starts = {"safety", "manning", "equipment id", "tradesperson/labourer"}
+    for table in tables or []:
+        for row_index, raw in enumerate(table or []):
+            row = list(raw or [])
+            note_columns = [
+                index for index, value in enumerate(row)
+                if _text(value).lower().replace(" ", "") in {"notes/delays", "notes&delays"}
+            ]
+            for note_column in note_columns:
+                for following in (table or [])[row_index + 1:]:
+                    following = list(following or [])
+                    first = _text(following[0] if following else "").lower()
+                    if first in section_starts:
+                        break
+                    value = _text(following[note_column] if note_column < len(following) else "")
+                    if value and value not in notes:
+                        notes.append(value)
+    return notes
+
+
 def _base_activity(filename: str, contractor: str, report_date: str, work: str) -> dict:
     sites = extract_site_ids(work)
     groups = work_groups_for_sites(sites, work)
@@ -142,6 +164,7 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
     """Parse equipment, labour and crew rows from extracted pdfplumber tables."""
     report_date = _report_date(text, filename)
     activities, crew, seen_crew = [], [], set()
+    report_notes = _report_notes(tables)
 
     def add_crew(role, name, hours="", site=""):
         name = _text(name)
@@ -209,6 +232,20 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
                     "_mcc_rate_text": f"{equipment_id} {description}",
                 })
                 activities.append(activity)
+                if operator:
+                    operator_activity = _base_activity(filename, contractor, report_date, work)
+                    operator_activity.update({
+                        "total_time": _decimal_hours_to_time(hours),
+                        "quantity": hours,
+                        "notes": " | ".join(filter(None, [
+                            work,
+                            f"Operator: {operator}",
+                            f"Linked equipment: {equipment_id} - {description}",
+                        ])),
+                        "_mcc_activity_type": "labour",
+                        "_mcc_rate_text": "Multi Skilled Operator",
+                    })
+                    activities.append(operator_activity)
                 add_crew("Operator", operator, hours, activity["site_name"])
                 continue
 
@@ -232,6 +269,11 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
 
     if not activities:
         raise ValueError("No active MCC Site Services rows found in report")
+    if report_notes:
+        activities[0]["notes"] = " | ".join([
+            activities[0]["notes"],
+            *[f"Report note: {note}" for note in report_notes],
+        ])
     header = {
         "date": report_date,
         "hole_num": activities[0]["hole_num"],
