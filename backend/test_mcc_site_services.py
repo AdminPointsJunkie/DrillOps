@@ -1,6 +1,7 @@
 import unittest
 
 from mcc_site_services import (
+    _personnel_rate,
     extract_site_ids,
     parse_mcc_site_services,
     work_groups_for_sites,
@@ -8,6 +9,19 @@ from mcc_site_services import (
 
 
 class MCCSiteServicesTests(unittest.TestCase):
+    def test_maps_manning_roles_to_their_own_schedule_rates(self):
+        expected = {
+            "Supervisors": "Supervisor",
+            "Management": "Project Manager",
+            "workshop": "Mechanical Trade",
+            "Pump Crew": "Pump Crew Operator",
+            "Civil": "Construction Trade",
+            "Project": "Construction Trade",
+        }
+        for role, rate_name in expected.items():
+            with self.subTest(role=role):
+                self.assertEqual(_personnel_rate(role), rate_name)
+
     def test_extracts_and_normalises_all_site_ids(self):
         sites = extract_site_ids("GR20, IB-26-19, MG08-2 and MG08-01V")
         self.assertEqual(sites, ["GR20", "IB-26-019", "MG08-02", "MG08-01V"])
@@ -38,7 +52,7 @@ class MCCSiteServicesTests(unittest.TestCase):
         self.assertEqual(rows[0]["total_time"], "5:54")
         self.assertIn("Report note: WT01 was down for repairs", rows[0]["notes"])
         self.assertEqual(rows[1]["_mcc_activity_type"], "labour")
-        self.assertEqual(rows[1]["_mcc_rate_text"], "Multi Skilled Operator")
+        self.assertEqual(rows[1]["_mcc_rate_text"], "Supervisor")
         self.assertEqual(rows[1]["quantity"], 5.9)
         self.assertIn("Operator: Michael Chilby", rows[1]["notes"])
         self.assertEqual(rows[2]["program"], "Gas Riser")

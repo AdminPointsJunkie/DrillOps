@@ -84,6 +84,12 @@ class MCCRatesTests(unittest.TestCase):
         self.assertEqual(operator["unit_rate"], 100.0)
         self.assertEqual(operator["line_cost"], 280.0)
 
+        supervisor = {"quantity": 2.8}
+        self.assertTrue(apply_mcc_schedule_rate(supervisor, "labour", "Supervisor"))
+        self.assertEqual(supervisor["code"], "MCC_SUPERVISOR")
+        self.assertEqual(supervisor["unit_rate"], 120.0)
+        self.assertEqual(supervisor["line_cost"], 336.0)
+
         missing_hours = {"quantity": None}
         self.assertTrue(apply_mcc_schedule_rate(missing_hours, "labour", "Labourer"))
         self.assertEqual(missing_hours["unit_rate"], 85.0)

@@ -101,6 +101,48 @@ def _number(value):
         return None
 
 
+MCC_PERSONNEL_ROLE_RATES = (
+    ({"supervisor", "supervisors"}, "Supervisor"),
+    ({"management", "manager", "project manager"}, "Project Manager"),
+    ({"workshop", "mechanical", "mechanical trade"}, "Mechanical Trade"),
+    ({"pump crew", "pump crew operator"}, "Pump Crew Operator"),
+    ({"civil", "project", "construction", "construction trade"}, "Construction Trade"),
+)
+
+
+def _person_key(value):
+    return re.sub(r"[^a-z0-9]+", " ", _text(value).lower()).strip()
+
+
+def _personnel_rate(role, default="Multi Skilled Operator"):
+    normalised = _person_key(role)
+    for aliases, rate_name in MCC_PERSONNEL_ROLE_RATES:
+        if normalised in aliases:
+            return rate_name
+    return default
+
+
+def _manning_roles(tables):
+    roles = {}
+    for table in tables or []:
+        mode = False
+        for raw in table or []:
+            row = list(raw or []) + [None] * 4
+            first = _text(row[0])
+            if first.lower() == "manning":
+                mode = True
+                continue
+            if first.lower() in {"equipment id", "tradesperson/labourer"}:
+                mode = False
+            if not mode or not first or first.lower() in {"actual", "comments"}:
+                continue
+            for name in re.split(r"\s*/\s*", _text(row[3])):
+                key = _person_key(name)
+                if key:
+                    roles[key] = first
+    return roles
+
+
 def _report_notes(tables: list) -> list[str]:
     notes = []
     section_starts = {"safety", "manning", "equipment id", "tradesperson/labourer"}
@@ -165,6 +207,7 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
     report_date = _report_date(text, filename)
     activities, crew, seen_crew = [], [], set()
     report_notes = _report_notes(tables)
+    manning_roles = _manning_roles(tables)
 
     def add_crew(role, name, hours="", site=""):
         name = _text(name)
@@ -233,6 +276,7 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
                 })
                 activities.append(activity)
                 if operator:
+                    operator_role = manning_roles.get(_person_key(operator), "")
                     operator_activity = _base_activity(filename, contractor, report_date, work)
                     operator_activity.update({
                         "total_time": _decimal_hours_to_time(hours),
@@ -243,7 +287,7 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
                             f"Linked equipment: {equipment_id} - {description}",
                         ])),
                         "_mcc_activity_type": "labour",
-                        "_mcc_rate_text": "Multi Skilled Operator",
+                        "_mcc_rate_text": _personnel_rate(operator_role),
                     })
                     activities.append(operator_activity)
                 add_crew("Operator", operator, hours, activity["site_name"])
@@ -256,13 +300,14 @@ def parse_mcc_site_services(text: str, tables: list, filename: str, contractor: 
                 if not name or not work:
                     continue
                 hours = _number(hours_cell)
+                personnel_role = manning_roles.get(_person_key(name), "")
                 activity = _base_activity(filename, contractor, report_date, work)
                 activity.update({
                     "total_time": _decimal_hours_to_time(hours),
                     "quantity": hours,
                     "notes": f"{work} | Tradesperson/Labourer: {name}",
                     "_mcc_activity_type": "labour",
-                    "_mcc_rate_text": "Labourer",
+                    "_mcc_rate_text": _personnel_rate(personnel_role, "Labourer"),
                 })
                 activities.append(activity)
                 add_crew("Tradesperson/Labourer", name, hours_cell, activity["site_name"])
