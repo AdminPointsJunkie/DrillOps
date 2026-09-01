@@ -4898,6 +4898,17 @@ function mccWeeklyWorkstreamLabel(row){
   return (match&&match[1]?match[1].trim():String((row&&row.program)||'Unassigned').trim())||'Unassigned';
 }
 
+function mccReportRowMatchesProgram(row){
+  if(!activeProgram)return true;
+  const programs=String((row&&row.program)||'').split(',').map(function(value){return value.trim();}).filter(Boolean);
+  if(programs.length)return programs.includes(activeProgram);
+  const text=[row&&row.location,row&&row.contract,row&&row.notes,row&&row.source_file].join(' ').toLowerCase();
+  if(text.includes('arg-002')||text.includes('gas riser'))return activeProgram==='Gas Riser';
+  if(text.includes('arg-003')||text.includes('arg-004')||text.includes('sis'))return activeProgram==='SIS';
+  if(text.includes('arg-005')||text.includes('exploration'))return activeProgram==='Exploration';
+  return false;
+}
+
 function groupMccWeeklyReports(rows){
   const reports=new Map();
   (rows||[]).filter(isMccWeeklyReportRow).forEach(function(row){
@@ -5223,7 +5234,7 @@ function renderActivities(rows){
 function renderDailyReportSummary(rows){
   const allRows=rows||[];
   const reportRows=activeContractor==='MCC Group'&&activeProgram
-    ?allRows.filter(rowMatchesActiveProgram)
+    ?allRows.filter(mccReportRowMatchesProgram)
     :allRows;
   renderMccWeeklyReports(reportRows);
   const dailyRows=activeContractor==='MCC Group'
