@@ -2721,15 +2721,32 @@ tbody td[contenteditable=true]:focus {
       <div style="display:none;">
         <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
       </div>
+      <div class="table-wrap report-register" id="mcc-weekly-report-panel" style="display:none;">
+        <div class="table-toolbar" style="align-items:flex-start;">
+          <div>
+            <div class="table-count" style="font-weight:800;color:var(--text);">MCC Weekly Reports <span id="mcc-weekly-report-count">--</span></div>
+            <div id="mcc-weekly-report-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">Invoice-source workbooks. Open a report to review its lines, project allocation, costing and comparison with the daily reports.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:280px;">
+          <table id="mcc-weekly-report-table">
+            <thead><tr><th>Weekly report</th><th>Period</th><th>Workstreams</th><th>Lines</th><th>Weekly cost</th><th>Unpriced</th><th></th></tr></thead>
+            <tbody id="mcc-weekly-report-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="table-wrap" id="mcc-weekly-audit-panel" style="display:none;">
         <div class="table-toolbar" style="align-items:flex-start;">
           <div>
-            <div class="table-count" style="font-weight:800;color:var(--text);">MCC Daily / Weekly Audit</div>
-            <div id="mcc-weekly-audit-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">The weekly timesheet is the invoice and cost source.</div>
+            <div class="table-count" style="font-weight:800;color:var(--text);">Combined Daily / Weekly Reconciliation</div>
+            <div id="mcc-weekly-audit-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">A combined exception summary across the selected MCC reports.</div>
           </div>
-          <div id="mcc-weekly-audit-kpis" style="display:flex;gap:18px;flex-wrap:wrap;text-align:right;"></div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <div id="mcc-weekly-audit-kpis" style="display:flex;gap:18px;flex-wrap:wrap;text-align:right;"></div>
+            <button class="btn-csv" id="mcc-weekly-audit-toggle" type="button" onclick="toggleMccCombinedAudit()">Show combined exceptions</button>
+          </div>
         </div>
-        <div class="tbl-scroll" style="max-height:320px;">
+        <div class="tbl-scroll" id="mcc-weekly-audit-content" style="display:none;max-height:320px;">
           <table id="mcc-weekly-audit-table">
             <thead><tr><th>Date</th><th>Rate item</th><th>Daily qty</th><th>Weekly qty</th><th>Variance</th><th>Weekly cost</th><th>Status</th></tr></thead>
             <tbody id="mcc-weekly-audit-body"></tbody>
@@ -2738,7 +2755,7 @@ tbody td[contenteditable=true]:focus {
       </div>
       <div class="table-wrap report-register">
         <div class="table-toolbar">
-          <div class="table-count">Imported report summaries <span id="report-count">--</span></div>
+          <div class="table-count"><span id="report-register-title">Daily Reports</span> <span id="report-count">--</span></div>
           <button class="btn-csv" onclick="downloadDailyReportsCSV()">CSV</button>
         </div>
         <div class="tbl-scroll" style="max-height:360px;">
@@ -4128,7 +4145,7 @@ let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null;
 let activityMissingCodesOnly=false;
-let dailyReportsData=[], selectedDailyReportKey=null;
+let dailyReportsData=[], mccWeeklyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
 let costContractsData=[], costContractRatesData=[], rateLibrarySummaryData=[], selectedCostContractId=null, activeCostContractStatus='Active', activeCostContractSection='Time Activities';
 let reportApprovalsByKey={};
@@ -4232,7 +4249,7 @@ async function switchProgram(program){
   periodSourceBudgetData=null;
   explorationMetresSummaryData=null;
   bhData=[];
-  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];productionRawData=[];productionFilteredData=[];
+  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];mccWeeklyReportsData=[];productionRawData=[];productionFilteredData=[];
   buildContractorSwitcher();
   renderDrawerContractors();
   await fetchProjects();
@@ -4869,6 +4886,103 @@ function activityFilterParam(id,delimiter=','){
   return selected.join(delimiter);
 }
 
+function isMccWeeklyReportRow(row){
+  return !!row&&(
+    row.source_file_type==='mcc_weekly_xlsx'
+    || (/\.xlsx$/i.test(String(row.source_file||''))&&String(row.contractor||activeContractor)==='MCC Group')
+  );
+}
+
+function mccWeeklyWorkstreamLabel(row){
+  const match=String((row&&row.notes)||'').match(/(?:^|\|)\s*Workstream:\s*([^|]+)/i);
+  return (match&&match[1]?match[1].trim():String((row&&row.program)||'Unassigned').trim())||'Unassigned';
+}
+
+function groupMccWeeklyReports(rows){
+  const reports=new Map();
+  (rows||[]).filter(isMccWeeklyReportRow).forEach(function(row){
+    const source=String(row.source_file||'').trim();
+    if(!source)return;
+    if(!reports.has(source))reports.set(source,{
+      sourceFile:source,
+      contractor:row.contractor||'MCC Group',
+      dates:new Set(),
+      workstreams:new Set(),
+      lines:0,
+      cost:0,
+      unpriced:0
+    });
+    const report=reports.get(source);
+    if(row.date)report.dates.add(row.date);
+    report.workstreams.add(mccWeeklyWorkstreamLabel(row));
+    report.lines++;
+    report.cost+=numVal(row.line_cost);
+    if(row.line_cost==null||row.line_cost==='')report.unpriced++;
+  });
+  return [...reports.values()].map(function(report){
+    const dates=[...report.dates].sort(function(a,b){return reportDateSortKey(a)-reportDateSortKey(b);});
+    report.startDate=dates[0]||'';
+    report.endDate=dates[dates.length-1]||'';
+    report.workstreamList=[...report.workstreams].sort();
+    return report;
+  }).sort(function(a,b){return reportDateSortKey(b.endDate)-reportDateSortKey(a.endDate)||a.sourceFile.localeCompare(b.sourceFile);});
+}
+
+function mccWeeklyReportPeriod(report){
+  if(!report.startDate&&!report.endDate)return'--';
+  if(report.startDate===report.endDate)return report.startDate;
+  return report.startDate+' – '+report.endDate;
+}
+
+function openMccWeeklyReport(sourceFile){
+  const report=mccWeeklyReportsData.find(function(item){return item.sourceFile===sourceFile;});
+  if(!report)return;
+  const params=new URLSearchParams({
+    contractor:report.contractor||'MCC Group',
+    program:activeProgram||'',
+    source:report.sourceFile,
+    title:'MCC Weekly Timesheet'
+  });
+  window.open('report.html?'+params.toString(),'_blank','noopener');
+}
+
+function renderMccWeeklyReports(rows){
+  const panel=document.getElementById('mcc-weekly-report-panel');
+  if(!panel)return;
+  if(activeContractor!=='MCC Group'){
+    panel.style.display='none';
+    mccWeeklyReportsData=[];
+    return;
+  }
+  panel.style.display='block';
+  mccWeeklyReportsData=groupMccWeeklyReports(rows);
+  const scope=activeProgram||'all workstreams';
+  document.getElementById('mcc-weekly-report-summary').textContent='Invoice-source workbooks showing '+scope+' lines. Open a report to review its costing and focused daily comparison; other imported workstreams remain stored.';
+  document.getElementById('mcc-weekly-report-count').textContent='· '+mccWeeklyReportsData.length.toLocaleString();
+  document.getElementById('mcc-weekly-report-body').innerHTML=mccWeeklyReportsData.map(function(report){
+    const workstreams=report.workstreamList.join(', ');
+    return '<tr>'
+      +'<td><button class="plod-link" type="button" data-source="'+attr(report.sourceFile)+'" onclick="openMccWeeklyReport(this.dataset.source)">'+esc(report.sourceFile.replace(/\.xlsx$/i,''))+'</button><div style="font-size:10px;color:var(--muted);margin-top:3px;">Authoritative invoice source</div></td>'
+      +'<td>'+esc(mccWeeklyReportPeriod(report))+'</td>'
+      +'<td><span class="notes-preview" title="'+attr(workstreams)+'">'+esc(workstreams||'--')+'</span></td>'
+      +'<td>'+report.lines.toLocaleString()+'</td>'
+      +'<td style="font-weight:800;color:var(--text);">'+cur(report.cost)+'</td>'
+      +'<td>'+(report.unpriced?'<span class="status status-warn">'+report.unpriced+' to review</span>':'<span class="status status-ok">Fully priced</span>')+'</td>'
+      +'<td><button class="btn-csv" type="button" data-source="'+attr(report.sourceFile)+'" onclick="openMccWeeklyReport(this.dataset.source)">View &amp; audit</button></td>'
+      +'</tr>';
+  }).join('')||'<tr><td colspan="7" style="padding:18px;color:var(--muted);">No MCC weekly reports imported yet.</td></tr>';
+  makeTableSortable('mcc-weekly-report-table');
+}
+
+function toggleMccCombinedAudit(){
+  const content=document.getElementById('mcc-weekly-audit-content');
+  const button=document.getElementById('mcc-weekly-audit-toggle');
+  if(!content||!button)return;
+  const opening=content.style.display==='none';
+  content.style.display=opening?'block':'none';
+  button.textContent=opening?'Hide combined exceptions':'Show combined exceptions';
+}
+
 function renderMccWeeklyAudit(data){
   mccWeeklyAuditData=data||null;
   const panel=document.getElementById('mcc-weekly-audit-panel');
@@ -4881,7 +4995,7 @@ function renderMccWeeklyAudit(data){
   const totals=(data&&data.totals)||{};
   const rows=(data&&data.comparison)||[];
   document.getElementById('mcc-weekly-audit-summary').textContent=rows.length
-    ?'Daily Site Services reports are audit evidence. Weekly timesheets are the authoritative invoice and costing source.'
+    ?'Combined exception summary across the selected MCC reports. Open a weekly report above for its focused audit.'
     :'Import MCC daily Site Services PDFs and weekly timesheets to run the audit.';
   document.getElementById('mcc-weekly-audit-kpis').innerHTML=[
     ['Weekly cost',cur(totals.weekly_cost||0)],
@@ -5106,12 +5220,21 @@ function renderActivities(rows){
 }
 
 function renderDailyReportSummary(rows){
-  dailyReportsData=groupDailyReports(rows||[]);
+  const allRows=rows||[];
+  const reportRows=activeContractor==='MCC Group'&&activeProgram
+    ?allRows.filter(rowMatchesActiveProgram)
+    :allRows;
+  renderMccWeeklyReports(reportRows);
+  const dailyRows=activeContractor==='MCC Group'
+    ?reportRows.filter(function(row){return !isMccWeeklyReportRow(row);})
+    :reportRows;
+  dailyReportsData=groupDailyReports(dailyRows);
   const totalCost=dailyReportsData.reduce(function(s,r){return s+r.cost;},0);
   const totalMetres=dailyReportsData.reduce(function(s,r){return s+r.metres;},0);
   const totalHours=dailyReportsData.reduce(function(s,r){return s+r.hours;},0);
   const reviewCount=dailyReportsData.filter(function(r){return r.flags.length;}).length;
   const setText=function(id,value){const el=document.getElementById(id);if(el)el.textContent=value;};
+  setText('report-register-title',activeContractor==='MCC Group'?'MCC '+(activeProgram||'All Workstreams')+' Daily Site Services Reports':'Daily Reports');
   setText('report-total',dailyReportsData.length.toLocaleString());
   setText('report-count',dailyReportsData.length.toLocaleString());
   setText('report-cost',cur(totalCost));

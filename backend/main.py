@@ -5332,10 +5332,45 @@ def get_activity_report_data(
 
 
 @app.get("/mcc/weekly-audit")
-def get_mcc_weekly_audit(program: str = Query(default="")):
+def get_mcc_weekly_audit(
+    program: str = Query(default=""),
+    source: str = Query(default=""),
+):
     """Audit MCC operational daily reports against invoice-source weekly sheets."""
-    params = {"contractor": "MCC Group", "program": (program or "").strip()}
+    params = {
+        "contractor": "MCC Group",
+        "program": (program or "").strip(),
+        "source": (source or "").strip(),
+    }
     authoritative_weekly = mcc_weekly_cost_filter("MCC Group", "a")
+    if params["source"]:
+        source_scope = """
+          AND (
+            (sf.file_type='mcc_weekly_xlsx' AND a.source_file=%(source)s)
+            OR (
+              sf.file_type='mcc_site_services_pdf'
+              AND a.date IN (
+                SELECT DISTINCT weekly_activity.date
+                FROM activities weekly_activity
+                JOIN source_files weekly_source
+                  ON weekly_source.filename=weekly_activity.source_file
+                 AND weekly_source.contractor=weekly_activity.contractor
+                WHERE weekly_activity.contractor=%(contractor)s
+                  AND weekly_source.file_type='mcc_weekly_xlsx'
+                  AND weekly_activity.source_file=%(source)s
+                  AND (
+                    %(program)s=''
+                    OR weekly_activity.program=%(program)s
+                    OR weekly_activity.program ILIKE '%%' || %(program)s || '%%'
+                  )
+              )
+            )
+          )
+        """
+    else:
+        source_scope = f"""
+          AND (sf.file_type='mcc_site_services_pdf' OR ({authoritative_weekly}))
+        """
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -5346,7 +5381,7 @@ def get_mcc_weekly_audit(program: str = Query(default="")):
                   ON sf.filename=a.source_file AND sf.contractor=a.contractor
                 WHERE a.contractor=%(contractor)s
                   AND sf.file_type IN ('mcc_site_services_pdf', 'mcc_weekly_xlsx')
-                  AND (sf.file_type='mcc_site_services_pdf' OR ({authoritative_weekly}))
+                  {source_scope}
                   AND (
                     %(program)s=''
                     OR a.program=%(program)s
@@ -5367,6 +5402,7 @@ def get_mcc_weekly_audit(program: str = Query(default="")):
     result = build_mcc_daily_weekly_audit(rows)
     result["cost_source"] = "mcc_weekly_xlsx"
     result["cost_source_label"] = "MCC weekly timesheet"
+    result["source_file"] = params["source"]
     return result
 
 
