@@ -4446,6 +4446,13 @@ async function loadReportLocks(dates){
     console.warn('Report locks unavailable',e);
   }
 }
+function allocatedActivityCost(row){
+  const gross=parseFloat(row&&row.line_cost)||0;
+  if(String(row&&row.contractor||'')!=='MCC Group')return gross;
+  const raw=row&&row.allocation_percent!=null?parseFloat(row.allocation_percent):100;
+  const percent=Number.isFinite(raw)?Math.min(100,Math.max(0,raw)):100;
+  return gross*percent/100;
+}
 function groupDailyReports(rows,reportConsumables){
   const map=new Map();
   rows.forEach(function(r){
@@ -4456,7 +4463,7 @@ function groupDailyReports(rows,reportConsumables){
     const g=map.get(key);
     g.rows.push(r);
     if(r.hole_num)g.holeSet.add(r.hole_num);
-    if(r.is_cost_source!==false)g.activityCost+=parseFloat(r.line_cost)||0;
+    if(r.is_cost_source!==false)g.activityCost+=allocatedActivityCost(r);
     g.metres+=parseFloat(r.total_metres)||0;
     const hrs=parseDurationHours(r.total_time);
     g.hours+=hrs;
@@ -5062,13 +5069,14 @@ function renderMccWeeklyAudit(data){
     ['Unexplained',cur(totals.cost_variance||0)],
     ['Accepted',String(totals.accepted||0)],
     ['Before daily start',String(totals.not_required||0)],
+    ['Daily roles ignored',String(totals.ignored_daily||0)],
     ['Exceptions',String(totals.exceptions||0)]
   ].map(function(item){return '<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;">'+esc(item[0])+'</div><div style="font-weight:800;color:var(--text);">'+esc(item[1])+'</div></div>';}).join('');
-  const statusLabel={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
-  const exceptions=rows.filter(function(row){return !['match','accepted_rule','not_required'].includes(row.status);});
+  const statusLabel={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const exceptions=rows.filter(function(row){return !['match','accepted_rule','not_required','ignored_daily'].includes(row.status);});
   const displayRows=exceptions.length?exceptions:rows;
   document.getElementById('mcc-weekly-audit-body').innerHTML=displayRows.map(function(row){
-    const ok=['match','accepted_rule','not_required'].includes(row.status);
+    const ok=['match','accepted_rule','not_required','ignored_daily'].includes(row.status);
     return '<tr><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
       +'<td>'+numVal(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+numVal(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'

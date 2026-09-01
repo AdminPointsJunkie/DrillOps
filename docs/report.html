@@ -86,6 +86,13 @@ tr.saving td{background:#fff7e6;}
 .weekly-card-value{font-size:18px;font-weight:800;color:#19201d;}
 .weekly-card-meta{font-size:12px;color:#607083;margin-top:4px;line-height:1.4;}
 .work-note{max-width:520px;line-height:1.45;}
+.mcc-workgroup-select,.mcc-hole-select{width:100%;min-width:190px;padding:6px 8px;font-size:11px;}
+.mcc-workgroup-select{min-width:285px;}
+.mcc-allocation{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.mcc-allocation input{width:68px;padding:6px 7px;text-align:right;font-weight:750;}
+.mcc-allocation span{color:var(--muted);font-weight:750;}
+.allocated-cost{font-weight:800;color:#19201d;white-space:nowrap;}
+.allocated-cost small{display:block;margin-top:3px;color:var(--muted);font-size:9px;font-weight:650;}
 .audit-status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;white-space:nowrap;}
 .audit-status.ok{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .audit-status.warn{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
@@ -279,11 +286,17 @@ const source=params.get('source')||'';
 const title=params.get('title')||'Daily report';
 const navigationToken=params.get('nav')||'';
 const isMccWeeklySource=/\.xlsx$/i.test(source)&&contractor==='MCC Group';
+const MCC_WORK_GROUPS=[
+  {code:'ARG-002',label:'ARG-002 - Gas Riser Civil Works',program:'Gas Riser'},
+  {code:'ARG-003',label:'ARG-003 - SIS Drill Civil Works',program:'SIS'},
+  {code:'ARG-004',label:'ARG-004 - SIS Drill Watercart Works',program:'SIS'},
+  {code:'ARG-005',label:'ARG-005 - Exploration Civils & Support Works',program:'Exploration'}
+];
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
 const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
-let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
+let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],reportPlannedHoles=[],plannedHolesState='idle',sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
 let weeklyAuditRows=[],weeklyAuditShowAll=false,weeklyOverviewContext=null;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -462,6 +475,114 @@ async function saveReportActivityEdit(cell){
   }finally{
     tr.classList.remove('saving');
   }
+}
+function mccAllocationPercent(row){
+  const value=row&&row.allocation_percent!=null?num(row.allocation_percent):100;
+  return Math.min(100,Math.max(0,value));
+}
+function mccAllocatedCost(row){return num(row&&row.line_cost)*mccAllocationPercent(row)/100;}
+function mccWorkGroupForRow(row){
+  const text=[row&&row.location,row&&row.contract,row&&row.project].join(' ').toUpperCase();
+  const exact=MCC_WORK_GROUPS.find(group=>text.includes(group.code));
+  if(exact)return exact;
+  const rowProgram=String(row&&row.program||'').trim();
+  if(rowProgram==='Exploration')return MCC_WORK_GROUPS.find(group=>group.code==='ARG-005');
+  if(rowProgram==='Gas Riser')return MCC_WORK_GROUPS.find(group=>group.code==='ARG-002');
+  if(rowProgram==='SIS'){
+    const detail=[row&&row.code,row&&row.notes,row&&row.drill_rig].join(' ').toLowerCase();
+    return MCC_WORK_GROUPS.find(group=>group.code===(/water|cart/.test(detail)?'ARG-004':'ARG-003'));
+  }
+  return null;
+}
+function mccWorkGroupSelect(row){
+  const current=mccWorkGroupForRow(row);
+  return '<select class="mcc-workgroup-select" aria-label="ARG work group">'
+    +'<option value="">Select ARG work group</option>'
+    +MCC_WORK_GROUPS.map(group=>'<option value="'+attr(group.code)+'"'+(current&&current.code===group.code?' selected':'')+'>'+esc(group.label)+'</option>').join('')
+    +'</select>';
+}
+function plannedHoleKey(value){
+  let key=String(value||'').trim().toUpperCase().replace(/^IB[-\s]?/,'');
+  return key.replace(/[^A-Z0-9]/g,'');
+}
+function plannedHoleForRow(row){
+  const keys=[row&&row.hole_num].concat(String(row&&row.site_name||'').split(',')).map(plannedHoleKey).filter(Boolean);
+  return reportPlannedHoles.find(hole=>keys.includes(plannedHoleKey(hole.hole_id))||keys.includes(plannedHoleKey(hole.site_id)))||null;
+}
+function mccPlannedHoleSelect(row){
+  const current=plannedHoleForRow(row);
+  const imported=String(row&&row.site_name||row&&row.hole_num||'').trim();
+  if(plannedHolesState!=='loaded'){
+    const suffix=plannedHolesState==='failed'?'planned holes unavailable':'loading planned holes...';
+    return '<select class="mcc-hole-select" disabled aria-label="Planned hole"><option>'+esc(imported?imported+' · '+suffix:suffix)+'</option></select>';
+  }
+  const groups=new Map();
+  reportPlannedHoles.forEach(hole=>{
+    const projectName=String(hole.project||'Planned holes');
+    if(!groups.has(projectName))groups.set(projectName,[]);
+    groups.get(projectName).push(hole);
+  });
+  let options='<option value="">'+esc(imported&&!current?'Imported: '+imported+' — select planned hole':'Select planned hole')+'</option>';
+  groups.forEach((holes,projectName)=>{
+    options+='<optgroup label="'+attr(projectName)+'">'+holes.map(hole=>{
+      const label=String(hole.site_id||hole.hole_id)+(hole.site_id&&hole.hole_id&&hole.site_id!==hole.hole_id?' · '+hole.hole_id:'')+(hole.status?' — '+hole.status:'');
+      return '<option value="'+attr(hole.hole_id)+'"'+(current&&current.hole_id===hole.hole_id?' selected':'')+'>'+esc(label)+'</option>';
+    }).join('')+'</optgroup>';
+  });
+  return '<select class="mcc-hole-select" aria-label="Planned hole">'+options+'</select>';
+}
+async function saveMccAssignmentPatch(control,patch){
+  const tr=control.closest('tr');
+  const id=tr.dataset.id;
+  tr.classList.add('saving');
+  control.disabled=true;
+  try{
+    const res=await fetch(API+'/activities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    if(!res.ok)throw new Error(await res.text());
+    updateCachedActivity(id,patch);
+    const fresh=reportRows.find(row=>Number(row.id)===Number(id))||patch;
+    broadcastActivityUpdate(fresh);
+    if(patch.program&&program)reportRows=reportRows.filter(belongsToThisReport);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(error){
+    alert('Could not save MCC assignment: '+error.message);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }finally{
+    tr.classList.remove('saving');
+    control.disabled=false;
+  }
+}
+function saveMccWorkGroup(control){
+  const group=MCC_WORK_GROUPS.find(item=>item.code===control.value);
+  if(!group){renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{program:group.program,location:group.label,contract:group.label});
+}
+function saveMccPlannedHole(control){
+  const holeChoice=reportPlannedHoles.find(item=>String(item.hole_id)===String(control.value));
+  if(!holeChoice){renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{hole_num:holeChoice.hole_id,site_name:holeChoice.site_id||holeChoice.hole_id});
+}
+function saveMccAllocation(control){
+  const value=parseFloat(control.value);
+  if(!Number.isFinite(value)||value<0||value>100){alert('Allocation must be between 0% and 100%.');renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{allocation_percent:value});
+}
+function renderMccSiteServiceLineItems(rows){
+  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const activityBody=document.getElementById('activity-body');
+  const activityTable=activityBody.closest('table');
+  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group / ARG Contract</th><th>Planned Hole</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Allocation</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Allocated Cost</th></tr>';
+  activityBody.innerHTML=rows.map(row=>{
+    const percent=mccAllocationPercent(row),gross=num(row.line_cost),allocated=mccAllocatedCost(row);
+    const allocationNote=percent<100?'<small>'+percent.toFixed(0)+'% of '+cur(gross)+'</small>':'';
+    return '<tr data-id="'+attr(row.id)+'"><td>'+mccWorkGroupSelect(row)+'</td><td>'+mccPlannedHoleSelect(row)+'</td><td>'+esc(mccEquipment(row)||mccPerson(row)||'')+'</td><td>'+mccQuantityDisplay(row)+'</td><td><label class="mcc-allocation"><input class="mcc-allocation-input" type="number" min="0" max="100" step="1" value="'+attr(percent)+'" aria-label="Work group allocation percent"><span>%</span></label></td><td class="work-note">'+esc(workDescription(row))+'</td><td>'+(row.unit_rate!=null?cur(row.unit_rate):'--')+'</td><td>'+esc(row.rate_basis||'')+'</td><td class="allocated-cost">'+(row.line_cost!=null?cur(allocated):'--')+allocationNote+'</td></tr>';
+  }).join('')||'<tr><td colspan="9" class="empty">No site-services activities found.</td></tr>';
+  activityBody.querySelectorAll('.mcc-workgroup-select').forEach(control=>control.addEventListener('change',()=>saveMccWorkGroup(control)));
+  activityBody.querySelectorAll('.mcc-hole-select:not(:disabled)').forEach(control=>control.addEventListener('change',()=>saveMccPlannedHole(control)));
+  activityBody.querySelectorAll('.mcc-allocation-input').forEach(control=>{
+    control.addEventListener('change',()=>saveMccAllocation(control));
+    control.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();control.blur();}});
+  });
 }
 async function saveReportEquipmentEdit(cell){
   const tr=cell.closest('tr');
@@ -649,6 +770,28 @@ function renderReportNavigation(reports){
   back.onclick=back.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index-1]);};
   next.onclick=next.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index+1]);};
 }
+async function loadMccPlannedHoles(rows){
+  if(contractor!=='MCC Group'||plannedHolesState!=='idle')return;
+  plannedHolesState='loading';
+  const query=new URLSearchParams({contractor:'Company'});
+  const reportIso=isoReportDate(reportDate);
+  if(/^\d{4}/.test(reportIso))query.set('planned_year',reportIso.slice(0,4));
+  const rowProject=(rows||[]).map(row=>String(row.project||'').trim()).find(value=>value&&!/^ARG-00[2-5]\b/i.test(value));
+  if(rowProject)query.set('project',rowProject);
+  try{
+    let choices=await fetchJson(API+'/boreholes/options?'+query.toString());
+    if(!choices.length&&query.has('project')){
+      query.delete('project');
+      choices=await fetchJson(API+'/boreholes/options?'+query.toString());
+    }
+    reportPlannedHoles=choices||[];
+    plannedHolesState='loaded';
+  }catch(error){
+    reportPlannedHoles=[];
+    plannedHolesState='failed';
+  }
+  if(reportRows.some(isMccWeeklyRow))renderMccSiteServiceLineItems(reportRows);
+}
 async function initReportNavigation(){
   if(isMccWeeklySource){
     const back=document.getElementById('report-back-btn');
@@ -682,6 +825,7 @@ async function loadReportData(){
     reportRows=rows;
     reportConsumables=consumables;
     reportCrew=crew;
+    if(contractor==='MCC Group')loadMccPlannedHoles(rows);
     renderReport(reportRows,reportConsumables,reportCrew);
   }catch(e){
     document.getElementById('activity-body').innerHTML='<tr><td colspan="8" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
@@ -960,13 +1104,14 @@ function renderWeeklyDayStrip(auditRows){
   let evidenced=0,required=0;
   document.getElementById('weekly-day-strip').innerHTML=dates.map(date=>{
     const dayRows=byDate.get(date)||[];
-    const notRequired=dayRows.length&&dayRows.every(row=>row.status==='not_required');
+    const ignoredOnly=dayRows.length&&dayRows.every(row=>row.status==='ignored_daily');
+    const notRequired=dayRows.length&&dayRows.every(row=>['not_required','ignored_daily','accepted_rule'].includes(row.status));
     const hasDaily=dayRows.some(row=>num(row.daily_rows)>0);
-    const exceptions=dayRows.filter(row=>!['match','accepted_rule','not_required'].includes(row.status)).length;
+    const exceptions=dayRows.filter(row=>!['match','accepted_rule','not_required','ignored_daily'].includes(row.status)).length;
     if(auditRows&&!notRequired)required++;
     if(hasDaily&&!notRequired)evidenced++;
     const state=!auditRows?'pending':notRequired?'not-required':!hasDaily?'missing':exceptions?'review':'verified';
-    const label=!auditRows?'Checking…':notRequired?'Daily not required':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
+    const label=!auditRows?'Checking…':ignoredOnly?'Construction Trade ignored':notRequired?'Daily not required':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
     const parts=weeklyDateParts(date);
     return '<div class="week-day '+state+'"><div class="week-day-name">'+esc(parts.day)+'</div><div class="week-day-date">'+esc(parts.date)+'</div><div class="week-day-status">'+esc(label)+'</div></div>';
   }).join('')||'<div class="empty">No workdays recorded.</div>';
@@ -977,15 +1122,17 @@ function updateWeeklyReadiness(auditRows,totals){
   if(!weeklyOverviewContext)return;
   const hero=document.getElementById('weekly-hero');
   const unpriced=weeklyOverviewContext.unpriced;
-  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule','not_required'].includes(row.status)).length;
+  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule','not_required','ignored_daily'].includes(row.status)).length;
   const matched=(auditRows||[]).filter(row=>row.status==='match').length;
   const accepted=(auditRows||[]).filter(row=>row.status==='accepted_rule').length;
   const notRequired=(auditRows||[]).filter(row=>row.status==='not_required').length;
+  const ignored=(auditRows||[]).filter(row=>row.status==='ignored_daily').length;
   const evidence=renderWeeklyDayStrip(auditRows);
   const coverage=[];
   if(matched)coverage.push(matched+' matched line'+(matched===1?'':'s'));
   if(accepted)coverage.push(accepted+' Light Vehicle line'+(accepted===1?'':'s')+' accepted by rule');
   if(notRequired)coverage.push(notRequired+' pre-start line'+(notRequired===1?' requires':'s require')+' no daily report');
+  if(ignored)coverage.push(ignored+' Construction Trade line'+(ignored===1?' is':'s are')+' ignored from the daily audit');
   const coverageText=coverage.join(', ');
   hero.className='weekly-hero '+(unpriced?'blocked':exceptions?'review':'');
   document.getElementById('weekly-readiness-title').textContent=unpriced
@@ -1036,8 +1183,8 @@ function setWeeklyAuditView(showAll){
 }
 function renderWeeklyAuditTable(){
   const body=document.getElementById('weekly-audit-body');
-  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
-  const resolved=row=>['match','accepted_rule','not_required'].includes(row.status);
+  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const resolved=row=>['match','accepted_rule','not_required','ignored_daily'].includes(row.status);
   const ordered=weeklyAuditRows.slice().sort((a,b)=>resolved(a)-resolved(b)||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
   const visible=weeklyAuditShowAll?ordered:ordered.filter(row=>!resolved(row));
   body.innerHTML=visible.map(row=>{
@@ -1067,6 +1214,7 @@ async function renderFocusedMccWeeklyAudit(){
       +'<span><strong>'+(totals.matched||0)+'</strong> matched lines</span>'
       +'<span><strong>'+(totals.accepted||0)+'</strong> accepted by rule</span>'
       +'<span><strong>'+(totals.not_required||0)+'</strong> before daily start</span>'
+      +'<span><strong>'+(totals.ignored_daily||0)+'</strong> daily roles ignored</span>'
       +'<span><strong>'+(totals.exceptions||0)+'</strong> exceptions</span>'
       +'<span><strong>'+cur(totals.cost_variance||0)+'</strong> unexplained difference</span>';
     updateWeeklyReadiness(rows,totals);
@@ -1088,16 +1236,17 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('audit-exceptions-btn').classList.add('active');
   document.getElementById('audit-all-btn').classList.remove('active');
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
-  const totalCost=rows.reduce((s,r)=>s+num(r.line_cost),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const totalCost=rows.reduce((s,r)=>s+mccAllocatedCost(r),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
   const labourRows=rows.filter(r=>/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(r.code||'')));
   const equipmentRows=rows.filter(r=>!labourRows.includes(r));
   const unpricedRows=rows.filter(r=>r.line_cost==null||r.line_cost==='');
   const totalHours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
-  const workGroups=[...new Set(rows.flatMap(r=>String(r.program||'').split(',').map(v=>v.trim())).filter(Boolean))];
+  const workGroups=[...new Set(rows.map(r=>(mccWorkGroupForRow(r)||{}).label||r.program||'').filter(Boolean))];
   const siteIds=[...new Set(rows.flatMap(r=>String(r.site_name||'').split(',').map(v=>v.trim())).filter(Boolean))];
-  const equipmentCost=equipmentRows.reduce((s,r)=>s+num(r.line_cost),0);
-  const labourCost=labourRows.reduce((s,r)=>s+num(r.line_cost),0);
+  const equipmentCost=equipmentRows.reduce((s,r)=>s+mccAllocatedCost(r),0);
+  const labourCost=labourRows.reduce((s,r)=>s+mccAllocatedCost(r),0);
   const materialCost=relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const allocatedRows=rows.filter(r=>mccAllocationPercent(r)<100);
   document.body.classList.toggle('weekly-mode',weekly);
   document.getElementById('weekly-overview').style.display=weekly?'block':'none';
   const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="date" value="'+attr(isoReportDate(reportDate))+'" aria-label="Report date"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
@@ -1110,14 +1259,15 @@ function renderMccSiteServicesReport(rows,consumables,crew){
     siteIds.join(', '),
     source
   ].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>')).join('');
-  document.getElementById('flags').innerHTML=unpricedRows.length?'<span class="flag">'+unpricedRows.length+' unpriced row(s)</span>':'';
+  document.getElementById('flags').innerHTML=(unpricedRows.length?'<span class="flag">'+unpricedRows.length+' unpriced row(s)</span>':'')
+    +(allocatedRows.length?'<span class="flag">'+allocatedRows.length+' allocated row(s)</span>':'');
   document.getElementById('kpi-depth-label').textContent='Work Groups';
   document.getElementById('kpi-duration-label').textContent='Total Hours';
   document.getElementById('kpi-cost-label').textContent='Total Cost';
   document.getElementById('kpi-drilling-cost-label').textContent='Equipment Cost';
   document.getElementById('kpi-support-cost-label').textContent='Labour Cost';
   document.getElementById('kpi-consumable-cost-label').textContent='Materials Cost';
-  document.getElementById('kpi-costm-label').textContent='Site IDs';
+  document.getElementById('kpi-costm-label').textContent='Planned Holes';
   document.getElementById('kpi-activities-label').textContent='Service Lines';
   document.getElementById('kpi-depth').textContent=workGroups.length;
   document.getElementById('kpi-duration').textContent=totalHours.toFixed(2)+' h';
@@ -1128,11 +1278,11 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('kpi-costm').textContent=siteIds.length;
   document.getElementById('kpi-activities').textContent=rows.length;
   if(weekly)renderWeeklyOverview({rows,totalCost,labourCost,equipmentCost,materialCost,totalHours,unpriced:unpricedRows.length,workdays:weeklyDates(rows).length});
-  document.getElementById('allocation-title').textContent=weekly?'Weekly Workstream & Site Allocation':'Work Group & Site Allocation';
+  document.getElementById('allocation-title').textContent=weekly?'Weekly Workstream & Planned Hole Allocation':'Work Group & Planned Hole Allocation';
   const allocationTable=document.getElementById('metres-drilled-body').closest('table');
-  allocationTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Service Lines</th><th>Hours</th><th>Total</th></tr>';
-  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[r.program||'Unassigned',r.site_name||'Unassigned'].join('|')).map(([key,items])=>{
-    const parts=key.split('|'),cost=items.reduce((s,r)=>s+num(r.line_cost),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  allocationTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Planned Hole</th><th>Service Lines</th><th>Allocated Hours</th><th>Allocated Total</th></tr>';
+  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[(mccWorkGroupForRow(r)||{}).label||r.program||'Unassigned',r.site_name||'Unassigned'].join('|')).map(([key,items])=>{
+    const parts=key.split('|'),cost=items.reduce((s,r)=>s+mccAllocatedCost(r),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time)*mccAllocationPercent(r)/100,0);
     return '<tr><td>'+esc(parts[0])+'</td><td>'+esc(parts[1])+'</td><td>'+items.length+'</td><td>'+hours.toFixed(2)+' h</td><td>'+cur(cost)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No weekly activity allocation found.</td></tr>';
   document.getElementById('timeline-title').textContent=weekly?'Weekly Cost Summary':'Earthworks Cost Summary';
@@ -1149,17 +1299,11 @@ function renderMccSiteServicesReport(rows,consumables,crew){
     +(descriptions.length?'<p><strong>Work completed</strong></p><ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')
     ||'No report notes or work descriptions recorded.';
   document.getElementById('activities-title').textContent=weekly?'Weekly Cost Line Items':'Site Services Line Items';
-  const activityTable=document.getElementById('activity-body').closest('table');
-  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Cost</th></tr>';
-  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
-  document.getElementById('activity-body').querySelectorAll('[contenteditable]').forEach(cell=>{
-    cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
-    cell.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cell.blur();}});
-  });
+  renderMccSiteServiceLineItems(rows);
   document.getElementById('equipment-title').textContent='Equipment Detail';
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
-  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc((mccWorkGroupForRow(r)||{}).label||r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(mccAllocatedCost(r)):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport);
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';

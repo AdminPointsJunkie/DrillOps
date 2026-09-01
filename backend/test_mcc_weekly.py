@@ -231,6 +231,38 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(audit["totals"]["cost_variance"], -40.0)
         self.assertEqual(audit["comparison"][0]["status"], "variance")
 
+    def test_audit_applies_workgroup_allocation_to_quantity_and_cost(self):
+        rows = [
+            {
+                "date": "20/08/2026",
+                "code": "MCC_BODY_WATER_TRUCK",
+                "quantity": 8,
+                "line_cost": 640,
+                "allocation_percent": 50,
+                "source_file": "daily.pdf",
+                "source_file_type": "mcc_site_services_pdf",
+                "rate_description": "Body Water Truck",
+                "rate_unit": "hour",
+            },
+            {
+                "date": "20/08/2026",
+                "code": "MCC_BODY_WATER_TRUCK",
+                "quantity": 4,
+                "line_cost": 320,
+                "source_file": "weekly.xlsx",
+                "source_file_type": "mcc_weekly_xlsx",
+                "rate_description": "Body Water Truck",
+                "rate_unit": "hour",
+            },
+        ]
+
+        audit = build_mcc_daily_weekly_audit(rows)
+
+        self.assertEqual(audit["comparison"][0]["daily_quantity"], 4.0)
+        self.assertEqual(audit["comparison"][0]["daily_estimate"], 320.0)
+        self.assertEqual(audit["comparison"][0]["status"], "match")
+        self.assertEqual(audit["totals"]["cost_variance"], 0.0)
+
     def test_audit_accepts_light_vehicle_per_represented_day(self):
         rows = [{
             "date": "20/08/2026",
@@ -293,6 +325,38 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(audit["totals"]["exceptions"], 1)
         self.assertEqual(audit["totals"]["daily_estimate"], 600.0)
         self.assertEqual(audit["totals"]["cost_variance"], 600.0)
+
+    def test_audit_ignores_construction_trade_from_daily_comparison(self):
+        rows = [
+            {
+                "date": "20/08/2026",
+                "code": "MCC_CONSTRUCTION_TRADE",
+                "quantity": 8,
+                "line_cost": 800,
+                "source_file": "daily.pdf",
+                "source_file_type": "mcc_site_services_pdf",
+                "rate_description": "Construction Trade",
+                "rate_unit": "hour",
+            },
+            {
+                "date": "20/08/2026",
+                "code": "MCC_CONSTRUCTION_TRADE",
+                "quantity": 10,
+                "line_cost": 1000,
+                "source_file": "weekly.xlsx",
+                "source_file_type": "mcc_weekly_xlsx",
+                "rate_description": "Construction Trade",
+                "rate_unit": "hour",
+            },
+        ]
+
+        audit = build_mcc_daily_weekly_audit(rows)
+
+        self.assertEqual(audit["comparison"][0]["status"], "ignored_daily")
+        self.assertEqual(audit["totals"]["ignored_daily"], 1)
+        self.assertEqual(audit["totals"]["exceptions"], 0)
+        self.assertEqual(audit["totals"]["daily_estimate"], 1000.0)
+        self.assertEqual(audit["totals"]["cost_variance"], 0.0)
 
 
 if __name__ == "__main__":

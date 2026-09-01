@@ -673,6 +673,7 @@ def init_db():
                     unit_rate       FLOAT,
                     quantity        FLOAT,
                     line_cost       FLOAT,
+                    allocation_percent FLOAT DEFAULT 100,
                     rate_basis      TEXT,
                     po_id           INTEGER
                 )
@@ -687,6 +688,7 @@ def init_db():
                 ("unit_rate",  "FLOAT"),
                 ("quantity",   "FLOAT"),
                 ("line_cost",  "FLOAT"),
+                ("allocation_percent", "FLOAT DEFAULT 100"),
                 ("rate_basis", "TEXT"),
             ]:
                 try:
@@ -5878,8 +5880,15 @@ async def create_activity(request: Request):
     safe = {"source_file","contractor","date","hole_num","site_name","program","project","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
-            "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
+            "rate_year","unit_rate","quantity","line_cost","allocation_percent","rate_basis","po_id"}
     row = {k: v for k, v in payload.items() if k in safe}
+    if "allocation_percent" in row:
+        try:
+            row["allocation_percent"] = float(row["allocation_percent"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "allocation_percent must be a number from 0 to 100")
+        if not 0 <= row["allocation_percent"] <= 100:
+            raise HTTPException(400, "allocation_percent must be between 0 and 100")
     row.setdefault("source_file", "Manual entry")
     cols = list(row.keys())
     placeholders = ",".join(f"%({c})s" for c in cols)
@@ -5902,8 +5911,15 @@ async def update_activity(row_id: int, request: Request):
     safe = {"date","hole_num","site_name","program","project","location","drill_rig","client","contract","shift",
             "time_from","time_to","total_time","bit_type","diameter",
             "metres_from","metres_to","total_metres","code","notes",
-            "rate_year","unit_rate","quantity","line_cost","rate_basis","po_id"}
+            "rate_year","unit_rate","quantity","line_cost","allocation_percent","rate_basis","po_id"}
     updates = {k:v for k,v in payload.items() if k in safe}
+    if "allocation_percent" in updates:
+        try:
+            updates["allocation_percent"] = float(updates["allocation_percent"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "allocation_percent must be a number from 0 to 100")
+        if not 0 <= updates["allocation_percent"] <= 100:
+            raise HTTPException(400, "allocation_percent must be between 0 and 100")
     if not updates: raise HTTPException(400,"No valid fields")
     set_clause = ",".join(f"{k}=%({k})s" for k in updates)
     updates["row_id"] = row_id
@@ -6157,14 +6173,18 @@ def get_costing(contractor: str = Query(...), holes: Optional[str]=Query(None), 
         where = " AND ".join(conds)
         with get_conn() as conn:
             with conn.cursor() as cur:
+                cost_value = (
+                    "line_cost * COALESCE(allocation_percent, 100) / 100.0"
+                    if contractor == "MCC Group" else "line_cost"
+                )
                 cur.execute(f"""
                     SELECT
                         COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated') AS hole_num,
                         COALESCE(program, '') AS program,
                         COALESCE(project, '') AS project,
-                        SUM(line_cost) AS total_cost,
-                        SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS drilling_cost,
-                        SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN line_cost ELSE 0 END) AS non_drilling_cost,
+                        SUM({cost_value}) AS total_cost,
+                        SUM(CASE WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN {cost_value} ELSE 0 END) AS drilling_cost,
+                        SUM(CASE WHEN code NOT IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN {cost_value} ELSE 0 END) AS non_drilling_cost,
                         SUM(total_metres) AS total_metres, COUNT(*) AS activity_count
                     FROM activities WHERE {where}
                     GROUP BY COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated'), COALESCE(program, ''), COALESCE(project, '')
@@ -6177,14 +6197,14 @@ def get_costing(contractor: str = Query(...), holes: Optional[str]=Query(None), 
                         COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated') AS hole_num,
                         COALESCE(program, '') AS program,
                         COALESCE(project, '') AS project,
-                        SUM(line_cost) AS total_cost,
+                        SUM({cost_value}) AS total_cost,
                         SUM(total_metres) AS total_metres
                     FROM activities WHERE {where}
                     GROUP BY date, COALESCE(NULLIF(hole_num,''), NULLIF(project,''), NULLIF(program,''), 'Unallocated'), COALESCE(program, ''), COALESCE(project, '')
                     ORDER BY date, program, project, hole_num
                 """, p)
                 by_date = [dict(r) for r in cur.fetchall()]
-                cur.execute(f"SELECT SUM(line_cost) AS g FROM activities WHERE {where}", p)
+                cur.execute(f"SELECT SUM({cost_value}) AS g FROM activities WHERE {where}", p)
                 grand = float(cur.fetchone()["g"] or 0)
         return {"by_hole": by_hole, "by_date": by_date, "grand_total": grand}
     except Exception as e:
@@ -8736,6 +8756,38 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                 return [apply_borehole_wgs84(row) for row in rows]
     except Exception as e:
         raise HTTPException(500, f"Boreholes error: {str(e)}")
+
+
+@app.get("/boreholes/options")
+def get_borehole_options(
+    contractor: str = Query(default="Company"),
+    planned_year: str = Query(default=""),
+    project: str = Query(default=""),
+):
+    """Return lightweight planned-hole choices without calculating activity actuals."""
+    params = {
+        "contractor": (contractor or "Company").strip(),
+        "planned_year": (planned_year or "").strip(),
+        "project": (project or "").strip(),
+    }
+    conditions = ["contractor=%(contractor)s", "COALESCE(hole_id, '')<>''"]
+    if params["planned_year"]:
+        conditions.append("planned_year=%(planned_year)s")
+    if params["project"]:
+        conditions.append("project=%(project)s")
+    conditions.append("LOWER(COALESCE(status, 'planned'))<>'cancelled'")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT hole_id, site_id, project, planned_year, drill_order, status
+                FROM boreholes
+                WHERE {' AND '.join(conditions)}
+                ORDER BY project, drill_order NULLS LAST, hole_id
+                """,
+                params,
+            )
+            return [dict(row) for row in cur.fetchall()]
 
 
 @app.post("/boreholes/import_budget")
