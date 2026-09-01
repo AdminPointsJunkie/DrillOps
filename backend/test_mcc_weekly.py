@@ -66,7 +66,7 @@ class MCCWeeklyTests(unittest.TestCase):
             "MCC_MULTI_SKILLED_OPERATOR",
             "MCC_BODY_WATER_TRUCK",
         })
-        self.assertEqual(sum(row["line_cost"] for row in activities), 450.0)
+        self.assertEqual(sum(row["line_cost"] for row in activities), 410.0)
         self.assertTrue(all(row["time_to"] == "" for row in activities))
         self.assertEqual(len(crew), 1)
 
@@ -153,6 +153,35 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual({row["quantity"] for row in activities}, {1.7})
         self.assertEqual(sum(row["line_cost"] for row in activities), 306.0)
         self.assertEqual(crew[0]["hours"], "1.7")
+
+    def test_equipment_uses_smu_and_day_hire_is_charged_once_per_day(self):
+        rows = [
+            [
+                "Michael Chilby", datetime(2026, 8, 22, 5, 30), "Ironbark 1",
+                "Supervisor", "ARG-005 - Exploration Civils & Support Works", 3,
+                "Rehab pads", "LD04 - Caterpillar 432 Backhoe", 100, 102.4, 2.4,
+            ],
+            [
+                "Michael Chilby", datetime(2026, 8, 22, 5, 30), "Ironbark 1",
+                "Supervisor", "ARG-005 - Exploration Civils & Support Works", 2,
+                "Empty first sump", "MCC39 - Vac Truck - PER DAY", 0, 1, 1,
+            ],
+            [
+                "Michael Chilby", datetime(2026, 8, 22, 5, 30), "Ironbark 1",
+                "Supervisor", "ARG-005 - Exploration Civils & Support Works", 1,
+                "Empty second sump", "MCC39 - Vac Truck - PER DAY", 1, 2, 1,
+            ],
+        ]
+
+        _, activities, _, _, _ = parse_mcc_weekly_xlsx(workbook_bytes(rows), "weekly.xlsx")
+
+        equipment = [row for row in activities if "Charge type: Equipment" in row["notes"]]
+        by_code = {row["code"]: row for row in equipment}
+        self.assertEqual(by_code["MCC_BACKHOE"]["quantity"], 2.4)
+        self.assertEqual(by_code["MCC_BACKHOE"]["line_cost"], 156.0)
+        self.assertEqual(by_code["MCC_VAC_TRUCK"]["quantity"], 1)
+        self.assertEqual(by_code["MCC_VAC_TRUCK"]["line_cost"], 810.0)
+        self.assertEqual(sum(row["code"] == "MCC_VAC_TRUCK" for row in equipment), 1)
 
     def test_audit_keeps_weekly_cost_as_authoritative(self):
         rows = [

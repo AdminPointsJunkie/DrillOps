@@ -91,7 +91,7 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
         raise ValueError(f"openpyxl is not available: {exc}") from exc
 
     workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
-    activities, crew, seen, source_lines = [], [], set(), []
+    activities, crew, seen, day_hire_seen, source_lines = [], [], set(), set(), []
     header = {"date": "", "hole_num": "", "site_name": "", "contractor": contractor}
 
     eligible_sheets = []
@@ -160,12 +160,14 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 f"Created by: {created_by}" if created_by else "",
             ]
             try:
-                raw_hours = hours
-                if raw_hours in (None, "") and equipment and smu_total not in (None, ""):
-                    raw_hours = smu_total
+                raw_hours = hours if hours not in (None, "") else smu_total
                 hours_value = float(raw_hours) if raw_hours not in (None, "") else None
             except Exception:
                 hours_value = None
+            try:
+                smu_value = float(smu_total) if smu_total not in (None, "") else None
+            except Exception:
+                smu_value = None
 
             base_row = {
                 "source_file": filename,
@@ -211,7 +213,17 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 })
             else:
                 for charge_type, rate in priced_lines:
-                    quantity = 1 if rate["unit"] == "day" else hours_value
+                    if rate["unit"] == "day":
+                        day_key = (report_date, program, rate["code"])
+                        if charge_type == "Equipment" and day_key in day_hire_seen:
+                            continue
+                        if charge_type == "Equipment":
+                            day_hire_seen.add(day_key)
+                        quantity = 1
+                    elif charge_type == "Equipment" and smu_value is not None:
+                        quantity = smu_value
+                    else:
+                        quantity = hours_value
                     line_cost = round(float(quantity or 0) * float(rate["rate"]), 2) if quantity is not None else None
                     activities.append({
                         **base_row,

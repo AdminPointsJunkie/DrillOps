@@ -3093,24 +3093,24 @@ tbody td[contenteditable=true]:focus {
         <div class="table-toolbar">
           <div>
             <div class="table-count"><span id="invoice-breakdown-title">Invoice breakdown</span></div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Imported company task lines matched back to EOS activities by date and code.</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">MCC invoices are matched to the service week's report quantities and the contract schedule. Invoice rates never replace contract rates.</div>
           </div>
           <button class="btn-csv" onclick="downloadInvoiceBreakdownCSV()">CSV</button>
         </div>
         <div class="invoice-breakdown-summary">
           <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Lines</div><div class="invoice-breakdown-value" id="invbd-lines">—</div></div>
-          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Accounted For</div><div class="invoice-breakdown-value" id="invbd-accounted">—</div></div>
-          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">No EOS Data</div><div class="invoice-breakdown-value" id="invbd-missing">—</div></div>
-          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoiced</div><div class="invoice-breakdown-value" id="invbd-invoiced">—</div></div>
-          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Matched EOS</div><div class="invoice-breakdown-value" id="invbd-eos">—</div></div>
-          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Variance</div><div class="invoice-breakdown-value" id="invbd-variance">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Cleared</div><div class="invoice-breakdown-value" id="invbd-accounted">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Errors / Evidence</div><div class="invoice-breakdown-value" id="invbd-missing">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoice ex GST</div><div class="invoice-breakdown-value" id="invbd-invoiced">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Contract Supported</div><div class="invoice-breakdown-value" id="invbd-eos">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoice Difference</div><div class="invoice-breakdown-value" id="invbd-variance">—</div></div>
         </div>
         <div class="tbl-scroll" style="max-height:390px;">
           <table id="invoice-breakdown-table">
             <thead><tr>
-              <th>Date</th><th>Site / Hole</th><th>Code</th><th>Qty</th><th>Unit</th>
-              <th>Invoiced</th><th>Matched EOS</th><th>Variance</th><th>Status</th>
-              <th>Chargeable</th><th>Category</th><th>Description</th>
+              <th>Service period</th><th>Code</th><th>Invoice qty</th><th>Weekly qty</th><th>Unit</th>
+              <th>Invoice rate</th><th>Contract rate</th><th>Invoice ex GST</th><th>Contract supported</th>
+              <th>Difference</th><th>Status</th><th>Evidence / error</th>
             </tr></thead>
             <tbody id="invoice-breakdown-body">
               <tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">Select an invoice breakdown to inspect matched and unmatched task lines.</td></tr>
@@ -8108,7 +8108,7 @@ invSidebarBtn.addEventListener('click', async()=>{
   const log=document.getElementById('inv-import-log-sidebar');log.innerHTML='';
   let importedContractor='';
   for(const file of invSidebarFiles){
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');
+    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');fd.append('program',activeProgram||'');
     try{
       const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
       if(d.status==='imported'){
@@ -8331,22 +8331,29 @@ function invoiceMatchImportText(summary) {
   if(!summary || !summary.total) return '';
   var accounted = (parseInt(summary.exact || 0) || 0) + (parseInt(summary.close || 0) || 0);
   var missing = parseInt(summary.no_eos || 0) || 0;
+  var errors = parseInt(summary.errors || 0) || 0;
   var variance = parseFloat(summary.variance || 0) || 0;
-  return ' · matched '+accounted+'/'+summary.total+' · no EOS '+missing+' · variance '+cur(variance);
+  return ' · cleared '+accounted+'/'+summary.total+' · errors '+errors+' · unsupported '+missing+' · difference '+cur(variance);
 }
 
 function invoiceMatchClass(status) {
   status = status || 'pending';
   if(status === 'exact_match') return 'match-exact';
   if(status === 'close_match') return 'match-close';
-  if(status === 'no_eos_data') return 'match-missing';
+  if(status === 'no_eos_data' || status === 'no_weekly_evidence' || status === 'supporting_document_required') return 'match-missing';
+  if(status === 'rate_error' || status === 'quantity_error' || status === 'amount_error') return 'match-over';
   if(status.indexOf('over') >= 0) return 'match-over';
   if(status.indexOf('under') >= 0) return 'match-under';
   return 'match-pending';
 }
 
 function invoiceMatchLabel(status) {
-  return (status || 'pending').replace(/_/g,' ');
+  var labels = {
+    exact_match:'Cleared', close_match:'Close match', no_eos_data:'No source data',
+    no_weekly_evidence:'No weekly evidence', supporting_document_required:'Supporting document required',
+    rate_error:'Rate error', quantity_error:'Quantity error', amount_error:'Amount error'
+  };
+  return labels[status] || (status || 'pending').replace(/_/g,' ');
 }
 
 // Invoice import controls are optional; the current UI uses the sidebar uploader.
@@ -8386,7 +8393,7 @@ if(invFileInput && invImportBtn && invDropZone) {
     if(log) log.innerHTML='';
     let importedContractor='';
     for(const file of invPendingFiles){
-      const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');
+      const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');fd.append('program',activeProgram||'');
       try{
         const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
         if(log) {
@@ -8586,7 +8593,8 @@ function renderInvoices(rows){
       return '<option value="'+m+'"'+(m===(r.billing_month||'')?' selected':'')+'>'+label+'</option>';
     }).join('');
     var accounted = (parseInt(r.exact_matches || 0) || 0) + (parseInt(r.close_matches || 0) || 0);
-    var lineSummary = r.line_count ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+accounted+'/'+r.line_count+' accounted</div>' : '';
+    var errorCount = parseInt(r.error_count || 0) || 0;
+    var lineSummary = r.line_count ? '<div style="font-size:10px;color:'+(errorCount?'var(--red)':'var(--green)')+';margin-top:2px;">'+accounted+'/'+r.line_count+' cleared'+(errorCount?' · '+errorCount+' error'+(errorCount===1?'':'s'):'')+'</div>' : '';
     var hasPdf = r.source_file && String(r.source_file).indexOf('manual:') !== 0;
     var isManual = r.source_file && String(r.source_file).indexOf('manual:') === 0;
     return '<tr data-inv-id="'+r.id+'"'+(Number(r.id)===Number(selectedInvoiceBreakdownId)?' class="active"':'')+'>'
@@ -8833,13 +8841,13 @@ function renderInvoiceBreakdown(invoice, lines) {
   lines = Array.isArray(lines) ? lines : [];
   var exact = lines.filter(function(r){ return r.match_status === 'exact_match'; }).length;
   var close = lines.filter(function(r){ return r.match_status === 'close_match'; }).length;
-  var missing = lines.filter(function(r){ return r.match_status === 'no_eos_data'; }).length;
+  var errors = lines.filter(function(r){ return !['exact_match','close_match'].includes(r.match_status); }).length;
   var invoiced = lines.reduce(function(s,r){ return s + (parseFloat(r.amount) || 0); }, 0);
   var eos = lines.reduce(function(s,r){ return s + (parseFloat(r.matched_eos_cost) || 0); }, 0);
   var variance = lines.reduce(function(s,r){ return s + (parseFloat(r.variance) || 0); }, 0);
   document.getElementById('invbd-lines').textContent = lines.length;
   document.getElementById('invbd-accounted').textContent = (exact + close) + ' / ' + lines.length;
-  document.getElementById('invbd-missing').textContent = missing;
+  document.getElementById('invbd-missing').textContent = errors;
   document.getElementById('invbd-invoiced').textContent = cur(invoiced);
   document.getElementById('invbd-eos').textContent = cur(eos);
   document.getElementById('invbd-variance').textContent = cur(variance);
@@ -8847,20 +8855,25 @@ function renderInvoiceBreakdown(invoice, lines) {
 
   document.getElementById('invoice-breakdown-body').innerHTML = lines.map(function(r){
     var status = r.match_status || 'pending';
-    var siteHole = [r.site_name, r.hole_num].filter(Boolean).join(' / ');
+    var period = [invoice.service_start, invoice.service_end].filter(Boolean).join(' to ');
+    var invoiceQty = parseFloat(r.quantity);
+    var weeklyQty = parseFloat(r.matched_eos_quantity);
+    var invoiceRate = parseFloat(r.unit_price);
+    var contractRate = parseFloat(r.matched_eos_rate);
+    var evidence = '<strong>'+esc(r.description || '')+'</strong>'+(r.audit_note?'<div style="margin-top:3px;color:var(--muted);">'+esc(r.audit_note)+'</div>':'');
     return '<tr>'
-      +'<td>'+esc(r.line_date || '')+'</td>'
-      +'<td>'+esc(siteHole || '')+'</td>'
+      +'<td>'+esc(period || r.line_date || '')+'</td>'
       +'<td style="font-family:var(--font-mono);font-weight:700;color:var(--accent);">'+esc(r.activity_code || r.category || '')+'</td>'
-      +'<td style="text-align:right;">'+((parseFloat(r.quantity)||0).toLocaleString('en-AU',{maximumFractionDigits:2}))+'</td>'
+      +'<td style="text-align:right;">'+(Number.isFinite(invoiceQty)?invoiceQty.toLocaleString('en-AU',{maximumFractionDigits:2}):'—')+'</td>'
+      +'<td style="text-align:right;">'+(Number.isFinite(weeklyQty)?weeklyQty.toLocaleString('en-AU',{maximumFractionDigits:2}):'—')+'</td>'
       +'<td>'+esc(r.unit || '')+'</td>'
+      +'<td>'+((Number.isFinite(invoiceRate))?cur(invoiceRate):'—')+'</td>'
+      +'<td>'+((Number.isFinite(contractRate))?cur(contractRate):'—')+'</td>'
       +'<td style="font-weight:700;color:var(--text);">'+cur(r.amount)+'</td>'
       +'<td>'+cur(r.matched_eos_cost)+'</td>'
       +'<td style="color:'+((parseFloat(r.variance)||0)>1?'var(--red)':((parseFloat(r.variance)||0)<-1?'var(--accent)':'var(--green)'))+';">'+cur(r.variance)+'</td>'
       +'<td><span class="invoice-line-status '+invoiceMatchClass(status)+'">'+esc(invoiceMatchLabel(status))+'</span></td>'
-      +'<td>'+esc(r.chargeable || '')+'</td>'
-      +'<td>'+esc(r.source_category || r.category || '')+'</td>'
-      +'<td class="multiline-cell">'+esc(r.description || '')+'</td>'
+      +'<td class="multiline-cell">'+evidence+'</td>'
       +'</tr>';
   }).join('') || '<tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">No invoice lines found for this invoice.</td></tr>';
   makeTableSortable('invoice-breakdown-table');
@@ -8869,7 +8882,7 @@ function renderInvoiceBreakdown(invoice, lines) {
 function downloadInvoiceBreakdownCSV() {
   if(!invoiceBreakdownLines.length) return;
   var invoice = invoicesData.find(function(r){ return Number(r.id) === Number(selectedInvoiceBreakdownId); }) || {};
-  var keys = ['line_date','site_name','hole_num','activity_code','quantity','unit','amount','matched_eos_cost','variance','match_status','chargeable','source_category','description'];
+  var keys = ['activity_code','quantity','matched_eos_quantity','unit','unit_price','matched_eos_rate','amount','matched_eos_cost','quantity_variance','rate_variance','variance','match_status','audit_note','description'];
   var csv = [keys.join(','), ...invoiceBreakdownLines.map(function(r){
     return keys.map(function(k){ return '"'+String(r[k] ?? '').replace(/"/g,'""')+'"'; }).join(',');
   })].join('\n');

@@ -39,6 +39,13 @@ from mcc_rates import (
 )
 from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
 from mcc_weekly import MCC_WORKSTREAM_LABELS, build_mcc_daily_weekly_audit, parse_mcc_weekly_xlsx
+from mcc_invoice import (
+    mcc_rate_by_code,
+    mcc_service_dates,
+    mcc_smu_total,
+    parse_mcc_invoice_pdf,
+    reconcile_mcc_invoice_lines,
+)
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -1188,7 +1195,12 @@ def init_db():
                     billing_month   TEXT
                 )
             """)
-            for col, typedef in [("pdf_data", "BYTEA"), ("billing_month", "TEXT"), ("version", "INTEGER DEFAULT 1"), ("query_notes", "TEXT"), ("project", "TEXT")]:
+            for col, typedef in [
+                ("pdf_data", "BYTEA"), ("billing_month", "TEXT"),
+                ("version", "INTEGER DEFAULT 1"), ("query_notes", "TEXT"),
+                ("project", "TEXT"), ("program", "TEXT"),
+                ("service_start", "TEXT"), ("service_end", "TEXT"),
+            ]:
                 try:
                     cur.execute(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
@@ -1230,6 +1242,11 @@ def init_db():
                 ("unit", "TEXT"),
                 ("chargeable", "TEXT"),
                 ("source_category", "TEXT"),
+                ("matched_eos_quantity", "FLOAT"),
+                ("matched_eos_rate", "FLOAT"),
+                ("quantity_variance", "FLOAT"),
+                ("rate_variance", "FLOAT"),
+                ("audit_note", "TEXT"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS {col} {typedef}")
@@ -1414,6 +1431,66 @@ def repair_mcc_weekly_workstream_labels():
     return updated
 
 
+def repair_mcc_weekly_billing_quantities():
+    """Use machine SMU for hourly hire and bill day-rate equipment once per day."""
+    updated = 0
+    day_hire_seen = set()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.*
+                FROM activities a
+                WHERE a.contractor='MCC Group'
+                  AND a.notes ILIKE '%%Charge type: Equipment%%'
+                  AND EXISTS (
+                    SELECT 1 FROM source_files sf
+                    WHERE sf.filename=a.source_file
+                      AND sf.contractor=a.contractor
+                      AND sf.file_type='mcc_weekly_xlsx'
+                  )
+                ORDER BY a.source_file, a.date, a.id
+            """)
+            for row in (dict(item) for item in cur.fetchall()):
+                rate = mcc_rate_by_code(row.get("code"))
+                if not rate:
+                    continue
+                quantity = None
+                note_suffix = ""
+                if rate["unit"] == "day":
+                    key = (row.get("source_file"), row.get("date"), row.get("program"), row.get("code"))
+                    if key in day_hire_seen:
+                        quantity = 0.0
+                        note_suffix = "; duplicate same-day hire retained as a zero-cost audit row"
+                    else:
+                        day_hire_seen.add(key)
+                        quantity = 1.0
+                else:
+                    quantity = mcc_smu_total(row.get("notes"))
+                if quantity is None:
+                    continue
+                quantity = round(float(quantity), 2)
+                line_cost = round(quantity * rate["rate"], 2)
+                if (
+                    abs(float(row.get("quantity") or 0) - quantity) <= 0.001
+                    and abs(float(row.get("line_cost") or 0) - line_cost) <= 0.01
+                ):
+                    continue
+                cur.execute("""
+                    UPDATE activities
+                    SET quantity=%s, line_cost=%s,
+                        rate_basis=%s
+                    WHERE id=%s
+                """, (
+                    quantity, line_cost,
+                    f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} "
+                    f"(${rate['rate']:,.2f}/{rate['unit']}) using weekly SMU/day evidence{note_suffix}",
+                    row["id"],
+                ))
+                updated += 1
+        conn.commit()
+    return updated
+
+
 def seed_2025_rates():
     """Only seeds rates for Allianz Drilling. All other contractors start with
     empty rate schedules which must be configured manually."""
@@ -1509,6 +1586,7 @@ seed_mcc_2026_rates()
 remove_legacy_mcc_earthworks_seed()
 repair_mcc_weekly_activity_costs()
 repair_mcc_weekly_workstream_labels()
+repair_mcc_weekly_billing_quantities()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 apply_depco_import_exceptions()
@@ -6700,78 +6778,12 @@ def invoice_project_from_text(text: str, filename: str = "") -> str:
 
 
 def parse_mcc_group_invoice_pdf(text: str, filename: str) -> dict:
-    def find(pattern, default=""):
-        m = re.search(pattern, text, re.IGNORECASE)
-        return m.group(1).strip() if m else default
-
-    def amount(pattern):
-        raw = find(pattern)
-        try:
-            return float(raw.replace(",", "")) if raw else 0.0
-        except Exception:
-            return 0.0
-
-    invoice_number = find(r"\bINVOICE\s+(ARG[-A-Z0-9]+)") or find(r"(ARG[-A-Z]+[-]?\d+)", os.path.splitext(filename)[0])
-    invoice_date = find(r"\bDATE\s+(\d{1,2}/\d{1,2}/\d{4})")
-    due_date = find(r"\bDUE DATE\s+(\d{1,2}/\d{1,2}/\d{4})")
-    po_reference = find(r"\bPO\s*\n\s*([A-Z]?\d{4,})")
-    client = find(r"INVOICE TO\s+(.+?)\s+DATE") or "Argo Coal Management Pty Ltd"
-    abn = find(r"\bABN[:\s]+(\d{11})")
-    subtotal = amount(r"\bSUBTOTAL\s+([\d,]+\.\d{2})")
-    gst = amount(r"\bGST TOTAL\s+([\d,]+\.\d{2})")
-    raw_lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    total_aud = 0.0
-    for raw_line in raw_lines:
-        m_total = re.match(r"^TOTAL\s+([\d,]+\.\d{2})$", raw_line, re.I)
-        if m_total:
-            total_aud = float(m_total.group(1).replace(",", ""))
-            break
-    if not total_aud:
-        total_aud = amount(r"A\$([\d,]+\.\d{2})")
-    lines = []
-    line_re = re.compile(r"^(Labour Services|Hire - [A-Za-z ]+)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d{2})?)\s+GST\s+([\d,]+(?:\.\d{2})?)$", re.I)
-    for idx, line in enumerate(raw_lines):
-        m = line_re.match(line)
-        if not m:
-            continue
-        item = m.group(1).strip()
-        detail = raw_lines[idx + 1].strip() if idx + 1 < len(raw_lines) else ""
-        desc = f"{item} - {detail}" if detail and not re.search(r"\b(SUBTOTAL|GST|TOTAL|DATE|PO)\b", detail, re.I) else item
-        qty = float(m.group(2).replace(",", ""))
-        rate = float(m.group(3).replace(",", ""))
-        amt = float(m.group(4).replace(",", ""))
-        lines.append({
-            "description": desc,
-            "quantity": qty,
-            "unit_price": rate,
-            "gst_rate": "10%",
-            "amount": amt,
-            "category": categorise_invoice_line(desc),
-        })
-
-    if subtotal == 0 and lines:
-        subtotal = round(sum(l["amount"] for l in lines), 2)
-    if gst == 0 and subtotal:
-        gst = round(subtotal * 0.1, 2)
-    if total_aud == 0 and subtotal:
-        total_aud = round(subtotal + gst, 2)
-
-    return {
-        "invoice_number": invoice_number or os.path.splitext(filename)[0],
-        "invoice_date": invoice_date,
-        "due_date": due_date,
-        "po_reference": po_reference,
-        "project": invoice_project_from_text(text, filename),
-        "client": client,
-        "abn": abn,
-        "subtotal": subtotal,
-        "gst": gst,
-        "total_aud": total_aud,
-        "amount_paid": 0,
-        "amount_due": total_aud,
-        "status": "Unpaid",
-        "lines": lines,
-    }
+    parsed = parse_mcc_invoice_pdf(text, filename, categorise_invoice_line)
+    parsed["program"] = invoice_project_from_text(text, filename)
+    parsed["project"] = ""
+    abns = re.findall(r"\bABN[:\s]+(\d{11})", text or "", re.I)
+    parsed["abn"] = abns[0] if abns else ""
+    return parsed
 
 
 def parse_chms_quote_invoice_pdf(text: str, filename: str) -> dict:
@@ -7143,6 +7155,61 @@ def parse_invoice_pdf(text: str, filename: str, contractor: str, tables=None) ->
     }
 
 
+def match_mcc_invoice_to_weekly(cur, invoice_id: int) -> bool:
+    """Match one MCC invoice only to its service week's weekly report."""
+    cur.execute("""
+        SELECT project, program, service_start, service_end
+        FROM invoices WHERE id=%s
+    """, (invoice_id,))
+    invoice = dict(cur.fetchone() or {})
+    service_dates = mcc_service_dates(invoice.get("service_start"), invoice.get("service_end"))
+    if not service_dates:
+        return False
+
+    program = str(invoice.get("program") or "").strip()
+    if not program and str(invoice.get("project") or "") in {"Exploration", "Gas Riser", "SIS"}:
+        program = str(invoice.get("project") or "")
+
+    source_filter = mcc_weekly_cost_filter("MCC Group", "a")
+    where = ["a.contractor='MCC Group'", "a.date = ANY(%s)", source_filter]
+    params = [service_dates]
+    if program:
+        where.append("(a.program=%s OR a.project=%s)")
+        params.extend([program, program])
+    cur.execute(f"""
+        SELECT a.date, a.code, a.quantity, a.notes, a.unit_rate, a.line_cost
+        FROM activities a
+        WHERE {' AND '.join(where)}
+        ORDER BY a.date, a.id
+    """, tuple(params))
+    weekly_rows = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("SELECT * FROM invoice_lines WHERE invoice_id=%s ORDER BY id", (invoice_id,))
+    invoice_lines = [dict(row) for row in cur.fetchall()]
+    reconciled = reconcile_mcc_invoice_lines(invoice_lines, weekly_rows)
+    for line in reconciled:
+        cur.execute("""
+            UPDATE invoice_lines
+            SET activity_code=%s,
+                matched_eos_quantity=%s,
+                matched_eos_rate=%s,
+                matched_eos_cost=%s,
+                quantity_variance=%s,
+                rate_variance=%s,
+                variance=%s,
+                match_status=%s,
+                audit_note=%s
+            WHERE id=%s
+        """, (
+            line.get("activity_code"), line.get("matched_eos_quantity"),
+            line.get("matched_eos_rate"), line.get("matched_eos_cost"),
+            line.get("quantity_variance"), line.get("rate_variance"),
+            line.get("variance"), line.get("match_status"),
+            line.get("audit_note"), line["id"],
+        ))
+    return True
+
+
 def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: str):
     """
     Compare invoice line totals by category against EOS activity costs.
@@ -7152,8 +7219,11 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
     inv_lines = [dict(r) for r in cur.fetchall()]
     if not inv_lines:
         return
-    cur.execute("SELECT project FROM invoices WHERE id=%s", (invoice_id,))
-    invoice_project = ((cur.fetchone() or {}).get("project") or "").strip()
+    if contractor == "MCC Group" and match_mcc_invoice_to_weekly(cur, invoice_id):
+        return
+    cur.execute("SELECT project, program FROM invoices WHERE id=%s", (invoice_id,))
+    invoice_scope = dict(cur.fetchone() or {})
+    invoice_project = (invoice_scope.get("program") or invoice_scope.get("project") or "").strip()
     authoritative_source = mcc_weekly_cost_filter(contractor)
 
     def add_invoice_project_filter(where, params):
@@ -7330,6 +7400,7 @@ async def import_invoice(
     file: UploadFile = File(...),
     contractor: str = Form(default="Allianz Drilling"),
     project: str = Form(default=""),
+    program: str = Form(default=""),
 ):
     filename = file.filename
 
@@ -7400,6 +7471,8 @@ async def import_invoice(
         raise HTTPException(422, f"Could not parse invoice: {e}")
     if str(project or "").strip():
         inv["project"] = str(project).strip()
+    if str(program or "").strip():
+        inv["program"] = str(program).strip()
 
     lines = inv.pop("lines", [])
 
@@ -7410,13 +7483,16 @@ async def import_invoice(
                 cur.execute("""
                     INSERT INTO invoices
                     (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
-                     project,client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     project,program,service_start,service_end,client,abn,subtotal,gst,total_aud,
+                     amount_paid,amount_due,status,pdf_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id
                 """, (filename, contractor,
                       inv.get("invoice_number",""), inv.get("invoice_date",""),
                       inv.get("due_date",""), inv.get("po_reference",""),
-                      inv.get("project",""), inv.get("client",""), inv.get("abn",""),
+                      inv.get("project",""), inv.get("program",""),
+                      inv.get("service_start",""), inv.get("service_end",""),
+                      inv.get("client",""), inv.get("abn",""),
                       inv.get("subtotal",0), inv.get("gst",0), inv.get("total_aud",0),
                       inv.get("amount_paid",0), inv.get("amount_due",0), inv.get("status","Unpaid"),
                       psycopg2.Binary(content)))
@@ -7446,9 +7522,10 @@ async def import_invoice(
                         COUNT(*) AS total,
                         SUM(CASE WHEN match_status='exact_match' THEN 1 ELSE 0 END) AS exact,
                         SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close,
-                        SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS no_eos,
+                        SUM(CASE WHEN match_status IN ('no_eos_data','no_weekly_evidence') THEN 1 ELSE 0 END) AS no_eos,
                         SUM(CASE WHEN match_status='invoice_over_eos' THEN 1 ELSE 0 END) AS over,
                         SUM(CASE WHEN match_status='invoice_under_eos' THEN 1 ELSE 0 END) AS under,
+                        SUM(CASE WHEN match_status NOT IN ('exact_match','close_match') THEN 1 ELSE 0 END) AS errors,
                         SUM(COALESCE(amount,0)) AS invoiced,
                         SUM(COALESCE(matched_eos_cost,0)) AS matched_eos,
                         SUM(COALESCE(variance,0)) AS variance
@@ -7615,7 +7692,8 @@ def get_invoices(
                     params.append(project)
                 cur.execute(f"""
                     SELECT id, source_file, contractor, invoice_number,
-                           project, invoice_date, due_date, po_reference, client, abn,
+                           project, program, service_start, service_end,
+                           invoice_date, due_date, po_reference, client, abn,
                            subtotal, gst, total_aud, amount_paid, amount_due,
                            status, notes, billing_month, query_notes, version
                     FROM invoices
@@ -7633,16 +7711,17 @@ def get_invoices(
                                    SUM(CASE WHEN match_status='close_match' THEN 1 ELSE 0 END) AS close_matches,
                                    SUM(CASE WHEN match_status LIKE '%%over%%' THEN 1 ELSE 0 END) AS over_count,
                                    SUM(CASE WHEN match_status LIKE '%%under%%' THEN 1 ELSE 0 END) AS under_count,
-                                   SUM(CASE WHEN match_status='no_eos_data' THEN 1 ELSE 0 END) AS unmatched_count
+                                   SUM(CASE WHEN match_status IN ('no_eos_data','no_weekly_evidence') THEN 1 ELSE 0 END) AS unmatched_count,
+                                   SUM(CASE WHEN match_status NOT IN ('exact_match','close_match') THEN 1 ELSE 0 END) AS error_count
                             FROM invoice_lines WHERE invoice_id=%s
                         """, (inv["id"],))
                         row = cur.fetchone()
                         if row:
                             inv.update(dict(row))
                         else:
-                            inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                            inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0,"error_count":0})
                     except Exception:
-                        inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0})
+                        inv.update({"line_count":0,"exact_matches":0,"close_matches":0,"over_count":0,"under_count":0,"unmatched_count":0,"error_count":0})
                     try:
                         cur.execute("SELECT COUNT(*) AS attachment_count FROM invoice_attachments WHERE invoice_id=%s", (inv["id"],))
                         inv["attachment_count"] = int(cur.fetchone()["attachment_count"] or 0)
@@ -7755,7 +7834,7 @@ def delete_invoice_attachment(invoice_id: int, attachment_id: int):
 @app.patch("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: int, request: Request):
     payload = await request.json()
-    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","project","invoice_date","subtotal","gst","total_aud","invoice_number"}
+    safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","project","program","service_start","service_end","invoice_date","subtotal","gst","total_aud","invoice_number"}
     u = {k:v for k,v in payload.items() if k in safe and k != "version"}
     if not u: raise HTTPException(400, "No valid fields")
     # Auto-increment version on any edit
