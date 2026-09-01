@@ -2311,9 +2311,6 @@ tbody td[contenteditable=true]:focus {
             <p>Drop operational PDFs / CSVs / XLSX sheets or click</p>
           </div>
           <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Reports</button>
-          <button id="audit-imports-btn" type="button" onclick="auditExistingImports()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit Existing EOS Rates</button>
-          <button id="fix-imports-btn" type="button" onclick="fixExistingImportRates()" style="width:100%;margin-top:8px;padding:9px;background:#fff7e6;color:#a05a00;border:1.5px solid #f4d39b;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Fix EOS Rates</button>
-          <button id="cleanup-imports-btn" type="button" onclick="cleanupCorePlanDoubleups()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:var(--red);border:1.5px solid var(--red);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Remove CorePlan Double-ups</button>
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
         <!-- Handwritten OCR -->
@@ -4991,6 +4988,55 @@ async function isMccSiteLogCsv(file){
   }catch(error){return false;}
 }
 
+function parseSiteLogCsvRows(text){
+  const rows=[];
+  let row=[];
+  let value='';
+  let quoted=false;
+  for(let index=0;index<text.length;index++){
+    const character=text[index];
+    if(quoted){
+      if(character==='"'&&text[index+1]==='"'){value+='"';index++;}
+      else if(character==='"'){quoted=false;}
+      else{value+=character;}
+    }else if(character==='"'&&!value){quoted=true;}
+    else if(character===','){row.push(value);value='';}
+    else if(character==='\n'){
+      row.push(value.replace(/\r$/,''));
+      if(row.some(function(cell){return cell!=='';}))rows.push(row);
+      row=[];value='';
+    }else{value+=character;}
+  }
+  if(value||row.length){row.push(value.replace(/\r$/,''));rows.push(row);}
+  return rows;
+}
+
+function siteLogCsvCell(value){
+  const text=String(value==null?'':value);
+  return /[",\r\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;
+}
+
+async function mccOnlySiteLogFile(file){
+  const bytes=await file.arrayBuffer();
+  let text;
+  try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+  catch(error){text=new TextDecoder('windows-1252').decode(bytes);}
+  const rows=parseSiteLogCsvRows(text);
+  if(!rows.length)throw new Error('Site Log CSV is empty');
+  rows[0][0]=String(rows[0][0]||'').replace(/^\uFEFF/,'');
+  const companyIndex=rows[0].findIndex(function(value){return String(value||'').trim()==='Company';});
+  if(companyIndex<0)throw new Error('Site Log CSV is missing the Company column');
+  const mccRows=rows.slice(1).filter(function(row){
+    return String(row[companyIndex]||'').trim().toLowerCase()==='mcc group';
+  });
+  if(!mccRows.length)throw new Error('No MCC Group rows were found in the Site Log CSV');
+  const filtered=[rows[0]].concat(mccRows).map(function(row){return row.map(siteLogCsvCell).join(',');}).join('\r\n')+'\r\n';
+  return {
+    file:new File([filtered],file.name,{type:'text/csv',lastModified:file.lastModified}),
+    rows:mccRows.length
+  };
+}
+
 importBtn.addEventListener('click',async()=>{
   if(!pendingFiles.length)return;
   const classifiedFiles=await Promise.all(pendingFiles.map(async function(file){
@@ -5011,9 +5057,10 @@ importBtn.addEventListener('click',async()=>{
   for(const item of classifiedFiles){
     const file=item.file;
     if(item.isMccSiteLog){
-      const fd=new FormData();
-      fd.append('file',file);
       try{
+        const mccUpload=await mccOnlySiteLogFile(file);
+        const fd=new FormData();
+        fd.append('file',mccUpload.file);
         const response=await fetch(API+'/mcc/swipe-history/import',{method:'POST',body:fd});
         const data=await response.json().catch(function(){return {};});
         if(!response.ok)throw new Error(data.detail||'Site Log swipe import failed');
@@ -5476,8 +5523,9 @@ async function importMccSwipeHistory(file){
   if(labelText)labelText.textContent='Importing Site Log…';
   if(summary)summary.textContent='Uploading and checking '+file.name+'…';
   try{
+    const mccUpload=await mccOnlySiteLogFile(file);
     const form=new FormData();
-    form.append('file',file);
+    form.append('file',mccUpload.file);
     const response=await fetch(API+'/mcc/swipe-history/import',{method:'POST',body:form});
     const data=await response.json().catch(function(){return {};});
     if(!response.ok)throw new Error(data.detail||'Swipe import failed');

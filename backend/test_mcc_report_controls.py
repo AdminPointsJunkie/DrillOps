@@ -93,6 +93,9 @@ class MCCReportControlTests(unittest.TestCase):
 
     def test_main_importer_routes_site_log_csv_to_swipe_history(self):
         self.assertIn("async function isMccSiteLogCsv(file)", INDEX_HTML)
+        self.assertIn("async function mccOnlySiteLogFile(file)", INDEX_HTML)
+        self.assertIn("toLowerCase()==='mcc group'", INDEX_HTML)
+        self.assertIn("fd.append('file',mccUpload.file)", INDEX_HTML)
         self.assertIn("isMccSiteLog:await isMccSiteLogCsv(file)", INDEX_HTML)
         self.assertIn("if(hasOperationalReports&&(!importScope.client||!importScope.project))", INDEX_HTML)
         self.assertIn("API+'/mcc/swipe-history/import'", INDEX_HTML)
