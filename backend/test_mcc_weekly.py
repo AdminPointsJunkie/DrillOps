@@ -60,13 +60,14 @@ class MCCWeeklyTests(unittest.TestCase):
         )
 
         self.assertEqual(header["date"], "20/07/2026")
-        self.assertEqual(len(activities), 2)
+        self.assertEqual(len(activities), 3)
         self.assertEqual({row["program"] for row in activities}, {"SIS"})
         self.assertEqual({row["code"] for row in activities}, {
             "MCC_MULTI_SKILLED_OPERATOR",
             "MCC_BODY_WATER_TRUCK",
+            "MCC_LIGHT_VEHICLE",
         })
-        self.assertEqual(sum(row["line_cost"] for row in activities), 410.0)
+        self.assertEqual(sum(row["line_cost"] for row in activities), 515.0)
         self.assertTrue(all(row["time_to"] == "" for row in activities))
         self.assertEqual(len(crew), 1)
 
@@ -110,9 +111,9 @@ class MCCWeeklyTests(unittest.TestCase):
             workbook_bytes([row], duplicate_sheet=True), "weekly.xlsx"
         )
 
-        self.assertEqual(len(activities), 2)
+        self.assertEqual(len(activities), 3)
         self.assertEqual(len(crew), 1)
-        self.assertEqual(sum(item["line_cost"] for item in activities), 1290.0)
+        self.assertEqual(sum(item["line_cost"] for item in activities), 1395.0)
 
     def test_prefers_arg_workstream_tabs_over_stale_summary(self):
         summary_row = [
@@ -136,7 +137,7 @@ class MCCWeeklyTests(unittest.TestCase):
 
         _, activities, _, _, _ = parse_mcc_weekly_xlsx(stream.getvalue(), "weekly.xlsx")
 
-        self.assertEqual(len(activities), 1)
+        self.assertEqual(len(activities), 2)
         self.assertEqual(activities[0]["quantity"], 12.5)
         self.assertEqual(activities[0]["line_cost"], 1500.0)
 
@@ -150,8 +151,8 @@ class MCCWeeklyTests(unittest.TestCase):
 
         _, activities, _, crew, _ = parse_mcc_weekly_xlsx(content, "weekly.xlsx")
 
-        self.assertEqual({row["quantity"] for row in activities}, {1.7})
-        self.assertEqual(sum(row["line_cost"] for row in activities), 306.0)
+        self.assertEqual({row["quantity"] for row in activities}, {1.0, 1.7})
+        self.assertEqual(sum(row["line_cost"] for row in activities), 411.0)
         self.assertEqual(crew[0]["hours"], "1.7")
 
     def test_equipment_uses_smu_and_day_hire_is_charged_once_per_day(self):
@@ -182,6 +183,22 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(by_code["MCC_VAC_TRUCK"]["quantity"], 1)
         self.assertEqual(by_code["MCC_VAC_TRUCK"]["line_cost"], 810.0)
         self.assertEqual(sum(row["code"] == "MCC_VAC_TRUCK" for row in equipment), 1)
+        self.assertEqual(by_code["MCC_LIGHT_VEHICLE"]["quantity"], 1)
+        self.assertEqual(by_code["MCC_LIGHT_VEHICLE"]["line_cost"], 105.0)
+
+    def test_adds_one_light_vehicle_for_each_program_workday(self):
+        rows = [
+            ["A", datetime(2026, 8, 17, 5, 30), "Ironbark 1", "Supervisor", "ARG-005 - Exploration Civils & Support Works", 3, "Work A", None, None, None, None],
+            ["B", datetime(2026, 8, 17, 6, 0), "Ironbark 1", "Multi Skilled Operator", "ARG-005 - Exploration Civils & Support Works", 2, "Work B", None, None, None, None],
+            ["C", datetime(2026, 8, 18, 5, 30), "Ironbark 1", "Supervisor", "ARG-005 - Exploration Civils & Support Works", 4, "Work C", None, None, None, None],
+        ]
+
+        _, activities, _, _, _ = parse_mcc_weekly_xlsx(workbook_bytes(rows), "weekly.xlsx")
+        vehicles = [row for row in activities if row["code"] == "MCC_LIGHT_VEHICLE"]
+
+        self.assertEqual(len(vehicles), 2)
+        self.assertEqual({row["date"] for row in vehicles}, {"17/08/2026", "18/08/2026"})
+        self.assertEqual(sum(row["line_cost"] for row in vehicles), 210.0)
 
     def test_audit_keeps_weekly_cost_as_authoritative(self):
         rows = [
@@ -213,6 +230,35 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(audit["totals"]["daily_estimate"], 640.0)
         self.assertEqual(audit["totals"]["cost_variance"], -40.0)
         self.assertEqual(audit["comparison"][0]["status"], "variance")
+
+    def test_audit_accepts_light_vehicle_per_represented_day(self):
+        rows = [{
+            "date": "20/07/2026",
+            "code": "MCC_LIGHT_VEHICLE",
+            "quantity": 1,
+            "line_cost": 105,
+            "source_file": "weekly.xlsx",
+            "source_file_type": "mcc_weekly_xlsx",
+            "rate_description": "Light Vehicle",
+            "rate_unit": "day",
+        }, {
+            "date": "20/07/2026",
+            "code": "MCC_LIGHT_VEHICLE",
+            "quantity": 1,
+            "line_cost": 105,
+            "source_file": "daily.pdf",
+            "source_file_type": "mcc_site_services_pdf",
+            "rate_description": "Light Vehicle",
+            "rate_unit": "day",
+        }]
+
+        audit = build_mcc_daily_weekly_audit(rows)
+
+        self.assertEqual(audit["comparison"][0]["status"], "accepted_rule")
+        self.assertEqual(audit["totals"]["accepted"], 1)
+        self.assertEqual(audit["totals"]["exceptions"], 0)
+        self.assertEqual(audit["totals"]["daily_estimate"], 105.0)
+        self.assertEqual(audit["totals"]["cost_variance"], 0.0)
 
 
 if __name__ == "__main__":

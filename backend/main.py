@@ -1491,6 +1491,62 @@ def repair_mcc_weekly_billing_quantities():
     return updated
 
 
+def repair_mcc_weekly_light_vehicle_days():
+    """Add the accepted single Light Vehicle day charge to existing weekly imports."""
+    rate = mcc_rate_by_code("MCC_LIGHT_VEHICLE")
+    if not rate:
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH representative_days AS (
+                    SELECT DISTINCT ON (a.source_file, a.date, a.program)
+                           a.*
+                    FROM activities a
+                    WHERE a.contractor='MCC Group'
+                      AND COALESCE(a.date, '') <> ''
+                      AND COALESCE(a.program, '') <> ''
+                      AND EXISTS (
+                        SELECT 1 FROM source_files sf
+                        WHERE sf.filename=a.source_file
+                          AND sf.contractor=a.contractor
+                          AND sf.file_type='mcc_weekly_xlsx'
+                      )
+                    ORDER BY a.source_file, a.date, a.program, a.id
+                )
+                INSERT INTO activities
+                    (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
+                     client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                     metres_from,metres_to,total_metres,code,notes,
+                     rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                SELECT
+                    r.source_file,r.contractor,r.date,r.hole_num,r.site_name,r.program,r.project,r.location,
+                    'Light Vehicle',r.client,r.contract,'','','','0:00','','',NULL,NULL,NULL,
+                    'MCC_LIGHT_VEHICLE',
+                    'Light Vehicle daily allowance | Program: ' || r.program ||
+                    ' | Workstream: ' || COALESCE(NULLIF(r.location,''),r.program) ||
+                    ' | Equipment: Light Vehicle | Charge type: Equipment | Schedule item: Light Vehicle' ||
+                    ' | Accepted billing rule: one Light Vehicle per represented workday',
+                    r.rate_year,%s,1,%s,
+                    %s,r.po_id
+                FROM representative_days r
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM activities existing
+                    WHERE existing.contractor=r.contractor
+                      AND existing.source_file=r.source_file
+                      AND existing.date=r.date
+                      AND existing.program=r.program
+                      AND existing.code='MCC_LIGHT_VEHICLE'
+                )
+            """, (
+                rate["rate"], rate["rate"],
+                f"MCC schedule {MCC_SCHEDULE_DATE} - Light Vehicle (day); accepted one per represented workday",
+            ))
+            inserted = cur.rowcount
+        conn.commit()
+    return inserted
+
+
 def seed_2025_rates():
     """Only seeds rates for Allianz Drilling. All other contractors start with
     empty rate schedules which must be configured manually."""
@@ -1587,6 +1643,7 @@ remove_legacy_mcc_earthworks_seed()
 repair_mcc_weekly_activity_costs()
 repair_mcc_weekly_workstream_labels()
 repair_mcc_weekly_billing_quantities()
+repair_mcc_weekly_light_vehicle_days()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 apply_depco_import_exceptions()

@@ -91,7 +91,7 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
         raise ValueError(f"openpyxl is not available: {exc}") from exc
 
     workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
-    activities, crew, seen, day_hire_seen, source_lines = [], [], set(), set(), []
+    activities, crew, seen, day_hire_seen, light_vehicle_days, source_lines = [], [], set(), set(), {}, []
     header = {"date": "", "hole_num": "", "site_name": "", "contractor": contractor}
 
     eligible_sheets = []
@@ -193,6 +193,8 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 "rate_year": report_date[-4:] if len(report_date) >= 4 else "",
                 "po_id": None,
             }
+            if report_date and program:
+                light_vehicle_days.setdefault((report_date, program), dict(base_row))
             priced_lines = []
             labour_rate = mcc_schedule_match(role, "labour")
             equipment_rate = mcc_schedule_match(equipment, "equipment")
@@ -263,6 +265,36 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
                 })
             source_lines.append(f"{report_date} {created_by or ''} {location or ''} {description or ''}")
 
+    light_vehicle_rate = mcc_schedule_match("Light Vehicle", "equipment")
+    if light_vehicle_rate:
+        for (report_date, program), base_row in sorted(light_vehicle_days.items()):
+            day_key = (report_date, program, light_vehicle_rate["code"])
+            if day_key in day_hire_seen:
+                continue
+            day_hire_seen.add(day_key)
+            activities.append({
+                **base_row,
+                "drill_rig": "Light Vehicle",
+                "total_time": "0:00",
+                "code": light_vehicle_rate["code"],
+                "notes": (
+                    "Light Vehicle daily allowance"
+                    f" | Program: {program}"
+                    f" | Workstream: {base_row.get('location') or program}"
+                    " | Equipment: Light Vehicle"
+                    " | Charge type: Equipment"
+                    f" | Schedule item: {light_vehicle_rate['description']}"
+                    " | Accepted billing rule: one Light Vehicle per represented workday"
+                ),
+                "unit_rate": light_vehicle_rate["rate"],
+                "quantity": 1,
+                "line_cost": light_vehicle_rate["rate"],
+                "rate_basis": (
+                    f"MCC schedule {MCC_SCHEDULE_DATE} - {light_vehicle_rate['description']} "
+                    "(day); accepted one per represented workday"
+                ),
+            })
+
     if not activities:
         raise ValueError("No MCC weekly timesheet rows found in workbook")
     return header, activities, [], crew, "\n".join(source_lines[:500])
@@ -312,7 +344,9 @@ def build_mcc_daily_weekly_audit(rows):
     for (report_date, code), item in sorted(grouped.items()):
         quantity_variance = round(item["weekly_quantity"] - item["daily_quantity"], 2)
         tolerance = 0.01 if item["unit"] == "day" else 0.25
-        if not item["weekly_rows"]:
+        if code == "MCC_LIGHT_VEHICLE" and item["weekly_rows"]:
+            status = "accepted_rule" if abs(item["weekly_quantity"] - 1) <= tolerance else "variance"
+        elif not item["weekly_rows"]:
             status = "missing_weekly"
         elif not item["daily_rows"]:
             status = "missing_daily"
@@ -337,11 +371,19 @@ def build_mcc_daily_weekly_audit(rows):
         })
 
     totals = {
-        "daily_estimate": round(sum(item["daily_cost"] for item in grouped.values()), 2),
+        "daily_estimate": round(sum(
+            item["weekly_cost"] if item["status"] == "accepted_rule" else item["daily_estimate"]
+            for item in comparison
+        ), 2),
         "weekly_cost": round(sum(item["weekly_cost"] for item in grouped.values()), 2),
-        "cost_variance": round(sum(item["weekly_cost"] - item["daily_cost"] for item in grouped.values()), 2),
+        "cost_variance": round(sum(
+            item["cost_variance"]
+            for item in comparison
+            if item["status"] != "accepted_rule"
+        ), 2),
         "matched": sum(item["status"] == "match" for item in comparison),
-        "exceptions": sum(item["status"] != "match" for item in comparison),
+        "accepted": sum(item["status"] == "accepted_rule" for item in comparison),
+        "exceptions": sum(item["status"] not in {"match", "accepted_rule"} for item in comparison),
         "daily_files": len(daily_files),
         "weekly_files": len(weekly_files),
     }

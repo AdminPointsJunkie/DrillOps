@@ -89,8 +89,57 @@ tr.saving td{background:#fff7e6;}
 .audit-status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;white-space:nowrap;}
 .audit-status.ok{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .audit-status.warn{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
+.weekly-overview{display:none;margin-bottom:16px;}
+.weekly-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:20px 22px;border:1px solid #c9d8cf;border-radius:10px;background:linear-gradient(135deg,#f4f8f5 0%,#eef5f1 58%,#e6f0ea 100%);box-shadow:var(--shadow);}
+.weekly-hero.review{border-color:#f1cf94;background:linear-gradient(135deg,#fffaf0 0%,#fff6e5 100%);}
+.weekly-hero.blocked{border-color:#f1b8bd;background:linear-gradient(135deg,#fff7f7 0%,#fff0f1 100%);}
+.weekly-hero-kicker{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.11em;color:#4c685b;}
+.weekly-hero-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(39,174,96,.12);}
+.weekly-hero.review .weekly-hero-dot{background:var(--yellow);box-shadow:0 0 0 4px rgba(217,119,6,.12);}
+.weekly-hero.blocked .weekly-hero-dot{background:var(--red);box-shadow:0 0 0 4px rgba(220,38,38,.12);}
+.weekly-hero-title{font-size:23px;line-height:1.15;font-weight:850;color:#19201d;margin-top:9px;letter-spacing:-.025em;}
+.weekly-hero-copy{font-size:13px;color:#5f6f66;margin-top:7px;line-height:1.45;max-width:780px;}
+.weekly-hero-total{text-align:right;min-width:180px;}
+.weekly-hero-total-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.weekly-hero-total-value{font-size:30px;font-weight:850;color:#19201d;margin-top:5px;letter-spacing:-.03em;}
+.weekly-hero-total-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.weekly-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px;}
+.weekly-fact{border:1px solid var(--border);border-radius:8px;background:#fff;padding:11px 12px;}
+.weekly-fact strong{display:block;font-size:17px;color:#19201d;margin-top:4px;}
+.weekly-fact span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.weekly-visual-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.45fr);gap:10px;margin-top:10px;}
+.weekly-visual-card{border:1px solid var(--border);border-radius:9px;background:#fff;padding:14px;box-shadow:var(--shadow);}
+.weekly-visual-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.weekly-visual-title{font-size:12px;font-weight:800;color:#26352d;}
+.weekly-visual-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.cost-bar{height:18px;border-radius:999px;overflow:hidden;display:flex;background:#edf1f4;box-shadow:inset 0 0 0 1px rgba(15,23,42,.05);}
+.cost-bar span{display:block;height:100%;min-width:0;transition:width .2s ease;}
+.cost-bar .labour{background:#315d49;}.cost-bar .equipment{background:#e59a3a;}.cost-bar .materials{background:#5b8def;}
+.cost-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:11px;}
+.cost-legend-item{font-size:11px;color:var(--muted);}
+.cost-legend-item b{display:block;color:#26352d;font-size:13px;margin-top:2px;}
+.cost-swatch{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;}
+.week-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:7px;}
+.week-day{min-height:76px;border:1px solid #dfe5ec;border-radius:8px;background:#f8fafc;padding:8px;text-align:center;}
+.week-day.verified{background:#eff9f3;border-color:#b9dfc7;}.week-day.review{background:#fff8e8;border-color:#f1cf94;}.week-day.missing{background:#fff3f3;border-color:#efc0c4;}
+.week-day-name{font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.week-day-date{font-size:15px;font-weight:850;color:#26352d;margin-top:4px;}
+.week-day-status{font-size:9px;font-weight:800;margin-top:7px;color:#607083;line-height:1.25;}
+.audit-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc;}
+.audit-filter-buttons{display:flex;gap:6px;}
+.audit-filter-buttons button{padding:5px 9px;font-size:10px;}
+.audit-filter-buttons button.active{background:#19201d;border-color:#19201d;color:#fff;}
+.audit-summary-strip{display:flex;gap:18px;flex-wrap:wrap;padding:11px 12px;color:var(--muted);font-size:11px;}
+.audit-summary-strip strong{color:#26352d;font-size:13px;margin-right:4px;}
+.audit-row-warning td{background:#fffdf7;}
+.weekly-mode .approval-panel{padding:10px 12px;background:#fff;margin-bottom:12px;}
+.weekly-mode .approval-row{grid-template-columns:190px minmax(0,1fr) 110px;}
+.weekly-mode .approval-panel>.subtitle,.weekly-mode .approval-panel>.log-list{display:none;}
+.weekly-mode #report-kpis{display:none;}
+.weekly-mode #timeline-title,.weekly-mode #timeline{display:none;}
 @media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
-@media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}}
+@media(max-width:1000px){.weekly-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-visual-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-facts{grid-template-columns:1fr 1fr}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <link rel="stylesheet" href="./drillops-theme.css"/>
 </head>
@@ -115,6 +164,27 @@ tr.saving td{background:#fff7e6;}
       </div>
     </div>
     <div class="body">
+      <div class="weekly-overview" id="weekly-overview">
+        <div class="weekly-hero review" id="weekly-hero">
+          <div>
+            <div class="weekly-hero-kicker"><span class="weekly-hero-dot"></span><span id="weekly-readiness-kicker">Invoice readiness</span></div>
+            <div class="weekly-hero-title" id="weekly-readiness-title">Checking this week…</div>
+            <div class="weekly-hero-copy" id="weekly-readiness-copy">Comparing weekly quantities with available daily evidence.</div>
+          </div>
+          <div class="weekly-hero-total"><div class="weekly-hero-total-label">Contract cost</div><div class="weekly-hero-total-value" id="weekly-hero-total">--</div><div class="weekly-hero-total-meta">Ex GST · contract rates retained</div></div>
+        </div>
+        <div class="weekly-facts" id="weekly-facts"></div>
+        <div class="weekly-visual-grid">
+          <div class="weekly-visual-card">
+            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Where the cost sits</div><div class="weekly-visual-meta">Contract-priced cost composition</div></div><strong id="weekly-cost-total">--</strong></div>
+            <div id="weekly-cost-mix"></div>
+          </div>
+          <div class="weekly-visual-card">
+            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Daily evidence</div><div class="weekly-visual-meta">Each represented workday; one Light Vehicle accepted per day</div></div><strong id="weekly-evidence-score">Checking…</strong></div>
+            <div class="week-strip" id="weekly-day-strip"></div>
+          </div>
+        </div>
+      </div>
       <div class="approval-panel">
         <div class="approval-row">
           <div>
@@ -139,7 +209,7 @@ tr.saving td{background:#fff7e6;}
         <div class="subtitle">Log</div>
         <div class="log-list" id="approval-log"></div>
       </div>
-      <div class="kpis">
+      <div class="kpis" id="report-kpis">
         <div class="kpi"><div class="label" id="kpi-depth-label">Depth</div><div class="value" id="kpi-depth">--</div></div>
         <div class="kpi"><div class="label" id="kpi-duration-label">Duration</div><div class="value" id="kpi-duration">--</div></div>
         <div class="kpi"><div class="label" id="kpi-cost-label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
@@ -158,9 +228,13 @@ tr.saving td{background:#fff7e6;}
       <div class="subtitle" id="timeline-title">Shift Timeline</div>
       <div class="timeline" id="timeline"></div>
       <div id="weekly-audit-section" style="display:none;">
-        <div class="subtitle">Audit Against Daily Site Services Reports</div>
+        <div class="subtitle">Exceptions &amp; Daily Evidence</div>
         <div class="table-wrap" style="margin-bottom:14px;">
-          <div class="weekly-summary" id="weekly-audit-kpis" style="padding:12px 12px 0;margin-bottom:12px;"></div>
+          <div class="audit-summary-strip" id="weekly-audit-kpis"></div>
+          <div class="audit-toolbar">
+            <div><strong>What needs attention</strong><div style="font-size:10px;color:var(--muted);margin-top:2px;">Exceptions are shown first; matched lines remain available.</div></div>
+            <div class="audit-filter-buttons"><button id="audit-exceptions-btn" class="active" type="button" onclick="setWeeklyAuditView(false)">Exceptions</button><button id="audit-all-btn" type="button" onclick="setWeeklyAuditView(true)">All lines</button></div>
+          </div>
           <div class="scroll" style="max-height:420px;">
             <table><thead><tr><th>Date</th><th>Rate Item</th><th>Daily Qty</th><th>Weekly Qty</th><th>Variance</th><th>Weekly Cost</th><th>Status</th></tr></thead><tbody id="weekly-audit-body"></tbody></table>
           </div>
@@ -209,6 +283,7 @@ const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source]
 const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
 let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
+let weeklyAuditRows=[],weeklyAuditShowAll=false,weeklyOverviewContext=null;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function attr(s){return esc(s).replace(/"/g,'&quot;');}
@@ -848,6 +923,12 @@ function mccDecimalHours(row){
   const hours=row.quantity!=null&&String(row.rate_basis||'').toLowerCase().includes('/hour')?num(row.quantity):parseDurationHours(row.total_time);
   return hours.toFixed(2);
 }
+function mccQuantityDisplay(row){
+  const basis=String(row.rate_basis||'').toLowerCase();
+  if(row.quantity!=null&&basis.includes('(day)'))return num(row.quantity).toFixed(2)+' day';
+  if(row.quantity!=null&&basis.includes('/hour'))return num(row.quantity).toFixed(2)+' h';
+  return mccDecimalHours(row)+' h';
+}
 function reportDateKey(value){
   const text=String(value||'').trim();
   const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -860,6 +941,104 @@ function mccWeeklyPeriod(rows){
   if(!dates.length)return'Period not recorded';
   if(dates.length===1)return dates[0];
   return dates[0]+' – '+dates[dates.length-1];
+}
+function weeklyDateParts(value){
+  const text=String(value||'').trim();
+  const match=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!match)return{day:'Day',date:text};
+  const date=new Date(Date.UTC(parseInt(match[3]),parseInt(match[2])-1,parseInt(match[1])));
+  return{day:date.toLocaleDateString('en-AU',{weekday:'short',timeZone:'UTC'}),date:String(parseInt(match[1])).padStart(2,'0')+'/'+String(parseInt(match[2])).padStart(2,'0')};
+}
+function weeklyDates(rows){
+  return [...new Set((rows||[]).map(row=>row.date).filter(Boolean))].sort((a,b)=>reportDateKey(a)-reportDateKey(b));
+}
+function renderWeeklyDayStrip(auditRows){
+  const dates=weeklyDates((weeklyOverviewContext&&weeklyOverviewContext.rows)||reportRows);
+  const byDate=new Map();
+  (auditRows||[]).forEach(row=>{if(!byDate.has(row.date))byDate.set(row.date,[]);byDate.get(row.date).push(row);});
+  let evidenced=0;
+  document.getElementById('weekly-day-strip').innerHTML=dates.map(date=>{
+    const dayRows=byDate.get(date)||[];
+    const hasDaily=dayRows.some(row=>num(row.daily_rows)>0);
+    const exceptions=dayRows.filter(row=>!['match','accepted_rule'].includes(row.status)).length;
+    if(hasDaily)evidenced++;
+    const state=!auditRows?'pending':!hasDaily?'missing':exceptions?'review':'verified';
+    const label=!auditRows?'Checking…':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
+    const parts=weeklyDateParts(date);
+    return '<div class="week-day '+state+'"><div class="week-day-name">'+esc(parts.day)+'</div><div class="week-day-date">'+esc(parts.date)+'</div><div class="week-day-status">'+esc(label)+'</div></div>';
+  }).join('')||'<div class="empty">No workdays recorded.</div>';
+  document.getElementById('weekly-evidence-score').textContent=auditRows?(evidenced+'/'+dates.length+' days'):(dates.length+' workday'+(dates.length===1?'':'s'));
+  return{evidenced,total:dates.length};
+}
+function updateWeeklyReadiness(auditRows,totals){
+  if(!weeklyOverviewContext)return;
+  const hero=document.getElementById('weekly-hero');
+  const unpriced=weeklyOverviewContext.unpriced;
+  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule'].includes(row.status)).length;
+  const matched=(auditRows||[]).filter(row=>row.status==='match').length;
+  const accepted=(auditRows||[]).filter(row=>row.status==='accepted_rule').length;
+  const evidence=renderWeeklyDayStrip(auditRows);
+  hero.className='weekly-hero '+(unpriced?'blocked':exceptions?'review':'');
+  document.getElementById('weekly-readiness-title').textContent=unpriced
+    ?unpriced+' unpriced line'+(unpriced===1?'':'s')+' must be resolved'
+    :exceptions
+      ?exceptions+' exception'+(exceptions===1?'':'s')+' need review'
+      :'Ready for client decision';
+  document.getElementById('weekly-readiness-copy').textContent=unpriced
+    ?'The weekly cost is incomplete. Resolve the unpriced lines before approving or reconciling an invoice.'
+    :exceptions
+      ?matched+' line'+(matched===1?'':'s')+' match and '+accepted+' accepted rule line'+(accepted===1?' is':'s are')+' covered. Daily evidence exists for '+evidence.evidenced+' of '+evidence.total+' represented workdays.'
+      :'All '+matched+' compared lines agree with daily evidence and '+accepted+' Light Vehicle line'+(accepted===1?' is':'s are')+' accepted by rule. The contract-priced weekly cost is ready for approval.';
+  document.getElementById('weekly-readiness-kicker').textContent=unpriced?'Pricing incomplete':exceptions?'Review required':'Invoice ready';
+}
+function renderWeeklyOverview(context){
+  weeklyOverviewContext=context;
+  document.getElementById('weekly-overview').style.display='block';
+  document.getElementById('weekly-hero-total').textContent=cur(context.totalCost);
+  document.getElementById('weekly-cost-total').textContent=cur(context.totalCost);
+  document.getElementById('weekly-facts').innerHTML=[
+    ['Represented workdays',String(context.workdays)],
+    ['Total labour hours',context.totalHours.toFixed(2)+' h'],
+    ['Weekly cost lines',String(context.rows.length)],
+    ['Unpriced lines',String(context.unpriced)]
+  ].map(item=>'<div class="weekly-fact"><span>'+esc(item[0])+'</span><strong>'+esc(item[1])+'</strong></div>').join('');
+  const pricedTotal=Math.max(context.labourCost+context.equipmentCost+context.materialCost,1);
+  const pct=value=>Math.max(0,(value/pricedTotal)*100);
+  document.getElementById('weekly-cost-mix').innerHTML='<div class="cost-bar" aria-label="Cost composition">'
+    +'<span class="labour" style="width:'+pct(context.labourCost).toFixed(2)+'%"></span>'
+    +'<span class="equipment" style="width:'+pct(context.equipmentCost).toFixed(2)+'%"></span>'
+    +'<span class="materials" style="width:'+pct(context.materialCost).toFixed(2)+'%"></span></div>'
+    +'<div class="cost-legend">'
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#315d49"></span>Labour<b>'+cur(context.labourCost)+'</b></div>'
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#e59a3a"></span>Equipment<b>'+cur(context.equipmentCost)+'</b></div>'
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#5b8def"></span>Materials<b>'+cur(context.materialCost)+'</b></div></div>';
+  renderWeeklyDayStrip(null);
+  const hero=document.getElementById('weekly-hero');
+  hero.className='weekly-hero review';
+  document.getElementById('weekly-readiness-kicker').textContent='Invoice readiness';
+  document.getElementById('weekly-readiness-title').textContent='Checking daily evidence…';
+  document.getElementById('weekly-readiness-copy').textContent='Comparing weekly quantities with the available daily Site Services reports.';
+}
+function setWeeklyAuditView(showAll){
+  weeklyAuditShowAll=!!showAll;
+  document.getElementById('audit-exceptions-btn').classList.toggle('active',!weeklyAuditShowAll);
+  document.getElementById('audit-all-btn').classList.toggle('active',weeklyAuditShowAll);
+  renderWeeklyAuditTable();
+}
+function renderWeeklyAuditTable(){
+  const body=document.getElementById('weekly-audit-body');
+  const labels={match:'Match',accepted_rule:'Accepted rule',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const resolved=row=>['match','accepted_rule'].includes(row.status);
+  const ordered=weeklyAuditRows.slice().sort((a,b)=>resolved(a)-resolved(b)||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
+  const visible=weeklyAuditShowAll?ordered:ordered.filter(row=>!resolved(row));
+  body.innerHTML=visible.map(row=>{
+    const ok=resolved(row);
+    return '<tr class="'+(ok?'':'audit-row-warning')+'"><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
+      +'<td>'+num(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+num(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+num(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
+      +'<td><span class="audit-status '+(ok?'ok':'warn')+'">'+esc(labels[row.status]||row.status||'Review')+'</span></td></tr>';
+  }).join('')||'<tr><td colspan="7" class="empty">'+(weeklyAuditShowAll?'No comparable lines were found.':'No exceptions — all compared lines match.')+'</td></tr>';
 }
 async function renderFocusedMccWeeklyAudit(){
   const section=document.getElementById('weekly-audit-section');
@@ -874,29 +1053,30 @@ async function renderFocusedMccWeeklyAudit(){
     const data=await response.json();
     const totals=data.totals||{};
     const rows=data.comparison||[];
-    document.getElementById('weekly-audit-kpis').innerHTML=[
-      ['Weekly cost',cur(totals.weekly_cost||0),(totals.weekly_files||0)+' workbook'],
-      ['Daily estimate',cur(totals.daily_estimate||0),(totals.daily_files||0)+' daily report(s)'],
-      ['Difference',cur(totals.cost_variance||0),'Weekly less daily'],
-      ['Exceptions',String(totals.exceptions||0),(totals.matched||0)+' matched line(s)']
-    ].map(item=>'<div class="weekly-card"><div class="weekly-card-title">'+esc(item[0])+'</div><div class="weekly-card-value">'+esc(item[1])+'</div><div class="weekly-card-meta">'+esc(item[2])+'</div></div>').join('');
-    const labels={match:'Match',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
-    const ordered=rows.slice().sort((a,b)=>(a.status==='match')-(b.status==='match')||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
-    body.innerHTML=ordered.map(row=>{
-      const ok=row.status==='match';
-      return '<tr><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
-        +'<td>'+num(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
-        +'<td>'+num(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
-        +'<td>'+num(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
-        +'<td><span class="audit-status '+(ok?'ok':'warn')+'">'+esc(labels[row.status]||row.status||'Review')+'</span></td></tr>';
-    }).join('')||'<tr><td colspan="7" class="empty">No comparable daily or weekly rows were found.</td></tr>';
+    weeklyAuditRows=rows;
+    document.getElementById('weekly-audit-kpis').innerHTML='<span><strong>'+(totals.daily_files||0)+'</strong> daily report'+((totals.daily_files||0)===1?'':'s')+'</span>'
+      +'<span><strong>'+(totals.matched||0)+'</strong> matched lines</span>'
+      +'<span><strong>'+(totals.accepted||0)+'</strong> accepted by rule</span>'
+      +'<span><strong>'+(totals.exceptions||0)+'</strong> exceptions</span>'
+      +'<span><strong>'+cur(totals.cost_variance||0)+'</strong> unexplained difference</span>';
+    updateWeeklyReadiness(rows,totals);
+    renderWeeklyAuditTable();
   }catch(error){
     body.innerHTML='<tr><td colspan="7" class="empty">Could not load the focused audit: '+esc(error.message)+'</td></tr>';
+    const hero=document.getElementById('weekly-hero');
+    hero.className='weekly-hero blocked';
+    document.getElementById('weekly-readiness-kicker').textContent='Audit unavailable';
+    document.getElementById('weekly-readiness-title').textContent='Daily evidence could not be checked';
+    document.getElementById('weekly-readiness-copy').textContent='The weekly cost detail is still available below. Refresh to retry the daily comparison.';
   }
 }
 function renderMccSiteServicesReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const weekly=isMccWeeklySource||rows.some(r=>String(r.source_file_type||'')==='mcc_weekly_xlsx');
+  weeklyAuditRows=[];
+  weeklyAuditShowAll=false;
+  document.getElementById('audit-exceptions-btn').classList.add('active');
+  document.getElementById('audit-all-btn').classList.remove('active');
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const totalCost=rows.reduce((s,r)=>s+num(r.line_cost),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
   const labourRows=rows.filter(r=>/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(r.code||'')));
@@ -908,6 +1088,8 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   const equipmentCost=equipmentRows.reduce((s,r)=>s+num(r.line_cost),0);
   const labourCost=labourRows.reduce((s,r)=>s+num(r.line_cost),0);
   const materialCost=relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  document.body.classList.toggle('weekly-mode',weekly);
+  document.getElementById('weekly-overview').style.display=weekly?'block':'none';
   const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="date" value="'+attr(isoReportDate(reportDate))+'" aria-label="Report date"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
   const reportTitle=weekly?'MCC Weekly Timesheet':'MCC Earthworks & Site Services';
   document.getElementById('title').textContent=reportTitle;
@@ -935,6 +1117,7 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('kpi-consumable-cost').textContent=cur(materialCost);
   document.getElementById('kpi-costm').textContent=siteIds.length;
   document.getElementById('kpi-activities').textContent=rows.length;
+  if(weekly)renderWeeklyOverview({rows,totalCost,labourCost,equipmentCost,materialCost,totalHours,unpriced:unpricedRows.length,workdays:weeklyDates(rows).length});
   document.getElementById('allocation-title').textContent=weekly?'Weekly Workstream & Site Allocation':'Work Group & Site Allocation';
   const allocationTable=document.getElementById('metres-drilled-body').closest('table');
   allocationTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Service Lines</th><th>Hours</th><th>Total</th></tr>';
@@ -957,8 +1140,8 @@ function renderMccSiteServicesReport(rows,consumables,crew){
     ||'No report notes or work descriptions recorded.';
   document.getElementById('activities-title').textContent=weekly?'Weekly Cost Line Items':'Site Services Line Items';
   const activityTable=document.getElementById('activity-body').closest('table');
-  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Equipment / Person</th><th>Hours</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Cost</th></tr>';
-  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+mccDecimalHours(r)+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
+  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Site ID</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Cost</th></tr>';
+  document.getElementById('activity-body').innerHTML=rows.map(r=>'<tr data-id="'+attr(r.id)+'"><td contenteditable="true" data-col="program">'+esc(r.program||'')+'</td><td contenteditable="true" data-col="site_name">'+esc(r.site_name||'')+'</td><td>'+esc(mccEquipment(r)||mccPerson(r)||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td class="work-note">'+esc(workDescription(r))+'</td><td>'+(r.unit_rate!=null?cur(r.unit_rate):'--')+'</td><td>'+esc(r.rate_basis||'')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
   document.getElementById('activity-body').querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
     cell.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cell.blur();}});
@@ -966,7 +1149,7 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('equipment-title').textContent='Equipment Detail';
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
-  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccDecimalHours(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc(r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(r.line_cost):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport);
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
@@ -981,6 +1164,9 @@ function renderMccSiteServicesReport(rows,consumables,crew){
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   if(rows.some(isMccWeeklyRow))return renderMccSiteServicesReport(rows,consumables,crew);
+  document.body.classList.remove('weekly-mode');
+  document.getElementById('weekly-overview').style.display='none';
+  weeklyOverviewContext=null;
   const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
   const equipmentRows=rows.filter(isEquipmentRow);
   const activityRows=rows.filter(r=>!isEquipmentRow(r));
