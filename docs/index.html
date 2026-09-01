@@ -2816,7 +2816,7 @@ tbody td[contenteditable=true]:focus {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
             <input class="report-search" id="mcc-personnel-search" type="search" placeholder="Find name, role or Person ID" oninput="filterMccPersonnel()" style="min-width:240px;"/>
             <label class="btn-csv" id="mcc-swipe-upload-label" style="cursor:pointer;">
-              Import swipe CSV
+              <span id="mcc-swipe-upload-text">Import swipe CSV</span>
               <input id="mcc-swipe-input" type="file" accept=".csv,text/csv" onchange="importMccSwipeHistory(this.files[0])" style="display:none;"/>
             </label>
           </div>
@@ -4981,10 +4981,24 @@ dropZone.addEventListener('drop',e=>{
   importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
 });
 
+async function isMccSiteLogCsv(file){
+  if(!file||!/\.csv$/i.test(file.name))return false;
+  try{
+    const header=(await file.slice(0,8192).text()).split(/\r?\n/,1)[0];
+    const required=['Time In','Time Out','Dur (h:m)','Site','Logpoint','First Name','Last Name','Person ID','Company'];
+    const headers=header.split(',').map(function(value){return value.replace(/^"|"$/g,'').trim();});
+    return required.every(function(name){return headers.includes(name);});
+  }catch(error){return false;}
+}
+
 importBtn.addEventListener('click',async()=>{
   if(!pendingFiles.length)return;
+  const classifiedFiles=await Promise.all(pendingFiles.map(async function(file){
+    return {file:file,isMccSiteLog:await isMccSiteLogCsv(file)};
+  }));
+  const hasOperationalReports=classifiedFiles.some(function(item){return !item.isMccSiteLog;});
   const importScope=selectedImportScope();
-  if(!importScope.client||!importScope.project){
+  if(hasOperationalReports&&(!importScope.client||!importScope.project)){
     toast('Select the client and project for these reports','err');
     return;
   }
@@ -4993,7 +5007,25 @@ importBtn.addEventListener('click',async()=>{
   const log=document.getElementById('import-log');log.innerHTML='';
   let total=0;
   const importedContractors=new Set();
-  for(const file of pendingFiles){
+  let importedSwipeHistory=false;
+  for(const item of classifiedFiles){
+    const file=item.file;
+    if(item.isMccSiteLog){
+      const fd=new FormData();
+      fd.append('file',file);
+      try{
+        const response=await fetch(API+'/mcc/swipe-history/import',{method:'POST',body:fd});
+        const data=await response.json().catch(function(){return {};});
+        if(!response.ok)throw new Error(data.detail||'Site Log swipe import failed');
+        const records=Number(data.swipe_records||data.rows||0);
+        log.innerHTML+=`<div class="ok">✓ ${esc(file.name)} (${records} MCC swipe records · ${Number(data.people||0)} people)</div>`;
+        total+=records;
+        importedSwipeHistory=true;
+      }catch(error){
+        log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(error.message||'Site Log swipe import failed')}</div>`;
+      }
+      continue;
+    }
     const uploadContractor=/\.csv$/i.test(file.name)?'Mitchells Drilling':activeContractor;
     const fd=new FormData();
     fd.append('file',file);
@@ -5002,15 +5034,23 @@ importBtn.addEventListener('click',async()=>{
     fd.append('project',importScope.project.name);
     fd.append('program',projectProgram(importScope.project));
     try{
-      const d=await fetch(`${API}/import`,{method:'POST',body:fd}).then(r=>r.json());
+      const response=await fetch(`${API}/import`,{method:'POST',body:fd});
+      const d=await response.json().catch(function(){return {};});
+      if(!response.ok)throw new Error(d.detail||'Report import failed');
       if(d.status==='imported'){const savedContractor=d.contractor||uploadContractor;const contractTag=d.cost_contract?' · '+esc(d.cost_contract.name):'';importedContractors.add(savedContractor);log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows · ${esc(savedContractor)} · ${esc(importScope.client.name)} / ${esc(importScope.project.name)}${contractTag})</div>`+renderImportCheck(d.import_check);total+=d.rows;}
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
-    }catch(e){log.innerHTML+=`<div class="err">✗ ${file.name}</div>`;}
+    }catch(e){log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(e.message||'Import failed')}</div>`;}
   }
   importBtn.textContent='Import to Database';importBtn.disabled=false;
   pendingFiles=[];fileInput.value='';
   await updateDbCount();
-  if(total>0){toast(`✓ Imported ${total} rows for ${Array.from(importedContractors).join(', ')||activeContractor}`);loadActivities();}
+  if(importedSwipeHistory)await loadMccPersonnel();
+  if(total>0){
+    toast(importedSwipeHistory&&classifiedFiles.every(function(item){return item.isMccSiteLog;})
+      ?`✓ Imported ${total} MCC swipe records`
+      :`✓ Imported ${total} rows for ${Array.from(importedContractors).join(', ')||activeContractor}`);
+    loadActivities();
+  }
 });
 
 function renderImportCheck(check){
@@ -5424,6 +5464,8 @@ async function loadMccPersonnel(){
 async function importMccSwipeHistory(file){
   const input=document.getElementById('mcc-swipe-input');
   const label=document.getElementById('mcc-swipe-upload-label');
+  const labelText=document.getElementById('mcc-swipe-upload-text');
+  const summary=document.getElementById('mcc-personnel-summary');
   if(!file)return;
   if(!/\.csv$/i.test(file.name)){
     toast('Choose a Site Log Report CSV','err');
@@ -5431,6 +5473,8 @@ async function importMccSwipeHistory(file){
     return;
   }
   if(label){label.style.opacity='.6';label.style.pointerEvents='none';}
+  if(labelText)labelText.textContent='Importing Site Log…';
+  if(summary)summary.textContent='Uploading and checking '+file.name+'…';
   try{
     const form=new FormData();
     form.append('file',file);
@@ -5440,10 +5484,13 @@ async function importMccSwipeHistory(file){
     toast('Imported '+Number(data.swipe_records||data.rows||0)+' MCC swipe records for '+Number(data.people||0)+' people');
     await loadMccPersonnel();
   }catch(error){
-    toast(error.message||'Swipe import failed','err');
+    const message=error.message||'Swipe import failed';
+    if(summary)summary.textContent='Site Log import failed: '+message;
+    toast(message,'err');
   }finally{
     if(input)input.value='';
     if(label){label.style.opacity='';label.style.pointerEvents='';}
+    if(labelText)labelText.textContent='Import swipe CSV';
   }
 }
 

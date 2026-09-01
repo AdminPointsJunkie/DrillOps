@@ -91,6 +91,20 @@ class MCCReportControlTests(unittest.TestCase):
         for field in ("row.rig", "row.driller", "row.metres", "row.cost"):
             self.assertIn(field, csv_export)
 
+    def test_main_importer_routes_site_log_csv_to_swipe_history(self):
+        self.assertIn("async function isMccSiteLogCsv(file)", INDEX_HTML)
+        self.assertIn("isMccSiteLog:await isMccSiteLogCsv(file)", INDEX_HTML)
+        self.assertIn("if(hasOperationalReports&&(!importScope.client||!importScope.project))", INDEX_HTML)
+        self.assertIn("API+'/mcc/swipe-history/import'", INDEX_HTML)
+        self.assertIn("MCC swipe records", INDEX_HTML)
+
+    def test_swipe_import_error_remains_visible_in_personnel_panel(self):
+        start = INDEX_HTML.index("async function importMccSwipeHistory(file)")
+        end = INDEX_HTML.index("function toggleMccCombinedAudit()", start)
+        importer = INDEX_HTML[start:end]
+        self.assertIn("Uploading and checking", importer)
+        self.assertIn("Site Log import failed:", importer)
+
 
 if __name__ == "__main__":
     unittest.main()
