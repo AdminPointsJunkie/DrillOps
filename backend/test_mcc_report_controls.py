@@ -108,6 +108,12 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("Uploading and checking", importer)
         self.assertIn("Site Log import failed:", importer)
 
+    def test_mcc_personnel_csv_download_is_available(self):
+        self.assertIn('onclick="downloadMccPersonnelCSV()"', INDEX_HTML)
+        self.assertIn("function downloadMccPersonnelCSV()", INDEX_HTML)
+        self.assertIn("mcc-personnel-reconciliation.csv", INDEX_HTML)
+        self.assertIn("numVal(person.submitted_hours)>0", INDEX_HTML)
+
 
 if __name__ == "__main__":
     unittest.main()

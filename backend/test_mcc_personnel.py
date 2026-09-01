@@ -62,7 +62,22 @@ class MCCPersonnelTests(unittest.TestCase):
         self.assertEqual(people["Alex Smith"]["status"], "variance")
         self.assertEqual(people["Alex Smith"]["variance_hours"], 2.0)
         self.assertEqual(people["No Swipe"]["status"], "no_swipe")
-        self.assertEqual(people["Swipe Only"]["status"], "no_timesheet")
+        self.assertNotIn("Swipe Only", people)
+
+    def test_half_hour_daily_variance_is_verified(self):
+        crew = [
+            {"name": "Within Tolerance", "date": "30/08/2026", "hours": "10", "role": "Operator"},
+            {"name": "Outside Tolerance", "date": "30/08/2026", "hours": "10", "role": "Operator"},
+        ]
+        swipes = [
+            {"person_name": "Within Tolerance", "event_date": "2026-08-30", "time_in": datetime(2026, 8, 30, 6), "duration_minutes": 570},
+            {"person_name": "Outside Tolerance", "event_date": "2026-08-30", "time_in": datetime(2026, 8, 30, 6), "duration_minutes": 569},
+        ]
+
+        people = {row["name"]: row for row in build_mcc_personnel_reconciliation(crew, swipes)["people"]}
+
+        self.assertEqual(people["Within Tolerance"]["status"], "verified")
+        self.assertEqual(people["Outside Tolerance"]["status"], "variance")
 
     def test_open_shift_requires_review_even_when_exported_duration_matches(self):
         crew = [{"name": "Alex Smith", "date": "30/08/2026", "hours": "8"}]

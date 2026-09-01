@@ -206,7 +206,7 @@ def _daily_status(has_submitted, swipe_minutes, open_shift, variance_hours, tole
     return "variance"
 
 
-def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=15):
+def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=30):
     """Combine submitted weekly crew hours with deduplicated daily swipe coverage."""
     submitted = defaultdict(lambda: {
         "hours": 0.0,
@@ -249,7 +249,10 @@ def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=
 
     days_by_person = defaultdict(list)
     tolerance_hours = max(0, tolerance_minutes) / 60
-    for person_key, report_date in sorted(set(submitted) | set(swipes)):
+    # This register verifies hours that were actually submitted. Swipe-only
+    # people and days are evidence without a timesheet claim, so do not show
+    # them in the personnel review register.
+    for person_key, report_date in sorted(submitted):
         submitted_item = submitted.get((person_key, report_date))
         swipe_items = swipes.get((person_key, report_date), [])
         submitted_hours = round(submitted_item["hours"], 2) if submitted_item else 0.0

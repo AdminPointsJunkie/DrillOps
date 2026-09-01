@@ -2812,6 +2812,7 @@ tbody td[contenteditable=true]:focus {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
             <input class="report-search" id="mcc-personnel-search" type="search" placeholder="Find name, role or Person ID" oninput="filterMccPersonnel()" style="min-width:240px;"/>
+            <button class="btn-csv" type="button" onclick="downloadMccPersonnelCSV()">Download CSV</button>
             <label class="btn-csv" id="mcc-swipe-upload-label" style="cursor:pointer;">
               <span id="mcc-swipe-upload-text">Import swipe CSV</span>
               <input id="mcc-swipe-input" type="file" accept=".csv,text/csv" onchange="importMccSwipeHistory(this.files[0])" style="display:none;"/>
@@ -5395,6 +5396,44 @@ function filterMccPersonnel(){
   renderMccPersonnel(mccPersonnelData);
 }
 
+function downloadMccPersonnelCSV(){
+  const people=((mccPersonnelData&&mccPersonnelData.people)||[]).filter(function(person){
+    return numVal(person.submitted_hours)>0;
+  });
+  const rows=[];
+  people.forEach(function(person){
+    (person.days||[]).filter(function(day){return numVal(day.submitted_hours)>0;}).forEach(function(day){
+      rows.push({
+        Person:person.name||'',
+        'Person ID':(person.person_ids||[]).join(' | '),
+        Role:day.role||person.role||'',
+        Date:day.date||'',
+        'Submitted hours':numVal(day.submitted_hours).toFixed(2),
+        'Swipe in':day.time_in||'',
+        'Swipe out':day.time_out||'',
+        'Swipe hours':numVal(day.swipe_hours).toFixed(2),
+        'Submitted - swipe':numVal(day.variance_hours).toFixed(2),
+        Status:mccPersonnelStatusMeta(day.status).label,
+        'Swipe evidence':(day.logpoints||[]).join(' | '),
+        'Swipe events':Number(day.swipe_events||0),
+        'Timesheet sources':(day.timesheet_sources||[]).join(' | '),
+        'Swipe sources':(day.swipe_sources||[]).join(' | ')
+      });
+    });
+  });
+  if(!rows.length){toast('No submitted MCC personnel hours to export','warn');return;}
+  const headers=Object.keys(rows[0]);
+  const csv='\uFEFF'+[headers.map(function(value){return '"'+value.replace(/"/g,'""')+'"';}).join(',')]
+    .concat(rows.map(function(row){return headers.map(function(header){return '"'+String(row[header]??'').replace(/"/g,'""')+'"';}).join(',');}))
+    .join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');
+  link.href=url;
+  link.download='mcc-personnel-reconciliation.csv';
+  link.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},0);
+}
+
 function openMccPersonnelDetail(personKey){
   selectedMccPersonKey=selectedMccPersonKey===personKey?'':personKey;
   renderMccPersonnel(mccPersonnelData);
@@ -5417,7 +5456,7 @@ function renderMccPersonnelDetail(people){
       const source=(day.swipe_sources||[]).join(', ');
       return '<tr><td>'+esc(day.date||'--')+'</td><td>'+esc(day.role||'--')+'</td><td>'+mccHours(day.submitted_hours)+'</td>'
         +'<td>'+esc(day.time_in||'--')+' – '+esc(day.time_out||'--')+'</td><td>'+mccHours(day.swipe_hours)+'</td>'
-        +'<td style="font-weight:700;color:'+(Math.abs(numVal(day.variance_hours))>0.25?'var(--red)':'var(--text)')+';">'+mccSignedHours(day.variance_hours)+'</td>'
+        +'<td style="font-weight:700;color:'+(Math.abs(numVal(day.variance_hours))>0.5?'var(--red)':'var(--text)')+';">'+mccSignedHours(day.variance_hours)+'</td>'
         +'<td><span class="notes-preview" title="'+attr(source)+'">'+esc(evidence)+' · '+Number(day.swipe_events||0)+' event'+(Number(day.swipe_events||0)===1?'':'s')+'</span></td>'
         +'<td><span class="status-pill '+meta.cls+'">'+esc(meta.label)+'</span></td></tr>';
     }).join('')+'</tbody></table></div>';
@@ -5452,7 +5491,7 @@ function renderMccPersonnel(data){
   const coverage=(data&&data.swipe_coverage)||{};
   const dateLabel=function(value){return value?String(value).split('-').reverse().join('/'):'--';};
   summary.textContent=coverage.records
-    ?coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records.'
+    ?coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records; daily differences within ±0.50 h are verified.'
     :'No MCC swipe history imported yet. Import a Site Log Report CSV to verify submitted hours.';
   const shownTotals={
     people:people.length,
@@ -5473,7 +5512,7 @@ function renderMccPersonnel(data){
     const ids=(person.person_ids||[]).join(', ');
     return '<tr data-person-key="'+attr(person.person_key)+'"><td><strong>'+esc(person.name)+'</strong>'+(ids?'<div style="font-size:10px;color:var(--muted);margin-top:2px;">ID '+esc(ids)+'</div>':'')+'</td>'
       +'<td>'+esc(person.role||'--')+'</td><td>'+mccHours(person.submitted_hours)+'</td><td>'+mccHours(person.swipe_hours)+'</td>'
-      +'<td style="font-weight:700;color:'+(Math.abs(numVal(person.variance_hours))>0.25?'var(--red)':'var(--text)')+';">'+mccSignedHours(person.variance_hours)+'</td>'
+      +'<td style="font-weight:700;color:'+(person.status==='verified'?'var(--text)':'var(--red)')+';">'+mccSignedHours(person.variance_hours)+'</td>'
       +'<td>'+Number(person.day_count||0)+' <span style="font-size:10px;color:var(--muted);">('+Number(person.review_days||0)+' review)</span></td>'
       +'<td><span class="status-pill '+meta.cls+'">'+esc(meta.label)+'</span></td>'
       +'<td><button class="btn-csv" type="button" onclick="openMccPersonnelDetail(\''+attr(person.person_key)+'\')">'+(selectedMccPersonKey===person.person_key?'Hide days':'View days')+'</button></td></tr>';
