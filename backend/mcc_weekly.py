@@ -2,6 +2,7 @@
 
 import re
 from collections import defaultdict
+from datetime import datetime
 from io import BytesIO
 
 from mcc_rates import MCC_SCHEDULE_DATE, mcc_schedule_match
@@ -23,6 +24,15 @@ MCC_WORKSTREAM_LABELS = {
     "ARG-004": "ARG-004 - SIS Drill Watercart Works",
     "ARG-005": "ARG-005 - Exploration Civils & Support Works",
 }
+
+MCC_DAILY_AUDIT_START_DATE = datetime(2026, 8, 10).date()
+
+
+def _mcc_daily_report_required(value):
+    try:
+        return datetime.strptime(str(value or ""), "%d/%m/%Y").date() >= MCC_DAILY_AUDIT_START_DATE
+    except ValueError:
+        return True
 
 
 def _excel_dt(value):
@@ -344,7 +354,9 @@ def build_mcc_daily_weekly_audit(rows):
     for (report_date, code), item in sorted(grouped.items()):
         quantity_variance = round(item["weekly_quantity"] - item["daily_quantity"], 2)
         tolerance = 0.01 if item["unit"] == "day" else 0.25
-        if code == "MCC_LIGHT_VEHICLE" and item["weekly_rows"]:
+        if item["weekly_rows"] and not _mcc_daily_report_required(report_date):
+            status = "not_required"
+        elif code == "MCC_LIGHT_VEHICLE" and item["weekly_rows"]:
             status = "accepted_rule" if abs(item["weekly_quantity"] - 1) <= tolerance else "variance"
         elif not item["weekly_rows"]:
             status = "missing_weekly"
@@ -372,18 +384,19 @@ def build_mcc_daily_weekly_audit(rows):
 
     totals = {
         "daily_estimate": round(sum(
-            item["weekly_cost"] if item["status"] == "accepted_rule" else item["daily_estimate"]
+            item["weekly_cost"] if item["status"] in {"accepted_rule", "not_required"} else item["daily_estimate"]
             for item in comparison
         ), 2),
         "weekly_cost": round(sum(item["weekly_cost"] for item in grouped.values()), 2),
         "cost_variance": round(sum(
             item["cost_variance"]
             for item in comparison
-            if item["status"] != "accepted_rule"
+            if item["status"] not in {"accepted_rule", "not_required"}
         ), 2),
         "matched": sum(item["status"] == "match" for item in comparison),
         "accepted": sum(item["status"] == "accepted_rule" for item in comparison),
-        "exceptions": sum(item["status"] not in {"match", "accepted_rule"} for item in comparison),
+        "not_required": sum(item["status"] == "not_required" for item in comparison),
+        "exceptions": sum(item["status"] not in {"match", "accepted_rule", "not_required"} for item in comparison),
         "daily_files": len(daily_files),
         "weekly_files": len(weekly_files),
     }

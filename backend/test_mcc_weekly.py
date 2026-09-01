@@ -203,7 +203,7 @@ class MCCWeeklyTests(unittest.TestCase):
     def test_audit_keeps_weekly_cost_as_authoritative(self):
         rows = [
             {
-                "date": "20/07/2026",
+                "date": "20/08/2026",
                 "code": "MCC_BODY_WATER_TRUCK",
                 "quantity": 8,
                 "line_cost": 640,
@@ -213,7 +213,7 @@ class MCCWeeklyTests(unittest.TestCase):
                 "rate_unit": "hour",
             },
             {
-                "date": "20/07/2026",
+                "date": "20/08/2026",
                 "code": "MCC_BODY_WATER_TRUCK",
                 "quantity": 7.5,
                 "line_cost": 600,
@@ -233,7 +233,7 @@ class MCCWeeklyTests(unittest.TestCase):
 
     def test_audit_accepts_light_vehicle_per_represented_day(self):
         rows = [{
-            "date": "20/07/2026",
+            "date": "20/08/2026",
             "code": "MCC_LIGHT_VEHICLE",
             "quantity": 1,
             "line_cost": 105,
@@ -242,7 +242,7 @@ class MCCWeeklyTests(unittest.TestCase):
             "rate_description": "Light Vehicle",
             "rate_unit": "day",
         }, {
-            "date": "20/07/2026",
+            "date": "20/08/2026",
             "code": "MCC_LIGHT_VEHICLE",
             "quantity": 1,
             "line_cost": 105,
@@ -259,6 +259,40 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(audit["totals"]["exceptions"], 0)
         self.assertEqual(audit["totals"]["daily_estimate"], 105.0)
         self.assertEqual(audit["totals"]["cost_variance"], 0.0)
+
+    def test_audit_does_not_require_daily_reports_before_10_august(self):
+        rows = [
+            {
+                "date": "09/08/2026",
+                "code": "MCC_SUPERVISOR",
+                "quantity": 5,
+                "line_cost": 600,
+                "source_file": "weekly-before.xlsx",
+                "source_file_type": "mcc_weekly_xlsx",
+                "rate_description": "Supervisor",
+                "rate_unit": "hour",
+            },
+            {
+                "date": "10/08/2026",
+                "code": "MCC_SUPERVISOR",
+                "quantity": 5,
+                "line_cost": 600,
+                "source_file": "weekly-after.xlsx",
+                "source_file_type": "mcc_weekly_xlsx",
+                "rate_description": "Supervisor",
+                "rate_unit": "hour",
+            },
+        ]
+
+        audit = build_mcc_daily_weekly_audit(rows)
+        by_date = {row["date"]: row for row in audit["comparison"]}
+
+        self.assertEqual(by_date["09/08/2026"]["status"], "not_required")
+        self.assertEqual(by_date["10/08/2026"]["status"], "missing_daily")
+        self.assertEqual(audit["totals"]["not_required"], 1)
+        self.assertEqual(audit["totals"]["exceptions"], 1)
+        self.assertEqual(audit["totals"]["daily_estimate"], 600.0)
+        self.assertEqual(audit["totals"]["cost_variance"], 600.0)
 
 
 if __name__ == "__main__":

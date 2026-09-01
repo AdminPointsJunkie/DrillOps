@@ -122,6 +122,7 @@ tr.saving td{background:#fff7e6;}
 .week-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:7px;}
 .week-day{min-height:76px;border:1px solid #dfe5ec;border-radius:8px;background:#f8fafc;padding:8px;text-align:center;}
 .week-day.verified{background:#eff9f3;border-color:#b9dfc7;}.week-day.review{background:#fff8e8;border-color:#f1cf94;}.week-day.missing{background:#fff3f3;border-color:#efc0c4;}
+.week-day.not-required{background:#f3f6f8;border-color:#d6dee6;}
 .week-day-name{font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
 .week-day-date{font-size:15px;font-weight:850;color:#26352d;margin-top:4px;}
 .week-day-status{font-size:9px;font-weight:800;margin-top:7px;color:#607083;line-height:1.25;}
@@ -180,7 +181,7 @@ tr.saving td{background:#fff7e6;}
             <div id="weekly-cost-mix"></div>
           </div>
           <div class="weekly-visual-card">
-            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Daily evidence</div><div class="weekly-visual-meta">Each represented workday; one Light Vehicle accepted per day</div></div><strong id="weekly-evidence-score">Checking…</strong></div>
+            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Daily evidence</div><div class="weekly-visual-meta">Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day</div></div><strong id="weekly-evidence-score">Checking…</strong></div>
             <div class="week-strip" id="weekly-day-strip"></div>
           </div>
         </div>
@@ -956,28 +957,36 @@ function renderWeeklyDayStrip(auditRows){
   const dates=weeklyDates((weeklyOverviewContext&&weeklyOverviewContext.rows)||reportRows);
   const byDate=new Map();
   (auditRows||[]).forEach(row=>{if(!byDate.has(row.date))byDate.set(row.date,[]);byDate.get(row.date).push(row);});
-  let evidenced=0;
+  let evidenced=0,required=0;
   document.getElementById('weekly-day-strip').innerHTML=dates.map(date=>{
     const dayRows=byDate.get(date)||[];
+    const notRequired=dayRows.length&&dayRows.every(row=>row.status==='not_required');
     const hasDaily=dayRows.some(row=>num(row.daily_rows)>0);
-    const exceptions=dayRows.filter(row=>!['match','accepted_rule'].includes(row.status)).length;
-    if(hasDaily)evidenced++;
-    const state=!auditRows?'pending':!hasDaily?'missing':exceptions?'review':'verified';
-    const label=!auditRows?'Checking…':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
+    const exceptions=dayRows.filter(row=>!['match','accepted_rule','not_required'].includes(row.status)).length;
+    if(auditRows&&!notRequired)required++;
+    if(hasDaily&&!notRequired)evidenced++;
+    const state=!auditRows?'pending':notRequired?'not-required':!hasDaily?'missing':exceptions?'review':'verified';
+    const label=!auditRows?'Checking…':notRequired?'Daily not required':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
     const parts=weeklyDateParts(date);
     return '<div class="week-day '+state+'"><div class="week-day-name">'+esc(parts.day)+'</div><div class="week-day-date">'+esc(parts.date)+'</div><div class="week-day-status">'+esc(label)+'</div></div>';
   }).join('')||'<div class="empty">No workdays recorded.</div>';
-  document.getElementById('weekly-evidence-score').textContent=auditRows?(evidenced+'/'+dates.length+' days'):(dates.length+' workday'+(dates.length===1?'':'s'));
-  return{evidenced,total:dates.length};
+  document.getElementById('weekly-evidence-score').textContent=auditRows?(required?evidenced+'/'+required+' required days':'Starts 10 Aug'):(dates.length+' workday'+(dates.length===1?'':'s'));
+  return{evidenced,total:required,represented:dates.length};
 }
 function updateWeeklyReadiness(auditRows,totals){
   if(!weeklyOverviewContext)return;
   const hero=document.getElementById('weekly-hero');
   const unpriced=weeklyOverviewContext.unpriced;
-  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule'].includes(row.status)).length;
+  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule','not_required'].includes(row.status)).length;
   const matched=(auditRows||[]).filter(row=>row.status==='match').length;
   const accepted=(auditRows||[]).filter(row=>row.status==='accepted_rule').length;
+  const notRequired=(auditRows||[]).filter(row=>row.status==='not_required').length;
   const evidence=renderWeeklyDayStrip(auditRows);
+  const coverage=[];
+  if(matched)coverage.push(matched+' matched line'+(matched===1?'':'s'));
+  if(accepted)coverage.push(accepted+' Light Vehicle line'+(accepted===1?'':'s')+' accepted by rule');
+  if(notRequired)coverage.push(notRequired+' pre-start line'+(notRequired===1?' requires':'s require')+' no daily report');
+  const coverageText=coverage.join(', ');
   hero.className='weekly-hero '+(unpriced?'blocked':exceptions?'review':'');
   document.getElementById('weekly-readiness-title').textContent=unpriced
     ?unpriced+' unpriced line'+(unpriced===1?'':'s')+' must be resolved'
@@ -987,8 +996,8 @@ function updateWeeklyReadiness(auditRows,totals){
   document.getElementById('weekly-readiness-copy').textContent=unpriced
     ?'The weekly cost is incomplete. Resolve the unpriced lines before approving or reconciling an invoice.'
     :exceptions
-      ?matched+' line'+(matched===1?'':'s')+' match and '+accepted+' accepted rule line'+(accepted===1?' is':'s are')+' covered. Daily evidence exists for '+evidence.evidenced+' of '+evidence.total+' represented workdays.'
-      :'All '+matched+' compared lines agree with daily evidence and '+accepted+' Light Vehicle line'+(accepted===1?' is':'s are')+' accepted by rule. The contract-priced weekly cost is ready for approval.';
+      ?(coverageText?coverageText+'. ':'')+'Daily evidence exists for '+evidence.evidenced+' of '+evidence.total+' required workdays.'
+      :'All required comparisons agree.'+(coverageText?' '+coverageText+'.':'');
   document.getElementById('weekly-readiness-kicker').textContent=unpriced?'Pricing incomplete':exceptions?'Review required':'Invoice ready';
 }
 function renderWeeklyOverview(context){
@@ -1027,8 +1036,8 @@ function setWeeklyAuditView(showAll){
 }
 function renderWeeklyAuditTable(){
   const body=document.getElementById('weekly-audit-body');
-  const labels={match:'Match',accepted_rule:'Accepted rule',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
-  const resolved=row=>['match','accepted_rule'].includes(row.status);
+  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const resolved=row=>['match','accepted_rule','not_required'].includes(row.status);
   const ordered=weeklyAuditRows.slice().sort((a,b)=>resolved(a)-resolved(b)||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
   const visible=weeklyAuditShowAll?ordered:ordered.filter(row=>!resolved(row));
   body.innerHTML=visible.map(row=>{
@@ -1057,6 +1066,7 @@ async function renderFocusedMccWeeklyAudit(){
     document.getElementById('weekly-audit-kpis').innerHTML='<span><strong>'+(totals.daily_files||0)+'</strong> daily report'+((totals.daily_files||0)===1?'':'s')+'</span>'
       +'<span><strong>'+(totals.matched||0)+'</strong> matched lines</span>'
       +'<span><strong>'+(totals.accepted||0)+'</strong> accepted by rule</span>'
+      +'<span><strong>'+(totals.not_required||0)+'</strong> before daily start</span>'
       +'<span><strong>'+(totals.exceptions||0)+'</strong> exceptions</span>'
       +'<span><strong>'+cur(totals.cost_variance||0)+'</strong> unexplained difference</span>';
     updateWeeklyReadiness(rows,totals);

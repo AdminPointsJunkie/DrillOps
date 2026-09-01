@@ -5011,16 +5011,17 @@ function renderMccWeeklyAudit(data){
     :'Import MCC daily Site Services PDFs and weekly timesheets to run the audit.';
   document.getElementById('mcc-weekly-audit-kpis').innerHTML=[
     ['Weekly cost',cur(totals.weekly_cost||0)],
-    ['Daily estimate',cur(totals.daily_estimate||0)],
+    ['Audit baseline',cur(totals.daily_estimate||0)],
     ['Unexplained',cur(totals.cost_variance||0)],
     ['Accepted',String(totals.accepted||0)],
+    ['Before daily start',String(totals.not_required||0)],
     ['Exceptions',String(totals.exceptions||0)]
   ].map(function(item){return '<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;">'+esc(item[0])+'</div><div style="font-weight:800;color:var(--text);">'+esc(item[1])+'</div></div>';}).join('');
-  const statusLabel={match:'Match',accepted_rule:'Accepted rule',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
-  const exceptions=rows.filter(function(row){return !['match','accepted_rule'].includes(row.status);});
+  const statusLabel={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const exceptions=rows.filter(function(row){return !['match','accepted_rule','not_required'].includes(row.status);});
   const displayRows=exceptions.length?exceptions:rows;
   document.getElementById('mcc-weekly-audit-body').innerHTML=displayRows.map(function(row){
-    const ok=['match','accepted_rule'].includes(row.status);
+    const ok=['match','accepted_rule','not_required'].includes(row.status);
     return '<tr><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
       +'<td>'+numVal(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+numVal(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
