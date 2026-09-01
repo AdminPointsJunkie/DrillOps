@@ -4941,7 +4941,8 @@ function openMccWeeklyReport(sourceFile){
     contractor:report.contractor||'MCC Group',
     program:activeProgram||'',
     source:report.sourceFile,
-    title:'MCC Weekly Timesheet'
+    title:'MCC Weekly Timesheet',
+    _:Date.now().toString()
   });
   window.open('report.html?'+params.toString(),'_blank','noopener');
 }
