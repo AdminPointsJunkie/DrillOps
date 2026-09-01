@@ -1275,10 +1275,13 @@ def init_db():
             """)
             for index_sql in [
                 "CREATE INDEX IF NOT EXISTS idx_activities_contractor_date ON activities (contractor, date)",
+                "CREATE INDEX IF NOT EXISTS idx_activities_contractor_source ON activities (contractor, source_file)",
+                "CREATE INDEX IF NOT EXISTS idx_activities_mcc_audit ON activities (contractor, date, code, source_file)",
                 "CREATE INDEX IF NOT EXISTS idx_consumables_contractor_date ON consumables (contractor, date)",
                 "CREATE INDEX IF NOT EXISTS idx_crew_contractor_date ON crew (contractor, date)",
                 "CREATE INDEX IF NOT EXISTS idx_report_approvals_contractor_date ON report_approvals (contractor, report_date)",
                 "CREATE INDEX IF NOT EXISTS idx_activity_locks_contractor_date ON activity_sheet_locks (contractor, report_date)",
+                "CREATE INDEX IF NOT EXISTS idx_source_files_contractor_type_filename ON source_files (contractor, file_type, filename)",
             ]:
                 cur.execute(index_sql)
         conn.commit()

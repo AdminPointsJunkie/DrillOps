@@ -4143,7 +4143,7 @@ let activeProjectName = '';
 let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null;
+let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null, mccWeeklyAuditLoaded=false, mccWeeklyAuditLoading=false, mccWeeklyAuditScope='';
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], mccWeeklyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
@@ -4593,6 +4593,7 @@ function triggerPageLoad(page){
   if(page==='cost-contracts') loadCostContracts();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
+  if(page==='costing')      loadCosting();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='purchase-orders') loadPOs();
   if(page==='invoices')     loadInvoices();
@@ -4993,6 +4994,44 @@ function toggleMccCombinedAudit(){
   const opening=content.style.display==='none';
   content.style.display=opening?'block':'none';
   button.textContent=opening?'Hide combined exceptions':'Show combined exceptions';
+  if(opening)loadMccWeeklyAudit();
+}
+
+function prepareMccWeeklyAuditState(){
+  const scope=activeContractor+'|'+(activeProgram||'');
+  if(scope===mccWeeklyAuditScope)return;
+  mccWeeklyAuditScope=scope;
+  mccWeeklyAuditData=null;
+  mccWeeklyAuditLoaded=false;
+  mccWeeklyAuditLoading=false;
+  renderMccWeeklyAudit(null);
+}
+
+async function loadMccWeeklyAudit(){
+  prepareMccWeeklyAuditState();
+  if(activeContractor!=='MCC Group'||mccWeeklyAuditLoaded||mccWeeklyAuditLoading)return;
+  const requestScope=mccWeeklyAuditScope;
+  mccWeeklyAuditLoading=true;
+  renderMccWeeklyAudit(null);
+  try{
+    const auditUrl=API+'/mcc/weekly-audit?program='+encodeURIComponent(activeProgram||'')+'&_='+Date.now();
+    const response=await fetch(auditUrl,{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const data=await response.json();
+    if(requestScope!==mccWeeklyAuditScope)return;
+    mccWeeklyAuditData=data;
+    mccWeeklyAuditLoaded=true;
+    mccWeeklyAuditLoading=false;
+    renderMccWeeklyAudit(data);
+  }catch(error){
+    if(requestScope!==mccWeeklyAuditScope)return;
+    mccWeeklyAuditLoading=false;
+    mccWeeklyAuditLoaded=false;
+    const summary=document.getElementById('mcc-weekly-audit-summary');
+    const body=document.getElementById('mcc-weekly-audit-body');
+    if(summary)summary.textContent='The combined audit could not be loaded. Close and reopen this panel to retry.';
+    if(body)body.innerHTML='<tr><td colspan="7" style="padding:18px;color:var(--red);">Combined audit unavailable.</td></tr>';
+  }
 }
 
 function renderMccWeeklyAudit(data){
@@ -5004,6 +5043,14 @@ function renderMccWeeklyAudit(data){
     return;
   }
   panel.style.display='block';
+  if(!mccWeeklyAuditLoaded){
+    document.getElementById('mcc-weekly-audit-summary').textContent=mccWeeklyAuditLoading
+      ?'Loading the combined daily-versus-weekly audit…'
+      :'Combined exceptions are calculated only when opened so Activity Reports load immediately.';
+    document.getElementById('mcc-weekly-audit-kpis').innerHTML='';
+    document.getElementById('mcc-weekly-audit-body').innerHTML='<tr><td colspan="7" style="padding:18px;color:var(--muted);">'+(mccWeeklyAuditLoading?'Loading audit…':'Open combined exceptions to run the audit.')+'</td></tr>';
+    return;
+  }
   const totals=(data&&data.totals)||{};
   const rows=(data&&data.comparison)||[];
   document.getElementById('mcc-weekly-audit-summary').textContent=rows.length
@@ -5044,26 +5091,21 @@ async function loadActivities(){
   if(codes)p.set('codes',codes);
   if(search)p.set('search',search);
   if(activityMissingCodesOnly)p.set('missing_codes','true');
+  prepareMccWeeklyAuditState();
   try{
-    const auditUrl=API+'/mcc/weekly-audit?program='+encodeURIComponent(activeProgram||'')+'&_='+Date.now();
-    const results=await Promise.all([
-      fetch(API+'/activity-report-data?'+p,{cache:'no-store'}),
-      activeContractor==='MCC Group'
-        ?fetch(auditUrl,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
-        :Promise.resolve(null)
-    ]);
-    if(!results[0].ok)throw new Error('HTTP '+results[0].status);
-    applyActivityReportBundle(await results[0].json());
-    renderMccWeeklyAudit(results[1]);
-    await ensureReportBoreholes();
+    const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    applyActivityReportBundle(await response.json());
     activitiesData=filterRowsForActiveProgram(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
     crewData=filterRowsForActiveProgram(crewData);
     renderConsumablesTable();
     renderCrewTable();
     renderActivities(activitiesData);
+    setTimeout(function(){
+      ensureReportBoreholes().then(renderPeriodReport).catch(function(){});
+    },0);
   }catch(e){
-    renderMccWeeklyAudit(null);
     renderDailyReportSummary([]);
     document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
@@ -12033,12 +12075,14 @@ async function initializePortal(){
   await loadProjectBudgets();
   syncWorkspaceControls();
   await updateDbCount();
-  await loadActivities();
-  await loadBoreholes();
-  filterBoreholesByProject();
   var savedPage=localStorage.getItem('drillops_active_page')||'';
   var savedPageButton=document.querySelector('.drawer-nav-item[data-page="'+savedPage+'"]');
-  if(savedPageButton&&savedPage!=='boreholes')drawerNav(savedPageButton);
+  if(savedPageButton&&savedPage!=='boreholes'){
+    drawerNav(savedPageButton);
+  }else{
+    await loadBoreholes();
+    filterBoreholesByProject();
+  }
   setTimeout(()=>loadAnalytics('all'),200);
 }
 
