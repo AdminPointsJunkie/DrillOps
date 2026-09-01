@@ -38,7 +38,7 @@ from mcc_rates import (
     mcc_schedule_match,
 )
 from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
-from mcc_weekly import build_mcc_daily_weekly_audit, parse_mcc_weekly_xlsx
+from mcc_weekly import MCC_WORKSTREAM_LABELS, build_mcc_daily_weekly_audit, parse_mcc_weekly_xlsx
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -1370,6 +1370,50 @@ def repair_mcc_weekly_activity_costs():
     return repaired
 
 
+def repair_mcc_weekly_workstream_labels():
+    """Canonicalise already-imported MCC weekly workstream values by ARG code."""
+    program_by_code = {
+        "ARG-002": "Gas Riser",
+        "ARG-003": "SIS",
+        "ARG-004": "SIS",
+        "ARG-005": "Exploration",
+    }
+    updated = 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for code, label in MCC_WORKSTREAM_LABELS.items():
+                code_pattern = code.replace("-", r"\s*-\s*")
+                notes_pattern = rf"Workstream:\s*{code_pattern}\s*-\s*[^|]*"
+                cur.execute(
+                    """
+                    UPDATE activities a
+                    SET program=%s,
+                        location=%s,
+                        contract=CASE WHEN COALESCE(a.contract, '') ILIKE %s THEN %s ELSE a.contract END,
+                        project=CASE WHEN COALESCE(a.project, '') ILIKE %s THEN %s ELSE a.project END,
+                        notes=regexp_replace(COALESCE(a.notes, ''), %s, %s, 'gi')
+                    WHERE a.contractor='MCC Group'
+                      AND EXISTS (
+                        SELECT 1 FROM source_files sf
+                        WHERE sf.filename=a.source_file
+                          AND sf.contractor=a.contractor
+                          AND sf.file_type='mcc_weekly_xlsx'
+                      )
+                      AND CONCAT_WS(' ', a.location, a.contract, a.project, a.notes) ILIKE %s
+                    """,
+                    (
+                        program_by_code[code], label,
+                        f"%{code}%", label,
+                        f"%{code}%", label,
+                        notes_pattern, f"Workstream: {label}",
+                        f"%{code}%",
+                    ),
+                )
+                updated += cur.rowcount
+        conn.commit()
+    return updated
+
+
 def seed_2025_rates():
     """Only seeds rates for Allianz Drilling. All other contractors start with
     empty rate schedules which must be configured manually."""
@@ -1464,6 +1508,7 @@ seed_2025_rates()
 seed_mcc_2026_rates()
 remove_legacy_mcc_earthworks_seed()
 repair_mcc_weekly_activity_costs()
+repair_mcc_weekly_workstream_labels()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 apply_depco_import_exceptions()

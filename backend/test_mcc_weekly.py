@@ -70,6 +70,28 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertTrue(all(row["time_to"] == "" for row in activities))
         self.assertEqual(len(crew), 1)
 
+    def test_canonicalises_workstream_whitespace_by_arg_code(self):
+        content = workbook_bytes([[
+            "Kristy Faram",
+            datetime(2026, 7, 20, 5, 30),
+            "Ironbark 1",
+            "Multi Skilled Operator",
+            "ARG-005 -   Exploration Civils &   Support Works",
+            2,
+            "Rehabilitate IB-26-018",
+            None,
+            None,
+            None,
+            None,
+        ]])
+
+        _, activities, _, _, _ = parse_mcc_weekly_xlsx(content, "weekly.xlsx")
+
+        self.assertEqual(activities[0]["program"], "Exploration")
+        self.assertEqual(activities[0]["location"], "ARG-005 - Exploration Civils & Support Works")
+        self.assertEqual(activities[0]["project"], "ARG-005 - Exploration Civils & Support Works")
+        self.assertIn("Workstream: ARG-005 - Exploration Civils & Support Works", activities[0]["notes"])
+
     def test_deduplicates_summary_and_workstream_sheets(self):
         row = [
             "Michael Chilby",

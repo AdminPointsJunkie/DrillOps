@@ -17,6 +17,13 @@ MCC_WEEKLY_REQUIRED_HEADERS = {
     "Job Description - Description of Work Performed",
 }
 
+MCC_WORKSTREAM_LABELS = {
+    "ARG-002": "ARG-002 - Gas Riser Civil Works",
+    "ARG-003": "ARG-003 - SIS Drill Civil Works",
+    "ARG-004": "ARG-004 - SIS Drill Watercart Works",
+    "ARG-005": "ARG-005 - Exploration Civils & Support Works",
+}
+
 
 def _excel_dt(value):
     if value is None:
@@ -43,6 +50,15 @@ def mcc_program_from_location(text):
     if "arg-005" in value or "exploration" in value:
         return "Exploration"
     return ""
+
+
+def mcc_workstream_label(text):
+    """Return one stable workstream label despite source whitespace variants."""
+    normalised = re.sub(r"\s+", " ", str(text or "")).strip()
+    match = re.search(r"\bARG\s*-\s*(00[2-5])\b", normalised, re.I)
+    if not match:
+        return normalised
+    return MCC_WORKSTREAM_LABELS.get(f"ARG-{match.group(1)}", normalised)
 
 
 def mcc_hole_from_text(text):
@@ -111,7 +127,7 @@ def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
             end = cell("Shift Time End")
             site = cell("Site Location")
             role = cell("Job Description - Role")
-            location = cell("Job Description - Location")
+            location = mcc_workstream_label(cell("Job Description - Location"))
             hours = cell("Job Description - Hours")
             description = cell("Job Description - Description of Work Performed")
             equipment = cell("Job Description - Equipment")
