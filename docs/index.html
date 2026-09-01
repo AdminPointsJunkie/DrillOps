@@ -2721,9 +2721,24 @@ tbody td[contenteditable=true]:focus {
       <div style="display:none;">
         <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
       </div>
+      <div class="table-wrap" id="mcc-weekly-audit-panel" style="display:none;">
+        <div class="table-toolbar" style="align-items:flex-start;">
+          <div>
+            <div class="table-count" style="font-weight:800;color:var(--text);">MCC Daily / Weekly Audit</div>
+            <div id="mcc-weekly-audit-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">The weekly timesheet is the invoice and cost source.</div>
+          </div>
+          <div id="mcc-weekly-audit-kpis" style="display:flex;gap:18px;flex-wrap:wrap;text-align:right;"></div>
+        </div>
+        <div class="tbl-scroll" style="max-height:320px;">
+          <table id="mcc-weekly-audit-table">
+            <thead><tr><th>Date</th><th>Rate item</th><th>Daily qty</th><th>Weekly qty</th><th>Variance</th><th>Weekly cost</th><th>Status</th></tr></thead>
+            <tbody id="mcc-weekly-audit-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="table-wrap report-register">
         <div class="table-toolbar">
-          <div class="table-count">Daily report summaries <span id="report-count">--</span></div>
+          <div class="table-count">Imported report summaries <span id="report-count">--</span></div>
           <button class="btn-csv" onclick="downloadDailyReportsCSV()">CSV</button>
         </div>
         <div class="tbl-scroll" style="max-height:360px;">
@@ -4111,7 +4126,7 @@ let activeProjectName = '';
 let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null;
+let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null;
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
@@ -4419,12 +4434,12 @@ function groupDailyReports(rows,reportConsumables){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',project:r.project||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',project:r.project||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',sourceType:r.source_file_type||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
     if(r.hole_num)g.holeSet.add(r.hole_num);
-    g.activityCost+=parseFloat(r.line_cost)||0;
+    if(r.is_cost_source!==false)g.activityCost+=parseFloat(r.line_cost)||0;
     g.metres+=parseFloat(r.total_metres)||0;
     const hrs=parseDurationHours(r.total_time);
     g.hours+=hrs;
@@ -4582,7 +4597,7 @@ function triggerPageLoad(page){
   if(t&&body)t.addEventListener('click',()=>{t.classList.toggle('open');body.classList.toggle('open');});
 });
 
-// ── EOS File Upload (daily reports only) ─────────────────────────────────────
+// ── Operational and invoice-source report upload ─────────────────────────────
 const dropZone=document.getElementById('drop-zone');
 const fileInput=document.getElementById('file-input');
 const importBtn=document.getElementById('import-btn');
@@ -4854,6 +4869,40 @@ function activityFilterParam(id,delimiter=','){
   return selected.join(delimiter);
 }
 
+function renderMccWeeklyAudit(data){
+  mccWeeklyAuditData=data||null;
+  const panel=document.getElementById('mcc-weekly-audit-panel');
+  if(!panel)return;
+  if(activeContractor!=='MCC Group'){
+    panel.style.display='none';
+    return;
+  }
+  panel.style.display='block';
+  const totals=(data&&data.totals)||{};
+  const rows=(data&&data.comparison)||[];
+  document.getElementById('mcc-weekly-audit-summary').textContent=rows.length
+    ?'Daily Site Services reports are audit evidence. Weekly timesheets are the authoritative invoice and costing source.'
+    :'Import MCC daily Site Services PDFs and weekly timesheets to run the audit.';
+  document.getElementById('mcc-weekly-audit-kpis').innerHTML=[
+    ['Weekly cost',cur(totals.weekly_cost||0)],
+    ['Daily estimate',cur(totals.daily_estimate||0)],
+    ['Difference',cur(totals.cost_variance||0)],
+    ['Exceptions',String(totals.exceptions||0)]
+  ].map(function(item){return '<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;">'+esc(item[0])+'</div><div style="font-weight:800;color:var(--text);">'+esc(item[1])+'</div></div>';}).join('');
+  const statusLabel={match:'Match',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const exceptions=rows.filter(function(row){return row.status!=='match';});
+  const displayRows=exceptions.length?exceptions:rows;
+  document.getElementById('mcc-weekly-audit-body').innerHTML=displayRows.map(function(row){
+    const ok=row.status==='match';
+    return '<tr><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
+      +'<td>'+numVal(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+numVal(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+numVal(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
+      +'<td><span class="status '+(ok?'status-ok':'status-warn')+'">'+esc(statusLabel[row.status]||row.status||'Review')+'</span></td></tr>';
+  }).join('')||'<tr><td colspan="7" style="padding:18px;color:var(--muted);">No comparable MCC rows yet.</td></tr>';
+  makeTableSortable('mcc-weekly-audit-table');
+}
+
 async function loadActivities(){
   var dates=activityFilterParam('f-dates');
   var holes=activityFilterParam('f-holes');
@@ -4868,9 +4917,16 @@ async function loadActivities(){
   if(search)p.set('search',search);
   if(activityMissingCodesOnly)p.set('missing_codes','true');
   try{
-    const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
-    if(!response.ok)throw new Error('HTTP '+response.status);
-    applyActivityReportBundle(await response.json());
+    const auditUrl=API+'/mcc/weekly-audit?program='+encodeURIComponent(activeProgram||'')+'&_='+Date.now();
+    const results=await Promise.all([
+      fetch(API+'/activity-report-data?'+p,{cache:'no-store'}),
+      activeContractor==='MCC Group'
+        ?fetch(auditUrl,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
+        :Promise.resolve(null)
+    ]);
+    if(!results[0].ok)throw new Error('HTTP '+results[0].status);
+    applyActivityReportBundle(await results[0].json());
+    renderMccWeeklyAudit(results[1]);
     await ensureReportBoreholes();
     activitiesData=filterRowsForActiveProgram(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
@@ -4879,6 +4935,7 @@ async function loadActivities(){
     renderCrewTable();
     renderActivities(activitiesData);
   }catch(e){
+    renderMccWeeklyAudit(null);
     renderDailyReportSummary([]);
     document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
@@ -4974,7 +5031,7 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
       <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
       <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
-      <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">PDF</button>':''}</td>
+      <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">'+(/\.xlsx$/i.test(r.source_file)?'XLSX':'PDF')+'</button>':''}</td>
     </tr>`).join('');
 
   function setCellValue(row,col,value){
@@ -7309,7 +7366,7 @@ async function loadCostingLines(){
   try{
     await ensureReportBoreholes();
     const all=await fetch(`${API}/activities?${p}`).then(r=>r.json());
-    costingLinesData=filterRowsForActiveProgram(all).filter(r=>r.line_cost!=null);
+    costingLinesData=filterRowsForActiveProgram(all).filter(r=>r.line_cost!=null&&r.is_cost_source!==false);
     document.getElementById('cost-line-count').textContent=costingLinesData.length;
     document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr data-id="${r.id}">
       <td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td>

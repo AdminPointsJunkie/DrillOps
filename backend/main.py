@@ -38,6 +38,7 @@ from mcc_rates import (
     mcc_schedule_match,
 )
 from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
+from mcc_weekly import build_mcc_daily_weekly_audit, parse_mcc_weekly_xlsx
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -3035,204 +3036,6 @@ def parse_coreplan_plod_csv(content, filename, contractor, legacy_timeline=False
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
-MCC_WEEKLY_HEADERS = {
-    "Created by",
-    "Shift Time Start",
-    "Shift Time End",
-    "Site Location",
-    "Job Description - Role",
-    "Job Description - Location",
-    "Job Description - Hours",
-    "Job Description - Description of Work Performed",
-}
-
-
-def _excel_dt(value):
-    if value is None:
-        return "", ""
-    if hasattr(value, "strftime"):
-        return value.strftime("%d/%m/%Y"), value.strftime("%H:%M")
-    return str(value), ""
-
-
-def _decimal_hours_to_time(hours):
-    try:
-        total = int(round(float(hours) * 60))
-    except Exception:
-        return ""
-    return f"{total // 60}:{total % 60:02d}"
-
-
-def mcc_program_from_location(text):
-    s = (text or "").lower()
-    if "arg-002" in s or "gas riser" in s:
-        return "Gas Riser"
-    if "arg-003" in s or "sis" in s:
-        return "SIS"
-    if "arg-005" in s or "exploration" in s:
-        return "Exploration"
-    return ""
-
-
-def mcc_hole_from_text(text):
-    s = text or ""
-    patterns = [
-        r"\bIB[-\s]?(\d{2})[-\s]?(\d{3})\b",
-        r"\bIB\s?(\d{2})[-\s]?(\d{2})\b",
-        r"\bGR[-\s]?(\d{1,2})\b",
-        r"\bSISMG\d{2}[-\s]?\d{2}[A-Z0-9]*\b",
-        r"\bMG\d{2}[-\s]?\d{2}[A-Z0-9]*\b",
-    ]
-    for pat in patterns:
-        m = re.search(pat, s, re.I)
-        if not m:
-            continue
-        raw = m.group(0).upper().replace(" ", "-")
-        if raw.startswith("IB") and len(m.groups()) >= 2:
-            second = m.group(2)
-            if len(second) == 2:
-                second = second.zfill(3)
-            return f"IB-{m.group(1)}-{second}"
-        return raw.replace("--", "-")
-    return ""
-
-
-def parse_mcc_weekly_xlsx(content, filename, contractor="MCC Group"):
-    try:
-        from openpyxl import load_workbook
-    except Exception as e:
-        raise ValueError(f"openpyxl is not available: {e}")
-
-    wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
-    acts, crew, seen, source_lines = [], [], set(), []
-    header = {"date": "", "hole_num": "", "site_name": "", "contractor": contractor}
-
-    for ws in wb.worksheets:
-        rows = list(ws.iter_rows(values_only=True))
-        if not rows:
-            continue
-        headers = [str(v or "").strip() for v in rows[0]]
-        if not MCC_WEEKLY_HEADERS.issubset(set(headers)):
-            continue
-        idx = {h: i for i, h in enumerate(headers)}
-        for raw in rows[1:]:
-            def cell(name):
-                i = idx.get(name, -1)
-                return raw[i] if i >= 0 and i < len(raw) else None
-
-            created_by = cell("Created by")
-            start = cell("Shift Time Start")
-            end = cell("Shift Time End")
-            site = cell("Site Location")
-            role = cell("Job Description - Role")
-            location = cell("Job Description - Location")
-            hours = cell("Job Description - Hours")
-            description = cell("Job Description - Description of Work Performed")
-            equipment = cell("Job Description - Equipment")
-            smu_start = cell("Job Description - SMU Start")
-            smu_finish = cell("Job Description - SMU Finish")
-            smu_total = cell("Job Description - SMU Total")
-            if not any([created_by, start, end, site, role, location, hours, description, equipment]):
-                continue
-
-            date, time_from = _excel_dt(start)
-            _, time_to = _excel_dt(end)
-            program = mcc_program_from_location(location)
-            hole = mcc_hole_from_text(" ".join([str(description or ""), str(location or "")]))
-            source_key = (date, time_from, time_to, str(created_by or ""), str(location or ""), str(description or ""), str(equipment or ""))
-            if source_key in seen:
-                continue
-            seen.add(source_key)
-
-            notes_parts = [
-                str(description or "").strip(),
-                f"Role: {role}" if role else "",
-                f"Program: {program}" if program else "",
-                f"Workstream: {location}" if location else "",
-                f"Equipment: {equipment}" if equipment else "",
-                f"SMU: {smu_start} to {smu_finish} ({smu_total})" if equipment and (smu_start is not None or smu_finish is not None or smu_total is not None) else "",
-                f"Created by: {created_by}" if created_by else "",
-            ]
-            try:
-                hours_value = float(hours) if hours not in (None, "") else None
-            except Exception:
-                hours_value = None
-            base_row = {
-                "source_file": filename,
-                "contractor": contractor,
-                "date": date,
-                "hole_num": hole,
-                "site_name": str(site or "").strip() or hole,
-                "program": program,
-                "project": str(location or "").strip() or program,
-                "location": str(location or "").strip(),
-                "drill_rig": str(equipment or "").strip(),
-                "client": "ARGO",
-                "contract": str(location or "").strip(),
-                "shift": "",
-                "time_from": time_from,
-                "time_to": time_to,
-                "total_time": _decimal_hours_to_time(hours),
-                "bit_type": "",
-                "diameter": "",
-                "metres_from": None,
-                "metres_to": None,
-                "total_metres": None,
-                "rate_year": date[-4:] if len(date) >= 4 else "",
-                "po_id": None,
-            }
-            priced_lines = []
-            labour_rate = mcc_schedule_match(role, "labour")
-            equipment_rate = mcc_schedule_match(equipment, "equipment")
-            if labour_rate:
-                priced_lines.append(("Labour", labour_rate))
-            if equipment_rate:
-                priced_lines.append(("Equipment", equipment_rate))
-            if not priced_lines:
-                row = {
-                    **base_row,
-                    "code": "H_Active",
-                    "notes": " | ".join(p for p in notes_parts if p),
-                    "unit_rate": None,
-                    "quantity": hours_value,
-                    "line_cost": None,
-                    "rate_basis": "MCC weekly EOS import - unpriced",
-                }
-                acts.append(row)
-            else:
-                for charge_type, rate in priced_lines:
-                    quantity = 1 if rate["unit"] == "day" else hours_value
-                    line_cost = round(float(quantity or 0) * float(rate["rate"]), 2) if quantity is not None else None
-                    row = {
-                        **base_row,
-                        "code": rate["code"],
-                        "notes": " | ".join(p for p in notes_parts + [f"Charge type: {charge_type}", f"Schedule item: {rate['description']}"] if p),
-                        "unit_rate": rate["rate"],
-                        "quantity": quantity,
-                        "line_cost": line_cost,
-                        "rate_basis": f"MCC schedule {MCC_SCHEDULE_DATE} - {rate['description']} ({rate['unit']}); excludes accommodation and diesel",
-                    }
-                    acts.append(row)
-            if created_by:
-                crew.append({
-                    "source_file": filename,
-                    "contractor": contractor,
-                    "date": date,
-                    "hole_num": hole,
-                    "site_name": base_row["site_name"],
-                    "role": str(role or ""),
-                    "name": str(created_by or ""),
-                    "hours": str(hours or ""),
-                })
-            if not header["date"] and date:
-                header.update({"date": date, "site_name": base_row["site_name"], "hole_num": hole, "contractor": contractor})
-            source_lines.append(f"{date} {created_by or ''} {location or ''} {description or ''}")
-
-    if not acts:
-        raise ValueError("No MCC weekly EOS rows found in workbook")
-    return header, acts, [], crew, "\n".join(source_lines[:500])
-
-
 @app.get("/")
 def root():
     return {"status": "ok", "app": "DrillOps API v3", "contractors": [c[0] for c in CONTRACTORS]}
@@ -3945,6 +3748,45 @@ def apply_import_activity_scope(
     return rows
 
 
+def mcc_weekly_cost_filter(contractor: str, activity_alias: str = "activities") -> str:
+    """Restrict MCC financial calculations to the invoicing timesheet source."""
+    if contractor != "MCC Group":
+        return ""
+    return f"""
+        EXISTS (
+          SELECT 1
+          FROM source_files mcc_source
+          WHERE mcc_source.filename={activity_alias}.source_file
+            AND mcc_source.contractor={activity_alias}.contractor
+            AND mcc_source.file_type='mcc_weekly_xlsx'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM activities mcc_duplicate
+              JOIN source_files mcc_duplicate_source
+                ON mcc_duplicate_source.filename=mcc_duplicate.source_file
+               AND mcc_duplicate_source.contractor=mcc_duplicate.contractor
+              WHERE mcc_duplicate.contractor={activity_alias}.contractor
+                AND mcc_duplicate_source.file_type='mcc_weekly_xlsx'
+                AND mcc_duplicate.source_file<>{activity_alias}.source_file
+                AND mcc_duplicate.date IS NOT DISTINCT FROM {activity_alias}.date
+                AND mcc_duplicate.code IS NOT DISTINCT FROM {activity_alias}.code
+                AND mcc_duplicate.notes IS NOT DISTINCT FROM {activity_alias}.notes
+                AND mcc_duplicate.quantity IS NOT DISTINCT FROM {activity_alias}.quantity
+                AND mcc_duplicate.unit_rate IS NOT DISTINCT FROM {activity_alias}.unit_rate
+                AND mcc_duplicate.program IS NOT DISTINCT FROM {activity_alias}.program
+                AND mcc_duplicate.project IS NOT DISTINCT FROM {activity_alias}.project
+                AND (
+                  COALESCE(substring(mcc_duplicate_source.filename from '^[0-9]{{8}}'), ''),
+                  mcc_duplicate_source.id
+                ) > (
+                  COALESCE(substring(mcc_source.filename from '^[0-9]{{8}}'), ''),
+                  mcc_source.id
+                )
+            )
+        )
+    """.strip()
+
+
 def import_marker_blocks_reimport(cur, filename: str, contractor: str) -> bool:
     """Return true only when an import marker still has real report line data.
 
@@ -3999,7 +3841,12 @@ async def import_pdf(
         try:
             contractor = "MCC Group"
             header, acts, cons, crew, source_text = parse_mcc_weekly_xlsx(content, filename, contractor)
+            extracted_programs = [row.get("program") for row in acts]
             acts = apply_import_activity_scope(acts, contractor, program, project, client)
+            for row, extracted_program in zip(acts, extracted_programs):
+                if extracted_program:
+                    row["program"] = extracted_program
+            weekly_unpriced = sum(row.get("line_cost") is None for row in acts)
         except Exception as e:
             raise HTTPException(400, f"Could not read MCC weekly XLSX: {e}")
 
@@ -4034,12 +3881,18 @@ async def import_pdf(
                 """, (filename, contractor, psycopg2.Binary(content)))
             conn.commit()
 
+        weekly_warnings = []
+        if weekly_unpriced:
+            weekly_warnings.append({
+                "severity": "warning",
+                "issue": f"{weekly_unpriced} weekly line(s) did not match an MCC schedule item or billable quantity; the invoice-source cost is incomplete until reviewed.",
+            })
         return {"status":"imported","filename":filename,"rows":len(acts),
                 "contractor":contractor,
                 "client":client,"project":project,
                 "total_cost":round(sum(float(a.get("line_cost") or 0) for a in acts), 2),
                 "consumables":0,"crew":len(crew),
-                "import_check":{"status":"ok","summary":"MCC Group weekly end-of-shift XLSX imported. Labour and equipment rows are priced from the MCC schedule where matched, and separated by ARG workstream/program.","warnings":[]}}
+                "import_check":{"status":"needs_review" if weekly_warnings else "ok","summary":"MCC Group weekly timesheet imported as the authoritative invoice and costing source. Labour and equipment rows are priced from the MCC schedule where matched; daily Site Services reports remain available for audit comparison.","warnings":weekly_warnings}}
 
     if filename.lower().endswith(".csv"):
         try:
@@ -5295,26 +5148,38 @@ def get_activities(
     search: Optional[str] = Query(None),
     missing_codes: bool = Query(False),
 ):
-    conds = ["contractor=%(contractor)s"]
+    conds = ["a.contractor=%(contractor)s"]
     params = {"contractor": contractor}
     if dates and dates.strip():
         dl = [d.strip() for d in dates.split(",") if d.strip()]
-        if dl: conds.append("date=ANY(%(dates)s)"); params["dates"] = dl
+        if dl: conds.append("a.date=ANY(%(dates)s)"); params["dates"] = dl
     if holes and holes.strip():
         hl = [h.strip() for h in holes.split(",") if h.strip()]
-        if hl: conds.append("hole_num=ANY(%(holes)s)"); params["holes"] = hl
+        if hl: conds.append("a.hole_num=ANY(%(holes)s)"); params["holes"] = hl
     if sites and sites.strip():
         sl = [s.strip() for s in sites.split(",") if s.strip()]
-        if sl: conds.append("site_name=ANY(%(sites)s)"); params["sites"] = sl
+        if sl: conds.append("a.site_name=ANY(%(sites)s)"); params["sites"] = sl
     if codes and codes.strip():
         cl = [c.strip() for c in codes.split(",") if c.strip()]
-        if cl: conds.append("code=ANY(%(codes)s)"); params["codes"] = cl
+        if cl: conds.append("a.code=ANY(%(codes)s)"); params["codes"] = cl
     if missing_codes:
-        conds.append("(code IS NULL OR TRIM(code)='')")
+        conds.append("(a.code IS NULL OR TRIM(a.code)='')")
     if search:
-        conds.append("(notes ILIKE %(search)s OR code ILIKE %(search)s)")
+        conds.append("(a.notes ILIKE %(search)s OR a.code ILIKE %(search)s)")
         params["search"] = f"%{search}%"
-    q = f"SELECT * FROM activities WHERE {' AND '.join(conds)} ORDER BY date,time_from"
+    cost_source_expression = mcc_weekly_cost_filter(contractor, "a") or "TRUE"
+    q = f"""
+        SELECT a.*, COALESCE(sf.file_type, '') AS source_file_type,
+               CASE
+                 WHEN a.contractor='MCC Group' THEN ({cost_source_expression})
+                 ELSE TRUE
+               END AS is_cost_source
+        FROM activities a
+        LEFT JOIN source_files sf
+          ON sf.filename=a.source_file AND sf.contractor=a.contractor
+        WHERE {' AND '.join(conds)}
+        ORDER BY a.date, a.time_from
+    """
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(q, params)
@@ -5366,11 +5231,23 @@ def get_activity_report_data(
         params["search"] = f"%{search}%"
         activity_conds.append("(a.notes ILIKE %(search)s OR a.code ILIKE %(search)s)")
 
+    cost_source_expression = mcc_weekly_cost_filter(contractor, "a") or "TRUE"
     query = f"""
         SELECT
           COALESCE((
-            SELECT jsonb_agg(to_jsonb(a) ORDER BY a.date, a.time_from, a.id)
+            SELECT jsonb_agg(
+              to_jsonb(a) || jsonb_build_object(
+                'source_file_type', COALESCE(sf.file_type, ''),
+                'is_cost_source', CASE
+                  WHEN a.contractor='MCC Group' THEN ({cost_source_expression})
+                  ELSE TRUE
+                END
+              )
+              ORDER BY a.date, a.time_from, a.id
+            )
             FROM activities a
+            LEFT JOIN source_files sf
+              ON sf.filename=a.source_file AND sf.contractor=a.contractor
             WHERE {' AND '.join(activity_conds)}
           ), '[]'::jsonb) AS activities,
           COALESCE((
@@ -5407,6 +5284,45 @@ def get_activity_report_data(
         activity_sheet_lock_response(row) for row in bundle.get("activity_sheet_locks", [])
     ]
     return bundle
+
+
+@app.get("/mcc/weekly-audit")
+def get_mcc_weekly_audit(program: str = Query(default="")):
+    """Audit MCC operational daily reports against invoice-source weekly sheets."""
+    params = {"contractor": "MCC Group", "program": (program or "").strip()}
+    authoritative_weekly = mcc_weekly_cost_filter("MCC Group", "a")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT a.*, sf.file_type AS source_file_type
+                FROM activities a
+                JOIN source_files sf
+                  ON sf.filename=a.source_file AND sf.contractor=a.contractor
+                WHERE a.contractor=%(contractor)s
+                  AND sf.file_type IN ('mcc_site_services_pdf', 'mcc_weekly_xlsx')
+                  AND (sf.file_type='mcc_site_services_pdf' OR ({authoritative_weekly}))
+                  AND (
+                    %(program)s=''
+                    OR a.program=%(program)s
+                    OR a.program ILIKE '%%' || %(program)s || '%%'
+                  )
+                ORDER BY a.date, a.code, a.id
+                """,
+                params,
+            )
+            rows = [dict(row) for row in cur.fetchall()]
+
+    rate_details = {
+        code: {"rate_description": description, "rate_unit": unit}
+        for code, description, _rate, unit, _group, _aliases in MCC_RATE_TABLE
+    }
+    for row in rows:
+        row.update(rate_details.get(row.get("code"), {}))
+    result = build_mcc_daily_weekly_audit(rows)
+    result["cost_source"] = "mcc_weekly_xlsx"
+    result["cost_source_label"] = "MCC weekly timesheet"
+    return result
 
 
 @app.post("/activity-reports/delete")
@@ -6014,6 +5930,9 @@ def get_costing(contractor: str = Query(...), holes: Optional[str]=Query(None), 
     try:
         conds = ["contractor=%(contractor)s","line_cost IS NOT NULL"]
         p = {"contractor": contractor}
+        authoritative_source = mcc_weekly_cost_filter(contractor)
+        if authoritative_source:
+            conds.append(authoritative_source)
         if holes: conds.append("hole_num=ANY(%(holes)s)"); p["holes"]=holes.split(",")
         if dates: conds.append("date=ANY(%(dates)s)");     p["dates"]=dates.split(",")
         where = " AND ".join(conds)
@@ -7154,6 +7073,7 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
         return
     cur.execute("SELECT project FROM invoices WHERE id=%s", (invoice_id,))
     invoice_project = ((cur.fetchone() or {}).get("project") or "").strip()
+    authoritative_source = mcc_weekly_cost_filter(contractor)
 
     def add_invoice_project_filter(where, params):
         if not invoice_project:
@@ -7181,6 +7101,8 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
             line_date, site_name, hole_num, match_key = key
             params = [contractor]
             where = ["contractor=%s", "line_cost IS NOT NULL"]
+            if authoritative_source:
+                where.append(authoritative_source)
             add_invoice_project_filter(where, params)
             if line_date:
                 iso = line_date
@@ -7238,7 +7160,8 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
                 """, (matched_eos, variance, match_status, line["id"]))
         return
 
-    cur.execute("""
+    aggregate_source_clause = f"AND {authoritative_source}" if authoritative_source else ""
+    cur.execute(f"""
         SELECT
             CASE
                 WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN 'drilling_metres'
@@ -7256,6 +7179,7 @@ def match_invoice_to_eos(cur, invoice_id: int, contractor: str, po_reference: st
         FROM activities
         WHERE contractor=%s AND line_cost IS NOT NULL
           AND (%s='' OR program=%s OR project=%s)
+          {aggregate_source_clause}
         GROUP BY 1
     """, (contractor, invoice_project, invoice_project, invoice_project))
     eos_by_cat = {r["category"]: float(r["eos_total"] or 0) for r in cur.fetchall()}
@@ -7801,6 +7725,8 @@ def get_reconciliation(contractor: str = Query(...)):
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
+            authoritative_source = mcc_weekly_cost_filter(contractor)
+            source_clause = f"AND {authoritative_source}" if authoritative_source else ""
 
             # Invoice totals by category
             cur.execute("""
@@ -7816,7 +7742,7 @@ def get_reconciliation(contractor: str = Query(...)):
             inv_cats = {r["category"]: dict(r) for r in cur.fetchall()}
 
             # EOS costs by category
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
                     CASE
                         WHEN code IN ('Drill_Core','Drill_Chip_or_Open_hole') THEN 'drilling_metres'
@@ -7824,6 +7750,8 @@ def get_reconciliation(contractor: str = Query(...)):
                         WHEN code LIKE '%%Travel%%' THEN 'travel'
                         WHEN code LIKE '%%Safety%%' OR code LIKE '%%Training%%'
                           OR code LIKE '%%Prestart%%' THEN 'safety'
+                        WHEN code LIKE 'MCC_%%' AND notes ILIKE '%%Charge type: Labour%%' THEN 'labour'
+                        WHEN code LIKE 'MCC_%%' AND notes ILIKE '%%Charge type: Equipment%%' THEN 'equipment'
                         WHEN code LIKE 'D_Backhoe%%' OR code LIKE 'D_Water%%' THEN 'equipment'
                         WHEN code LIKE '%%Setup%%' OR code LIKE '%%Surface%%' THEN 'setup'
                         ELSE 'active'
@@ -7832,6 +7760,7 @@ def get_reconciliation(contractor: str = Query(...)):
                     COUNT(*) AS activity_count
                 FROM activities
                 WHERE contractor=%s AND line_cost IS NOT NULL
+                  {source_clause}
                 GROUP BY 1
             """, (contractor,))
             eos_cats = {r["category"]: dict(r) for r in cur.fetchall()}
@@ -7848,7 +7777,10 @@ def get_reconciliation(contractor: str = Query(...)):
             cur.execute("SELECT SUM(total_aud) AS t, SUM(amount_paid) AS p, SUM(amount_due) AS d FROM invoices WHERE contractor=%s", (contractor,))
             inv_totals = dict(cur.fetchone())
 
-            cur.execute("SELECT SUM(line_cost) AS t FROM activities WHERE contractor=%s AND line_cost IS NOT NULL", (contractor,))
+            cur.execute(
+                f"SELECT SUM(line_cost) AS t FROM activities WHERE contractor=%s AND line_cost IS NOT NULL {source_clause}",
+                (contractor,),
+            )
             eos_grand = float(cur.fetchone()["t"] or 0)
 
             # Line-level discrepancies
@@ -7919,6 +7851,8 @@ async def ai_audit_reconciliation(request: Request):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            authoritative_source = mcc_weekly_cost_filter(contractor)
+            source_clause = f"AND {authoritative_source}" if authoritative_source else ""
             # Get invoices
             if month:
                 cur.execute("""SELECT invoice_number, invoice_date, billing_month, total_aud,
@@ -7941,9 +7875,10 @@ async def ai_audit_reconciliation(request: Request):
                 inv_lines.extend([dict(r) for r in cur.fetchall()])
 
             # EOS summary
-            cur.execute("""SELECT date, hole_num, site_name, code, notes, total_time,
+            cur.execute(f"""SELECT date, hole_num, site_name, code, notes, total_time,
                        total_metres, bit_type, unit_rate, quantity, line_cost, rate_basis
                 FROM activities WHERE contractor=%s AND line_cost IS NOT NULL
+                {source_clause}
                 ORDER BY date""", (contractor,))
             activities = [dict(r) for r in cur.fetchall()]
 
@@ -10500,7 +10435,7 @@ async def preview_ocr_pdf(
 
 @app.get("/source_files/{filename}")
 def get_source_file(filename: str, contractor: Optional[str] = Query(None)):
-    """Return a stored source PDF for viewing."""
+    """Return a stored report source for viewing or download."""
     from fastapi.responses import Response
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -10511,10 +10446,14 @@ def get_source_file(filename: str, contractor: Optional[str] = Query(None)):
             row = cur.fetchone()
             if not row or not row["pdf_data"]:
                 raise HTTPException(404, "Source file not found")
+            is_xlsx = str(filename or "").lower().endswith(".xlsx")
             return Response(
                 content=bytes(row["pdf_data"]),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="{filename}"'}
+                media_type=(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    if is_xlsx else "application/pdf"
+                ),
+                headers={"Content-Disposition": f'{"attachment" if is_xlsx else "inline"}; filename="{filename}"'}
             )
 
 @app.delete("/reset")
