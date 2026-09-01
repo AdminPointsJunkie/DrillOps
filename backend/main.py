@@ -49,6 +49,12 @@ from mcc_invoice import (
     parse_mcc_invoice_pdf,
     reconcile_mcc_invoice_lines,
 )
+from mcc_personnel import (
+    MCC_COMPANY,
+    build_mcc_personnel_reconciliation,
+    looks_like_site_log_csv,
+    parse_site_log_csv,
+)
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
 
 app = FastAPI(title="DrillOps API", version="3.0")
@@ -230,6 +236,7 @@ CONTRACTOR_REFERENCE_TABLES = [
     "invoices",
     "invoice_lines",
     "invoice_imports",
+    "mcc_swipe_history",
 ]
 
 
@@ -784,6 +791,31 @@ def init_db():
                 conn.rollback()
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS mcc_swipe_history (
+                    id               SERIAL PRIMARY KEY,
+                    source_file      TEXT NOT NULL,
+                    contractor       TEXT NOT NULL DEFAULT 'MCC Group',
+                    source_company   TEXT NOT NULL DEFAULT 'MCC Group',
+                    person_id        TEXT,
+                    person_key       TEXT NOT NULL,
+                    first_name       TEXT,
+                    last_name        TEXT,
+                    person_name      TEXT NOT NULL,
+                    event_date       DATE NOT NULL,
+                    time_in          TIMESTAMP NOT NULL,
+                    time_out         TIMESTAMP,
+                    time_out_label   TEXT,
+                    duration_minutes INTEGER NOT NULL DEFAULT 0,
+                    timezone         TEXT,
+                    site             TEXT,
+                    logpoint         TEXT NOT NULL DEFAULT '',
+                    activity         TEXT,
+                    open_shift       BOOLEAN NOT NULL DEFAULT FALSE,
+                    imported_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS imported_files (
                     filename   TEXT,
                     contractor TEXT DEFAULT 'Allianz Drilling',
@@ -1304,6 +1336,8 @@ def init_db():
                 "CREATE INDEX IF NOT EXISTS idx_report_approvals_contractor_date ON report_approvals (contractor, report_date)",
                 "CREATE INDEX IF NOT EXISTS idx_activity_locks_contractor_date ON activity_sheet_locks (contractor, report_date)",
                 "CREATE INDEX IF NOT EXISTS idx_source_files_contractor_type_filename ON source_files (contractor, file_type, filename)",
+                "CREATE INDEX IF NOT EXISTS idx_mcc_swipe_person_date ON mcc_swipe_history (contractor, person_key, event_date)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_mcc_swipe_event ON mcc_swipe_history (contractor, person_key, time_in, logpoint)",
             ]:
                 cur.execute(index_sql)
         conn.commit()
@@ -4032,6 +4066,113 @@ def import_marker_blocks_reimport(cur, filename: str, contractor: str) -> bool:
     return False
 
 
+def store_mcc_swipe_history(content: bytes, filename: str) -> dict:
+    """Upsert MCC Site Log events so later exports can close open shifts."""
+    rows = parse_site_log_csv(content, filename, MCC_COMPANY)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(
+                cur,
+                """
+                INSERT INTO mcc_swipe_history
+                  (source_file, contractor, source_company, person_id, person_key,
+                   first_name, last_name, person_name, event_date, time_in, time_out,
+                   time_out_label, duration_minutes, timezone, site, logpoint,
+                   activity, open_shift)
+                VALUES
+                  (%(source_file)s, %(contractor)s, %(source_company)s, %(person_id)s,
+                   %(person_key)s, %(first_name)s, %(last_name)s, %(person_name)s,
+                   %(event_date)s, %(time_in)s, %(time_out)s, %(time_out_label)s,
+                   %(duration_minutes)s, %(timezone)s, %(site)s, %(logpoint)s,
+                   %(activity)s, %(open_shift)s)
+                ON CONFLICT (contractor, person_key, time_in, logpoint) DO UPDATE SET
+                  source_file=EXCLUDED.source_file,
+                  source_company=EXCLUDED.source_company,
+                  person_id=EXCLUDED.person_id,
+                  first_name=EXCLUDED.first_name,
+                  last_name=EXCLUDED.last_name,
+                  person_name=EXCLUDED.person_name,
+                  event_date=EXCLUDED.event_date,
+                  time_out=EXCLUDED.time_out,
+                  time_out_label=EXCLUDED.time_out_label,
+                  duration_minutes=EXCLUDED.duration_minutes,
+                  timezone=EXCLUDED.timezone,
+                  site=EXCLUDED.site,
+                  activity=EXCLUDED.activity,
+                  open_shift=EXCLUDED.open_shift,
+                  imported_at=NOW()
+                """,
+                rows,
+            )
+            cur.execute(
+                """
+                INSERT INTO imported_files (filename, contractor)
+                VALUES (%s, %s) ON CONFLICT DO NOTHING
+                """,
+                (filename, MCC_COMPANY),
+            )
+            cur.execute(
+                """
+                INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                VALUES (%s, %s, 'mcc_site_log_csv', %s)
+                ON CONFLICT (filename, contractor) DO UPDATE SET
+                  file_type=EXCLUDED.file_type,
+                  pdf_data=EXCLUDED.pdf_data
+                """,
+                (filename, MCC_COMPANY, psycopg2.Binary(content)),
+            )
+            record_import_batch(
+                cur,
+                filename=filename,
+                import_kind="mcc_site_log_csv",
+                contractor=MCC_COMPANY,
+                row_counts={
+                    "swipe_history": len(rows),
+                    "people": len({row["person_key"] for row in rows}),
+                },
+            )
+        conn.commit()
+
+    open_shifts = sum(bool(row["open_shift"]) and row["duration_minutes"] > 0 for row in rows)
+    people = len({row["person_key"] for row in rows})
+    return {
+        "status": "imported",
+        "filename": filename,
+        "contractor": MCC_COMPANY,
+        "rows": len(rows),
+        "swipe_records": len(rows),
+        "people": people,
+        "import_check": {
+            "status": "needs_review" if open_shifts else "ok",
+            "label": "MCC swipe-history import",
+            "summary": (
+                f"Imported {len(rows)} MCC swipe records for {people} people"
+                + (f"; {open_shifts} open shift(s) need a later checkout export." if open_shifts else ".")
+            ),
+            "warnings": ([{
+                "severity": "warning",
+                "issue": f"{open_shifts} shift(s) were marked Not logged out in the source export.",
+            }] if open_shifts else []),
+        },
+    }
+
+
+@app.post("/mcc/swipe-history/import")
+async def import_mcc_swipe_history(file: UploadFile = File(...)):
+    filename = re.split(r"[\\/]", str(file.filename or "").strip())[-1]
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(400, "MCC swipe history must be a Site Log CSV")
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "Site Log CSV is empty")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "Site Log CSV exceeds the 10 MB limit")
+    try:
+        return store_mcc_swipe_history(content, filename)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/import")
 async def import_pdf(
     file: UploadFile = File(...),
@@ -4042,6 +4183,11 @@ async def import_pdf(
 ):
     filename = file.filename
     content = await file.read()
+    if filename.lower().endswith(".csv") and looks_like_site_log_csv(content):
+        try:
+            return store_mcc_swipe_history(content, filename)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     if filename.lower().endswith(".xlsx"):
         try:
             contractor = "MCC Group"
@@ -5599,6 +5745,79 @@ def get_mcc_weekly_audit(
     result["cost_source"] = "mcc_weekly_xlsx"
     result["cost_source_label"] = "MCC weekly timesheet"
     result["source_file"] = params["source"]
+    return result
+
+
+@app.get("/mcc/personnel")
+def get_mcc_personnel(search: str = Query(default="", max_length=100)):
+    """Compare MCC weekly submitted hours with imported Site Log swipe coverage."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT cr.name, cr.role, cr.hours, cr.date, cr.source_file
+                FROM crew cr
+                JOIN source_files sf
+                  ON sf.filename=cr.source_file AND sf.contractor=cr.contractor
+                WHERE cr.contractor=%s
+                  AND sf.file_type='mcc_weekly_xlsx'
+                ORDER BY cr.date, cr.name, cr.id
+                """,
+                (MCC_COMPANY,),
+            )
+            crew_rows = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT source_file, person_id, person_key, first_name, last_name,
+                       person_name, event_date, time_in, time_out, time_out_label,
+                       duration_minutes, timezone, site, logpoint, activity, open_shift
+                FROM mcc_swipe_history
+                WHERE contractor=%s
+                ORDER BY event_date, person_name, time_in, id
+                """,
+                (MCC_COMPANY,),
+            )
+            swipe_rows = [dict(row) for row in cur.fetchall()]
+
+    result = build_mcc_personnel_reconciliation(crew_rows, swipe_rows)
+    needle = str(search or "").strip().casefold()
+    if needle:
+        compact_needle = re.sub(r"[^a-z0-9]+", "", needle)
+        def matches_person(person):
+            haystack = " ".join([
+                person.get("name", ""),
+                person.get("role", ""),
+                " ".join(person.get("person_ids", [])),
+            ]).casefold()
+            return (
+                needle in haystack
+                or bool(compact_needle and compact_needle in re.sub(r"[^a-z0-9]+", "", haystack))
+            )
+
+        result["people"] = [
+            person for person in result["people"]
+            if matches_person(person)
+        ]
+        result["totals"] = {
+            "people": len(result["people"]),
+            "submitted_hours": round(sum(row["submitted_hours"] for row in result["people"]), 2),
+            "swipe_hours": round(sum(row["swipe_hours"] for row in result["people"]), 2),
+            "verified_days": sum(
+                day["status"] == "verified" for row in result["people"] for day in row["days"]
+            ),
+            "review_days": sum(
+                day["status"] != "verified" for row in result["people"] for day in row["days"]
+            ),
+        }
+    source_files = sorted({row.get("source_file", "") for row in swipe_rows if row.get("source_file")})
+    event_dates = [row["event_date"] for row in swipe_rows if row.get("event_date")]
+    result["swipe_coverage"] = {
+        "records": len(swipe_rows),
+        "files": len(source_files),
+        "source_files": source_files,
+        "date_from": min(event_dates).isoformat() if event_dates else "",
+        "date_to": max(event_dates).isoformat() if event_dates else "",
+    }
     return result
 
 
@@ -10826,10 +11045,10 @@ def reset_db(contractor: Optional[str]=Query(None)):
     with get_conn() as conn:
         with conn.cursor() as cur:
             if contractor:
-                for tbl in ("activities","consumables","crew","imported_files"):
+                for tbl in ("activities","consumables","crew","imported_files","mcc_swipe_history"):
                     cur.execute(f"DELETE FROM {tbl} WHERE contractor=%s",(contractor,))
             else:
-                for tbl in ("activities","consumables","crew","imported_files","purchase_orders"):
+                for tbl in ("activities","consumables","crew","imported_files","purchase_orders","mcc_swipe_history"):
                     cur.execute(f"DELETE FROM {tbl}")
         conn.commit()
     return {"status":"cleared","contractor":contractor or "all"}

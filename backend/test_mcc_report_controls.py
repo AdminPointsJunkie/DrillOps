@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_HTML = (ROOT / "docs" / "report.html").read_text(encoding="utf-8")
+INDEX_HTML = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
 MAIN_PY = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
 
 
@@ -50,6 +51,20 @@ class MCCReportControlTests(unittest.TestCase):
     def test_unexpected_construction_trade_charge_is_red(self):
         self.assertIn("unexpected_charge:'Unexpected weekly charge'", REPORT_HTML)
         self.assertIn("charged?'bad':'warn'", REPORT_HTML)
+
+    def test_mcc_personnel_panel_searches_and_shows_daily_swipe_evidence(self):
+        self.assertIn('id="mcc-personnel-search"', INDEX_HTML)
+        self.assertIn('id="mcc-personnel-detail"', INDEX_HTML)
+        self.assertIn("function filterMccPersonnel()", INDEX_HTML)
+        self.assertIn("Submitted − swipe", INDEX_HTML)
+        self.assertIn("Overlapping device records are counted once", INDEX_HTML)
+
+    def test_mcc_site_log_has_dedicated_import_and_reconciliation_endpoints(self):
+        self.assertIn('id="mcc-swipe-input"', INDEX_HTML)
+        self.assertIn("/mcc/swipe-history/import", INDEX_HTML)
+        self.assertIn('@app.post("/mcc/swipe-history/import")', MAIN_PY)
+        self.assertIn('@app.get("/mcc/personnel")', MAIN_PY)
+        self.assertIn("sf.file_type='mcc_weekly_xlsx'", MAIN_PY)
 
 
 if __name__ == "__main__":
