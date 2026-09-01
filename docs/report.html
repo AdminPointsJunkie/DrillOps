@@ -574,12 +574,12 @@ function renderMccSiteServiceLineItems(rows){
   rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const activityBody=document.getElementById('activity-body');
   const activityTable=activityBody.closest('table');
-  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group / ARG Contract</th><th>Planned Hole</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Allocation</th><th>Work Performed</th><th>Rate</th><th>Rate Basis</th><th>Allocated Cost</th></tr>';
+  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group / ARG Contract</th><th>Planned Hole</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Allocation</th><th>Work Performed</th><th>Rate</th><th>Allocated Cost</th></tr>';
   activityBody.innerHTML=rows.map(row=>{
     const percent=mccAllocationPercent(row),gross=num(row.line_cost),allocated=mccAllocatedCost(row);
     const allocationNote=percent<100?'<small>'+percent.toFixed(0)+'% of '+cur(gross)+'</small>':'';
-    return '<tr data-id="'+attr(row.id)+'"><td>'+mccWorkGroupSelect(row)+'</td><td>'+mccPlannedHoleSelect(row)+'</td><td>'+esc(mccEquipment(row)||mccPerson(row)||'')+'</td><td>'+mccQuantityDisplay(row)+'</td><td><label class="mcc-allocation"><input class="mcc-allocation-input" type="number" min="0" max="100" step="1" value="'+attr(percent)+'" aria-label="Work group allocation percent"><span>%</span></label></td><td class="work-note">'+esc(workDescription(row))+'</td><td>'+(row.unit_rate!=null?cur(row.unit_rate):'--')+'</td><td>'+esc(row.rate_basis||'')+'</td><td class="allocated-cost">'+(row.line_cost!=null?cur(allocated):'--')+allocationNote+'</td></tr>';
-  }).join('')||'<tr><td colspan="9" class="empty">No site-services activities found.</td></tr>';
+    return '<tr data-id="'+attr(row.id)+'"><td>'+mccWorkGroupSelect(row)+'</td><td>'+mccPlannedHoleSelect(row)+'</td><td>'+esc(mccEquipment(row)||mccPerson(row)||'')+'</td><td>'+mccQuantityDisplay(row)+'</td><td><label class="mcc-allocation"><input class="mcc-allocation-input" type="number" min="0" max="100" step="1" value="'+attr(percent)+'" aria-label="Work group allocation percent"><span>%</span></label></td><td class="work-note">'+esc(workDescription(row))+'</td><td>'+(row.unit_rate!=null?cur(row.unit_rate):'--')+'</td><td class="allocated-cost">'+(row.line_cost!=null?cur(allocated):'--')+allocationNote+'</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
   activityBody.querySelectorAll('.mcc-workgroup-select').forEach(control=>control.addEventListener('change',()=>saveMccWorkGroup(control)));
   activityBody.querySelectorAll('.mcc-hole-select:not(:disabled)').forEach(control=>control.addEventListener('change',()=>saveMccPlannedHole(control)));
   activityBody.querySelectorAll('.mcc-allocation-input').forEach(control=>{

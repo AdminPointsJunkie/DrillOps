@@ -45,6 +45,17 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("<th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th>", REPORT_HTML)
         self.assertIn("reportDateKey(a.date)-reportDateKey(b.date)", REPORT_HTML)
 
+    def test_mcc_line_items_hide_rate_basis_column(self):
+        match = re.search(
+            r"function renderMccSiteServiceLineItems\(rows\)\{(.*?)\n\}",
+            REPORT_HTML,
+            re.S,
+        )
+        self.assertIsNotNone(match)
+        self.assertNotIn("<th>Rate Basis</th>", match.group(1))
+        self.assertNotIn("esc(row.rate_basis", match.group(1))
+        self.assertIn('colspan="8"', match.group(1))
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 
