@@ -77,6 +77,20 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn('@app.get("/mcc/personnel")', MAIN_PY)
         self.assertIn("sf.file_type='mcc_weekly_xlsx'", MAIN_PY)
 
+    def test_mcc_daily_register_hides_drilling_and_cost_columns(self):
+        self.assertIn("#report-table.mcc-earthworks .mcc-drilling-only{display:none;}", INDEX_HTML)
+        for heading in ("Rig", "Driller", "Depth (m)", "Total Cost"):
+            self.assertIn(f'<th class="mcc-drilling-only">{heading}</th>', INDEX_HTML)
+        self.assertIn("reportTable.classList.toggle('mcc-earthworks',isMccEarthworks)", INDEX_HTML)
+
+    def test_mcc_daily_csv_omits_drilling_and_cost_fields(self):
+        start = INDEX_HTML.index("function downloadDailyReportsCSV()")
+        end = INDEX_HTML.index("// ── Consumables", start)
+        csv_export = INDEX_HTML[start:end]
+        self.assertIn("if(!isMccEarthworks)", csv_export)
+        for field in ("row.rig", "row.driller", "row.metres", "row.cost"):
+            self.assertIn(field, csv_export)
+
 
 if __name__ == "__main__":
     unittest.main()

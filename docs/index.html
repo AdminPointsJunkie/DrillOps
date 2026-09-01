@@ -448,6 +448,7 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .report-register table{font-size:14px;}
 .report-register thead th{background:#fff;text-transform:none;letter-spacing:0;font-size:14px;font-weight:500;color:#52635b;padding:11px 9px;}
 .report-register tbody td{padding:13px 9px;color:#19201d;vertical-align:middle;}
+#report-table.mcc-earthworks .mcc-drilling-only{display:none;}
 .select-cell{width:28px;max-width:28px;}
 .row-check{width:16px;height:16px;accent-color:#254b3a;}
 .plod-cell{display:flex;align-items:center;gap:7px;min-width:160px;}
@@ -2856,8 +2857,8 @@ tbody td[contenteditable=true]:focus {
           <table id="report-table">
             <thead><tr>
               <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
-              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th>Rig</th><th>Hole</th><th>Project</th><th>Driller</th>
-              <th>Depth (m)</th><th>Duration (h)</th><th>Total Cost</th><th>Notes</th><th></th>
+              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th class="mcc-drilling-only">Rig</th><th>Hole</th><th>Project</th><th class="mcc-drilling-only">Driller</th>
+              <th class="mcc-drilling-only">Depth (m)</th><th>Duration (h)</th><th class="mcc-drilling-only">Total Cost</th><th>Notes</th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
           </table>
@@ -5739,6 +5740,9 @@ function renderActivities(rows){
 
 function renderDailyReportSummary(rows){
   const allRows=rows||[];
+  const isMccEarthworks=activeContractor==='MCC Group';
+  const reportTable=document.getElementById('report-table');
+  if(reportTable)reportTable.classList.toggle('mcc-earthworks',isMccEarthworks);
   const reportRows=activeContractor==='MCC Group'&&activeProgram
     ?allRows.filter(mccReportRowMatchesProgram)
     :allRows;
@@ -5762,7 +5766,7 @@ function renderDailyReportSummary(rows){
   const tbody=document.getElementById('report-body');
   if(!tbody)return;
   if(!dailyReportsData.length){
-    tbody.innerHTML='<tr><td colspan="15"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="'+(isMccEarthworks?11:15)+'"><div class="empty-state"><div class="big">No reports</div></div></td></tr>';
     updateBulkReportSelection();
     closeDailyReportDetail();
     return;
@@ -5776,13 +5780,13 @@ function renderDailyReportSummary(rows){
       +'<td>'+renderReportLockStatus(r)+'</td>'
       +'<td>'+esc(r.date)+'</td>'
       +'<td>'+(r.shift?'<span class="shift-pill">'+esc(r.shift)+'</span>':'')+'</td>'
-      +'<td>'+esc(r.rig||'--')+'</td>'
+      +'<td class="mcc-drilling-only">'+esc(r.rig||'--')+'</td>'
       +'<td>'+esc(r.hole||'--')+'</td>'
       +'<td>'+esc(r.project||'Unassigned')+'</td>'
-      +'<td>'+esc(r.driller||'--')+'</td>'
-      +'<td>'+r.metres.toFixed(2)+'</td>'
+      +'<td class="mcc-drilling-only">'+esc(r.driller||'--')+'</td>'
+      +'<td class="mcc-drilling-only">'+r.metres.toFixed(2)+'</td>'
       +'<td>'+r.hours.toFixed(2)+'</td>'
-      +'<td style="font-weight:700;color:var(--text);">'+cur(r.cost)+'</td>'
+      +'<td class="mcc-drilling-only" style="font-weight:700;color:var(--text);">'+cur(r.cost)+'</td>'
       +'<td><span class="notes-preview">'+esc(note||'--')+'</span></td>'
       +'<td><button class="row-actions" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">...</button></td>'
       +'</tr>';
@@ -7372,7 +7376,17 @@ function openSelectedReportPdf(){
 
 function downloadDailyReportsCSV(){
   if(!dailyReportsData.length){toast('No daily reports to export','warn');return;}
-  const rows=dailyReportsData.map(function(r){return {report:r.id,status:r.status.label,date:r.date,shift:r.shift,rig:r.rig,hole:r.hole,project:r.project||'',driller:r.driller,metres:r.metres.toFixed(2),hours:r.hours.toFixed(2),cost:r.cost.toFixed(2),notes:r.notes.join(' | ')};});
+  const isMccEarthworks=activeContractor==='MCC Group';
+  const rows=dailyReportsData.map(function(r){
+    const row={report:r.id,status:r.status.label,date:r.date,shift:r.shift,hole:r.hole,project:r.project||'',hours:r.hours.toFixed(2),notes:r.notes.join(' | ')};
+    if(!isMccEarthworks){
+      row.rig=r.rig;
+      row.driller=r.driller;
+      row.metres=r.metres.toFixed(2);
+      row.cost=r.cost.toFixed(2);
+    }
+    return row;
+  });
   const headers=Object.keys(rows[0]);
   const csv=[headers.join(',')].concat(rows.map(function(r){return headers.map(function(h){return '"'+String(r[h]??'').replace(/"/g,'""')+'"';}).join(',');})).join('\n');
   const a=document.createElement('a');
