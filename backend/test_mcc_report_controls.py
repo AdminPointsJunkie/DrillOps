@@ -38,6 +38,19 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("allocation_percent FLOAT DEFAULT 100", MAIN_PY)
         self.assertIn('"allocation_percent"', MAIN_PY)
 
+    def test_mcc_hides_consumables_and_dates_personnel_hours(self):
+        self.assertIn("document.getElementById('consumables-section').style.display='none'", REPORT_HTML)
+        self.assertIn("contractor==='MCC Group'?[]", REPORT_HTML)
+        self.assertIn("<th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th>", REPORT_HTML)
+        self.assertIn("reportDateKey(a.date)-reportDateKey(b.date)", REPORT_HTML)
+
+    def test_daily_evidence_explainer_is_removed(self):
+        self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
+
+    def test_unexpected_construction_trade_charge_is_red(self):
+        self.assertIn("unexpected_charge:'Unexpected weekly charge'", REPORT_HTML)
+        self.assertIn("charged?'bad':'warn'", REPORT_HTML)
+
 
 if __name__ == "__main__":
     unittest.main()

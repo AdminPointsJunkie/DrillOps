@@ -434,6 +434,7 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .status-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:750;white-space:nowrap;}
 .status-ok{background:#ecfdf3;color:#147a39;}
 .status-warn{background:#fff7e6;color:#a05a00;}
+.status-error{background:#fff1f2;color:#b42335;}
 .status-info{background:#e5eee1;color:#254b3a;}
 #page-activities,#page-reports{max-width:none;margin:-8px -20px 0;}
 .report-register-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
@@ -5326,16 +5327,17 @@ function renderMccWeeklyAudit(data){
     ['Daily roles ignored',String(totals.ignored_daily||0)],
     ['Exceptions',String(totals.exceptions||0)]
   ].map(function(item){return '<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;">'+esc(item[0])+'</div><div style="font-weight:800;color:var(--text);">'+esc(item[1])+'</div></div>';}).join('');
-  const statusLabel={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const statusLabel={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',unexpected_charge:'Unexpected weekly charge',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
   const exceptions=rows.filter(function(row){return !['match','accepted_rule','not_required','ignored_daily'].includes(row.status);});
   const displayRows=exceptions.length?exceptions:rows;
   document.getElementById('mcc-weekly-audit-body').innerHTML=displayRows.map(function(row){
     const ok=['match','accepted_rule','not_required','ignored_daily'].includes(row.status);
+    const charged=row.status==='unexpected_charge';
     return '<tr><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
       +'<td>'+numVal(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+numVal(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+numVal(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
-      +'<td><span class="status '+(ok?'status-ok':'status-warn')+'">'+esc(statusLabel[row.status]||row.status||'Review')+'</span></td></tr>';
+      +'<td><span class="status '+(ok?'status-ok':charged?'status-error':'status-warn')+'">'+esc(statusLabel[row.status]||row.status||'Review')+'</span></td></tr>';
   }).join('')||'<tr><td colspan="7" style="padding:18px;color:var(--muted);">No comparable MCC rows yet.</td></tr>';
   makeTableSortable('mcc-weekly-audit-table');
 }

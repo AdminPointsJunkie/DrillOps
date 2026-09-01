@@ -51,6 +51,7 @@ textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
 .timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
 .notes{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;line-height:1.5;max-height:190px;overflow:auto;}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;}
+.grid.personnel-only{grid-template-columns:1fr;}
 .table-wrap{background:#fff;border:1px solid var(--border);border-radius:7px;overflow:hidden;box-shadow:var(--shadow);}
 .scroll{overflow:auto;max-height:360px;}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
@@ -96,6 +97,7 @@ tr.saving td{background:#fff7e6;}
 .audit-status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;white-space:nowrap;}
 .audit-status.ok{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
 .audit-status.warn{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
+.audit-status.bad{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
 .weekly-overview{display:none;margin-bottom:16px;}
 .weekly-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:20px 22px;border:1px solid #c9d8cf;border-radius:10px;background:linear-gradient(135deg,#f4f8f5 0%,#eef5f1 58%,#e6f0ea 100%);box-shadow:var(--shadow);}
 .weekly-hero.review{border-color:#f1cf94;background:linear-gradient(135deg,#fffaf0 0%,#fff6e5 100%);}
@@ -140,6 +142,7 @@ tr.saving td{background:#fff7e6;}
 .audit-summary-strip{display:flex;gap:18px;flex-wrap:wrap;padding:11px 12px;color:var(--muted);font-size:11px;}
 .audit-summary-strip strong{color:#26352d;font-size:13px;margin-right:4px;}
 .audit-row-warning td{background:#fffdf7;}
+.audit-row-danger td{background:#fff3f3;}
 .weekly-mode .approval-panel{padding:10px 12px;background:#fff;margin-bottom:12px;}
 .weekly-mode .approval-row{grid-template-columns:190px minmax(0,1fr) 110px;}
 .weekly-mode .approval-panel>.subtitle,.weekly-mode .approval-panel>.log-list{display:none;}
@@ -188,7 +191,7 @@ tr.saving td{background:#fff7e6;}
             <div id="weekly-cost-mix"></div>
           </div>
           <div class="weekly-visual-card">
-            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Daily evidence</div><div class="weekly-visual-meta">Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day</div></div><strong id="weekly-evidence-score">Checking…</strong></div>
+            <div class="weekly-visual-head"><div class="weekly-visual-title">Daily evidence</div><strong id="weekly-evidence-score">Checking…</strong></div>
             <div class="week-strip" id="weekly-day-strip"></div>
           </div>
         </div>
@@ -223,7 +226,7 @@ tr.saving td{background:#fff7e6;}
         <div class="kpi"><div class="label" id="kpi-cost-label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
         <div class="kpi"><div class="label" id="kpi-drilling-cost-label">Drilling Cost</div><div class="value" id="kpi-drilling-cost">--</div></div>
         <div class="kpi"><div class="label" id="kpi-support-cost-label">Support Cost</div><div class="value" id="kpi-support-cost">--</div></div>
-        <div class="kpi"><div class="label" id="kpi-consumable-cost-label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
+        <div class="kpi" id="kpi-consumable-card"><div class="label" id="kpi-consumable-cost-label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
         <div class="kpi"><div class="label" id="kpi-costm-label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
         <div class="kpi"><div class="label" id="kpi-activities-label">Activities</div><div class="value" id="kpi-activities">--</div></div>
       </div>
@@ -260,12 +263,12 @@ tr.saving td{background:#fff7e6;}
       <div class="table-wrap" style="margin-bottom:14px;">
         <table><thead><tr><th>Hole</th><th>Equipment</th><th>Unit</th><th>Duration</th><th>Notes</th><th>Charge/Unit</th><th>Total</th></tr></thead><tbody id="equipment-body"></tbody></table>
       </div>
-      <div class="grid">
-        <div>
+      <div class="grid" id="support-detail-grid">
+        <div id="consumables-section">
           <div class="subtitle">Consumables</div>
           <div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody id="consumables-body"></tbody></table></div>
         </div>
-        <div>
+        <div id="personnel-section">
           <div class="subtitle">Personnel</div>
           <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Hours</th></tr></thead><tbody id="crew-body"></tbody></table></div>
         </div>
@@ -820,7 +823,7 @@ async function loadReportData(){
     let rows=await fetchJson(API+'/activities?'+actParams.toString());
     rows=rows.filter(belongsToThisReport);
     drillingRates=await fetchJson(API+'/rates/drilling?contractor='+encodeURIComponent(contractor)).catch(()=>[]);
-    const consumables=await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
+    const consumables=contractor==='MCC Group'?[]:await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
     const crew=await fetchJson(API+'/crew?'+relatedParams.toString()).catch(()=>[]);
     reportRows=rows;
     reportConsumables=consumables;
@@ -1158,16 +1161,14 @@ function renderWeeklyOverview(context){
     ['Weekly cost lines',String(context.rows.length)],
     ['Unpriced lines',String(context.unpriced)]
   ].map(item=>'<div class="weekly-fact"><span>'+esc(item[0])+'</span><strong>'+esc(item[1])+'</strong></div>').join('');
-  const pricedTotal=Math.max(context.labourCost+context.equipmentCost+context.materialCost,1);
+  const pricedTotal=Math.max(context.labourCost+context.equipmentCost,1);
   const pct=value=>Math.max(0,(value/pricedTotal)*100);
   document.getElementById('weekly-cost-mix').innerHTML='<div class="cost-bar" aria-label="Cost composition">'
     +'<span class="labour" style="width:'+pct(context.labourCost).toFixed(2)+'%"></span>'
-    +'<span class="equipment" style="width:'+pct(context.equipmentCost).toFixed(2)+'%"></span>'
-    +'<span class="materials" style="width:'+pct(context.materialCost).toFixed(2)+'%"></span></div>'
+    +'<span class="equipment" style="width:'+pct(context.equipmentCost).toFixed(2)+'%"></span></div>'
     +'<div class="cost-legend">'
     +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#315d49"></span>Labour<b>'+cur(context.labourCost)+'</b></div>'
-    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#e59a3a"></span>Equipment<b>'+cur(context.equipmentCost)+'</b></div>'
-    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#5b8def"></span>Materials<b>'+cur(context.materialCost)+'</b></div></div>';
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#e59a3a"></span>Equipment<b>'+cur(context.equipmentCost)+'</b></div></div>';
   renderWeeklyDayStrip(null);
   const hero=document.getElementById('weekly-hero');
   hero.className='weekly-hero review';
@@ -1183,17 +1184,18 @@ function setWeeklyAuditView(showAll){
 }
 function renderWeeklyAuditTable(){
   const body=document.getElementById('weekly-audit-body');
-  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',unexpected_charge:'Unexpected weekly charge',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
   const resolved=row=>['match','accepted_rule','not_required','ignored_daily'].includes(row.status);
   const ordered=weeklyAuditRows.slice().sort((a,b)=>resolved(a)-resolved(b)||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
   const visible=weeklyAuditShowAll?ordered:ordered.filter(row=>!resolved(row));
   body.innerHTML=visible.map(row=>{
     const ok=resolved(row);
-    return '<tr class="'+(ok?'':'audit-row-warning')+'"><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
+    const charged=row.status==='unexpected_charge';
+    return '<tr class="'+(ok?'':charged?'audit-row-danger':'audit-row-warning')+'"><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
       +'<td>'+num(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+num(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
       +'<td>'+num(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
-      +'<td><span class="audit-status '+(ok?'ok':'warn')+'">'+esc(labels[row.status]||row.status||'Review')+'</span></td></tr>';
+      +'<td><span class="audit-status '+(ok?'ok':charged?'bad':'warn')+'">'+esc(labels[row.status]||row.status||'Review')+'</span></td></tr>';
   }).join('')||'<tr><td colspan="7" class="empty">'+(weeklyAuditShowAll?'No comparable lines were found.':'No exceptions — all compared lines match.')+'</td></tr>';
 }
 async function renderFocusedMccWeeklyAudit(){
@@ -1235,8 +1237,8 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   weeklyAuditShowAll=false;
   document.getElementById('audit-exceptions-btn').classList.add('active');
   document.getElementById('audit-all-btn').classList.remove('active');
-  const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
-  const totalCost=rows.reduce((s,r)=>s+mccAllocatedCost(r),0)+relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const relatedConsumables=[];
+  const totalCost=rows.reduce((s,r)=>s+mccAllocatedCost(r),0);
   const labourRows=rows.filter(r=>/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(r.code||'')));
   const equipmentRows=rows.filter(r=>!labourRows.includes(r));
   const unpricedRows=rows.filter(r=>r.line_cost==null||r.line_cost==='');
@@ -1247,6 +1249,10 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   const labourCost=labourRows.reduce((s,r)=>s+mccAllocatedCost(r),0);
   const materialCost=relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
   const allocatedRows=rows.filter(r=>mccAllocationPercent(r)<100);
+  const supportGrid=document.getElementById('support-detail-grid');
+  supportGrid.classList.add('personnel-only');
+  document.getElementById('consumables-section').style.display='none';
+  document.getElementById('kpi-consumable-card').style.display='none';
   document.body.classList.toggle('weekly-mode',weekly);
   document.getElementById('weekly-overview').style.display=weekly?'block':'none';
   const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="date" value="'+attr(isoReportDate(reportDate))+'" aria-label="Report date"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
@@ -1289,7 +1295,6 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('timeline').innerHTML='<div class="weekly-summary">'
     +'<div class="weekly-card"><div class="weekly-card-title">Equipment</div><div class="weekly-card-value">'+cur(equipmentCost)+'</div><div class="weekly-card-meta">'+equipmentRows.length+' priced line(s)</div></div>'
     +'<div class="weekly-card"><div class="weekly-card-title">Labour</div><div class="weekly-card-value">'+cur(labourCost)+'</div><div class="weekly-card-meta">'+labourRows.length+' line(s)</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">Materials</div><div class="weekly-card-value">'+cur(materialCost)+'</div><div class="weekly-card-meta">'+relatedConsumables.length+' line(s)</div></div>'
     +'<div class="weekly-card"><div class="weekly-card-title">Unpriced</div><div class="weekly-card-value">'+unpricedRows.length+'</div><div class="weekly-card-meta">line(s) requiring review</div></div>'
     +'</div>';
   document.getElementById('notes-title').textContent='Report Notes & Work Completed';
@@ -1304,9 +1309,10 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
   document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc((mccWorkGroupForRow(r)||{}).label||r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(mccAllocatedCost(r)):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
-  document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
-  const relatedCrew=crew.filter(belongsToThisReport);
-  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
+  const relatedCrew=crew.filter(belongsToThisReport).slice().sort((a,b)=>reportDateKey(a.date)-reportDateKey(b.date)||(a.name||'').localeCompare(b.name||''));
+  const crewTable=document.getElementById('crew-body').closest('table');
+  crewTable.querySelector('thead').innerHTML='<tr><th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.date||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
   pdf.style.display=source?'inline-flex':'none';
   pdf.textContent=weekly?'Download source XLSX':'Source PDF';
@@ -1318,6 +1324,10 @@ function renderMccSiteServicesReport(rows,consumables,crew){
 function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   if(rows.some(isMccWeeklyRow))return renderMccSiteServicesReport(rows,consumables,crew);
+  document.getElementById('support-detail-grid').classList.remove('personnel-only');
+  document.getElementById('consumables-section').style.display='block';
+  document.getElementById('kpi-consumable-card').style.display='block';
+  document.getElementById('crew-body').closest('table').querySelector('thead').innerHTML='<tr><th>Name</th><th>Role</th><th>Hours</th></tr>';
   document.body.classList.remove('weekly-mode');
   document.getElementById('weekly-overview').style.display='none';
   weeklyOverviewContext=null;

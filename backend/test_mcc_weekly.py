@@ -327,36 +327,44 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(audit["totals"]["cost_variance"], 600.0)
 
     def test_audit_ignores_construction_trade_from_daily_comparison(self):
-        rows = [
-            {
-                "date": "20/08/2026",
-                "code": "MCC_CONSTRUCTION_TRADE",
-                "quantity": 8,
-                "line_cost": 800,
-                "source_file": "daily.pdf",
-                "source_file_type": "mcc_site_services_pdf",
-                "rate_description": "Construction Trade",
-                "rate_unit": "hour",
-            },
-            {
-                "date": "20/08/2026",
-                "code": "MCC_CONSTRUCTION_TRADE",
-                "quantity": 10,
-                "line_cost": 1000,
-                "source_file": "weekly.xlsx",
-                "source_file_type": "mcc_weekly_xlsx",
-                "rate_description": "Construction Trade",
-                "rate_unit": "hour",
-            },
-        ]
+        rows = [{
+            "date": "20/08/2026",
+            "code": "H_ACTIVE",
+            "quantity": 8,
+            "line_cost": 800,
+            "source_file": "daily.pdf",
+            "source_file_type": "mcc_site_services_pdf",
+            "rate_description": "Construction Trade",
+            "rate_unit": "hour",
+        }]
 
         audit = build_mcc_daily_weekly_audit(rows)
 
         self.assertEqual(audit["comparison"][0]["status"], "ignored_daily")
         self.assertEqual(audit["totals"]["ignored_daily"], 1)
         self.assertEqual(audit["totals"]["exceptions"], 0)
-        self.assertEqual(audit["totals"]["daily_estimate"], 1000.0)
+        self.assertEqual(audit["totals"]["daily_estimate"], 0.0)
         self.assertEqual(audit["totals"]["cost_variance"], 0.0)
+
+    def test_audit_red_flags_a_weekly_construction_trade_charge(self):
+        rows = [{
+            "date": "20/08/2026",
+            "code": "MCC_CONSTRUCTION_TRADE",
+            "quantity": 10,
+            "line_cost": 1000,
+            "source_file": "weekly.xlsx",
+            "source_file_type": "mcc_weekly_xlsx",
+            "rate_description": "Construction Trade",
+            "rate_unit": "hour",
+        }]
+
+        audit = build_mcc_daily_weekly_audit(rows)
+
+        self.assertEqual(audit["comparison"][0]["status"], "unexpected_charge")
+        self.assertEqual(audit["totals"]["exceptions"], 1)
+        self.assertEqual(audit["totals"]["daily_estimate"], 0.0)
+        self.assertEqual(audit["totals"]["weekly_cost"], 1000.0)
+        self.assertEqual(audit["totals"]["cost_variance"], 1000.0)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,10 @@ def _allocation_factor(row):
     return min(100, max(0, percent)) / 100
 
 
+def _is_construction_trade(code, description):
+    return code in MCC_DAILY_AUDIT_IGNORED_CODES or "construction trade" in str(description or "").lower()
+
+
 def _excel_dt(value):
     if value is None:
         return "", ""
@@ -364,8 +368,9 @@ def build_mcc_daily_weekly_audit(rows):
     for (report_date, code), item in sorted(grouped.items()):
         quantity_variance = round(item["weekly_quantity"] - item["daily_quantity"], 2)
         tolerance = 0.01 if item["unit"] == "day" else 0.25
-        if code in MCC_DAILY_AUDIT_IGNORED_CODES:
-            status = "ignored_daily"
+        construction_trade = _is_construction_trade(code, item["description"])
+        if construction_trade:
+            status = "unexpected_charge" if item["weekly_cost"] > 0.01 else "ignored_daily"
         elif item["weekly_rows"] and not _mcc_daily_report_required(report_date):
             status = "not_required"
         elif code == "MCC_LIGHT_VEHICLE" and item["weekly_rows"]:
@@ -378,6 +383,8 @@ def build_mcc_daily_weekly_audit(rows):
             status = "match"
         else:
             status = "variance"
+        daily_estimate = 0.0 if construction_trade else item["daily_cost"]
+        cost_variance = item["weekly_cost"] if construction_trade else item["weekly_cost"] - item["daily_cost"]
         comparison.append({
             "date": report_date,
             "code": code,
@@ -386,9 +393,9 @@ def build_mcc_daily_weekly_audit(rows):
             "daily_quantity": round(item["daily_quantity"], 2),
             "weekly_quantity": round(item["weekly_quantity"], 2),
             "quantity_variance": quantity_variance,
-            "daily_estimate": round(item["daily_cost"], 2),
+            "daily_estimate": round(daily_estimate, 2),
             "weekly_cost": round(item["weekly_cost"], 2),
-            "cost_variance": round(item["weekly_cost"] - item["daily_cost"], 2),
+            "cost_variance": round(cost_variance, 2),
             "status": status,
             "daily_rows": item["daily_rows"],
             "weekly_rows": item["weekly_rows"],
