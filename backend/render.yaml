@@ -9,8 +9,12 @@ services:
         sync: false
       - key: SUPABASE_URL
         sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
+      - key: SUPABASE_INVITE_REDIRECT_URL
+        value: https://drillops.com.au/
       - key: CORS_ALLOWED_ORIGINS
         value: https://drillops.com.au,https://www.drillops.com.au
       - key: DRILLOPS_WEB_URL

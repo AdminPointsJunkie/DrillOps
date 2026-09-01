@@ -1,6 +1,7 @@
 """Supabase JWT authentication and secure-by-default route protection."""
 
 import os
+import uuid
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
@@ -9,6 +10,7 @@ import jwt
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from jwt import PyJWKClient
+from request_context import RequestAuditContext, request_audit_context
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -91,7 +93,18 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
             if not is_admin:
                 return self._error(403, "This legacy endpoint requires a system administrator")
 
-        return await call_next(request)
+        context_token = request_audit_context.set(
+            RequestAuditContext(
+                user_id=request.state.auth_user.user_id,
+                request_id=str(uuid.uuid4()),
+                method=request.method.upper(),
+                path=request.url.path,
+            )
+        )
+        try:
+            return await call_next(request)
+        finally:
+            request_audit_context.reset(context_token)
 
     def _is_system_admin(self, user_id: str) -> bool:
         with self.get_conn() as conn:

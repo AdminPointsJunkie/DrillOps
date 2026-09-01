@@ -170,6 +170,18 @@ body.hide-contractor-switcher .header-meta{display:none!important;}
 .contractor-page-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-bottom:18px;}
 .contractor-panel-list{display:flex;flex-direction:column;gap:8px;}
 .account-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.admin-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;}
+.admin-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);}
+.admin-table{width:100%;min-width:860px;border-collapse:collapse;font-size:12px;}
+.admin-table th{padding:10px 12px;background:var(--bg2);color:var(--muted);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.admin-table td{padding:11px 12px;border-top:1px solid var(--border);vertical-align:top;}
+.admin-table tbody tr:hover{background:var(--bg2);}
+.admin-status{display:inline-flex;padding:3px 8px;border-radius:999px;background:var(--green-light);color:var(--green);font-size:10px;font-weight:700;}
+.admin-status.inactive{background:var(--bg3);color:var(--muted);}
+.admin-details{max-width:520px;white-space:normal;color:var(--muted);line-height:1.45;}
+.project-access-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;max-height:260px;overflow:auto;padding:10px;border:1px solid var(--border);border-radius:8px;}
+.project-access-option{display:flex;align-items:flex-start;gap:8px;padding:8px;border-radius:6px;background:var(--bg2);}
+.project-access-option input{margin-top:2px;}
 .drawer-admin-legacy{display:none;}
 
 /* Drawer */
@@ -2083,6 +2095,7 @@ tbody td[contenteditable=true]:focus {
         <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients, contracts &amp; rates</span></button>
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
+        <button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><span class="drawer-nav-label">Users &amp; Change Log</span><span class="drawer-nav-meta">Access and accountability</span></button>
         <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
         <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></button>
         <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
@@ -2170,6 +2183,32 @@ tbody td[contenteditable=true]:focus {
     <div class="entity-dialog-actions">
       <button class="btn-ghost" type="button" onclick="closeClientProjectDialog()">Cancel</button>
       <button class="btn-primary" id="entity-dialog-save" type="submit">Create project</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="entity-dialog" id="user-access-dialog" aria-labelledby="user-access-title">
+  <form id="user-access-form" onsubmit="saveUserAccess(event)">
+    <input id="user-access-id" type="hidden"/>
+    <div class="entity-dialog-header">
+      <div>
+        <div class="entity-dialog-title" id="user-access-title">Invite user</div>
+        <div class="entity-dialog-copy" id="user-access-copy">Send a secure invitation and choose exactly which projects the person can access.</div>
+      </div>
+      <button class="icon-btn" type="button" onclick="document.getElementById('user-access-dialog').close()" aria-label="Close">Close</button>
+    </div>
+    <div class="entity-dialog-body">
+      <div class="entity-dialog-field"><label for="user-access-name">Display name</label><input id="user-access-name" required autocomplete="off"/></div>
+      <div class="entity-dialog-field"><label for="user-access-email">Work email</label><input id="user-access-email" type="email" required autocomplete="off"/></div>
+      <div class="entity-dialog-field"><label for="user-access-system-role">Account type</label><select id="user-access-system-role" onchange="syncUserAccessForm()"><option value="user">Project user</option><option value="system_admin">System administrator</option></select></div>
+      <div class="entity-dialog-field"><label for="user-access-project-role">Default project role</label><select id="user-access-project-role" onchange="applyDefaultProjectRole()"><option value="field_user">Field user</option><option value="contractor_supervisor">Contractor supervisor</option><option value="project_manager">Project manager</option><option value="approver">Approver</option><option value="finance">Finance</option><option value="auditor">Auditor</option></select></div>
+      <div class="entity-dialog-field full"><label>Project access</label><div class="project-access-list" id="user-access-projects"></div></div>
+      <label class="project-access-option full" id="user-access-active-wrap"><input id="user-access-active" type="checkbox" checked/><span><strong>Account active</strong><br/><small>Inactive accounts cannot use DrillOps.</small></span></label>
+      <div class="workspace-gate-error full" id="user-access-error"></div>
+    </div>
+    <div class="entity-dialog-actions">
+      <button class="btn-ghost" type="button" onclick="document.getElementById('user-access-dialog').close()">Cancel</button>
+      <button class="btn-primary" id="user-access-save" type="submit">Send invitation</button>
     </div>
   </form>
 </dialog>
@@ -2295,9 +2334,9 @@ tbody td[contenteditable=true]:focus {
       <div id="ocr-preview-panel" style="display:none;margin-top:14px;"></div>
     </section>
 
-    <!-- Contractors & User Accounts -->
+    <!-- Contractors & Account -->
     <section class="page" id="page-contractors">
-      <h2 class="section-title">Contractors &amp; User Accounts</h2>
+      <h2 class="section-title">Contractors &amp; Account</h2>
 
       <div class="contractor-page-grid">
         <div class="chart-card">
@@ -2325,7 +2364,7 @@ tbody td[contenteditable=true]:focus {
               </div>
               <button class="drawer-danger-btn" style="width:auto;margin:0;padding:9px 14px;" onclick="doLogout()">Sign out</button>
             </div>
-            <p class="drawer-help-text" style="margin-top:12px;">Users and project memberships are managed in Supabase. Local browser-only accounts have been removed.</p>
+            <p class="drawer-help-text" style="margin-top:12px;">Use Users &amp; Change Log to invite staff, assign project access, deactivate accounts, and review responsibility for changes.</p>
           </div>
         </div>
       </div>
@@ -2339,6 +2378,29 @@ tbody td[contenteditable=true]:focus {
           <div class="chart-title">Data Management</div>
           <button class="drawer-danger-btn" id="clear-btn">Clear <span id="clear-con-name">Contractor</span> Data</button>
           <p class="drawer-help-text">Removes records for the active contractor only. Other contractors are unaffected.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Users and immutable change history -->
+    <section class="page" id="page-admin">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
+        <div><h2 class="section-title" style="margin-bottom:4px;">Users &amp; Change Log</h2><p style="font-size:12px;color:var(--muted);">Invite accounts, grant project roles, and see who imported or changed operational data.</p></div>
+        <div style="display:flex;gap:8px;"><button class="btn-ghost" type="button" onclick="loadAdminPage()">Refresh</button><button class="btn-primary" type="button" onclick="openUserAccessDialog()">Invite user</button></div>
+      </div>
+      <div class="admin-grid">
+        <div class="chart-card">
+          <div class="chart-title" style="display:flex;justify-content:space-between;gap:12px;"><span>User accounts</span><span id="admin-user-count" style="color:var(--muted);font-weight:500;"></span></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>User</th><th>Account type</th><th>Project access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="admin-users-body"><tr><td colspan="6">Open this page to load users.</td></tr></tbody></table></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Import history</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">One row per file or import batch, including its owner and the records created.</p>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Imported</th><th>By</th><th>File</th><th>Type</th><th>Workspace</th><th>Rows</th></tr></thead><tbody id="admin-imports-body"><tr><td colspan="6">No import history loaded.</td></tr></tbody></table></div>
+        </div>
+        <div class="chart-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;"><div><div class="chart-title">Change log</div><p style="font-size:12px;color:var(--muted);">Edits and deletions include field-level before/after values.</p></div><div style="display:flex;gap:8px;"><select class="drawer-input" id="admin-audit-filter" onchange="loadAdminAudit()"><option value="">All changes</option><option value="import.">Imports</option><option value="activities.">Activities</option><option value="invoices.">Invoices</option><option value="boreholes.">Boreholes</option><option value="user.">Users</option></select><input class="drawer-input" id="admin-audit-search" placeholder="Search" onkeydown="if(event.key==='Enter')loadAdminAudit()"/><button class="btn-ghost" type="button" onclick="loadAdminAudit()">Search</button></div></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Changed</th><th>By</th><th>Action</th><th>Item</th><th>What changed</th></tr></thead><tbody id="admin-audit-body"><tr><td colspan="5">No changes loaded.</td></tr></tbody></table></div>
         </div>
       </div>
     </section>
@@ -3574,7 +3636,8 @@ async function requestPasswordReset(){
 
 function loadRecoverySessionFromUrl(){
   const values=new URLSearchParams(window.location.hash.replace(/^#/,''));
-  if(values.get('type')!=='recovery'||!values.get('access_token'))return false;
+  const linkType=values.get('type');
+  if(!['recovery','invite'].includes(linkType)||!values.get('access_token'))return false;
   const expiresIn=Number(values.get('expires_in')||3600);
   saveAuthSession({
     access_token:values.get('access_token'),
@@ -3585,6 +3648,8 @@ function loadRecoverySessionFromUrl(){
   });
   document.getElementById('login-panel').hidden=true;
   document.getElementById('password-reset-panel').hidden=false;
+  document.querySelector('#password-reset-panel h3').textContent=linkType==='invite'?'Finish setting up your account':'Choose a new password';
+  document.querySelector('#password-reset-panel p').textContent=linkType==='invite'?'Create a password to activate your DrillOps invitation.':'Use at least eight characters for your new DrillOps password.';
   showLogin();
   window.history.replaceState(null,'',window.location.pathname+window.location.search);
   document.getElementById('new-password').focus();
@@ -3789,6 +3854,194 @@ async function fetchContractors(){
       sessionStorage.setItem('drillops_contractors',JSON.stringify(data));
     }
   }catch(e){console.warn('Could not fetch contractors from API, using cached list');}
+}
+
+// ── User administration and change history ─────────────────────────────────
+let adminUsers=[];
+
+function adminDate(value){
+  if(!value)return '—';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return date.toLocaleString('en-AU',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+function adminRoleLabel(value){
+  return ({system_admin:'System administrator',project_manager:'Project manager',approver:'Approver',contractor_supervisor:'Contractor supervisor',field_user:'Field user',finance:'Finance',auditor:'Auditor',user:'Project user'})[value]||String(value||'User').replaceAll('_',' ');
+}
+
+function adminRowsLabel(counts){
+  const entries=Object.entries(counts||{}).filter(function(entry){return Number(entry[1]||0)>0;});
+  return entries.length?entries.map(function(entry){return Number(entry[1]).toLocaleString('en-AU')+' '+entry[0].replaceAll('_',' ');}).join(' · '):'—';
+}
+
+async function loadAdminPage(){
+  const userBody=document.getElementById('admin-users-body');
+  const importBody=document.getElementById('admin-imports-body');
+  if(userBody)userBody.innerHTML='<tr><td colspan="6">Loading user accounts…</td></tr>';
+  if(importBody)importBody.innerHTML='<tr><td colspan="6">Loading import history…</td></tr>';
+  await Promise.all([loadAdminUsers(),loadAdminImports(),loadAdminAudit()]);
+}
+
+async function loadAdminUsers(){
+  const body=document.getElementById('admin-users-body');
+  try{
+    const response=await fetch(API+'/admin/users',{cache:'no-store'});
+    const data=await response.json().catch(function(){return [];});
+    if(!response.ok)throw new Error(data.detail||'Could not load users');
+    adminUsers=Array.isArray(data)?data:[];
+    document.getElementById('admin-user-count').textContent=adminUsers.length+' account'+(adminUsers.length===1?'':'s');
+    body.innerHTML=adminUsers.map(function(user){
+      const memberships=(user.project_memberships||[]).filter(function(item){return item.active;});
+      const access=user.system_role==='system_admin'
+        ?'<strong>All workspaces</strong>'
+        :(memberships.map(function(item){return '<div>'+esc(item.project_name)+' <span style="color:var(--muted);">· '+esc(adminRoleLabel(item.role))+'</span></div>';}).join('')||'<span style="color:var(--red);">No active project access</span>');
+      return '<tr><td><strong>'+esc(user.display_name||user.email||'Unnamed user')+'</strong><div style="color:var(--muted);margin-top:3px;">'+esc(user.email||'')+'</div></td>'
+        +'<td>'+esc(adminRoleLabel(user.system_role))+'</td><td>'+access+'</td>'
+        +'<td><span class="admin-status '+(user.active?'':'inactive')+'">'+(user.active?'Active':'Inactive')+'</span></td>'
+        +'<td>'+esc(adminDate(user.last_sign_in_at))+'</td>'
+        +'<td><button class="btn-ghost" type="button" onclick="openUserAccessDialogById(\''+String(user.id).replaceAll("'",'')+'\')">Edit access</button></td></tr>';
+    }).join('')||'<tr><td colspan="6">No accounts found.</td></tr>';
+  }catch(error){
+    body.innerHTML='<tr><td colspan="6" style="color:var(--red);">'+esc(error.message||error)+'</td></tr>';
+  }
+}
+
+function openUserAccessDialogById(userId){
+  openUserAccessDialog(adminUsers.find(function(user){return user.id===userId;})||null);
+}
+
+function projectRoleOptions(selected){
+  return ['field_user','contractor_supervisor','project_manager','approver','finance','auditor'].map(function(role){
+    return '<option value="'+role+'" '+(role===selected?'selected':'')+'>'+esc(adminRoleLabel(role))+'</option>';
+  }).join('');
+}
+
+function openUserAccessDialog(user){
+  user=user||null;
+  const memberships=new Map((user&&user.project_memberships||[]).map(function(item){return [Number(item.project_id),item];}));
+  document.getElementById('user-access-id').value=user?user.id:'';
+  document.getElementById('user-access-name').value=user?(user.display_name||''):'';
+  document.getElementById('user-access-email').value=user?(user.email||''):'';
+  document.getElementById('user-access-email').disabled=Boolean(user);
+  document.getElementById('user-access-system-role').value=user?(user.system_role||'user'):'user';
+  document.getElementById('user-access-active').checked=user?user.active!==false:true;
+  document.getElementById('user-access-active-wrap').style.display=user?'flex':'none';
+  const firstMembership=user&&(user.project_memberships||[]).find(function(item){return item.active;});
+  document.getElementById('user-access-project-role').value=firstMembership?firstMembership.role:'field_user';
+  document.getElementById('user-access-title').textContent=user?'Edit user access':'Invite user';
+  document.getElementById('user-access-copy').textContent=user?'Change the person’s role, projects, or account status. Every change is written to the audit log.':'Send a secure invitation and choose exactly which projects the person can access.';
+  document.getElementById('user-access-save').textContent=user?'Save access':'Send invitation';
+  document.getElementById('user-access-error').textContent='';
+  document.getElementById('user-access-projects').innerHTML=(projects||[]).filter(function(project){return project.status!=='Inactive';}).map(function(project){
+    const membership=memberships.get(Number(project.id));
+    return '<label class="project-access-option"><input class="user-project-check" type="checkbox" value="'+Number(project.id)+'" '+(membership&&membership.active?'checked':'')+'/>'
+      +'<span style="flex:1;"><strong>'+esc(project.name)+'</strong><br/><small>'+esc(project.program||'')+'</small></span>'
+      +'<select class="drawer-input user-project-role" style="width:145px;padding:5px;">'+projectRoleOptions(membership?membership.role:document.getElementById('user-access-project-role').value)+'</select></label>';
+  }).join('')||'<div style="color:var(--muted);">Create a project before assigning project access.</div>';
+  syncUserAccessForm();
+  document.getElementById('user-access-dialog').showModal();
+}
+
+function applyDefaultProjectRole(){
+  const role=document.getElementById('user-access-project-role').value;
+  document.querySelectorAll('#user-access-projects .project-access-option').forEach(function(option){
+    if(option.querySelector('.user-project-check')?.checked)option.querySelector('.user-project-role').value=role;
+  });
+}
+
+function syncUserAccessForm(){
+  const isAdmin=document.getElementById('user-access-system-role').value==='system_admin';
+  document.getElementById('user-access-project-role').disabled=isAdmin;
+  document.getElementById('user-access-projects').style.opacity=isAdmin?'.45':'1';
+  document.querySelectorAll('#user-access-projects input,#user-access-projects select').forEach(function(input){input.disabled=isAdmin;});
+}
+
+async function saveUserAccess(event){
+  event.preventDefault();
+  const userId=document.getElementById('user-access-id').value;
+  const button=document.getElementById('user-access-save');
+  const error=document.getElementById('user-access-error');
+  const systemRole=document.getElementById('user-access-system-role').value;
+  const memberships=systemRole==='system_admin'?[]:Array.from(document.querySelectorAll('#user-access-projects .project-access-option')).filter(function(option){return option.querySelector('.user-project-check').checked;}).map(function(option){return {project_id:Number(option.querySelector('.user-project-check').value),role:option.querySelector('.user-project-role').value};});
+  if(systemRole!=='system_admin'&&!memberships.length){error.textContent='Choose at least one project for a project user.';return;}
+  const payload={
+    display_name:document.getElementById('user-access-name').value.trim(),
+    system_role:systemRole,
+    active:document.getElementById('user-access-active').checked,
+    project_memberships:memberships
+  };
+  if(!userId)payload.email=document.getElementById('user-access-email').value.trim().toLowerCase();
+  button.disabled=true;button.textContent=userId?'Saving…':'Sending…';error.textContent='';
+  try{
+    const response=await fetch(userId?API+'/admin/users/'+encodeURIComponent(userId):API+'/admin/users/invite',{
+      method:userId?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    });
+    const data=await response.json().catch(function(){return {};});
+    if(!response.ok)throw new Error(data.detail||'Could not save user access');
+    document.getElementById('user-access-dialog').close();
+    toast(userId?'User access updated':'Invitation sent');
+    await Promise.all([loadAdminUsers(),loadAdminAudit()]);
+  }catch(saveError){error.textContent=saveError.message||saveError;}
+  finally{button.disabled=false;button.textContent=userId?'Save access':'Send invitation';}
+}
+
+async function loadAdminImports(){
+  const body=document.getElementById('admin-imports-body');
+  try{
+    const response=await fetch(API+'/admin/imports?limit=150',{cache:'no-store'});
+    const rows=await response.json().catch(function(){return [];});
+    if(!response.ok)throw new Error(rows.detail||'Could not load import history');
+    body.innerHTML=rows.map(function(row){
+      const workspace=[row.client,row.project,row.contractor].filter(Boolean).join(' · ')||'—';
+      return '<tr><td>'+esc(adminDate(row.created_at))+'</td><td><strong>'+esc(row.actor_name||'System')+'</strong><div style="color:var(--muted);">'+esc(row.actor_email||'')+'</div></td>'
+        +'<td><strong>'+esc(row.filename||'')+'</strong></td><td>'+esc(String(row.import_kind||'').replaceAll('_',' '))+'</td><td>'+esc(workspace)+'</td><td>'+esc(adminRowsLabel(row.row_counts))+'</td></tr>';
+    }).join('')||'<tr><td colspan="6">No imports recorded yet.</td></tr>';
+  }catch(error){body.innerHTML='<tr><td colspan="6" style="color:var(--red);">'+esc(error.message||error)+'</td></tr>';}
+}
+
+function auditValue(value){
+  if(value===null||value===undefined||value==='')return 'blank';
+  if(typeof value==='object')return JSON.stringify(value);
+  return String(value);
+}
+
+function auditDetails(row){
+  const details=row.details||{};
+  if(row.action&&row.action.startsWith('import.')){
+    return [details.filename,adminRowsLabel(details.row_counts)].filter(Boolean).join(' · ');
+  }
+  if(row.action&&row.action.startsWith('user.'))return details.email||'User access changed';
+  const changes=details.changes||{};
+  const entries=Object.entries(changes);
+  if(!entries.length)return row.request_path||'Recorded change';
+  return entries.slice(0,8).map(function(entry){
+    const field=entry[0].replaceAll('_',' ');
+    const value=entry[1];
+    if(value&&typeof value==='object'&&Object.prototype.hasOwnProperty.call(value,'from'))return field+': '+auditValue(value.from)+' → '+auditValue(value.to);
+    return field+': '+auditValue(value);
+  }).join(' · ')+(entries.length>8?' · +'+(entries.length-8)+' more':'');
+}
+
+async function loadAdminAudit(){
+  const body=document.getElementById('admin-audit-body');
+  if(!body)return;
+  body.innerHTML='<tr><td colspan="5">Loading change history…</td></tr>';
+  const params=new URLSearchParams({limit:'200'});
+  const action=document.getElementById('admin-audit-filter')?.value||'';
+  const search=document.getElementById('admin-audit-search')?.value.trim()||'';
+  if(action)params.set('action',action);
+  if(search)params.set('search',search);
+  try{
+    const response=await fetch(API+'/admin/audit-events?'+params.toString(),{cache:'no-store'});
+    const rows=await response.json().catch(function(){return [];});
+    if(!response.ok)throw new Error(rows.detail||'Could not load change log');
+    body.innerHTML=rows.map(function(row){
+      return '<tr><td>'+esc(adminDate(row.created_at))+'</td><td><strong>'+esc(row.actor_name||'System')+'</strong><div style="color:var(--muted);">'+esc(row.actor_email||'')+'</div></td>'
+        +'<td>'+esc(String(row.action||'').replaceAll('_',' '))+'</td><td><strong>'+esc(String(row.entity_type||'').replaceAll('_',' '))+'</strong><div style="color:var(--muted);">'+esc(row.entity_key||'')+(row.project_name?' · '+esc(row.project_name):'')+'</div></td>'
+        +'<td class="admin-details">'+esc(auditDetails(row))+'</td></tr>';
+    }).join('')||'<tr><td colspan="5">No matching changes.</td></tr>';
+  }catch(error){body.innerHTML='<tr><td colspan="5" style="color:var(--red);">'+esc(error.message||error)+'</td></tr>';}
 }
 
 // ── Drawer ────────────────────────────────────────────────────────────────────
@@ -4594,6 +4847,7 @@ function triggerPageLoad(page){
   // Always reload fresh data when switching tabs — no caching
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); }
+  if(page==='admin')        loadAdminPage();
   if(page==='boreholes')    loadBoreholes();
   if(page==='production')   loadDailyProduction();
   if(page==='project-budgets') renderClientProjectHierarchy();
@@ -10158,7 +10412,7 @@ async function addBorehole() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:[newBh]})
+      body:JSON.stringify({contractor:boreholePlanningContractor(), source_filename:'Manual borehole entry', boreholes:[newBh]})
     });
     if(!res.ok) { toast('Failed to add','err'); return; }
     ['add-bh-project','add-bh-year','add-bh-site','add-bh-id','add-bh-purpose','add-bh-days','add-bh-east','add-bh-north','add-bh-rl','add-bh-depth','add-bh-eoh','add-bh-core','add-bh-seam','add-bh-budget','add-bh-drilling-budget','add-bh-notes'].forEach(function(id){
@@ -10239,7 +10493,7 @@ function importBhCSV(input) {
     try {
       const res = await fetch(API+'/boreholes/import_budget', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:boreholes})
+        body:JSON.stringify({contractor:boreholePlanningContractor(), source_filename:file.name, boreholes:boreholes})
       });
       if(!res.ok) { toast('Import failed','err'); return; }
       const d = await res.json();
@@ -10283,7 +10537,7 @@ async function importBudgetToDb() {
   try {
     const res = await fetch(API+'/boreholes/import_budget', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contractor:boreholePlanningContractor(), boreholes:bhData})
+      body:JSON.stringify({contractor:boreholePlanningContractor(), source_filename:'Borehole planning save', boreholes:bhData})
     });
     if(!res.ok) { toast('Failed to save','err'); return; }
     const d = await res.json();

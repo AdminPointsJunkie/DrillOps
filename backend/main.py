@@ -26,7 +26,10 @@ from psycopg2.pool import ThreadedConnectionPool
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from admin_api import create_admin_router
+from audit import record_import_batch
 from dar_workflow import ensure_dar_schema
+from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from exploration_metres import summarize_exploration_metres
 from mcc_rates import (
@@ -287,6 +290,23 @@ def get_conn():
     discard = False
     try:
         conn = _get_live_connection()
+        audit_context = current_request_audit_context()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    set_config('app.actor_user_id', %s, TRUE),
+                    set_config('app.request_id', %s, TRUE),
+                    set_config('app.request_method', %s, TRUE),
+                    set_config('app.request_path', %s, TRUE)
+                """,
+                (
+                    audit_context.user_id,
+                    audit_context.request_id,
+                    audit_context.method,
+                    audit_context.path,
+                ),
+            )
         yield conn
         conn.commit()
     except Exception as exc:
@@ -4064,6 +4084,15 @@ async def import_pdf(
                     INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                     VALUES (%s, %s, 'mcc_weekly_xlsx', %s) ON CONFLICT (filename, contractor) DO NOTHING
                 """, (filename, contractor, psycopg2.Binary(content)))
+                record_import_batch(
+                    cur,
+                    filename=filename,
+                    import_kind="mcc_weekly_xlsx",
+                    contractor=contractor,
+                    client=client,
+                    project=project,
+                    row_counts={"activities": len(acts), "consumables": 0, "crew": len(crew)},
+                )
             conn.commit()
 
         weekly_warnings = []
@@ -4130,6 +4159,19 @@ async def import_pdf(
                     INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                     VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (filename, contractor) DO NOTHING
                 """, (filename, contractor, psycopg2.Binary(content)))
+                record_import_batch(
+                    cur,
+                    filename=filename,
+                    import_kind="coreplan_csv",
+                    contractor=contractor,
+                    client=client,
+                    project=project,
+                    row_counts={
+                        "activities": len(acts),
+                        "consumables": len(cons),
+                        "crew": len(crew),
+                    },
+                )
             conn.commit()
 
         return {"status":"imported","filename":filename,"rows":len(acts),
@@ -4429,6 +4471,20 @@ async def import_pdf(
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                 VALUES (%s, %s, %s, %s) ON CONFLICT (filename, contractor) DO NOTHING
             """, (filename, contractor, source_file_type, psycopg2.Binary(content)))
+            record_import_batch(
+                cur,
+                filename=filename,
+                import_kind=source_file_type,
+                contractor=contractor,
+                client=client,
+                project=project,
+                row_counts={
+                    "activities": len(acts),
+                    "consumables": len(cons),
+                    "crew": len(crew),
+                },
+                details={"cost_contract_id": applied_contract["id"] if applied_contract else None},
+            )
         conn.commit()
 
     return {"status":"imported","filename":filename,"rows":len(acts),
@@ -7619,6 +7675,20 @@ async def import_invoice(
                                 (filename, contractor))
                 except Exception:
                     cur.execute("INSERT INTO invoice_imports (filename) VALUES (%s) ON CONFLICT DO NOTHING", (filename,))
+                record_import_batch(
+                    cur,
+                    filename=filename,
+                    import_kind="invoice_pdf",
+                    contractor=contractor,
+                    client=str(inv.get("client") or ""),
+                    project=str(inv.get("project") or ""),
+                    row_counts={"invoices": 1, "invoice_lines": len(lines)},
+                    details={
+                        "invoice_id": invoice_id,
+                        "invoice_number": inv.get("invoice_number", ""),
+                        "total_aud": inv.get("total_aud", 0),
+                    },
+                )
             conn.commit()
     except Exception as e:
         raise HTTPException(500, f"Database error: {str(e)}")
@@ -8799,6 +8869,7 @@ async def import_budget(request: Request):
         raise HTTPException(400, "Invalid JSON")
     contractor = payload.get("contractor", "Allianz Drilling")
     boreholes = payload.get("boreholes", [])
+    source_filename = str(payload.get("source_filename") or "Borehole budget upload")
     if not boreholes:
         raise HTTPException(400, "No boreholes provided")
     for b in boreholes:
@@ -8873,6 +8944,18 @@ async def import_budget(request: Request):
                         WHERE contractor=%s AND site_id=%s AND hole_id=%s
                     """, (contractor, site_id, incoming_hole_id))
                     removed_placeholders += cur.rowcount
+            record_import_batch(
+                cur,
+                filename=source_filename,
+                import_kind="borehole_budget",
+                contractor=contractor,
+                project=str(boreholes[0].get("project") or "") if boreholes else "",
+                row_counts={"boreholes": imported},
+                details={
+                    "merged_by_site": merged_by_site,
+                    "removed_placeholders": removed_placeholders,
+                },
+            )
         conn.commit()
     return {
         "status": "imported",
@@ -10682,6 +10765,16 @@ async def import_ocr_pdf(
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                 VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
             """, (filename, contractor, psycopg2.Binary(content)))
+            record_import_batch(
+                cur,
+                filename=filename,
+                import_kind="ocr_pdf",
+                contractor=contractor,
+                client=str(data.get("client") or ""),
+                project=str(rows[0].get("project") or "") if rows else "",
+                row_counts={"activities": len(rows)},
+                details={"hole_num": hole_num, "report_date": date_str},
+            )
         conn.commit()
 
     return {
@@ -10745,3 +10838,4 @@ def reset_db(contractor: Optional[str]=Query(None)):
 from mobile_api import create_mobile_router
 
 app.include_router(create_mobile_router(get_conn))
+app.include_router(create_admin_router(get_conn))
