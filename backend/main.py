@@ -9441,24 +9441,46 @@ async def add_project(request: Request):
     except (TypeError, ValueError):
         raise HTTPException(400, "client_id must be an integer")
     program = str(payload.get("program", payload.get("category", "Exploration")) or "Exploration").strip() or "Exploration"
-    year = payload.get("year", "")
-    notes = payload.get("notes", "")
+    year = str(payload.get("year") or "").strip()
+    if year and not re.fullmatch(r"\d{4}", year):
+        raise HTTPException(400, "year must be four digits")
+    status = str(payload.get("status") or "Active").strip() or "Active"
+    if status not in {"Active", "Inactive"}:
+        raise HTTPException(400, "status must be Active or Inactive")
+    notes = str(payload.get("notes") or "").strip()
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM projects
+                    WHERE contractor=%s
+                      AND LOWER(BTRIM(name))=LOWER(BTRIM(%s))
+                    LIMIT 1
+                    """,
+                    (contractor, name),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    raise HTTPException(
+                        409,
+                        f'Project "{name}" already exists. Open it from Projects and use Edit.',
+                    )
                 cur.execute("""
-                    INSERT INTO projects (contractor, client_id, program, name, year, notes)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (contractor, name) DO UPDATE SET
-                        client_id=EXCLUDED.client_id,
-                        program=EXCLUDED.program,
-                        year=EXCLUDED.year,
-                        notes=EXCLUDED.notes
+                    INSERT INTO projects (contractor, client_id, program, name, year, status, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
-                """, (contractor, client_id, program, name, year, notes))
+                """, (contractor, client_id, program, name, year, status, notes))
                 pid = cur.fetchone()["id"]
             conn.commit()
         return {"status": "created", "id": pid, "client_id": client_id, "program": program, "name": name}
+    except HTTPException:
+        raise
+    except psycopg2.errors.UniqueViolation as e:
+        raise HTTPException(409, f'Project "{name}" already exists. Open it from Projects and use Edit.') from e
+    except psycopg2.errors.ForeignKeyViolation as e:
+        raise HTTPException(400, "Selected client does not exist") from e
     except Exception as e:
         raise HTTPException(500, f"Failed: {str(e)}")
 
@@ -9472,18 +9494,46 @@ async def update_project(project_id: int, request: Request):
         raise HTTPException(400, "No valid fields")
     if "name" in update and not str(update["name"] or "").strip():
         raise HTTPException(400, "name is required")
+    for key in ("name", "program", "year", "status", "notes"):
+        if key in update:
+            update[key] = str(update[key] or "").strip()
+    if "year" in update and update["year"] and not re.fullmatch(r"\d{4}", update["year"]):
+        raise HTTPException(400, "year must be four digits")
+    if "status" in update and update["status"] not in {"Active", "Inactive"}:
+        raise HTTPException(400, "status must be Active or Inactive")
     if "client_id" in update:
         try:
             update["client_id"] = int(update["client_id"]) if update["client_id"] not in (None, "") else None
         except (TypeError, ValueError):
             raise HTTPException(400, "client_id must be an integer")
     set_clause = ", ".join(f"{key}=%s" for key in update)
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE projects SET {set_clause} WHERE id=%s", list(update.values()) + [project_id])
-            if cur.rowcount == 0:
-                raise HTTPException(404, "Project not found")
-        conn.commit()
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                if "name" in update:
+                    cur.execute(
+                        """
+                        SELECT id
+                        FROM projects
+                        WHERE contractor=(SELECT contractor FROM projects WHERE id=%s)
+                          AND LOWER(BTRIM(name))=LOWER(BTRIM(%s))
+                          AND id<>%s
+                        LIMIT 1
+                        """,
+                        (project_id, update["name"], project_id),
+                    )
+                    if cur.fetchone():
+                        raise HTTPException(409, f'Another project named "{update["name"]}" already exists')
+                cur.execute(f"UPDATE projects SET {set_clause} WHERE id=%s", list(update.values()) + [project_id])
+                if cur.rowcount == 0:
+                    raise HTTPException(404, "Project not found")
+            conn.commit()
+    except HTTPException:
+        raise
+    except psycopg2.errors.UniqueViolation as e:
+        raise HTTPException(409, "Another project with that name already exists") from e
+    except psycopg2.errors.ForeignKeyViolation as e:
+        raise HTTPException(400, "Selected client does not exist") from e
     return {"status": "updated"}
 
 
