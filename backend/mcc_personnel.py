@@ -9,6 +9,7 @@ from io import StringIO
 
 
 MCC_COMPANY = "MCC Group"
+MCC_PERSONNEL_VERIFICATION_START = date(2026, 8, 1)
 SITE_LOG_REQUIRED_HEADERS = {
     "Time In",
     "Time Out",
@@ -206,7 +207,12 @@ def _daily_status(has_submitted, swipe_minutes, open_shift, variance_hours, tole
     return "variance"
 
 
-def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=30):
+def build_mcc_personnel_reconciliation(
+    crew_rows,
+    swipe_rows,
+    tolerance_minutes=30,
+    verification_start=MCC_PERSONNEL_VERIFICATION_START,
+):
     """Combine submitted weekly crew hours with deduplicated daily swipe coverage."""
     submitted = defaultdict(lambda: {
         "hours": 0.0,
@@ -222,7 +228,7 @@ def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=
         name = _normalise_text(row.get("name"))
         person_key = normalise_person_name(name)
         report_date = _parse_date(row.get("date"))
-        if not person_key or report_date is None:
+        if not person_key or report_date is None or report_date < verification_start:
             continue
         key = (person_key, report_date)
         item = submitted[key]
@@ -239,7 +245,7 @@ def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=
         name = _normalise_text(row.get("person_name") or f"{row.get('first_name', '')} {row.get('last_name', '')}")
         person_key = _normalise_text(row.get("person_key")) or normalise_person_name(name)
         report_date = _parse_date(row.get("event_date"))
-        if not person_key or report_date is None:
+        if not person_key or report_date is None or report_date < verification_start:
             continue
         swipes[(person_key, report_date)].append(row)
         identity = identities[person_key]
@@ -340,4 +346,9 @@ def build_mcc_personnel_reconciliation(crew_rows, swipe_rows, tolerance_minutes=
         "verified_days": sum(day["status"] == "verified" for item in people for day in item["days"]),
         "review_days": sum(day["status"] != "verified" for item in people for day in item["days"]),
     }
-    return {"totals": totals, "people": people, "tolerance_minutes": tolerance_minutes}
+    return {
+        "totals": totals,
+        "people": people,
+        "tolerance_minutes": tolerance_minutes,
+        "verification_start": verification_start.isoformat(),
+    }

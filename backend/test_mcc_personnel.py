@@ -79,6 +79,22 @@ class MCCPersonnelTests(unittest.TestCase):
         self.assertEqual(people["Within Tolerance"]["status"], "verified")
         self.assertEqual(people["Outside Tolerance"]["status"], "variance")
 
+    def test_records_before_august_2026_are_not_reviewed(self):
+        crew = [
+            {"name": "July Only", "date": "31/07/2026", "hours": "10", "role": "Operator"},
+            {"name": "August Person", "date": "01/08/2026", "hours": "10", "role": "Operator"},
+        ]
+        swipes = [
+            {"person_name": "July Only", "event_date": "2026-07-31", "time_in": datetime(2026, 7, 31, 6), "duration_minutes": 480},
+            {"person_name": "August Person", "event_date": "2026-08-01", "time_in": datetime(2026, 8, 1, 6), "duration_minutes": 600},
+        ]
+
+        result = build_mcc_personnel_reconciliation(crew, swipes)
+
+        self.assertEqual(result["verification_start"], "2026-08-01")
+        self.assertEqual([person["name"] for person in result["people"]], ["August Person"])
+        self.assertEqual(result["totals"]["review_days"], 0)
+
     def test_open_shift_requires_review_even_when_exported_duration_matches(self):
         crew = [{"name": "Alex Smith", "date": "30/08/2026", "hours": "8"}]
         swipes = [{

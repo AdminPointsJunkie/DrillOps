@@ -5490,9 +5490,10 @@ function renderMccPersonnel(data){
   }):allPeople;
   const coverage=(data&&data.swipe_coverage)||{};
   const dateLabel=function(value){return value?String(value).split('-').reverse().join('/'):'--';};
+  const verificationStart=dateLabel((data&&data.verification_start)||'2026-08-01');
   summary.textContent=coverage.records
-    ?coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records; daily differences within ±0.50 h are verified.'
-    :'No MCC swipe history imported yet. Import a Site Log Report CSV to verify submitted hours.';
+    ?'Verification begins '+verificationStart+'. '+coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records; daily differences within ±0.50 h are verified.'
+    :'Verification begins '+verificationStart+'. No MCC swipe history imported yet. Import a Site Log Report CSV to verify submitted hours.';
   const shownTotals={
     people:people.length,
     submitted:people.reduce(function(sum,row){return sum+numVal(row.submitted_hours);},0),
