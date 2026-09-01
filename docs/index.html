@@ -3806,18 +3806,21 @@ function activeContractorCategory(){
 }
 
 function reportDrillingContractor(){
-  const projectContractors=filteredContractors();
-  if(activeContractor && activeContractorCategory() === 'Drilling'
-      && projectContractors.some(function(c){return c.name===activeContractor;})){
-    sessionStorage.setItem('drillops_report_drilling_contractor', activeContractor);
-    return activeContractor;
-  }
-  const saved = sessionStorage.getItem('drillops_report_drilling_contractor') || '';
-  if(saved && contractorCategory(contractorByName(saved)) === 'Drilling'
-      && projectContractors.some(function(c){return c.name===saved;})) return saved;
-  const drilling = projectContractors.find(function(c){ return contractorCategory(c) === 'Drilling'; })
+  const linkedDrilling=(projectContractorsData||[]).map(function(row){
+    const configured=contractorByName(row.contractor);
+    return Object.assign({},configured,{
+      name:row.contractor||configured.name,
+      category:row.category||configured.category,
+      activity_rows:Number(row.activity_rows||0),
+      usage_count:Number(row.usage_count||0)
+    });
+  }).filter(function(c){return contractorCategory(c)==='Drilling';}).sort(function(a,b){
+    return b.activity_rows-a.activity_rows||b.usage_count-a.usage_count||a.name.localeCompare(b.name);
+  });
+  const drilling = linkedDrilling[0]
+    || filteredContractors().find(function(c){ return contractorCategory(c) === 'Drilling'; })
     || CONTRACTORS.find(function(c){ return contractorCategory(c) === 'Drilling'; });
-  return (drilling && drilling.name) || activeContractor;
+  return (drilling && drilling.name) || '';
 }
 
 function contractorInProgram(c, program) {
@@ -4595,9 +4598,9 @@ function activityCategory(row){
 }
 function reportKeyFor(row){
   if(row.source_file){
-    return [row.contractor||reportDrillingContractor()||'No contractor',row.date||'No date',row.source_file].join('|');
+    return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.source_file].join('|');
   }
-  return [row.contractor||reportDrillingContractor()||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
+  return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.hole_num||'No hole','Manual entry'].join('|');
 }
 function relatedDailyReportGroup(row,groups,groupsByKey){
   const exact=groupsByKey.get(reportKeyFor(row));
@@ -4629,7 +4632,7 @@ function reportIdFor(group,index){
   return 'DR-'+String(index+1).padStart(4,'0');
 }
 function reportStatus(group){
-  const saved=getStoredReportApproval(group.date,reportRecordHole(group),group.sourceFile);
+  const saved=getStoredReportApproval(group.date,reportRecordHole(group),group.sourceFile,group.contractor);
   if(saved&&saved.status==='approved')return {label:'Approved',cls:'status-ok'};
   if(saved&&saved.status==='rejected')return {label:'Rejected',cls:'status-warn'};
   if(saved&&saved.status==='query')return {label:'Query',cls:'status-warn'};
@@ -4646,15 +4649,15 @@ function reportApprovalRecordKey(contractor,date,hole,source){
 function reportLockRecordKey(contractor,date,hole,source){
   return [contractor||'',date||'',hole||'',source||''].join('|');
 }
-function getStoredReportApproval(date,hole,source){
-  const contractor=reportDrillingContractor();
+function getStoredReportApproval(date,hole,source,reportContractor){
+  const contractor=reportContractor||activeContractor;
   const key=reportApprovalRecordKey(contractor,date,hole,source);
   if(reportApprovalsByKey[key])return reportApprovalsByKey[key];
   try{return JSON.parse(localStorage.getItem(reportApprovalStorageKey(contractor,date,hole,source))||'null');}
   catch(e){return null;}
 }
-function getStoredReportLock(date,hole,source){
-  const key=reportLockRecordKey(reportDrillingContractor(),date,hole,source);
+function getStoredReportLock(date,hole,source,reportContractor){
+  const key=reportLockRecordKey(reportContractor||activeContractor,date,hole,source);
   return reportLocksByKey[key]||null;
 }
 function applyActivityReportBundle(bundle){
@@ -4674,7 +4677,7 @@ function applyActivityReportBundle(bundle){
 }
 async function loadReportApprovals(dates){
   reportApprovalsByKey={};
-  const p=new URLSearchParams({contractor:reportDrillingContractor()});
+  const p=new URLSearchParams({contractor:activeContractor});
   if(dates)p.set('dates',dates);
   try{
     const rows=await fetch(API+'/report-approvals?'+p.toString()).then(function(r){return r.ok?r.json():[];});
@@ -4688,7 +4691,7 @@ async function loadReportApprovals(dates){
 }
 async function loadReportLocks(dates){
   reportLocksByKey={};
-  const p=new URLSearchParams({contractor:reportDrillingContractor()});
+  const p=new URLSearchParams({contractor:activeContractor});
   if(dates)p.set('dates',dates);
   try{
     const rows=await fetch(API+'/activity-sheet-locks?'+p.toString()).then(function(r){return r.ok?r.json():[];});
@@ -4712,7 +4715,7 @@ function groupDailyReports(rows,reportConsumables){
   rows.forEach(function(r){
     const key=reportKeyFor(r);
     if(!map.has(key)){
-      map.set(key,{key:key,contractor:r.contractor||reportDrillingContractor()||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',project:r.project||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',sourceType:r.source_file_type||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
+      map.set(key,{key:key,contractor:r.contractor||activeContractor||'',date:r.date||'',hole:r.hole_num||'',recordHole:r.source_file?'':(r.hole_num||''),site:r.site_name||'',project:r.project||'',shift:r.shift||'',rig:r.drill_rig||'',sourceFile:r.source_file||'',sourceType:r.source_file_type||'',rows:[],holeSet:new Set(),activityCost:0,consumableCost:0,cost:0,metres:0,hours:0,notes:[],categories:{},flags:[]});
     }
     const g=map.get(key);
     g.rows.push(r);
@@ -6813,7 +6816,7 @@ function renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStat
 
 function renderReportStatusSelect(report){
   const hole=reportRecordHole(report);
-  const status=(getStoredReportApproval(report.date,hole,report.sourceFile)||{}).status||'pending';
+  const status=(getStoredReportApproval(report.date,hole,report.sourceFile,report.contractor)||{}).status||'pending';
   const cls=status==='approved'?'approved':status==='rejected'?'rejected':status==='query'?'query':'';
   return '<select class="status-select '+cls+'" data-report-key="'+attr(report.key)+'" onclick="event.stopPropagation()" onchange="changeReportApprovalFromList(this)">'
     +'<option value="pending" '+(status==='pending'?'selected':'')+'>ⓘ Client Approval Pending</option>'
@@ -6824,7 +6827,7 @@ function renderReportStatusSelect(report){
 }
 
 function renderReportLockStatus(report){
-  const lock=getStoredReportLock(report.date,reportRecordHole(report),report.sourceFile);
+  const lock=getStoredReportLock(report.date,reportRecordHole(report),report.sourceFile,report.contractor);
   const locked=!!(lock&&lock.locked);
   const title=locked?(lock.reason||'Locked from recalculation'):'Not locked';
   return '<span title="'+attr(title)+'" style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;border:1px solid '+(locked?'#bdc9ff':'#d8e0ea')+';background:'+(locked?'#eef2ff':'#f8fafc')+';color:'+(locked?'#315d49':'#647285')+';">'+(locked?'Locked':'Open')+'</span>';
@@ -6835,7 +6838,7 @@ async function changeReportApprovalFromList(select){
   if(!report)return;
   const status=select.value;
   const hole=reportRecordHole(report);
-  const contractor=reportDrillingContractor();
+  const contractor=report.contractor||activeContractor;
   const key=reportApprovalRecordKey(contractor,report.date,hole,report.sourceFile);
   if(status==='pending'){
     try{
@@ -6951,7 +6954,7 @@ async function bulkAssignReportsToWorkspace(){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        contractor:reportDrillingContractor(),
+        contractor:reports[0].contractor||activeContractor,
         project:activeProjectName,
         activity_ids:activityIds
       })
@@ -6970,7 +6973,6 @@ async function bulkAssignReportsToWorkspace(){
 async function bulkSetReportLocks(locked){
   const reports=selectedReportRows();
   if(!reports.length){toast('Select reports first','warn');return;}
-  const contractor=reportDrillingContractor();
   const reason=locked
     ? (prompt('Bulk lock note', 'Bulk locked to protect reviewed/custom changes.')||'')
     : (prompt('Bulk unlock note', 'Bulk unlocked for recalculation.')||'');
@@ -6983,6 +6985,7 @@ async function bulkSetReportLocks(locked){
   try{
     for(const report of reports){
       const hole=reportRecordHole(report);
+      const contractor=report.contractor||activeContractor;
       const res=await fetch(API+'/activity-sheet-locks',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -7091,7 +7094,7 @@ function closeDailyReportDetail(){
 function dailyReportNavigationRecord(report){
   return {
     key:report.key||'',
-    contractor:report.contractor||reportDrillingContractor(),
+    contractor:report.contractor||activeContractor,
     program:activeProgram||'',
     date:report.date||'',
     hole:reportRecordHole(report),
@@ -7125,7 +7128,7 @@ function createDailyReportNavigationContext(){
 
 function dailyReportUrl(report,navigationToken){
   const params=new URLSearchParams({
-    contractor:report.contractor||activeContractor||reportDrillingContractor(),
+    contractor:report.contractor||activeContractor,
     program:activeProgram||'',
     date:report.date||'',
     hole:reportRecordHole(report),
@@ -7161,7 +7164,7 @@ function openGraphicalRangeReport(){
     if(!to)to=dates[dates.length-1]||'';
   }
   if(!from||!to){toast('Select a start and end date first','warn');return;}
-  const params=new URLSearchParams({contractor:reportDrillingContractor(),from:from,to:to});
+  const params=new URLSearchParams({contractor:activeContractor,from:from,to:to});
   window.open('range-report.html?'+params.toString(),'_blank','noopener');
 }
 
