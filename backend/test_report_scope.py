@@ -28,6 +28,20 @@ class ReportScopeTests(unittest.TestCase):
         self.assertIn("var p=new URLSearchParams({contractor:activeContractor});", self.html)
         self.assertIn("const suffix='contractor='+encodeURIComponent(drillingContractor)", self.html)
 
+    def test_workspace_requires_client_project_and_program(self):
+        self.assertIn('id="workspace-client-select"', self.html)
+        self.assertIn('id="workspace-project-select"', self.html)
+        self.assertIn('id="workspace-program-select"', self.html)
+        self.assertIn("function populateWorkspaceProgramOptions()", self.html)
+        self.assertIn("workspaceProgramLabel(project, program)", self.html)
+        self.assertIn("program:activeProgram", self.html)
+
+    def test_period_report_uses_selected_program_year(self):
+        self.assertIn("const reportYear=activeProjectYear();", self.html)
+        self.assertIn("'&year='+encodeURIComponent(reportYear)", self.html)
+        self.assertIn("const programLabel=activeWorkspaceProgramLabel();", self.html)
+        self.assertIn("projectLabel+' - '+programLabel+' Drilling Report'", self.html)
+
 
 if __name__ == "__main__":
     unittest.main()
