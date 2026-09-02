@@ -72,6 +72,9 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn('id="mcc-personnel-detail"', INDEX_HTML)
         self.assertIn("function filterMccPersonnel()", INDEX_HTML)
         self.assertIn("Submitted − swipe", INDEX_HTML)
+        self.assertIn('id="mcc-swipe-evidence-dialog"', INDEX_HTML)
+        self.assertIn("openMccSwipeEvidence", INDEX_HTML)
+        self.assertIn("overlapping device events", INDEX_HTML)
         self.assertIn("Overlapping device records are counted once", INDEX_HTML)
 
     def test_mcc_site_log_has_dedicated_import_and_reconciliation_endpoints(self):

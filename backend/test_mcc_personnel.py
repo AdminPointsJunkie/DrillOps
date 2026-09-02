@@ -46,6 +46,10 @@ class MCCPersonnelTests(unittest.TestCase):
         self.assertEqual(day["swipe_hours"], 10.0)
         self.assertEqual(day["status"], "verified")
         self.assertEqual(day["swipe_events"], 3)
+        self.assertEqual(len(day["swipe_details"]), 3)
+        self.assertEqual(day["swipe_details"][0]["time_in"], "06:00")
+        self.assertEqual(day["swipe_details"][0]["hours"], 10.0)
+        self.assertEqual(day["swipe_details"][0]["logpoint"], "Wallmount")
 
     def test_flags_variance_missing_evidence_and_unsubmitted_swipes(self):
         crew = [

@@ -292,6 +292,24 @@ def build_mcc_personnel_reconciliation(
         source_files = sorted(submitted_item["source_files"]) if submitted_item else []
         swipe_sources = sorted({_normalise_text(row.get("source_file")) for row in swipe_items if row.get("source_file")})
         logpoints = sorted({_normalise_text(row.get("logpoint")) for row in positive_swipes if row.get("logpoint")})
+        swipe_details = []
+        for row in sorted(swipe_items, key=lambda item: _parse_datetime(item.get("time_in")) or datetime.max):
+            start = _parse_datetime(row.get("time_in"))
+            reported_end = _parse_datetime(row.get("time_out"))
+            minutes = max(0, int(row.get("duration_minutes") or 0))
+            derived_end = start + timedelta(minutes=minutes) if start is not None and minutes else None
+            is_open = bool(row.get("open_shift"))
+            swipe_details.append({
+                "time_in": start.strftime("%H:%M") if start else "",
+                "time_out": "Not logged out" if is_open else (reported_end or derived_end).strftime("%H:%M") if (reported_end or derived_end) else "",
+                "hours": round(minutes / 60, 2),
+                "duration_minutes": minutes,
+                "logpoint": _normalise_text(row.get("logpoint")),
+                "site": _normalise_text(row.get("site")),
+                "activity": _normalise_text(row.get("activity")),
+                "source_file": _normalise_text(row.get("source_file")),
+                "open_shift": is_open,
+            })
         days_by_person[person_key].append({
             "date": report_date.strftime("%d/%m/%Y"),
             "date_iso": report_date.isoformat(),
@@ -306,6 +324,7 @@ def build_mcc_personnel_reconciliation(
             "logpoints": logpoints,
             "timesheet_sources": source_files,
             "swipe_sources": swipe_sources,
+            "swipe_details": swipe_details,
         })
 
     status_priority = {
