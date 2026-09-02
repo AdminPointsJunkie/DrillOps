@@ -71,6 +71,14 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("Personnel — ARG-005 Exploration", REPORT_HTML)
         self.assertIn("weekly?mccExplorationCrew(reportCrewRows,rows):reportCrewRows", REPORT_HTML)
 
+    def test_weekly_kpi_boxes_are_replaced_by_invoice_style_cost_hours_summary(self):
+        self.assertNotIn('id="weekly-facts"', REPORT_HTML)
+        self.assertNotIn("['Represented workdays',String(context.workdays)]", REPORT_HTML)
+        self.assertIn("Costs &amp; Hours Summary", REPORT_HTML)
+        self.assertIn("function renderWeeklyCostHoursSummary(context)", REPORT_HTML)
+        self.assertIn("weekly-cost-subtotal", REPORT_HTML)
+        self.assertIn("Weekly total", REPORT_HTML)
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 

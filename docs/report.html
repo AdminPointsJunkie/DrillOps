@@ -112,10 +112,14 @@ tr.saving td{background:#fff7e6;}
 .weekly-hero-total-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
 .weekly-hero-total-value{font-size:30px;font-weight:850;color:#19201d;margin-top:5px;letter-spacing:-.03em;}
 .weekly-hero-total-meta{font-size:11px;color:var(--muted);margin-top:3px;}
-.weekly-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px;}
-.weekly-fact{border:1px solid var(--border);border-radius:8px;background:#fff;padding:11px 12px;}
-.weekly-fact strong{display:block;font-size:17px;color:#19201d;margin-top:4px;}
-.weekly-fact span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.weekly-cost-hours{margin-top:10px;border:1px solid var(--border);border-radius:9px;background:#fff;box-shadow:var(--shadow);overflow:hidden;}
+.weekly-cost-hours-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fbfcfd;}
+.weekly-cost-hours-title{font-size:13px;font-weight:850;color:#26352d;}
+.weekly-cost-hours-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.weekly-cost-hours table th:nth-child(n+2),.weekly-cost-hours table td:nth-child(n+2){text-align:right;}
+.weekly-cost-section td{padding:8px 12px;background:#f4f6f3;color:#405248;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;}
+.weekly-cost-subtotal td{background:#fbfcfd;font-weight:800;color:#26352d;border-top:1px solid var(--border);}
+.weekly-cost-grand-total td{padding:12px;background:#eef4f0;font-weight:900;color:#19201d;font-size:14px;border-top:2px solid #c9d8cf;}
 .weekly-visual-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.45fr);gap:10px;margin-top:10px;}
 .weekly-visual-card{border:1px solid var(--border);border-radius:9px;background:#fff;padding:14px;box-shadow:var(--shadow);}
 .weekly-visual-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
@@ -149,8 +153,8 @@ tr.saving td{background:#fff7e6;}
 .weekly-mode #report-kpis{display:none;}
 .weekly-mode #timeline-title,.weekly-mode #timeline{display:none;}
 @media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
-@media(max-width:1000px){.weekly-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-visual-grid{grid-template-columns:1fr}}
-@media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-facts{grid-template-columns:1fr 1fr}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1000px){.weekly-visual-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-cost-hours-head{flex-direction:column}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <link rel="stylesheet" href="./drillops-theme.css"/>
 </head>
@@ -184,7 +188,13 @@ tr.saving td{background:#fff7e6;}
           </div>
           <div class="weekly-hero-total"><div class="weekly-hero-total-label">Contract cost</div><div class="weekly-hero-total-value" id="weekly-hero-total">--</div><div class="weekly-hero-total-meta">Ex GST · contract rates retained</div></div>
         </div>
-        <div class="weekly-facts" id="weekly-facts"></div>
+        <div class="weekly-cost-hours" id="weekly-cost-hours">
+          <div class="weekly-cost-hours-head">
+            <div><div class="weekly-cost-hours-title">Costs &amp; Hours Summary</div><div class="weekly-cost-hours-meta" id="weekly-cost-hours-meta">Grouped like the invoice by labour and equipment rate item.</div></div>
+            <strong id="weekly-cost-hours-total">--</strong>
+          </div>
+          <table><thead><tr><th>Activity</th><th>Qty / Hours</th><th>Rate</th><th>Amount</th></tr></thead><tbody id="weekly-cost-hours-body"></tbody></table>
+        </div>
         <div class="weekly-visual-grid">
           <div class="weekly-visual-card">
             <div class="weekly-visual-head"><div><div class="weekly-visual-title">Where the cost sits</div><div class="weekly-visual-meta">Contract-priced cost composition</div></div><strong id="weekly-cost-total">--</strong></div>
@@ -1190,17 +1200,56 @@ function updateWeeklyReadiness(auditRows,totals){
       :'All required comparisons agree.'+(coverageText?' '+coverageText+'.':'');
   document.getElementById('weekly-readiness-kicker').textContent=unpriced?'Pricing incomplete':exceptions?'Review required':'Invoice ready';
 }
+function weeklyCostHoursItems(rows){
+  const grouped=new Map();
+  (rows||[]).forEach(row=>{
+    const priced=row.unit_rate!=null&&row.unit_rate!==''&&row.line_cost!=null&&row.line_cost!=='';
+    const labour=/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(row.code||''));
+    const section=priced?(labour?'Labour':'Equipment'):'Unpriced';
+    const label=noteField(row,'Schedule item')||noteField(row,'Role')||mccEquipment(row)||String(row.code||'Unpriced').replace(/^MCC_/,'').replaceAll('_',' ');
+    const basis=String(row.rate_basis||'').toLowerCase();
+    const unit=basis.includes('(day)')||basis.includes('/day')?'day':'hour';
+    const rawQuantity=row.quantity!=null&&row.quantity!==''?num(row.quantity):parseDurationHours(row.total_time);
+    const quantity=rawQuantity*mccAllocationPercent(row)/100;
+    const rate=priced?num(row.unit_rate):null;
+    const key=[section,label,rate==null?'':rate.toFixed(4),unit].join('|');
+    if(!grouped.has(key))grouped.set(key,{section,label,unit,rate,quantity:0,amount:0,lines:0});
+    const item=grouped.get(key);
+    item.quantity+=quantity;
+    item.amount+=priced?mccAllocatedCost(row):0;
+    item.lines++;
+  });
+  const order={Labour:0,Equipment:1,Unpriced:2};
+  return [...grouped.values()].sort((a,b)=>order[a.section]-order[b.section]||a.label.localeCompare(b.label)||(a.rate||0)-(b.rate||0));
+}
+function renderWeeklyCostHoursSummary(context){
+  const items=weeklyCostHoursItems(context.rows),sections=['Labour','Equipment','Unpriced'];
+  const labourHours=items.filter(item=>item.section==='Labour'&&item.unit==='hour').reduce((sum,item)=>sum+item.quantity,0);
+  document.getElementById('weekly-cost-hours-total').textContent=cur(context.totalCost);
+  document.getElementById('weekly-cost-hours-meta').textContent=labourHours.toFixed(2)+' labour hours · '+context.workdays+' represented workday'+(context.workdays===1?'':'s')+' · '+context.unpriced+' unpriced line'+(context.unpriced===1?'':'s');
+  let html='';
+  sections.forEach(section=>{
+    const sectionItems=items.filter(item=>item.section===section);
+    if(!sectionItems.length)return;
+    html+='<tr class="weekly-cost-section"><td colspan="4">'+esc(section)+'</td></tr>';
+    sectionItems.forEach(item=>{
+      const quantity=item.quantity.toFixed(2)+' '+(item.unit==='day'?(Math.abs(item.quantity-1)<0.005?'day':'days'):'h');
+      html+='<tr><td>'+esc(item.label)+'</td><td>'+esc(quantity)+'</td><td>'+(item.rate==null?'--':cur(item.rate)+' / '+(item.unit==='day'?'day':'h'))+'</td><td>'+(item.rate==null?'--':cur(item.amount))+'</td></tr>';
+    });
+    if(section!=='Unpriced'){
+      const subtotal=sectionItems.reduce((sum,item)=>sum+item.amount,0);
+      html+='<tr class="weekly-cost-subtotal"><td colspan="3">'+esc(section)+' subtotal</td><td>'+cur(subtotal)+'</td></tr>';
+    }
+  });
+  html+='<tr class="weekly-cost-grand-total"><td colspan="3">Weekly total</td><td>'+cur(context.totalCost)+'</td></tr>';
+  document.getElementById('weekly-cost-hours-body').innerHTML=html;
+}
 function renderWeeklyOverview(context){
   weeklyOverviewContext=context;
   document.getElementById('weekly-overview').style.display='block';
   document.getElementById('weekly-hero-total').textContent=cur(context.totalCost);
   document.getElementById('weekly-cost-total').textContent=cur(context.totalCost);
-  document.getElementById('weekly-facts').innerHTML=[
-    ['Represented workdays',String(context.workdays)],
-    ['Total labour hours',context.totalHours.toFixed(2)+' h'],
-    ['Weekly cost lines',String(context.rows.length)],
-    ['Unpriced lines',String(context.unpriced)]
-  ].map(item=>'<div class="weekly-fact"><span>'+esc(item[0])+'</span><strong>'+esc(item[1])+'</strong></div>').join('');
+  renderWeeklyCostHoursSummary(context);
   const pricedTotal=Math.max(context.labourCost+context.equipmentCost,1);
   const pct=value=>Math.max(0,(value/pricedTotal)*100);
   document.getElementById('weekly-cost-mix').innerHTML='<div class="cost-bar" aria-label="Cost composition">'
