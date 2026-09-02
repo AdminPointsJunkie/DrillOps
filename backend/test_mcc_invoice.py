@@ -53,7 +53,8 @@ class MCCInvoiceTests(unittest.TestCase):
         result = reconcile_mcc_invoice_lines(invoice["lines"], weekly)
         by_code = {line.get("activity_code") or "extra": line for line in result}
 
-        self.assertEqual(by_code["MCC_SUPERVISOR"]["match_status"], "exact_match")
+        self.assertEqual(by_code["MCC_SUPERVISOR"]["match_status"], "rate_error")
+        self.assertEqual(by_code["MCC_SUPERVISOR"]["matched_eos_rate"], 38.5)
         self.assertEqual(by_code["MCC_BACKHOE"]["match_status"], "rate_error")
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_rate"], 65.0)
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_quantity"], 18.8)

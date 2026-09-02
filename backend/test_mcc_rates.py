@@ -53,7 +53,9 @@ class MCCRatesTests(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_site_services_assets_match_schedule(self):
-        self.assertEqual(len(MCC_CUSTOM_RATES), 2)
+        self.assertEqual(len(MCC_CUSTOM_RATES), 3)
+        supervisor = mcc_schedule_match("Supervisor", "labour")
+        self.assertEqual((supervisor["rate"], supervisor["unit"], supervisor["source"]), (38.5, "hour", "custom"))
         self.assertEqual(mcc_schedule_match("LD04 CAT Backhoe 432", "equipment")["rate"], 65.0)
         self.assertEqual(mcc_schedule_match("WT01 HINO FM500 WATER TRUCK", "equipment")["rate"], 80.0)
         self.assertEqual(mcc_schedule_match("EX16 HITACHI ZX135US-7 EXCAVATOR", "equipment")["rate"], 85.0)
@@ -87,8 +89,9 @@ class MCCRatesTests(unittest.TestCase):
         supervisor = {"quantity": 2.8}
         self.assertTrue(apply_mcc_schedule_rate(supervisor, "labour", "Supervisor"))
         self.assertEqual(supervisor["code"], "MCC_SUPERVISOR")
-        self.assertEqual(supervisor["unit_rate"], 120.0)
-        self.assertEqual(supervisor["line_cost"], 336.0)
+        self.assertEqual(supervisor["unit_rate"], 38.5)
+        self.assertEqual(supervisor["line_cost"], 107.8)
+        self.assertEqual(supervisor["rate_basis"], "MCC custom rate - Supervisor ($38.50/hour)")
 
         missing_hours = {"quantity": None}
         self.assertTrue(apply_mcc_schedule_rate(missing_hours, "labour", "Labourer"))

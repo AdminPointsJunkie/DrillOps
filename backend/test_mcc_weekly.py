@@ -113,7 +113,7 @@ class MCCWeeklyTests(unittest.TestCase):
 
         self.assertEqual(len(activities), 3)
         self.assertEqual(len(crew), 1)
-        self.assertEqual(sum(item["line_cost"] for item in activities), 1395.0)
+        self.assertEqual(sum(item["line_cost"] for item in activities), 1069.0)
 
     def test_prefers_arg_workstream_tabs_over_stale_summary(self):
         summary_row = [
@@ -139,7 +139,7 @@ class MCCWeeklyTests(unittest.TestCase):
 
         self.assertEqual(len(activities), 2)
         self.assertEqual(activities[0]["quantity"], 12.5)
-        self.assertEqual(activities[0]["line_cost"], 1500.0)
+        self.assertEqual(activities[0]["line_cost"], 481.25)
 
     def test_uses_smu_total_when_nightshift_hours_are_blank(self):
         content = workbook_bytes([[

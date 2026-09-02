@@ -60,6 +60,11 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertNotIn("Earthworks Cost Summary", REPORT_HTML)
         self.assertIn("document.getElementById('timeline').style.display='none'", REPORT_HTML)
 
+    def test_mcc_personnel_report_shows_rate_list_cost(self):
+        self.assertIn("/rates/hourly?contractor=", REPORT_HTML)
+        self.assertIn("function mccCrewCost(row)", REPORT_HTML)
+        self.assertIn("<th>Hours Worked</th><th>Cost</th>", REPORT_HTML)
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 

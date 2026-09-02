@@ -299,7 +299,7 @@ const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source]
 const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
 const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
 const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
-let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],reportPlannedHoles=[],plannedHolesState='idle',sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
+let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],hourlyRates=[],reportPlannedHoles=[],plannedHolesState='idle',sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
 let weeklyAuditRows=[],weeklyAuditShowAll=false,weeklyOverviewContext=null;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -587,6 +587,24 @@ function renderMccSiteServiceLineItems(rows){
     control.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();control.blur();}});
   });
 }
+function normaliseMccCrewRole(value){
+  return String(value||'').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/[^a-z0-9]+/g,' ').trim().replace(/s$/,'');
+}
+function mccCrewRate(role){
+  const key=normaliseMccCrewRole(role);
+  if(!key)return null;
+  const match=hourlyRates.find(rate=>{
+    if(String(rate.unit||'').toLowerCase()!=='hour')return false;
+    const description=String(rate.description||'').split(' (')[0];
+    return normaliseMccCrewRole(description)===key;
+  });
+  return match?num(match.rate):null;
+}
+function mccCrewCost(row){
+  const rate=mccCrewRate(row.role);
+  if(rate==null||row.hours==null||row.hours==='')return null;
+  return num(row.hours)*rate;
+}
 async function saveReportEquipmentEdit(cell){
   const tr=cell.closest('tr');
   const id=tr.dataset.id;
@@ -823,6 +841,7 @@ async function loadReportData(){
     let rows=await fetchJson(API+'/activities?'+actParams.toString());
     rows=rows.filter(belongsToThisReport);
     drillingRates=await fetchJson(API+'/rates/drilling?contractor='+encodeURIComponent(contractor)).catch(()=>[]);
+    hourlyRates=contractor==='MCC Group'?await fetchJson(API+'/rates/hourly?contractor='+encodeURIComponent(contractor)+'&year=2026').catch(()=>[]):[];
     const consumables=contractor==='MCC Group'?[]:await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
     const crew=await fetchJson(API+'/crew?'+relatedParams.toString()).catch(()=>[]);
     reportRows=rows;
@@ -1309,8 +1328,8 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc((mccWorkGroupForRow(r)||{}).label||r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(mccAllocatedCost(r)):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
   const relatedCrew=crew.filter(belongsToThisReport).slice().sort((a,b)=>reportDateKey(a.date)-reportDateKey(b.date)||(a.name||'').localeCompare(b.name||''));
   const crewTable=document.getElementById('crew-body').closest('table');
-  crewTable.querySelector('thead').innerHTML='<tr><th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th></tr>';
-  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.date||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No personnel recorded</td></tr>';
+  crewTable.querySelector('thead').innerHTML='<tr><th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th><th>Cost</th></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>{const cost=mccCrewCost(c);return '<tr><td>'+esc(c.date||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td><td>'+(cost!=null?cur(cost):'--')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="empty">No personnel recorded</td></tr>';
   const pdf=document.getElementById('pdf-btn');
   pdf.style.display=source?'inline-flex':'none';
   pdf.textContent=weekly?'Download source XLSX':'Source PDF';
