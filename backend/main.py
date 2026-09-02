@@ -15,7 +15,8 @@ from contextlib import contextmanager
 from functools import lru_cache
 from io import BytesIO
 from io import StringIO
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
+from time import monotonic
 from typing import Optional
 
 import pdfplumber
@@ -26,6 +27,7 @@ from psycopg2.pool import ThreadedConnectionPool
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from admin_api import create_admin_router
 from audit import record_import_batch
 from dar_workflow import ensure_dar_schema
@@ -243,6 +245,9 @@ CONTRACTOR_REFERENCE_TABLES = [
 DB_POOL_MIN = max(1, int(os.environ.get("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.environ.get("DB_POOL_MAX", "5")))
 DB_POOL_ACQUIRE_TIMEOUT = max(1, int(os.environ.get("DB_POOL_ACQUIRE_TIMEOUT", "30")))
+DB_POOL_HEALTHCHECK_INTERVAL = max(
+    1, int(os.environ.get("DB_POOL_HEALTHCHECK_INTERVAL", "60"))
+)
 
 _db_pool = ThreadedConnectionPool(
     DB_POOL_MIN,
@@ -257,6 +262,27 @@ _db_pool = ThreadedConnectionPool(
     keepalives_count=3,
 )
 _db_pool_slots = BoundedSemaphore(DB_POOL_MAX)
+_db_pool_state_lock = Lock()
+_db_pool_last_used = {}
+
+
+def _pool_connection_recently_used(conn):
+    with _db_pool_state_lock:
+        last_used = _db_pool_last_used.get(id(conn))
+    return bool(
+        last_used is not None
+        and monotonic() - last_used < DB_POOL_HEALTHCHECK_INTERVAL
+    )
+
+
+def _mark_pool_connection_used(conn):
+    with _db_pool_state_lock:
+        _db_pool_last_used[id(conn)] = monotonic()
+
+
+def _forget_pool_connection(conn):
+    with _db_pool_state_lock:
+        _db_pool_last_used.pop(id(conn), None)
 
 
 def _connection_failed(exc, conn):
@@ -269,57 +295,70 @@ def _connection_failed(exc, conn):
 
 
 def _get_live_connection():
-    """Check pooled connections before use and replace stale ones once."""
+    """Replace stale pooled connections without pinging every warm request."""
     last_error = None
     for _ in range(2):
         conn = _db_pool.getconn()
         try:
             if conn.closed:
                 raise psycopg2.InterfaceError("pooled database connection is closed")
+            if _pool_connection_recently_used(conn):
+                return conn
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
             conn.rollback()
             return conn
         except psycopg2.Error as exc:
             last_error = exc
+            _forget_pool_connection(conn)
             _db_pool.putconn(conn, close=True)
 
     raise last_error
 
 
 @contextmanager
-def get_conn():
+def get_conn(*, read_only=False):
     """Borrow a PostgreSQL connection and return it to the shared pool."""
     if not _db_pool_slots.acquire(timeout=DB_POOL_ACQUIRE_TIMEOUT):
         raise RuntimeError("Database connection pool is busy; please retry")
 
     conn = None
     discard = False
+    autocommit_before = False
+    safe_request = False
     try:
         conn = _get_live_connection()
         audit_context = current_request_audit_context()
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    set_config('app.actor_user_id', %s, TRUE),
-                    set_config('app.request_id', %s, TRUE),
-                    set_config('app.request_method', %s, TRUE),
-                    set_config('app.request_path', %s, TRUE)
-                """,
-                (
-                    audit_context.user_id,
-                    audit_context.request_id,
-                    audit_context.method,
-                    audit_context.path,
-                ),
-            )
+        safe_request = read_only
+        autocommit_before = conn.autocommit
+        if safe_request:
+            # Read endpoints do not need trigger audit metadata or a final COMMIT.
+            # Autocommit reduces a normal report read to one database round trip.
+            conn.autocommit = True
+        else:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        set_config('app.actor_user_id', %s, TRUE),
+                        set_config('app.request_id', %s, TRUE),
+                        set_config('app.request_method', %s, TRUE),
+                        set_config('app.request_path', %s, TRUE)
+                    """,
+                    (
+                        audit_context.user_id,
+                        audit_context.request_id,
+                        audit_context.method,
+                        audit_context.path,
+                    ),
+                )
         yield conn
-        conn.commit()
+        if not safe_request:
+            conn.commit()
     except Exception as exc:
         if conn is not None:
             discard = _connection_failed(exc, conn)
-            if not discard:
+            if not discard and not safe_request:
                 try:
                     conn.rollback()
                 except psycopg2.Error:
@@ -328,6 +367,12 @@ def get_conn():
     finally:
         if conn is not None:
             discard = discard or bool(conn.closed)
+            if not discard and safe_request:
+                conn.autocommit = autocommit_before
+            if discard:
+                _forget_pool_connection(conn)
+            else:
+                _mark_pool_connection_used(conn)
             _db_pool.putconn(conn, close=discard)
         _db_pool_slots.release()
 
@@ -342,6 +387,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.on_event("shutdown")
@@ -5567,7 +5613,7 @@ def get_activities(
         WHERE {' AND '.join(conds)}
         ORDER BY a.date, a.time_from
     """
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute(q, params)
             return [dict(r) for r in cur.fetchall()]
@@ -5659,7 +5705,7 @@ def get_activity_report_data(
           ), '[]'::jsonb) AS activity_sheet_locks
     """
 
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute(query, params)
             bundle = dict(cur.fetchone())
@@ -5713,7 +5759,7 @@ def get_mcc_weekly_audit(
         source_scope = f"""
           AND (sf.file_type='mcc_site_services_pdf' OR ({authoritative_weekly}))
         """
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
@@ -5751,7 +5797,7 @@ def get_mcc_weekly_audit(
 @app.get("/mcc/personnel")
 def get_mcc_personnel(search: str = Query(default="", max_length=100)):
     """Compare MCC weekly submitted hours with imported Site Log swipe coverage."""
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

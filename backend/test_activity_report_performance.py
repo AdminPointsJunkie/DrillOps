@@ -25,11 +25,24 @@ class ActivityReportPerformanceTests(unittest.TestCase):
 
         self.assertNotIn("/mcc/weekly-audit", body)
         self.assertNotIn("await ensureReportBoreholes()", body)
+        self.assertNotIn("ensureReportBoreholes().then(renderPeriodReport)", body)
         self.assertIn("renderActivities(activitiesData)", body)
+
+    def test_collapsed_raw_tables_are_rendered_only_when_opened(self):
+        self.assertIn("const opening=panel.classList.contains('collapsed')", self.html)
+        self.assertIn("if(panelId==='activity-log-panel')renderActivities(activitiesData)", self.html)
+        self.assertIn("if(panel&&panel.classList.contains('collapsed'))", self.html)
+        self.assertGreaterEqual(
+            self.html.count("if(panel&&panel.classList.contains('collapsed'))"),
+            3,
+        )
 
     def test_combined_mcc_audit_loads_only_when_opened(self):
         self.assertIn("if(opening)loadMccWeeklyAudit();", self.html)
         self.assertIn("Combined exceptions are calculated only when opened", self.html)
+
+    def test_activity_register_does_not_render_the_hidden_period_report(self):
+        self.assertIn("if(isPageActive('reports'))renderPeriodReport();", self.html)
 
     def test_portal_startup_does_not_preload_activity_reports(self):
         match = re.search(

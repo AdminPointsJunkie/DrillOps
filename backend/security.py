@@ -4,6 +4,8 @@ import os
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
+from threading import Lock
+from time import monotonic
 from typing import Callable
 
 import jwt
@@ -66,6 +68,11 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.get_conn = get_conn
         self.public_paths = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
+        self.admin_cache_ttl = max(
+            1, int(os.environ.get("SYSTEM_ADMIN_CACHE_TTL", "30"))
+        )
+        self._admin_cache = {}
+        self._admin_cache_lock = Lock()
 
     async def dispatch(self, request: Request, call_next):
         if request.method == "OPTIONS" or request.url.path in self.public_paths:
@@ -86,7 +93,7 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/mobile"):
             try:
                 is_admin = await run_in_threadpool(
-                    self._is_system_admin, request.state.auth_user.user_id
+                    self._is_system_admin_cached, request.state.auth_user.user_id
                 )
             except Exception:
                 is_admin = False
@@ -107,7 +114,7 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
             request_audit_context.reset(context_token)
 
     def _is_system_admin(self, user_id: str) -> bool:
-        with self.get_conn() as conn:
+        with self.get_conn(read_only=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -117,6 +124,17 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
                     (user_id,),
                 )
                 return cur.fetchone() is not None
+
+    def _is_system_admin_cached(self, user_id: str) -> bool:
+        now = monotonic()
+        with self._admin_cache_lock:
+            cached = self._admin_cache.get(user_id)
+            if cached and now - cached[0] < self.admin_cache_ttl:
+                return cached[1]
+        is_admin = self._is_system_admin(user_id)
+        with self._admin_cache_lock:
+            self._admin_cache[user_id] = (now, is_admin)
+        return is_admin
 
     @staticmethod
     def _error(status: int, detail: str):

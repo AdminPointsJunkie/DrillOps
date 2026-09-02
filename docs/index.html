@@ -5274,9 +5274,14 @@ function togglePanel(panelId,labelId,labelWord){
   const panel=document.getElementById(panelId);
   const label=document.getElementById(labelId);
   if(!panel)return;
+  const opening=panel.classList.contains('collapsed');
   panel.classList.toggle('collapsed');
   const word=labelWord||'rows';
   if(label)label.textContent=panel.classList.contains('collapsed')?'Show '+word:'Hide '+word;
+  if(!opening)return;
+  if(panelId==='activity-log-panel')renderActivities(activitiesData);
+  if(panelId==='consumables-panel')renderConsumablesTable();
+  if(panelId==='crew-panel')renderCrewTable();
 }
 
 function activityFilterParam(id,delimiter=','){
@@ -5744,12 +5749,12 @@ async function loadActivities(){
     activitiesData=filterRowsForActiveProgram(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
     crewData=filterRowsForActiveProgram(crewData);
+    // Paint the report register before doing any work for the optional raw
+    // tables. Those tables can contain thousands of editable cells and are
+    // hidden by default, so building them here only delays useful content.
+    renderActivities(activitiesData);
     renderConsumablesTable();
     renderCrewTable();
-    renderActivities(activitiesData);
-    setTimeout(function(){
-      ensureReportBoreholes().then(renderPeriodReport).catch(function(){});
-    },0);
   }catch(e){
     renderDailyReportSummary([]);
     document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
@@ -5825,6 +5830,11 @@ function renderActivities(rows){
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
+  const panel=document.getElementById('activity-log-panel');
+  if(panel&&panel.classList.contains('collapsed')){
+    tbody.innerHTML='';
+    return;
+  }
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="19"><div class="empty-state"><div class="big">📭</div>No records</div></td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`
     <tr data-id="${r.id}">
@@ -5976,7 +5986,7 @@ function renderDailyReportSummary(rows){
   filterDailyReportRows();
   updateBulkReportSelection();
   if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
-  renderPeriodReport();
+  if(isPageActive('reports'))renderPeriodReport();
 }
 
 async function ensureReportBoreholes(){
@@ -7593,6 +7603,11 @@ function renderConsumablesTable(){
   const body=document.getElementById('con-body');
   if(!body)return;
   if(count)count.textContent=consumablesData.length;
+  const panel=document.getElementById('consumables-panel');
+  if(panel&&panel.classList.contains('collapsed')){
+    body.innerHTML='';
+    return;
+  }
   body.innerHTML=consumablesData.map(function(r){
     var up = parseFloat(r.unit_price)||0;
     var lc = parseFloat(r.line_cost)||0;
@@ -7643,6 +7658,11 @@ function renderCrewTable(){
   const body=document.getElementById('crew-body');
   if(!body)return;
   if(count)count.textContent=crewData.length;
+  const panel=document.getElementById('crew-panel');
+  if(panel&&panel.classList.contains('collapsed')){
+    body.innerHTML='';
+    return;
+  }
   body.innerHTML=crewData.map(r=>
     `<tr><td>${esc(r.date)}</td><td>${esc(r.hole_num)}</td><td>${esc(r.site_name)}</td><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.hours)}</td></tr>`
   ).join('')||'<tr><td colspan="6"><div class="empty-state"><div class="big">📭</div>No data</div></td></tr>';
