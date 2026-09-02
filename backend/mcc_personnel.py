@@ -10,6 +10,7 @@ from io import StringIO
 
 MCC_COMPANY = "MCC Group"
 MCC_PERSONNEL_VERIFICATION_START = date(2026, 8, 1)
+MCC_MAX_VALID_SWIPE_MINUTES = 15 * 60
 SITE_LOG_REQUIRED_HEADERS = {
     "Time In",
     "Time Out",
@@ -262,7 +263,10 @@ def build_mcc_personnel_reconciliation(
         submitted_item = submitted.get((person_key, report_date))
         swipe_items = swipes.get((person_key, report_date), [])
         submitted_hours = round(submitted_item["hours"], 2) if submitted_item else 0.0
-        swipe_minutes = _merged_swipe_minutes(swipe_items)
+        recorded_swipe_minutes = _merged_swipe_minutes(swipe_items)
+        swipe_ignored = recorded_swipe_minutes > MCC_MAX_VALID_SWIPE_MINUTES
+        swipe_minutes = 0 if swipe_ignored else recorded_swipe_minutes
+        recorded_swipe_hours = round(recorded_swipe_minutes / 60, 2)
         swipe_hours = round(swipe_minutes / 60, 2)
         variance_hours = round(submitted_hours - swipe_hours, 2)
         positive_swipes = [row for row in swipe_items if int(row.get("duration_minutes") or 0) > 0]
@@ -315,11 +319,13 @@ def build_mcc_personnel_reconciliation(
             "date_iso": report_date.isoformat(),
             "submitted_hours": submitted_hours,
             "swipe_hours": swipe_hours,
+            "recorded_swipe_hours": recorded_swipe_hours,
+            "swipe_ignored": swipe_ignored,
             "variance_hours": variance_hours,
             "status": status,
             "role": ", ".join(roles),
-            "time_in": first_time.strftime("%H:%M") if first_time else "",
-            "time_out": "Not logged out" if open_shift else last_time.strftime("%H:%M") if last_time else "",
+            "time_in": first_time.strftime("%H:%M") if first_time and not swipe_ignored else "",
+            "time_out": "" if swipe_ignored else "Not logged out" if open_shift else last_time.strftime("%H:%M") if last_time else "",
             "swipe_events": len(swipe_items),
             "logpoints": logpoints,
             "timesheet_sources": source_files,
