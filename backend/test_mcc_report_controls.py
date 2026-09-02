@@ -65,6 +65,12 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("function mccCrewCost(row)", REPORT_HTML)
         self.assertIn("<th>Hours Worked</th><th>Cost</th>", REPORT_HTML)
 
+    def test_mcc_weekly_personnel_only_shows_arg_005_exploration(self):
+        self.assertIn('id="personnel-title"', REPORT_HTML)
+        self.assertIn("function mccExplorationCrew(crew,rows)", REPORT_HTML)
+        self.assertIn("Personnel — ARG-005 Exploration", REPORT_HTML)
+        self.assertIn("weekly?mccExplorationCrew(reportCrewRows,rows):reportCrewRows", REPORT_HTML)
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 

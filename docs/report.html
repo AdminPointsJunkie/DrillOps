@@ -269,7 +269,7 @@ tr.saving td{background:#fff7e6;}
           <div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody id="consumables-body"></tbody></table></div>
         </div>
         <div id="personnel-section">
-          <div class="subtitle">Personnel</div>
+          <div class="subtitle" id="personnel-title">Personnel</div>
           <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Hours</th></tr></thead><tbody id="crew-body"></tbody></table></div>
         </div>
       </div>
@@ -604,6 +604,27 @@ function mccCrewCost(row){
   const rate=mccCrewRate(row.role);
   if(rate==null||row.hours==null||row.hours==='')return null;
   return num(row.hours)*rate;
+}
+function mccCrewMatchKey(date,name,role,hours){
+  return [date,name,role,num(hours).toFixed(4)].map(value=>String(value||'').trim().toLowerCase()).join('|');
+}
+function mccExplorationCrew(crew,rows){
+  const allowed=new Map(),seen=new Set();
+  (rows||[]).filter(row=>/\bARG-005\b/i.test([row.location,row.contract,row.project,row.notes].join(' '))||String(row.program||'').toLowerCase()==='exploration').forEach(row=>{
+    const name=noteField(row,'Created by'),role=noteField(row,'Role'),hours=parseDurationHours(row.total_time);
+    if(!name)return;
+    const key=mccCrewMatchKey(row.date,name,role,hours);
+    const signature=[key,row.time_from||'',row.time_to||'',workDescription(row),mccEquipment(row)].map(value=>String(value||'').trim().toLowerCase()).join('|');
+    if(seen.has(signature))return;
+    seen.add(signature);
+    allowed.set(key,(allowed.get(key)||0)+1);
+  });
+  return (crew||[]).filter(row=>{
+    const key=mccCrewMatchKey(row.date,row.name,row.role,row.hours),remaining=allowed.get(key)||0;
+    if(!remaining)return false;
+    allowed.set(key,remaining-1);
+    return true;
+  });
 }
 async function saveReportEquipmentEdit(cell){
   const tr=cell.closest('tr');
@@ -1326,7 +1347,9 @@ function renderMccSiteServicesReport(rows,consumables,crew){
   const equipmentTable=document.getElementById('equipment-body').closest('table');
   equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
   document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc((mccWorkGroupForRow(r)||{}).label||r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(mccAllocatedCost(r)):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
-  const relatedCrew=crew.filter(belongsToThisReport).slice().sort((a,b)=>reportDateKey(a.date)-reportDateKey(b.date)||(a.name||'').localeCompare(b.name||''));
+  const reportCrewRows=crew.filter(belongsToThisReport);
+  const relatedCrew=(weekly?mccExplorationCrew(reportCrewRows,rows):reportCrewRows).slice().sort((a,b)=>reportDateKey(a.date)-reportDateKey(b.date)||(a.name||'').localeCompare(b.name||''));
+  document.getElementById('personnel-title').textContent=weekly?'Personnel — ARG-005 Exploration':'Personnel';
   const crewTable=document.getElementById('crew-body').closest('table');
   crewTable.querySelector('thead').innerHTML='<tr><th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th><th>Cost</th></tr>';
   document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>{const cost=mccCrewCost(c);return '<tr><td>'+esc(c.date||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td><td>'+(cost!=null?cur(cost):'--')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="empty">No personnel recorded</td></tr>';
@@ -1342,6 +1365,7 @@ function renderReport(rows,consumables,crew){
   rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   if(rows.some(isMccWeeklyRow))return renderMccSiteServicesReport(rows,consumables,crew);
   document.getElementById('support-detail-grid').classList.remove('personnel-only');
+  document.getElementById('personnel-title').textContent='Personnel';
   document.getElementById('consumables-section').style.display='block';
   document.getElementById('kpi-consumable-card').style.display='block';
   document.getElementById('crew-body').closest('table').querySelector('thead').innerHTML='<tr><th>Name</th><th>Role</th><th>Hours</th></tr>';
