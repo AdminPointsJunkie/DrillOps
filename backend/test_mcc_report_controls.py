@@ -79,6 +79,11 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn("weekly-cost-subtotal", REPORT_HTML)
         self.assertIn("Weekly total", REPORT_HTML)
 
+    def test_smu_per_day_evidence_does_not_turn_hourly_rates_into_day_rates(self):
+        self.assertIn("SMU/day evidence", REPORT_HTML)
+        self.assertIn(r"/\$\s*[\d,.]+\s*\/\s*day\b/", REPORT_HTML)
+        self.assertNotIn("basis.includes('/day')", REPORT_HTML)
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 

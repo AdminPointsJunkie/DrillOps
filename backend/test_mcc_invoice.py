@@ -39,7 +39,7 @@ class MCCInvoiceTests(unittest.TestCase):
         ])
         self.assertIsNone(invoice["lines"][4]["activity_code"])
 
-    def test_reconciliation_flags_invoice_rates_without_changing_contract_rates(self):
+    def test_reconciliation_uses_current_contract_rates(self):
         invoice = parse_mcc_invoice_pdf(INVOICE_TEXT, "invoice.pdf")
         weekly = [
             {"date": "17/08/2026", "code": "MCC_SUPERVISOR", "quantity": 51, "notes": "Charge type: Labour"},
@@ -53,8 +53,8 @@ class MCCInvoiceTests(unittest.TestCase):
         result = reconcile_mcc_invoice_lines(invoice["lines"], weekly)
         by_code = {line.get("activity_code") or "extra": line for line in result}
 
-        self.assertEqual(by_code["MCC_SUPERVISOR"]["match_status"], "rate_error")
-        self.assertEqual(by_code["MCC_SUPERVISOR"]["matched_eos_rate"], 38.5)
+        self.assertEqual(by_code["MCC_SUPERVISOR"]["match_status"], "exact_match")
+        self.assertEqual(by_code["MCC_SUPERVISOR"]["matched_eos_rate"], 120.0)
         self.assertEqual(by_code["MCC_BACKHOE"]["match_status"], "rate_error")
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_rate"], 65.0)
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_quantity"], 18.8)

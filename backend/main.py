@@ -1720,7 +1720,7 @@ def seed_mcc_2026_rates():
                 SET unit_rate=NULL, line_cost=NULL,
                     rate_basis='MCC custom rate pending recalculation'
                 WHERE contractor='MCC Group'
-                  AND code IN ('MCC_SUPERVISOR', 'MCC_BACKHOE', 'MCC_VAC_TRUCK')
+                  AND code IN ('MCC_BACKHOE', 'MCC_VAC_TRUCK')
             """)
             cur.execute("""
                 UPDATE activities

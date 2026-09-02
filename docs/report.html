@@ -1208,7 +1208,9 @@ function weeklyCostHoursItems(rows){
     const section=priced?(labour?'Labour':'Equipment'):'Unpriced';
     const label=noteField(row,'Schedule item')||noteField(row,'Role')||mccEquipment(row)||String(row.code||'Unpriced').replace(/^MCC_/,'').replaceAll('_',' ');
     const basis=String(row.rate_basis||'').toLowerCase();
-    const unit=basis.includes('(day)')||basis.includes('/day')?'day':'hour';
+    // Only a stated billing rate makes this a day item. Phrases such as
+    // "SMU/day evidence" describe the source evidence, not the charge unit.
+    const unit=/\(\s*day\s*\)/.test(basis)||/\$\s*[\d,.]+\s*\/\s*day\b/.test(basis)?'day':'hour';
     const rawQuantity=row.quantity!=null&&row.quantity!==''?num(row.quantity):parseDurationHours(row.total_time);
     const quantity=rawQuantity*mccAllocationPercent(row)/100;
     const rate=priced?num(row.unit_rate):null;

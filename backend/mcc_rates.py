@@ -40,7 +40,7 @@ MCC_SCHEDULE_RATES = [
     ("MCC_D10_DOZER", "D10 Dozer", 185.00, "hour", "equipment", ["d10 dozer"]),
 ]
 MCC_CUSTOM_RATES = [
-    ("MCC_SUPERVISOR", "Supervisor", 38.50, "hour", "labour", ["supervisor"]),
+    ("MCC_OPERATOR", "Operator", 100.00, "hour", "labour", ["single skill operator", "single skilled operator"]),
     ("MCC_BACKHOE", "Backhoe", 65.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
     ("MCC_VAC_TRUCK", "Vacuum Truck", 1200.00, "day", "equipment", ["vac truck", "vacuum truck", "isuzu npr400 vac truck", "mcc39"]),
 ]
@@ -56,21 +56,31 @@ def mcc_schedule_match(value, group=None):
     haystack = _normalise(value)
     if not haystack:
         return None
+    candidates = []
     for code, description, rate, unit, rate_group, aliases in MCC_RATE_TABLE:
         if group and rate_group != group:
             continue
         for alias in aliases + [description]:
             needle = _normalise(alias)
-            if needle and (needle == haystack or needle in haystack or haystack in needle):
-                return {
+            if not needle:
+                continue
+            if needle == haystack:
+                score = 3
+            elif needle in haystack:
+                score = 2
+            elif haystack in needle:
+                score = 1
+            else:
+                continue
+            candidates.append((score, len(needle), {
                     "code": code,
                     "description": description,
                     "rate": rate,
                     "unit": unit,
                     "group": rate_group,
                     "source": "custom" if code in MCC_CUSTOM_RATE_CODES else "schedule",
-                }
-    return None
+                }))
+    return max(candidates, key=lambda item: (item[0], item[1]))[2] if candidates else None
 
 
 def apply_mcc_schedule_rate(row, rate_group, rate_text):
