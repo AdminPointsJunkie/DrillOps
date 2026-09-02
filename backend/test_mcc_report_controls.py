@@ -75,8 +75,8 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertIn('id="mcc-swipe-evidence-dialog"', INDEX_HTML)
         self.assertIn("openMccSwipeEvidence", INDEX_HTML)
         self.assertIn("overlapping device events", INDEX_HTML)
-        self.assertIn("totals over 15 h are treated as no swipe", INDEX_HTML)
-        self.assertIn("Swipe ignored over 15 hours", INDEX_HTML)
+        self.assertIn("submitted hours are used when the recorded total exceeds 15 h", INDEX_HTML)
+        self.assertIn("Recorded swipe over 15 hours", INDEX_HTML)
         self.assertIn("Overlapping device records are counted once", INDEX_HTML)
 
     def test_mcc_site_log_has_dedicated_import_and_reconciliation_endpoints(self):

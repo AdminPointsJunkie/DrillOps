@@ -5428,7 +5428,7 @@ function downloadMccPersonnelCSV(){
         'Swipe out':day.time_out||'',
         'Swipe hours':numVal(day.swipe_hours).toFixed(2),
         'Recorded swipe hours':numVal(day.recorded_swipe_hours).toFixed(2),
-        'Swipe ignored over 15 hours':day.swipe_ignored?'Yes':'No',
+        'Recorded swipe over 15 hours':day.swipe_ignored?'Yes — submitted hours used':'No',
         'Submitted - swipe':numVal(day.variance_hours).toFixed(2),
         Status:mccPersonnelStatusMeta(day.status).label,
         'Swipe evidence':(day.logpoints||[]).join(' | '),
@@ -5469,12 +5469,12 @@ function openMccSwipeEvidence(personKey,dateIso){
   const dialog=document.getElementById('mcc-swipe-evidence-dialog');
   const body=document.getElementById('mcc-swipe-evidence-body');
   document.getElementById('mcc-swipe-evidence-title').textContent='Swipe hours — '+person.name;
-  document.getElementById('mcc-swipe-evidence-copy').textContent=(day.date||'')+' · '+(day.role||person.role||'MCC personnel')+' · '+(day.swipe_ignored?'recorded swipe total over 15 h was ignored':'overlapping swipe records count once');
+  document.getElementById('mcc-swipe-evidence-copy').textContent=(day.date||'')+' · '+(day.role||person.role||'MCC personnel')+' · '+(day.swipe_ignored?'recorded swipe total over 15 h was replaced with submitted hours':'overlapping swipe records count once');
   const varianceColour=Math.abs(numVal(day.variance_hours))>0.5?'var(--red)':'var(--text)';
   const details=day.swipe_details||[];
   body.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px;">'
     +'<div class="weekly-card"><div class="weekly-card-title">Submitted</div><div class="weekly-card-value">'+mccHours(day.submitted_hours)+'</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">Swipe hours</div><div class="weekly-card-value">'+mccHours(day.swipe_hours)+'</div>'+(day.swipe_ignored?'<div class="weekly-card-meta">'+mccHours(day.recorded_swipe_hours)+' recorded — ignored</div>':'')+'</div>'
+    +'<div class="weekly-card"><div class="weekly-card-title">Verification hours</div><div class="weekly-card-value">'+mccHours(day.swipe_hours)+'</div>'+(day.swipe_ignored?'<div class="weekly-card-meta">'+mccHours(day.recorded_swipe_hours)+' recorded — submitted hours used</div>':'')+'</div>'
     +'<div class="weekly-card"><div class="weekly-card-title">Difference</div><div class="weekly-card-value" style="color:'+varianceColour+';">'+mccSignedHours(day.variance_hours)+'</div></div></div>'
     +'<div class="tbl-scroll" style="max-height:360px;border:1px solid var(--border);border-radius:6px;"><table><thead><tr><th>Swipe in</th><th>Swipe out</th><th>Event hours</th><th>Logpoint</th><th>Site / activity</th><th>Source</th></tr></thead><tbody>'
     +(details.length?details.map(function(item){
@@ -5482,7 +5482,7 @@ function openMccSwipeEvidence(personKey,dateIso){
       return '<tr><td>'+esc(item.time_in||'--')+'</td><td>'+esc(item.time_out||'--')+'</td><td>'+mccHours(item.hours)+'</td><td>'+esc(item.logpoint||'--')+'</td><td>'+esc(location)+'</td><td>'+esc(item.source_file||'--')+'</td></tr>';
     }).join(''):'<tr><td colspan="6" style="padding:18px;color:var(--muted);">No swipe events were recorded for this day.</td></tr>')
     +'</tbody></table></div>'
-    +'<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:10px;">'+(day.swipe_ignored?'The recorded swipe total exceeded 15 hours, so it is treated as No swipe shift and contributes 0.00 h to verification. ':'The Swipe hours total merges overlapping device events. ')+'Individual event hours above are shown as recorded and may overlap.</div>';
+    +'<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:10px;">'+(day.swipe_ignored?'The recorded swipe total exceeded 15 hours, so the submitted hours are used for verification. ':'The Swipe hours total merges overlapping device events. ')+'Individual event hours above are shown as recorded and may overlap.</div>';
   if(dialog&&!dialog.open)dialog.showModal();
 }
 
@@ -5539,7 +5539,7 @@ function renderMccPersonnel(data){
   const dateLabel=function(value){return value?String(value).split('-').reverse().join('/'):'--';};
   const verificationStart=dateLabel((data&&data.verification_start)||'2026-08-01');
   summary.textContent=coverage.records
-    ?'Verification begins '+verificationStart+'. '+coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records; totals over 15 h are treated as no swipe; daily differences within ±0.50 h are verified.'
+    ?'Verification begins '+verificationStart+'. '+coverage.records+' swipe records from '+dateLabel(coverage.date_from)+' to '+dateLabel(coverage.date_to)+' · '+coverage.files+' source file'+(coverage.files===1?'':'s')+'. Swipe hours merge overlapping device records; submitted hours are used when the recorded total exceeds 15 h; daily differences within ±0.50 h are verified.'
     :'Verification begins '+verificationStart+'. No MCC swipe history imported yet. Import a Site Log Report CSV to verify submitted hours.';
   const shownTotals={
     people:people.length,

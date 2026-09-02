@@ -83,7 +83,7 @@ class MCCPersonnelTests(unittest.TestCase):
         self.assertEqual(people["Within Tolerance"]["status"], "verified")
         self.assertEqual(people["Outside Tolerance"]["status"], "variance")
 
-    def test_swipe_over_fifteen_hours_is_ignored_as_no_swipe(self):
+    def test_swipe_over_fifteen_hours_uses_submitted_hours_for_verification(self):
         crew = [{"name": "Long Shift", "date": "30/08/2026", "hours": "12", "role": "Operator"}]
         swipes = [{
             "person_name": "Long Shift",
@@ -95,12 +95,12 @@ class MCCPersonnelTests(unittest.TestCase):
 
         day = build_mcc_personnel_reconciliation(crew, swipes)["people"][0]["days"][0]
 
-        self.assertEqual(day["status"], "no_swipe")
-        self.assertEqual(day["swipe_hours"], 0.0)
+        self.assertEqual(day["status"], "verified")
+        self.assertEqual(day["swipe_hours"], 12.0)
         self.assertEqual(day["recorded_swipe_hours"], 15.02)
         self.assertTrue(day["swipe_ignored"])
-        self.assertEqual(day["variance_hours"], 12.0)
-        self.assertEqual(day["time_in"], "")
+        self.assertEqual(day["variance_hours"], 0.0)
+        self.assertEqual(day["time_in"], "05:00")
 
     def test_exactly_fifteen_swipe_hours_remains_valid(self):
         crew = [{"name": "Valid Shift", "date": "30/08/2026", "hours": "15"}]

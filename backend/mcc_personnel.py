@@ -265,7 +265,7 @@ def build_mcc_personnel_reconciliation(
         submitted_hours = round(submitted_item["hours"], 2) if submitted_item else 0.0
         recorded_swipe_minutes = _merged_swipe_minutes(swipe_items)
         swipe_ignored = recorded_swipe_minutes > MCC_MAX_VALID_SWIPE_MINUTES
-        swipe_minutes = 0 if swipe_ignored else recorded_swipe_minutes
+        swipe_minutes = round(submitted_hours * 60) if swipe_ignored else recorded_swipe_minutes
         recorded_swipe_hours = round(recorded_swipe_minutes / 60, 2)
         swipe_hours = round(swipe_minutes / 60, 2)
         variance_hours = round(submitted_hours - swipe_hours, 2)
@@ -288,7 +288,7 @@ def build_mcc_personnel_reconciliation(
         status = _daily_status(
             submitted_item is not None,
             swipe_minutes,
-            open_shift,
+            open_shift and not swipe_ignored,
             variance_hours,
             tolerance_hours,
         )
@@ -324,8 +324,8 @@ def build_mcc_personnel_reconciliation(
             "variance_hours": variance_hours,
             "status": status,
             "role": ", ".join(roles),
-            "time_in": first_time.strftime("%H:%M") if first_time and not swipe_ignored else "",
-            "time_out": "" if swipe_ignored else "Not logged out" if open_shift else last_time.strftime("%H:%M") if last_time else "",
+            "time_in": first_time.strftime("%H:%M") if first_time else "",
+            "time_out": "Not logged out" if open_shift else last_time.strftime("%H:%M") if last_time else "",
             "swipe_events": len(swipe_items),
             "logpoints": logpoints,
             "timesheet_sources": source_files,
