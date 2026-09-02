@@ -42,7 +42,7 @@ MCC_SCHEDULE_RATES = [
 MCC_CUSTOM_RATES = [
     ("MCC_SUPERVISOR", "Supervisor", 38.50, "hour", "labour", ["supervisor"]),
     ("MCC_BACKHOE", "Backhoe", 65.00, "hour", "equipment", ["backhoe", "caterpillar 432", "caterpillar 432 backhoe", "ld04"]),
-    ("MCC_VAC_TRUCK", "Vacuum Truck", 810.00, "day", "equipment", ["vac truck", "vacuum truck", "isuzu npr400 vac truck", "mcc39"]),
+    ("MCC_VAC_TRUCK", "Vacuum Truck", 1200.00, "day", "equipment", ["vac truck", "vacuum truck", "isuzu npr400 vac truck", "mcc39"]),
 ]
 MCC_CUSTOM_RATE_CODES = {row[0] for row in MCC_CUSTOM_RATES}
 MCC_RATE_TABLE = MCC_CUSTOM_RATES + [row for row in MCC_SCHEDULE_RATES if row[0] not in MCC_CUSTOM_RATE_CODES]

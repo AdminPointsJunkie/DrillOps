@@ -113,7 +113,7 @@ class MCCWeeklyTests(unittest.TestCase):
 
         self.assertEqual(len(activities), 3)
         self.assertEqual(len(crew), 1)
-        self.assertEqual(sum(item["line_cost"] for item in activities), 1069.0)
+        self.assertEqual(sum(item["line_cost"] for item in activities), 1459.0)
 
     def test_prefers_arg_workstream_tabs_over_stale_summary(self):
         summary_row = [
@@ -181,7 +181,7 @@ class MCCWeeklyTests(unittest.TestCase):
         self.assertEqual(by_code["MCC_BACKHOE"]["quantity"], 2.4)
         self.assertEqual(by_code["MCC_BACKHOE"]["line_cost"], 156.0)
         self.assertEqual(by_code["MCC_VAC_TRUCK"]["quantity"], 1)
-        self.assertEqual(by_code["MCC_VAC_TRUCK"]["line_cost"], 810.0)
+        self.assertEqual(by_code["MCC_VAC_TRUCK"]["line_cost"], 1200.0)
         self.assertEqual(sum(row["code"] == "MCC_VAC_TRUCK" for row in equipment), 1)
         self.assertEqual(by_code["MCC_LIGHT_VEHICLE"]["quantity"], 1)
         self.assertEqual(by_code["MCC_LIGHT_VEHICLE"]["line_cost"], 105.0)

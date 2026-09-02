@@ -59,7 +59,7 @@ class MCCInvoiceTests(unittest.TestCase):
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_rate"], 65.0)
         self.assertEqual(by_code["MCC_BACKHOE"]["matched_eos_quantity"], 18.8)
         self.assertEqual(by_code["MCC_VAC_TRUCK"]["match_status"], "rate_error")
-        self.assertEqual(by_code["MCC_VAC_TRUCK"]["matched_eos_rate"], 810.0)
+        self.assertEqual(by_code["MCC_VAC_TRUCK"]["matched_eos_rate"], 1200.0)
         self.assertEqual(by_code["MCC_VAC_TRUCK"]["matched_eos_quantity"], 3.0)
         self.assertEqual(by_code["MCC_LIGHT_VEHICLE"]["match_status"], "no_weekly_evidence")
         self.assertEqual(by_code["extra"]["match_status"], "supporting_document_required")
