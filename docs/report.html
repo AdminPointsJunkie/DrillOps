@@ -1291,12 +1291,10 @@ function renderMccSiteServicesReport(rows,consumables,crew){
     const parts=key.split('|'),cost=items.reduce((s,r)=>s+mccAllocatedCost(r),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time)*mccAllocationPercent(r)/100,0);
     return '<tr><td>'+esc(parts[0])+'</td><td>'+esc(parts[1])+'</td><td>'+items.length+'</td><td>'+hours.toFixed(2)+' h</td><td>'+cur(cost)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No weekly activity allocation found.</td></tr>';
-  document.getElementById('timeline-title').textContent=weekly?'Weekly Cost Summary':'Earthworks Cost Summary';
-  document.getElementById('timeline').innerHTML='<div class="weekly-summary">'
-    +'<div class="weekly-card"><div class="weekly-card-title">Equipment</div><div class="weekly-card-value">'+cur(equipmentCost)+'</div><div class="weekly-card-meta">'+equipmentRows.length+' priced line(s)</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">Labour</div><div class="weekly-card-value">'+cur(labourCost)+'</div><div class="weekly-card-meta">'+labourRows.length+' line(s)</div></div>'
-    +'<div class="weekly-card"><div class="weekly-card-title">Unpriced</div><div class="weekly-card-value">'+unpricedRows.length+'</div><div class="weekly-card-meta">line(s) requiring review</div></div>'
-    +'</div>';
+  document.getElementById('timeline-title').style.display='none';
+  document.getElementById('timeline-title').textContent='';
+  document.getElementById('timeline').style.display='none';
+  document.getElementById('timeline').innerHTML='';
   document.getElementById('notes-title').textContent='Report Notes & Work Completed';
   const descriptions=[...new Set(rows.map(workDescription).filter(Boolean))];
   const reportNotes=[...new Set(rows.map(r=>noteField(r,'Report note')).filter(Boolean))];

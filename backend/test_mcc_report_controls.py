@@ -56,6 +56,10 @@ class MCCReportControlTests(unittest.TestCase):
         self.assertNotIn("esc(row.rate_basis", match.group(1))
         self.assertIn('colspan="8"', match.group(1))
 
+    def test_mcc_report_hides_earthworks_cost_summary(self):
+        self.assertNotIn("Earthworks Cost Summary", REPORT_HTML)
+        self.assertIn("document.getElementById('timeline').style.display='none'", REPORT_HTML)
+
     def test_daily_evidence_explainer_is_removed(self):
         self.assertNotIn("Daily audit begins 10 Aug 2026; one Light Vehicle accepted per represented day", REPORT_HTML)
 
