@@ -42,6 +42,15 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'", migration)
         self.assertIn("assign_depco_ironbark_to_gas_riser()", MAIN_PY)
 
+    def test_bulk_report_assignment_respects_active_program(self):
+        start = MAIN_PY.index('@app.post("/activities/assign-project")')
+        end = MAIN_PY.index('@app.post("/activities")', start)
+        route = MAIN_PY[start:end]
+
+        self.assertIn('payload.get("program")', route)
+        self.assertIn("AND (%s='' OR p.program=%s)", route)
+        self.assertIn("program:activeProgram", INDEX_HTML)
+
     def test_workspace_lists_every_program_for_a_project(self):
         start = INDEX_HTML.index("function populateWorkspaceProgramOptions()")
         end = INDEX_HTML.index("function updateWorkspaceContinueState()", start)

@@ -7530,6 +7530,7 @@ async function bulkAssignReportsToWorkspace(){
       body:JSON.stringify({
         contractor:reports[0].contractor||activeContractor,
         project:activeProjectName,
+        program:activeProgram,
         activity_ids:activityIds
       })
     });

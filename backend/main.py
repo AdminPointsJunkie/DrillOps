@@ -6333,6 +6333,7 @@ async def assign_activities_to_project(request: Request):
     payload = await request.json()
     contractor = str(payload.get("contractor") or "").strip()
     project_name = str(payload.get("project") or "").strip()
+    program_name = str(payload.get("program") or "").strip()
     raw_ids = payload.get("activity_ids") or []
     if not contractor:
         raise HTTPException(400, "contractor is required")
@@ -6355,8 +6356,11 @@ async def assign_activities_to_project(request: Request):
                 FROM projects p
                 JOIN clients c ON c.id=p.client_id
                 WHERE p.contractor='Company' AND p.name=%s AND p.status='Active'
+                  AND (%s='' OR p.program=%s)
+                ORDER BY p.id
+                LIMIT 1
                 """,
-                (project_name,),
+                (project_name, program_name, program_name),
             )
             project = cur.fetchone()
             if not project:
@@ -6377,7 +6381,12 @@ async def assign_activities_to_project(request: Request):
             )
             updated = max(cur.rowcount, 0)
         conn.commit()
-    return {"status": "updated", "rows": updated, "project": project_name}
+    return {
+        "status": "updated",
+        "rows": updated,
+        "project": project_name,
+        "program": project.get("program") or "Exploration",
+    }
 
 
 @app.post("/activities")
