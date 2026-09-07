@@ -1135,6 +1135,19 @@ def init_db():
                     WHERE LOWER(name) IN ('ironbark', 'carborough downs')
                       AND client_id IS NULL
                 """)
+                cur.execute("""
+                    INSERT INTO projects
+                        (contractor, client_id, program, name, year, status, notes)
+                    SELECT p.contractor, p.client_id, 'Gas Riser', p.name, '2026',
+                           'Active', '2026 Gas Riser program'
+                    FROM projects p
+                    WHERE p.contractor='Company'
+                      AND LOWER(BTRIM(p.name))='ironbark'
+                    ORDER BY CASE WHEN LOWER(BTRIM(COALESCE(p.program,'')))='exploration' THEN 0 ELSE 1 END,
+                             p.id
+                    LIMIT 1
+                    ON CONFLICT DO NOTHING
+                """)
             except Exception:
                 conn.rollback()
 

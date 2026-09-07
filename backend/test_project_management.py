@@ -24,6 +24,11 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("projects_contractor_name_program_key", MAIN_PY)
         self.assertIn("LOWER(BTRIM(program))", MAIN_PY)
 
+    def test_ironbark_2026_gas_riser_program_is_seeded(self):
+        self.assertIn("'Gas Riser', p.name, '2026'", MAIN_PY)
+        self.assertIn("LOWER(BTRIM(p.name))='ironbark'", MAIN_PY)
+        self.assertIn("ON CONFLICT DO NOTHING", MAIN_PY)
+
     def test_workspace_lists_every_program_for_a_project(self):
         start = INDEX_HTML.index("function populateWorkspaceProgramOptions()")
         end = INDEX_HTML.index("function updateWorkspaceContinueState()", start)
