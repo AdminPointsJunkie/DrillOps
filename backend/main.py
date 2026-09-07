@@ -4302,69 +4302,82 @@ async def import_pdf(
 
     if filename.lower().endswith(".csv"):
         try:
-            header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, "Mitchells Drilling")
             contractor = "Mitchells Drilling"
             header, acts, cons, crew, source_text = parse_coreplan_plod_csv(content, filename, contractor)
         except Exception as e:
             raise HTTPException(400, f"Could not read CorePlan CSV: {e}")
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                if import_marker_blocks_reimport(cur, filename, contractor):
-                    return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
-            conn.commit()
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    if import_marker_blocks_reimport(cur, filename, contractor):
+                        return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
+                conn.commit()
 
-        acts = restore_coreplan_activity_line_costs(acts)
-        acts = adjust_imported_minimum_shift_rows(acts, contractor)
-        acts = apply_allianz_minimum_shift_topups_to_rows(acts)
-        acts = apply_import_activity_scope(acts, contractor, program, project, client)
+            acts = restore_coreplan_activity_line_costs(acts)
+            acts = adjust_imported_minimum_shift_rows(acts, contractor)
+            acts = apply_allianz_minimum_shift_topups_to_rows(acts)
+            acts = apply_import_activity_scope(acts, contractor, program, project, client)
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                if acts:
-                    psycopg2.extras.execute_batch(cur, """
-                        INSERT INTO activities
-                        (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
-                         client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
-                         metres_from,metres_to,total_metres,code,notes,
-                         rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
-                        VALUES
-                        (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
-                         %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
-                         %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
-                         %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
-                         %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
-                    """, acts)
-                if cons:
-                    psycopg2.extras.execute_batch(cur, """
-                        INSERT INTO consumables (source_file,contractor,date,hole_num,site_name,consumable,type,quantity,unit,unit_price,line_cost)
-                        VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s,%(unit_price)s,%(line_cost)s)
-                    """, cons)
-                if crew:
-                    psycopg2.extras.execute_batch(cur, """
-                        INSERT INTO crew (source_file,contractor,date,hole_num,site_name,role,name,hours)
-                        VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(role)s,%(name)s,%(hours)s)
-                    """, crew)
-                cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                            (filename, contractor))
-                cur.execute("""
-                    INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                    VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (filename, contractor) DO NOTHING
-                """, (filename, contractor, psycopg2.Binary(content)))
-                record_import_batch(
-                    cur,
-                    filename=filename,
-                    import_kind="coreplan_csv",
-                    contractor=contractor,
-                    client=client,
-                    project=project,
-                    row_counts={
-                        "activities": len(acts),
-                        "consumables": len(cons),
-                        "crew": len(crew),
-                    },
-                )
-            conn.commit()
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    if acts:
+                        psycopg2.extras.execute_batch(cur, """
+                            INSERT INTO activities
+                            (source_file,contractor,date,hole_num,site_name,program,project,location,drill_rig,
+                             client,contract,shift,time_from,time_to,total_time,bit_type,diameter,
+                             metres_from,metres_to,total_metres,code,notes,
+                             rate_year,unit_rate,quantity,line_cost,rate_basis,po_id)
+                            VALUES
+                            (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(program)s,%(project)s,
+                             %(location)s,%(drill_rig)s,%(client)s,%(contract)s,%(shift)s,
+                             %(time_from)s,%(time_to)s,%(total_time)s,%(bit_type)s,%(diameter)s,
+                             %(metres_from)s,%(metres_to)s,%(total_metres)s,%(code)s,%(notes)s,
+                             %(rate_year)s,%(unit_rate)s,%(quantity)s,%(line_cost)s,%(rate_basis)s,%(po_id)s)
+                        """, acts)
+                    if cons:
+                        psycopg2.extras.execute_batch(cur, """
+                            INSERT INTO consumables (source_file,contractor,date,hole_num,site_name,consumable,type,quantity,unit,unit_price,line_cost)
+                            VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(consumable)s,%(type)s,%(quantity)s,%(unit)s,%(unit_price)s,%(line_cost)s)
+                        """, cons)
+                    if crew:
+                        psycopg2.extras.execute_batch(cur, """
+                            INSERT INTO crew (source_file,contractor,date,hole_num,site_name,role,name,hours)
+                            VALUES (%(source_file)s,%(contractor)s,%(date)s,%(hole_num)s,%(site_name)s,%(role)s,%(name)s,%(hours)s)
+                        """, crew)
+                    cur.execute("INSERT INTO imported_files (filename,contractor) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                                (filename, contractor))
+                    cur.execute("""
+                        INSERT INTO source_files (filename, contractor, file_type, pdf_data)
+                        VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                    """, (filename, contractor, psycopg2.Binary(content)))
+                    record_import_batch(
+                        cur,
+                        filename=filename,
+                        import_kind="coreplan_csv",
+                        contractor=contractor,
+                        client=client,
+                        project=project,
+                        row_counts={
+                            "activities": len(acts),
+                            "consumables": len(cons),
+                            "crew": len(crew),
+                        },
+                    )
+                conn.commit()
+        except (psycopg2.Error, RuntimeError) as exc:
+            print(f"CorePlan import database failure for {filename}: {exc}")
+            unavailable = isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError, RuntimeError))
+            schema_outdated = getattr(exc, "pgcode", "") in {"42P01", "42703"}
+            raise HTTPException(
+                503 if unavailable else 500,
+                (
+                    "CorePlan CSV parsed successfully, but the DrillOps database schema is out of date. "
+                    "Apply backend/migrations/003_user_audit_trail.sql, then retry."
+                    if schema_outdated else
+                    "CorePlan CSV parsed successfully, but DrillOps could not save it to the database. Please retry."
+                ),
+            ) from exc
 
         return {"status":"imported","filename":filename,"rows":len(acts),
                 "contractor":contractor,

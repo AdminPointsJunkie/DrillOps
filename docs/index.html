@@ -5032,6 +5032,39 @@ function siteLogCsvCell(value){
   return /[",\r\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;
 }
 
+function importRetryDelay(attempt){
+  return new Promise(function(resolve){setTimeout(resolve,2000*(attempt+1));});
+}
+
+async function postOperationalReport(url,formData,retries=2){
+  let lastError=null;
+  for(let attempt=0;attempt<=retries;attempt++){
+    try{
+      const response=await fetch(url,{
+        method:'POST',
+        body:formData,
+        signal:AbortSignal.timeout(60000)
+      });
+      if(response.status>=500&&attempt<retries){
+        await importRetryDelay(attempt);
+        continue;
+      }
+      return response;
+    }catch(error){
+      lastError=error;
+      if(attempt<retries){
+        await importRetryDelay(attempt);
+        continue;
+      }
+    }
+  }
+  throw new Error(
+    lastError&&lastError.name==='TimeoutError'
+      ?'The DrillOps API did not finish the import in time. The file remains selected so you can retry.'
+      :'Could not reach the DrillOps API after 3 attempts. The file remains selected so you can retry.'
+  );
+}
+
 async function mccOnlySiteLogFile(file){
   const bytes=await file.arrayBuffer();
   let text;
@@ -5068,8 +5101,18 @@ importBtn.addEventListener('click',async()=>{
   importBtn.innerHTML='<span class="spinner"></span>Importing…';
   const log=document.getElementById('import-log');log.innerHTML='';
   let total=0;
+  const failedFiles=[];
   const importedContractors=new Set();
   let importedSwipeHistory=false;
+  try{
+    const apiReady=await apiFetch(API+'/',{cache:'no-store'},2);
+    if(!apiReady||!apiReady.ok)throw new Error('The DrillOps API is unavailable. The selected files have been kept for retry.');
+  }catch(error){
+    log.innerHTML='<div class="err">✗ The DrillOps API is unavailable. The selected files have been kept for retry.</div>';
+    importBtn.textContent=`Retry ${pendingFiles.length} report(s)`;
+    importBtn.disabled=false;
+    return;
+  }
   for(const item of classifiedFiles){
     const file=item.file;
     if(item.isMccSiteLog){
@@ -5077,7 +5120,7 @@ importBtn.addEventListener('click',async()=>{
         const mccUpload=await mccOnlySiteLogFile(file);
         const fd=new FormData();
         fd.append('file',mccUpload.file);
-        const response=await fetch(API+'/mcc/swipe-history/import',{method:'POST',body:fd});
+        const response=await postOperationalReport(API+'/mcc/swipe-history/import',fd);
         const data=await response.json().catch(function(){return {};});
         if(!response.ok)throw new Error(data.detail||'Site Log swipe import failed');
         const records=Number(data.swipe_records||data.rows||0);
@@ -5085,6 +5128,7 @@ importBtn.addEventListener('click',async()=>{
         total+=records;
         importedSwipeHistory=true;
       }catch(error){
+        failedFiles.push(file);
         log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(error.message||'Site Log swipe import failed')}</div>`;
       }
       continue;
@@ -5097,15 +5141,17 @@ importBtn.addEventListener('click',async()=>{
     fd.append('project',importScope.project.name);
     fd.append('program',projectProgram(importScope.project));
     try{
-      const response=await fetch(`${API}/import`,{method:'POST',body:fd});
+      const response=await postOperationalReport(`${API}/import`,fd);
       const d=await response.json().catch(function(){return {};});
       if(!response.ok)throw new Error(d.detail||'Report import failed');
       if(d.status==='imported'){const savedContractor=d.contractor||uploadContractor;const contractTag=d.cost_contract?' · '+esc(d.cost_contract.name):'';importedContractors.add(savedContractor);log.innerHTML+=`<div class="ok">✓ ${file.name} (${d.rows} rows · ${esc(savedContractor)} · ${esc(importScope.client.name)} / ${esc(importScope.project.name)}${contractTag})</div>`+renderImportCheck(d.import_check);total+=d.rows;}
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
-    }catch(e){log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(e.message||'Import failed')}</div>`;}
+    }catch(e){failedFiles.push(file);log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(e.message||'Import failed')}</div>`;}
   }
-  importBtn.textContent='Import to Database';importBtn.disabled=false;
-  pendingFiles=[];fileInput.value='';
+  pendingFiles=failedFiles;
+  importBtn.textContent=failedFiles.length?`Retry ${failedFiles.length} failed report(s)`:'Import to Database';
+  importBtn.disabled=failedFiles.length===0;
+  if(!failedFiles.length)fileInput.value='';
   await updateDbCount();
   if(importedSwipeHistory)await loadMccPersonnel();
   if(total>0){
