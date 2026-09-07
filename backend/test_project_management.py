@@ -8,15 +8,39 @@ MAIN_PY = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
 
 
 class ProjectManagementTests(unittest.TestCase):
-    def test_creating_duplicate_project_does_not_update_existing_project(self):
+    def test_project_name_can_have_separate_programs(self):
         start = MAIN_PY.index('@app.post("/projects")')
         end = MAIN_PY.index('@app.patch("/projects/{project_id}")', start)
         create_route = MAIN_PY[start:end]
 
         self.assertNotIn("ON CONFLICT (contractor, name) DO UPDATE", create_route)
         self.assertIn("LOWER(BTRIM(name))=LOWER(BTRIM(%s))", create_route)
-        self.assertIn("already exists. Open it from Projects and use Edit", create_route)
+        self.assertIn("LOWER(BTRIM(COALESCE(program,'')))=LOWER(BTRIM(%s))", create_route)
+        self.assertIn("already has a {program} program", create_route)
         self.assertIn("raise HTTPException(409", create_route)
+
+    def test_project_schema_uniqueness_includes_program(self):
+        self.assertIn("DROP CONSTRAINT IF EXISTS projects_contractor_name_key", MAIN_PY)
+        self.assertIn("projects_contractor_name_program_key", MAIN_PY)
+        self.assertIn("LOWER(BTRIM(program))", MAIN_PY)
+
+    def test_workspace_lists_every_program_for_a_project(self):
+        start = INDEX_HTML.index("function populateWorkspaceProgramOptions()")
+        end = INDEX_HTML.index("function updateWorkspaceContinueState()", start)
+        program_options = INDEX_HTML[start:end]
+
+        self.assertIn("matchingProjects = projects.filter", program_options)
+        self.assertIn("matchingProjects.map", program_options)
+        self.assertIn("workspaceProgramLabel(project, program)", program_options)
+
+    def test_boreholes_and_project_contractors_are_program_scoped(self):
+        self.assertIn("program         TEXT DEFAULT 'Exploration'", MAIN_PY)
+        self.assertIn('program:activeProgram||\'Exploration\'', INDEX_HTML)
+        self.assertIn("&program='+encodeURIComponent(activeProgram||'')", INDEX_HTML)
+
+    def test_budget_allocations_are_unique_per_program(self):
+        self.assertIn("project_budgets_program_allocation_key", MAIN_PY)
+        self.assertIn("ON CONFLICT (contractor, project, program, section, vendor)", MAIN_PY)
 
     def test_project_register_has_full_edit_dialog(self):
         self.assertIn('id="entity-project-id"', INDEX_HTML)

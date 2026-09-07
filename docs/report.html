@@ -828,6 +828,7 @@ async function loadMccPlannedHoles(rows){
   const query=new URLSearchParams({contractor:'Company'});
   const reportIso=isoReportDate(reportDate);
   if(/^\d{4}/.test(reportIso))query.set('planned_year',reportIso.slice(0,4));
+  if(program)query.set('program',program);
   const rowProject=(rows||[]).map(row=>String(row.project||'').trim()).find(value=>value&&!/^ARG-00[2-5]\b/i.test(value));
   if(rowProject)query.set('project',rowProject);
   try{

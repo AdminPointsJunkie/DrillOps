@@ -2168,7 +2168,7 @@ tbody td[contenteditable=true]:focus {
     <button class="workspace-gate-action" id="workspace-continue-btn" type="button" onclick="confirmWorkspaceSelection()" disabled>Enter DrillOps</button>
     <div style="display:flex;justify-content:center;gap:8px;margin-top:10px;">
       <button class="btn-ghost" type="button" onclick="showNewClientDialog()">Add client</button>
-      <button class="btn-ghost" type="button" onclick="showNewProjectDialog()">Add project</button>
+      <button class="btn-ghost" type="button" onclick="showNewProjectDialog()">Add project / program</button>
     </div>
     <div class="workspace-gate-error" id="workspace-gate-error"></div>
   </div>
@@ -2449,7 +2449,7 @@ tbody td[contenteditable=true]:focus {
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn-secondary" type="button" onclick="showNewClientDialog()">Add client</button>
-          <button class="btn-primary" type="button" onclick="showNewProjectDialog()">Add project</button>
+          <button class="btn-primary" type="button" onclick="showNewProjectDialog()">Add project / program</button>
         </div>
       </div>
       <div class="management-toolbar">
@@ -3967,7 +3967,7 @@ async function loadProjectContractors(){
   projectContractorsData=[];
   if(!activeProjectName)return projectContractorsData;
   try{
-    const response=await fetch(API+'/project-contractors?project='+encodeURIComponent(activeProjectName)+'&_='+Date.now(),{cache:'no-store'});
+    const response=await fetch(API+'/project-contractors?project='+encodeURIComponent(activeProjectName)+'&program='+encodeURIComponent(activeProgram||'')+'&_='+Date.now(),{cache:'no-store'});
     if(response.ok)projectContractorsData=await response.json();
   }catch(error){
     console.warn('Could not load project suppliers',error);
@@ -4586,7 +4586,9 @@ function projectMatchesActiveProgram(projectName){
   return projectProgramForName(projectName)===activeProgram;
 }
 function boreholeMatchesActiveProgram(b){
-  return !activeProgram || projectMatchesActiveProgram((b&&b.project)||'');
+  if(!activeProgram)return true;
+  if(b&&b.program)return b.program===activeProgram;
+  return projectMatchesActiveProgram((b&&b.project)||'');
 }
 function filterBoreholesForActiveProgram(rows){
   return (rows||[]).filter(boreholeMatchesActiveProgram);
@@ -5034,12 +5036,12 @@ function populateImportProjectOptions(){
   if(!clientSelect||!projectSelect)return;
   const clientId=Number(clientSelect.value||0);
   const current=projectSelect.value||((clientId===Number(activeClientId))?activeProjectName:'');
-  const available=projects.filter(function(project){
+  const available=Array.from(new Set(projects.filter(function(project){
     return clientId&&Number(project.client_id)===clientId&&project.status!=='Inactive';
-  });
+  }).map(function(project){return project.name;}))).sort();
   projectSelect.innerHTML=clientId
-    ? '<option value="">Select project</option>'+available.map(function(project){
-        return '<option value="'+attr(project.name)+'"'+(project.name===current?' selected':'')+'>'+esc(project.name)+'</option>';
+    ? '<option value="">Select project</option>'+available.map(function(projectName){
+        return '<option value="'+attr(projectName)+'"'+(projectName===current?' selected':'')+'>'+esc(projectName)+'</option>';
       }).join('')
     : '<option value="">Select client first</option>';
   projectSelect.disabled=!clientId;
@@ -5050,7 +5052,9 @@ function selectedImportScope(){
   const projectName=document.getElementById('import-project-select')?.value||'';
   const client=clients.find(function(item){return Number(item.id)===clientId;});
   const project=projects.find(function(item){
-    return Number(item.client_id)===clientId&&item.name===projectName;
+    return Number(item.client_id)===clientId
+      && item.name===projectName
+      && (!activeProgram||projectProgram(item)===activeProgram);
   });
   return {client:client,project:project};
 }
@@ -8456,7 +8460,7 @@ function attachCostingLineEdits(){
 // ── Purchase Orders ───────────────────────────────────────────────────────────
 async function loadPOs(){
   try{
-    const res=await fetch(API+'/purchase_orders?project='+encodeURIComponent(activeProjectName||''));
+    const res=await fetch(API+'/purchase_orders?project='+encodeURIComponent(activeProjectName||'')+'&program='+encodeURIComponent(activeProgram||''));
     if(!res.ok){const e=await res.json();toast(e.detail||'Failed to load POs','err');return;}
     posData=await res.json();
     if(!Array.isArray(posData)){toast('PO data error','err');return;}
@@ -8511,6 +8515,7 @@ async function addPO(){
       po_number:pn,
       contractor:activeContractor,
       project:activeProjectName||'',
+      program:activeProgram||'Exploration',
       description:document.getElementById('po-description').value,
       po_value:parseFloat(document.getElementById('po-value').value)||0,
       issue_date:document.getElementById('po-issue-date').value,
@@ -10330,6 +10335,7 @@ function renderBoreholeDetails() {
   const rows = allRows.filter(function(b) {
     const project = b.project||'Unassigned';
     if(projectFilter && project!==projectFilter) return false;
+    if(!boreholeMatchesActiveProgram(b)) return false;
     if(statusFilter && (b.status||'Planned')!==statusFilter) return false;
     if(search) {
       const haystack = [b.project,b.site_id,b.hole_id,b.status,b.bh_type,b.bit_type,b.purpose,b.notes].join(' ').toLowerCase();
@@ -10606,6 +10612,7 @@ function renderDrillingSchedule() {
   const dayCount = Math.max(1, Math.min(180, scheduleDayDiff(rangeStart, rangeEnd)+1));
   const rows = buildScheduleRows(baseRows, range.from).filter(function(r) {
     if(projectFilter && r.project!==projectFilter) return false;
+    if(!boreholeMatchesActiveProgram(r.borehole)) return false;
     if(statusFilter && r.status!==statusFilter) return false;
     if(rigFilter && r.rig!==rigFilter) return false;
     return r.endDate >= rangeStart && r.startDate <= rangeEnd;
@@ -10987,6 +10994,7 @@ async function addBorehole() {
   const newBh = {
     hole_id:holeId,
     project:document.getElementById('add-bh-project').value,
+    program:activeProgram||'Exploration',
     planned_year:document.getElementById('add-bh-year').value,
     site_id:document.getElementById('add-bh-site').value,
     bh_type:document.getElementById('add-bh-type').value,
@@ -11035,8 +11043,8 @@ async function deleteBorehole(holeId) {
 
 function downloadBhCsvTemplate(e) {
   e.preventDefault();
-  const cols = 'project,planned_year,hole_id,site_id,type,bit_type,purpose,planned_days,easting,northing,rl,chip_depth,seam_tk,eoh_depth,total_core,drilling_budget_total,earthworks_budget_total,geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total,notes';
-  const example = 'Ironbark No.1,2026,26-062,CD-26-004,Core,HQ,Geotech,3.5,620000,7594000,320.5,250,5.2,239.5,25.2,65000,85000,Example hole';
+  const cols = 'project,program,planned_year,hole_id,site_id,type,bit_type,purpose,planned_days,easting,northing,rl,chip_depth,seam_tk,eoh_depth,total_core,drilling_budget_total,earthworks_budget_total,geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total,notes';
+  const example = 'Ironbark,Gas Riser,2026,26-062,IB-26-004,Core,HQ,Gas Riser,3.5,620000,7594000,320.5,250,5.2,239.5,25.2,65000,85000,Example hole';
   const csv = cols + String.fromCharCode(10) + example;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -11067,7 +11075,7 @@ function importBhCSV(input) {
       const northing = parseFloat(row.northing)||0;
       const wgs = (easting&&northing) ? mgaToWgs84(easting,northing) : {lat:null,lng:null};
       boreholes.push({
-        hole_id:row.hole_id, project:row.project||'', planned_year:row.planned_year||row.year||'', site_id:row.site_id||'', bh_type:row.type||'Core', type:row.type||'Core',
+        hole_id:row.hole_id, project:row.project||activeProjectName||'', program:row.program||activeProgram||'Exploration', planned_year:row.planned_year||row.year||'', site_id:row.site_id||'', bh_type:row.type||'Core', type:row.type||'Core',
         bit_type:row.bit_type||row.bittype||'HQ', purpose:row.purpose||'',
         days_budgeted:parseFloat(row.planned_days||row.days)||null, days:parseFloat(row.planned_days||row.days)||null,
         easting:easting, northing:northing,
@@ -11238,7 +11246,8 @@ function storedWorkspaceValue(key) {
 function activeWorkspaceProject() {
   return projects.find(function(project) {
     return Number(project.client_id) === Number(activeClientId)
-      && project.name === activeProjectName;
+      && project.name === activeProjectName
+      && (!activeProgram || projectProgram(project) === activeProgram);
   }) || null;
 }
 
@@ -11283,9 +11292,11 @@ function saveWorkspaceSelection() {
 function restoreWorkspaceSelection() {
   var clientId = Number(storedWorkspaceValue(WORKSPACE_CLIENT_KEY) || 0);
   var projectName = storedWorkspaceValue(WORKSPACE_PROJECT_KEY);
+  var savedProgram = storedWorkspaceValue(WORKSPACE_PROGRAM_KEY);
   var project = projects.find(function(item) {
     return Number(item.client_id) === clientId
       && item.name === projectName
+      && (!savedProgram || projectProgram(item) === savedProgram)
       && item.status !== 'Inactive';
   });
   var client = clients.find(function(item) {
@@ -11295,7 +11306,6 @@ function restoreWorkspaceSelection() {
   activeClientId = clientId;
   activeProjectName = project.name;
   var configuredProgram = projectProgram(project);
-  var savedProgram = storedWorkspaceValue(WORKSPACE_PROGRAM_KEY);
   activeProgram = savedProgram === configuredProgram ? savedProgram : configuredProgram;
   saveWorkspaceSelection();
   updateWorkspaceContextLabel();
@@ -11328,13 +11338,14 @@ function populateWorkspaceProjectOptions() {
   projectSelect.innerHTML = clientId
     ? '<option value="">Select project</option>'
     : '<option value="">Select client first</option>';
-  projects.filter(function(project){
+  var names=Array.from(new Set(projects.filter(function(project){
     return clientId && Number(project.client_id) === clientId && project.status !== 'Inactive';
-  }).forEach(function(project) {
+  }).map(function(project){return project.name;}))).sort();
+  names.forEach(function(projectName) {
     var option = document.createElement('option');
-    option.value = project.name;
-    option.textContent = project.name;
-    if(project.name === preferred) option.selected = true;
+    option.value = projectName;
+    option.textContent = projectName;
+    if(projectName === preferred) option.selected = true;
     projectSelect.appendChild(option);
   });
   projectSelect.disabled = !clientId;
@@ -11348,20 +11359,23 @@ function populateWorkspaceProgramOptions() {
   if(!clientSelect || !projectSelect || !programSelect) return;
   var clientId = Number(clientSelect.value || 0);
   var projectName = String(projectSelect.value || '');
-  var project = projects.find(function(item) {
+  var matchingProjects = projects.filter(function(item) {
     return Number(item.client_id) === clientId
       && item.name === projectName
       && item.status !== 'Inactive';
   });
-  if(!project) {
+  if(!matchingProjects.length) {
     programSelect.innerHTML = '<option value="">Select project first</option>';
     programSelect.disabled = true;
     updateWorkspaceContinueState();
     return;
   }
-  var program = projectProgram(project);
-  programSelect.innerHTML = '<option value="'+attr(program)+'">'+esc(workspaceProgramLabel(project, program))+'</option>';
-  programSelect.value = program;
+  var preferred=activeProjectName===projectName?activeProgram:storedWorkspaceValue(WORKSPACE_PROGRAM_KEY);
+  programSelect.innerHTML = matchingProjects.map(function(project){
+    var program=projectProgram(project);
+    return '<option value="'+attr(program)+'"'+(program===preferred?' selected':'')+'>'+esc(workspaceProgramLabel(project, program))+'</option>';
+  }).join('');
+  if(!programSelect.value)programSelect.value=projectProgram(matchingProjects[0]);
   programSelect.disabled = false;
   updateWorkspaceContinueState();
 }
@@ -11425,9 +11439,11 @@ async function confirmWorkspaceSelection() {
   var projectName = String(projectSelect && projectSelect.value || '');
   var programName = String(programSelect && programSelect.value || '');
   var project = projects.find(function(item){
-    return Number(item.client_id) === clientId && item.name === projectName;
+    return Number(item.client_id) === clientId
+      && item.name === projectName
+      && projectProgram(item) === programName;
   });
-  if(!clientId || !project || !programName || programName !== projectProgram(project)) {
+  if(!clientId || !project || !programName) {
     if(error) error.textContent = 'Select a client, project and program to continue.';
     return;
   }
@@ -11568,7 +11584,7 @@ async function activateProjectFromRegister(projectId){
 
 async function openProjectCostContracts(projectId){
   var project=projects.find(function(item){return Number(item.id)===Number(projectId);});
-  if(project&&project.name!==activeProjectName){
+  if(project&&Number((activeWorkspaceProject()||{}).id)!==Number(project.id)){
     activeClientId=Number(project.client_id)||null;
     activeProjectName=project.name;
     activeProgram=projectProgram(project);
@@ -11630,7 +11646,7 @@ function contractDateDisplay(value){
 function populateCostContractProjectOptions(){
   const filter=document.getElementById('cost-contract-project-filter');
   const dialog=document.getElementById('cost-contract-project');
-  const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+  const workspaceProject=activeWorkspaceProject();
   const scopedProjects=workspaceProject?[workspaceProject]:[];
   const options=scopedProjects.map(function(project){
     const client=clientById(project.client_id);
@@ -11652,7 +11668,7 @@ async function loadCostContracts(){
   if(!projects.length)await fetchProjects();
   populateCostContractProjectOptions();
   try{
-    const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+    const workspaceProject=activeWorkspaceProject();
     const projectQuery=workspaceProject?'&project_id='+encodeURIComponent(workspaceProject.id):'';
     const responses=await Promise.all([
       fetch(API+'/cost-contracts?_='+Date.now()+projectQuery,{cache:'no-store'}),
@@ -11702,7 +11718,7 @@ function renderRateLibrarySummary(){
 }
 
 function createContractFromLibrary(contractor,year){
-  const activeProject=projects.find(function(project){return project.name===activeProjectName;});
+  const activeProject=activeWorkspaceProject();
   showCostContractDialog(activeProject&&activeProject.id,contractor,year);
 }
 
@@ -11717,7 +11733,7 @@ function renderCostContracts(){
   const body=document.getElementById('cost-contract-body');
   if(!body)return;
   const search=String(document.getElementById('cost-contract-search')?.value||'').trim().toLowerCase();
-  const workspaceProject=projects.find(function(project){return project.name===activeProjectName;});
+  const workspaceProject=activeWorkspaceProject();
   const projectId=workspaceProject?String(workspaceProject.id):'';
   const rows=costContractsData.filter(function(contract){
     const text=[contract.name,contract.project_name,contract.client_name,contract.contractor,contract.rate_year].join(' ').toLowerCase();
@@ -11742,7 +11758,7 @@ function renderCostContracts(){
 function showCostContractDialog(preferredProjectId,preferredContractor,preferredYear){
   populateCostContractProjectOptions();
   const projectSelect=document.getElementById('cost-contract-project');
-  const preferred=preferredProjectId||Number((projects.find(function(project){return project.name===activeProjectName;})||{}).id||0);
+  const preferred=preferredProjectId||Number((activeWorkspaceProject()||{}).id||0);
   if(preferred)projectSelect.value=String(preferred);
   document.getElementById('cost-contract-name').value='';
   document.getElementById('cost-contract-status').value='Draft';
@@ -12012,6 +12028,7 @@ function projectProgram(p) {
 
 function projectProgramForName(name) {
   var raw = String(name||'').toLowerCase();
+  if(activeProgram&&String(activeProjectName||'').toLowerCase()===raw)return activeProgram;
   var match = projects.find(function(p){ return String(p.name||'').toLowerCase() === raw; })
     || projects.find(function(p){
       var pn=String(p.name||'').toLowerCase();
@@ -12759,12 +12776,12 @@ function setEntityDialogMode(mode) {
   document.getElementById('entity-dialog-mode').value = mode;
   document.getElementById('entity-client-fields').style.display = isClient ? 'grid' : 'none';
   document.getElementById('entity-project-fields').style.display = isClient ? 'none' : 'grid';
-  document.getElementById('entity-dialog-title').textContent = isClient ? 'Add client' : isProjectEdit ? 'Edit project' : 'Add project';
+  document.getElementById('entity-dialog-title').textContent = isClient ? 'Add client' : isProjectEdit ? 'Edit project program' : 'Add project / program';
   document.getElementById('entity-dialog-copy').textContent = isClient
     ? 'Create a client account. Projects can then be assigned to this client.'
     : isProjectEdit
       ? 'Update the project setup. Existing operational records are not renamed or moved automatically.'
-      : 'Create a project and assign it to a client. It will immediately become available in workspace and import selectors.';
+      : 'Create a project program and assign it to a client. An existing project name can have separate Exploration, Gas Riser and SIS programs.';
   document.getElementById('entity-dialog-save').textContent = isClient ? 'Create client' : isProjectEdit ? 'Save project' : 'Create project';
   document.querySelectorAll('#entity-client-fields [required]').forEach(function(el){ el.disabled = !isClient; });
   document.querySelectorAll('#entity-project-fields [required]').forEach(function(el){ el.disabled = isClient; });
@@ -12894,7 +12911,8 @@ async function saveClientProjectDialog(event) {
       var updatedProject = projects.find(function(item){ return Number(item.id) === projectId; });
       var wasActiveProject = existingProject
         && Number(activeClientId) === Number(existingProject.client_id)
-        && activeProjectName === existingProject.name;
+        && activeProjectName === existingProject.name
+        && activeProgram === projectProgram(existingProject);
       if(wasActiveProject && updatedProject) {
         activeClientId = Number(updatedProject.client_id) || null;
         activeProjectName = updatedProject.name;
@@ -12922,6 +12940,8 @@ async function saveClientProjectDialog(event) {
       if(workspaceProject) {
         workspaceProject.value = payload.name;
         populateWorkspaceProgramOptions();
+        var workspaceProgram = document.getElementById('workspace-program-select');
+        if(workspaceProgram) workspaceProgram.value = payload.program;
       }
       toast('\u2713 Project '+payload.name+' created');
     }
@@ -12949,7 +12969,7 @@ function currentFilteredBoreholes() {
   const proj = (projectEl && projectEl.value) || activeProjectName || "";
   const year = (yearEl && yearEl.value) || "";
   let filtered = bhData.slice();
-  if(program) filtered = filtered.filter(function(b){ return projectProgramForName(b.project||"") === program; });
+  if(program) filtered = filtered.filter(boreholeMatchesActiveProgram);
   if(clientId) {
     var clientProjects = new Set(projects.filter(function(p){ return Number(p.client_id)===clientId; }).map(function(p){ return p.name; }));
     filtered = filtered.filter(function(b){ return clientProjects.has(b.project||""); });

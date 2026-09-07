@@ -910,6 +910,7 @@ def init_db():
                     id              SERIAL PRIMARY KEY,
                     contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
                     project         TEXT,
+                    program         TEXT DEFAULT 'Exploration',
                     planned_year    TEXT,
                     site_id         TEXT,
                     hole_id         TEXT NOT NULL,
@@ -941,6 +942,7 @@ def init_db():
             """)
             for col, typedef in [
                 ("project", "TEXT"),
+                ("program", "TEXT DEFAULT 'Exploration'"),
                 ("planned_year", "TEXT"),
                 ("site_id", "TEXT"),
                 ("eoh_depth", "FLOAT"),
@@ -958,6 +960,7 @@ def init_db():
                     cur.execute(f"ALTER TABLE boreholes ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
                     conn.rollback()
+            cur.execute("UPDATE boreholes SET program='Exploration' WHERE program IS NULL OR BTRIM(program)=''")
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -965,6 +968,7 @@ def init_db():
                     po_number       TEXT NOT NULL,
                     contractor      TEXT NOT NULL DEFAULT 'Allianz Drilling',
                     project         TEXT,
+                    program         TEXT DEFAULT 'Exploration',
                     description     TEXT,
                     issue_date      TEXT,
                     expiry_date     TEXT,
@@ -973,11 +977,12 @@ def init_db():
                     notes           TEXT
                 )
             """)
-            for col, typedef in [("project", "TEXT")]:
+            for col, typedef in [("project", "TEXT"), ("program", "TEXT DEFAULT 'Exploration'")]:
                 try:
                     cur.execute(f"ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
                     conn.rollback()
+            cur.execute("UPDATE purchase_orders SET program='Exploration' WHERE program IS NULL OR BTRIM(program)=''")
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS source_files (
@@ -1117,6 +1122,13 @@ def init_db():
                 cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS program TEXT DEFAULT 'Exploration'")
                 cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
                 cur.execute("UPDATE projects SET program='Exploration' WHERE program IS NULL OR program=''")
+                # A site can run several independently scoped programs. The
+                # original constraint allowed only one row named Ironbark.
+                cur.execute("ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_contractor_name_key")
+                cur.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS projects_contractor_name_program_key
+                    ON projects (contractor, LOWER(BTRIM(name)), LOWER(BTRIM(program)))
+                """)
                 cur.execute("""
                     UPDATE projects
                     SET client_id=(SELECT id FROM clients WHERE name='Argo NR')
@@ -1198,6 +1210,13 @@ def init_db():
                     cur.execute(f"ALTER TABLE project_budgets ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
                     conn.rollback()
+
+            cur.execute("UPDATE project_budgets SET program='Exploration' WHERE program IS NULL OR BTRIM(program)=''")
+            cur.execute("ALTER TABLE project_budgets DROP CONSTRAINT IF EXISTS project_budgets_contractor_project_section_vendor_key")
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS project_budgets_program_allocation_key
+                ON project_budgets (contractor, project, program, section, vendor)
+            """)
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS cost_centre_forecasts (
@@ -1352,7 +1371,6 @@ def init_db():
                     cur.execute(f"ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS {col} {typedef}")
                 except Exception:
                     conn.rollback()
-
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS invoice_attachments (
                     id           SERIAL PRIMARY KEY,
@@ -6733,6 +6751,7 @@ def del_consumable_rate(rid: int):
 def get_pos(
     contractor: Optional[str] = Query(None),
     project: Optional[str] = Query(None),
+    program: Optional[str] = Query(None),
 ):
     try:
         with get_conn() as conn:
@@ -6744,10 +6763,13 @@ def get_pos(
                 if project:
                     where.append("LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))")
                     params.append(project)
+                if program:
+                    where.append("COALESCE(program,'')=%s")
+                    params.append(program)
                 clause = ("WHERE " + " AND ".join(where)) if where else ""
                 cur.execute(f"""
                     SELECT id, po_number, contractor, description,
-                           project, issue_date, expiry_date, po_value, status, notes
+                           project, program, issue_date, expiry_date, po_value, status, notes
                     FROM purchase_orders
                     {clause}
                     ORDER BY issue_date DESC NULLS LAST, id DESC
@@ -6760,7 +6782,8 @@ def get_pos(
                         SELECT COALESCE(SUM(total_aud),0) AS spent
                         FROM invoices
                         WHERE po_reference LIKE %s AND contractor=%s
-                    """, (f"%{po['po_number']}%", po["contractor"]))
+                          AND (%s='' OR COALESCE(program,'')=%s)
+                    """, (f"%{po['po_number']}%", po["contractor"], po.get("program") or "", po.get("program") or ""))
                     spent = float(cur.fetchone()["spent"] or 0)
                     po["spent_to_date"] = spent
                     po["remaining"] = (po["po_value"] or 0) - spent
@@ -6782,11 +6805,12 @@ async def add_po(request: Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO purchase_orders (po_number,contractor,project,description,issue_date,expiry_date,po_value,status,notes)
-                    VALUES (%(po_number)s,%(contractor)s,%(project)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
+                    INSERT INTO purchase_orders (po_number,contractor,project,program,description,issue_date,expiry_date,po_value,status,notes)
+                    VALUES (%(po_number)s,%(contractor)s,%(project)s,%(program)s,%(description)s,%(issue_date)s,%(expiry_date)s,%(po_value)s,%(status)s,%(notes)s)
                     RETURNING id
                 """, {"po_number":payload["po_number"],"contractor":payload["contractor"],
                       "project":payload.get("project",""),
+                      "program":payload.get("program") or "Exploration",
                       "description":payload.get("description",""),"issue_date":payload.get("issue_date",""),
                       "expiry_date":payload.get("expiry_date",""),"po_value":payload.get("po_value",0),
                       "status":payload.get("status","Active"),"notes":payload.get("notes","")})
@@ -6800,7 +6824,7 @@ async def add_po(request: Request):
 @app.patch("/purchase_orders/{po_id}")
 async def update_po(po_id: int, request: Request):
     payload = await request.json()
-    safe = {"po_number","project","description","issue_date","expiry_date","po_value","status","notes"}
+    safe = {"po_number","project","program","description","issue_date","expiry_date","po_value","status","notes"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400,"No valid fields")
     u["po_id"]=po_id
@@ -9074,7 +9098,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                 if contractor:
                     deduped = {}
                     fallback_fields = {
-                        "project","planned_year","site_id","drill_order","days_budgeted",
+                        "project","program","planned_year","site_id","drill_order","days_budgeted",
                         "bh_type","bit_type","purpose","easting","northing","rl",
                         "chip_depth","eoh_depth","total_core","seam_tk","lat","lng",
                         "drilling_budget_total","earthworks_budget_total","geophysical_budget_total",
@@ -9112,24 +9136,28 @@ def get_borehole_options(
     contractor: str = Query(default="Company"),
     planned_year: str = Query(default=""),
     project: str = Query(default=""),
+    program: str = Query(default=""),
 ):
     """Return lightweight planned-hole choices without calculating activity actuals."""
     params = {
         "contractor": (contractor or "Company").strip(),
         "planned_year": (planned_year or "").strip(),
         "project": (project or "").strip(),
+        "program": (program or "").strip(),
     }
     conditions = ["contractor=%(contractor)s", "COALESCE(hole_id, '')<>''"]
     if params["planned_year"]:
         conditions.append("planned_year=%(planned_year)s")
     if params["project"]:
         conditions.append("project=%(project)s")
+    if params["program"]:
+        conditions.append("program=%(program)s")
     conditions.append("LOWER(COALESCE(status, 'planned'))<>'cancelled'")
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
-                SELECT hole_id, site_id, project, planned_year, drill_order, status
+                SELECT hole_id, site_id, project, program, planned_year, drill_order, status
                 FROM boreholes
                 WHERE {' AND '.join(conditions)}
                 ORDER BY project, drill_order NULLS LAST, hole_id
@@ -9181,13 +9209,13 @@ async def import_budget(request: Request):
                     merged_by_site += 1
                 cur.execute("""
                 INSERT INTO boreholes
-                (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
+                (contractor,project,program,planned_year,site_id,hole_id,drill_order,days_budgeted,
                  bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
                  seam_tk,lat,lng,status,drilling_budget_total,earthworks_budget_total,
                  geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (contractor,hole_id) DO UPDATE SET
-                    project=EXCLUDED.project, planned_year=EXCLUDED.planned_year,
+                    project=EXCLUDED.project, program=EXCLUDED.program, planned_year=EXCLUDED.planned_year,
                     site_id=EXCLUDED.site_id, drill_order=EXCLUDED.drill_order,
                     days_budgeted=EXCLUDED.days_budgeted,
                     bh_type=EXCLUDED.bh_type, bit_type=EXCLUDED.bit_type,
@@ -9202,7 +9230,7 @@ async def import_budget(request: Request):
                     geological_support_budget_total=EXCLUDED.geological_support_budget_total,
                     misc_budget_total=EXCLUDED.misc_budget_total,
                     budget_total=EXCLUDED.budget_total
-                """, (contractor, b.get("project",""), b.get("planned_year",""),
+                """, (contractor, b.get("project",""), b.get("program") or "Exploration", b.get("planned_year",""),
                    site_id, merge_hole_id, b.get("drill_order"),
                    b.get("days") or b.get("days_budgeted"),
                    b.get("type") or b.get("bh_type"), b.get("bit_type"), b.get("purpose"),
@@ -9248,7 +9276,7 @@ async def import_budget(request: Request):
 async def update_borehole(hole_id: str, request: Request):
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
-    safe = {"status","notes","days_budgeted","drilling_budget_total","earthworks_budget_total","geophysical_budget_total","geological_support_budget_total","misc_budget_total","budget_total","actual_total","drill_order","project","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
+    safe = {"status","notes","days_budgeted","drilling_budget_total","earthworks_budget_total","geophysical_budget_total","geological_support_budget_total","misc_budget_total","budget_total","actual_total","drill_order","project","program","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
     u = {k:v for k,v in payload.items() if k in safe}
     if not u: raise HTTPException(400, "No valid fields")
     params = {**u, "old_hole_id": hole_id, "contractor": contractor}
@@ -9428,11 +9456,15 @@ def get_projects(contractor: str = Query(...)):
 
 
 @app.get("/project-contractors")
-def get_project_contractors(project: str = Query(...)):
+def get_project_contractors(
+    project: str = Query(...),
+    program: str = Query(default=""),
+):
     """Return only suppliers with evidence linking them to the selected project."""
     project_name = str(project or "").strip()
     if not project_name:
         return []
+    program_name = str(program or "").strip()
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -9442,18 +9474,21 @@ def get_project_contractors(project: str = Query(...)):
                            0::BIGINT AS contract_rows
                     FROM activities
                     WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND (%s='' OR COALESCE(program,'')=%s)
                       AND TRIM(COALESCE(contractor,''))<>''
                     GROUP BY contractor
                     UNION ALL
                     SELECT contractor, 0, COUNT(*), 0, 0
                     FROM invoices
                     WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND (%s='' OR COALESCE(program,'')=%s)
                       AND TRIM(COALESCE(contractor,''))<>''
                     GROUP BY contractor
                     UNION ALL
                     SELECT contractor, 0, 0, COUNT(*), 0
                     FROM purchase_orders
                     WHERE LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                      AND (%s='' OR COALESCE(program,'')=%s)
                       AND TRIM(COALESCE(contractor,''))<>''
                     GROUP BY contractor
                     UNION ALL
@@ -9461,6 +9496,7 @@ def get_project_contractors(project: str = Query(...)):
                     FROM cost_contracts cc
                     JOIN projects p ON p.id=cc.project_id
                     WHERE LOWER(TRIM(p.name))=LOWER(TRIM(%s))
+                      AND (%s='' OR COALESCE(p.program,'')=%s)
                       AND TRIM(COALESCE(cc.contractor,''))<>''
                     GROUP BY cc.contractor
                 ),
@@ -9481,7 +9517,12 @@ def get_project_contractors(project: str = Query(...)):
                 LEFT JOIN contractors c ON LOWER(c.name)=LOWER(r.contractor)
                 ORDER BY CASE WHEN COALESCE(c.category,'')='Drilling' THEN 0 ELSE 1 END,
                          r.activity_rows DESC, r.invoice_rows DESC, r.contractor
-            """, (project_name, project_name, project_name, project_name))
+            """, (
+                project_name, program_name, program_name,
+                project_name, program_name, program_name,
+                project_name, program_name, program_name,
+                project_name, program_name, program_name,
+            ))
             return [dict(row) for row in cur.fetchall()]
 
 
@@ -9517,15 +9558,16 @@ async def add_project(request: Request):
                     FROM projects
                     WHERE contractor=%s
                       AND LOWER(BTRIM(name))=LOWER(BTRIM(%s))
+                      AND LOWER(BTRIM(COALESCE(program,'')))=LOWER(BTRIM(%s))
                     LIMIT 1
                     """,
-                    (contractor, name),
+                    (contractor, name, program),
                 )
                 existing = cur.fetchone()
                 if existing:
                     raise HTTPException(
                         409,
-                        f'Project "{name}" already exists. Open it from Projects and use Edit.',
+                        f'{name} already has a {program} program. Open it from Projects and use Edit.',
                     )
                 cur.execute("""
                     INSERT INTO projects (contractor, client_id, program, name, year, status, notes)
@@ -9538,7 +9580,7 @@ async def add_project(request: Request):
     except HTTPException:
         raise
     except psycopg2.errors.UniqueViolation as e:
-        raise HTTPException(409, f'Project "{name}" already exists. Open it from Projects and use Edit.') from e
+        raise HTTPException(409, f'{name} already has a {program} program. Open it from Projects and use Edit.') from e
     except psycopg2.errors.ForeignKeyViolation as e:
         raise HTTPException(400, "Selected client does not exist") from e
     except Exception as e:
@@ -9570,20 +9612,27 @@ async def update_project(project_id: int, request: Request):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                if "name" in update:
+                if {"name", "program"}.intersection(update):
+                    cur.execute("SELECT name, program FROM projects WHERE id=%s", (project_id,))
+                    current = cur.fetchone()
+                    if not current:
+                        raise HTTPException(404, "Project not found")
+                    candidate_name = update.get("name", current.get("name"))
+                    candidate_program = update.get("program", current.get("program"))
                     cur.execute(
                         """
                         SELECT id
                         FROM projects
                         WHERE contractor=(SELECT contractor FROM projects WHERE id=%s)
                           AND LOWER(BTRIM(name))=LOWER(BTRIM(%s))
+                          AND LOWER(BTRIM(COALESCE(program,'')))=LOWER(BTRIM(%s))
                           AND id<>%s
                         LIMIT 1
                         """,
-                        (project_id, update["name"], project_id),
+                        (project_id, candidate_name, candidate_program, project_id),
                     )
                     if cur.fetchone():
-                        raise HTTPException(409, f'Another project named "{update["name"]}" already exists')
+                        raise HTTPException(409, f'{candidate_name} already has a {candidate_program} program')
                 cur.execute(f"UPDATE projects SET {set_clause} WHERE id=%s", list(update.values()) + [project_id])
                 if cur.rowcount == 0:
                     raise HTTPException(404, "Project not found")
@@ -9591,7 +9640,7 @@ async def update_project(project_id: int, request: Request):
     except HTTPException:
         raise
     except psycopg2.errors.UniqueViolation as e:
-        raise HTTPException(409, "Another project with that name already exists") from e
+        raise HTTPException(409, "That project program already exists") from e
     except psycopg2.errors.ForeignKeyViolation as e:
         raise HTTPException(400, "Selected client does not exist") from e
     return {"status": "updated"}
@@ -10082,7 +10131,7 @@ async def upsert_project_budgets(request: Request):
                     INSERT INTO project_budgets
                     (contractor, program, project, section, vendor, budget_amount, allocation, notes, updated_at)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-                    ON CONFLICT (contractor, project, section, vendor)
+                    ON CONFLICT (contractor, project, program, section, vendor)
                     DO UPDATE SET
                         program=EXCLUDED.program,
                         budget_amount=EXCLUDED.budget_amount,
@@ -10161,13 +10210,14 @@ def sync_ironbark_budget_v5_4():
                 )
                 cur.execute("""
                     INSERT INTO boreholes
-                    (contractor,project,planned_year,site_id,hole_id,drill_order,days_budgeted,
+                    (contractor,project,program,planned_year,site_id,hole_id,drill_order,days_budgeted,
                      bh_type,bit_type,purpose,easting,northing,rl,chip_depth,eoh_depth,total_core,
                      seam_tk,lat,lng,status,notes,drilling_budget_total,earthworks_budget_total,
                      geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total)
-                    VALUES ('Company',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    VALUES ('Company',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (contractor,hole_id) DO UPDATE SET
                         project=EXCLUDED.project,
+                        program=EXCLUDED.program,
                         planned_year=EXCLUDED.planned_year,
                         site_id=EXCLUDED.site_id,
                         drill_order=EXCLUDED.drill_order,
@@ -10203,6 +10253,7 @@ def sync_ironbark_budget_v5_4():
                         budget_total=EXCLUDED.budget_total
                 """, (
                     borehole.get("project") or "Ironbark",
+                    "Exploration",
                     str(borehole.get("planned_year") or "2026"),
                     borehole.get("site_id") or borehole.get("hole_id"),
                     borehole.get("hole_id"),
