@@ -1,4 +1,5 @@
 import unittest
+import uuid
 
 from audit import record_audit_event, record_import_batch
 from request_context import RequestAuditContext, request_audit_context
@@ -42,7 +43,10 @@ class AuditHelpersTests(unittest.TestCase):
         self.assertEqual(len(cursor.calls), 1)
         params = cursor.calls[0][1]
         self.assertEqual(params[0], "11111111-1111-1111-1111-111111111111")
-        self.assertEqual(str(params[6]), "22222222-2222-2222-2222-222222222222")
+        self.assertEqual(params[6], "22222222-2222-2222-2222-222222222222")
+        self.assertIsInstance(params[6], str)
+        self.assertNotIsInstance(params[6], uuid.UUID)
+        self.assertIn("%s::uuid", cursor.calls[0][0])
         self.assertEqual(params[7:], ("POST", "/import"))
 
     def test_import_batch_also_writes_summary_event(self):
@@ -59,8 +63,27 @@ class AuditHelpersTests(unittest.TestCase):
         self.assertEqual(batch_id, 42)
         self.assertEqual(len(cursor.calls), 2)
         self.assertIn("INSERT INTO import_batches", cursor.calls[0][0])
+        self.assertIn("%s::uuid", cursor.calls[0][0])
         self.assertEqual(cursor.calls[0][1][1:3], ("shift.pdf", "eos"))
+        self.assertIsInstance(cursor.calls[0][1][-1], str)
         self.assertEqual(cursor.calls[1][1][2], "import.imported")
+
+    def test_invalid_request_id_is_saved_as_null(self):
+        token = request_audit_context.set(
+            RequestAuditContext(request_id="not-a-uuid", method="POST", path="/import")
+        )
+        try:
+            cursor = FakeCursor()
+            record_audit_event(
+                cursor,
+                action="import.failed",
+                entity_type="import_batch",
+                entity_key="invalid-request-id",
+            )
+        finally:
+            request_audit_context.reset(token)
+
+        self.assertIsNone(cursor.calls[0][1][6])
 
 
 if __name__ == "__main__":

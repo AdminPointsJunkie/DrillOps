@@ -7,9 +7,10 @@ from typing import Optional
 from request_context import current_request_audit_context
 
 
-def _request_id(value: str):
+def _request_id(value: str) -> Optional[str]:
+    """Return a canonical UUID string that psycopg2 can adapt safely."""
     try:
-        return uuid.UUID(str(value)) if value else None
+        return str(uuid.UUID(str(value))) if value else None
     except (TypeError, ValueError):
         return None
 
@@ -30,7 +31,7 @@ def record_audit_event(
         INSERT INTO audit_events
           (actor_user_id, project_id, action, entity_type, entity_key, details,
            request_id, request_method, request_path)
-        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s::uuid, %s, %s)
         """,
         (
             actor_user_id or context.user_id or None,
@@ -65,7 +66,7 @@ def record_import_batch(
         INSERT INTO import_batches
           (actor_user_id, filename, import_kind, contractor, client, project,
            status, row_counts, details, request_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::uuid)
         RETURNING id
         """,
         (
