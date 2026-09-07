@@ -1444,6 +1444,7 @@ def assign_depco_ironbark_to_gas_riser():
                   )
             """)
             moved["activities"] = cur.rowcount
+            conn.commit()
 
             cur.execute("""
                 UPDATE invoices
@@ -1456,6 +1457,7 @@ def assign_depco_ironbark_to_gas_riser():
                   )
             """)
             moved["invoices"] = cur.rowcount
+            conn.commit()
 
             cur.execute("""
                 UPDATE purchase_orders
@@ -1468,6 +1470,7 @@ def assign_depco_ironbark_to_gas_riser():
                   )
             """)
             moved["purchase_orders"] = cur.rowcount
+            conn.commit()
 
             # Copy first so an existing Gas Riser allocation is updated, then
             # remove the old program allocation to avoid double counting.
@@ -1499,6 +1502,7 @@ def assign_depco_ironbark_to_gas_riser():
                   AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
             """)
             moved["old_budget_allocations_removed"] = cur.rowcount
+            conn.commit()
 
             cur.execute("""
                 UPDATE cost_contracts cc
@@ -1522,6 +1526,7 @@ def assign_depco_ironbark_to_gas_riser():
                   )
             """)
             moved["cost_contracts"] = cur.rowcount
+            conn.commit()
 
             cur.execute("""
                 UPDATE boreholes b
@@ -1912,7 +1917,11 @@ repair_mcc_weekly_light_vehicle_days()
 migrate_legacy_drilling_bit_labels()
 apply_mitchells_contract_exceptions()
 apply_depco_import_exceptions()
-assign_depco_ironbark_to_gas_riser()
+try:
+    assign_depco_ironbark_to_gas_riser()
+except Exception as exc:
+    # A non-critical historical cleanup must never prevent the API starting.
+    print(f"DEPCO Ironbark program assignment warning: {exc}")
 
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
@@ -3484,7 +3493,12 @@ def parse_coreplan_plod_csv(content, filename, contractor, legacy_timeline=False
 # ── API ───────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return {"status": "ok", "app": "DrillOps API v3", "contractors": [c[0] for c in CONTRACTORS]}
+    return {
+        "status": "ok",
+        "app": "DrillOps API v3",
+        "release": "depco-ironbark-gas-riser",
+        "contractors": [c[0] for c in CONTRACTORS],
+    }
 
 
 @app.get("/contractors")
