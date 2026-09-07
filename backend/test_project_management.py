@@ -29,6 +29,17 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("LOWER(BTRIM(p.name))='ironbark'", MAIN_PY)
         self.assertIn("ON CONFLICT DO NOTHING", MAIN_PY)
 
+    def test_depco_ironbark_records_move_to_gas_riser(self):
+        start = MAIN_PY.index("def assign_depco_ironbark_to_gas_riser")
+        end = MAIN_PY.index("init_db()", start)
+        migration = MAIN_PY[start:end]
+
+        for table in ("activities", "invoices", "purchase_orders", "project_budgets", "cost_contracts", "boreholes"):
+            self.assertIn(table, migration)
+        self.assertIn("SET program='Gas Riser'", migration)
+        self.assertIn("LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'", migration)
+        self.assertIn("assign_depco_ironbark_to_gas_riser()", MAIN_PY)
+
     def test_workspace_lists_every_program_for_a_project(self):
         start = INDEX_HTML.index("function populateWorkspaceProgramOptions()")
         end = INDEX_HTML.index("function updateWorkspaceContinueState()", start)
