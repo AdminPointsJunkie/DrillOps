@@ -6285,10 +6285,12 @@ function selectedPeriod(){
   let to=document.getElementById('period-range-to')?.value||'';
   const source=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
   const dates=(source||[]).map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
+  const reportYear=String(activeProjectYear());
+  const projectYearDates=dates.filter(function(date){return date.startsWith(reportYear+'-');});
   const fromEl=document.getElementById('period-range-from');
   const toEl=document.getElementById('period-range-to');
-  if(!from&&dates.length){from=dates[0];if(fromEl)fromEl.value=from;}
-  if(!to&&dates.length){to=dates[dates.length-1];if(toEl)toEl.value=to;}
+  if(!from){from=projectYearDates[0]||reportYear+'-01-01';if(fromEl)fromEl.value=from;}
+  if(!to){to=projectYearDates[projectYearDates.length-1]||reportYear+'-12-31';if(toEl)toEl.value=to;}
   return {from:from,to:to,project:activeProjectName||''};
 }
 
@@ -7323,7 +7325,14 @@ function cleanStandbyReason(row){
 function renderPeriodStandbyReasons(rows){
   const el=document.getElementById('period-standby-reasons');
   if(!el)return;
-  const standby=(rows||[]).filter(function(r){return rowIsStandby(r)&&numVal(r.line_cost)>0;});
+  const period=selectedPeriod();
+  const standby=(rows||[]).filter(function(r){
+    const iso=reportIso(r.date);
+    if(!iso)return false;
+    if(period.from&&iso<period.from)return false;
+    if(period.to&&iso>period.to)return false;
+    return rowIsStandby(r)&&numVal(r.line_cost)>0;
+  });
   if(!standby.length){
     el.innerHTML='<div class="period-issues"><div class="empty-state" style="padding:0;">No standby rows recorded in this period.</div></div>';
     return;

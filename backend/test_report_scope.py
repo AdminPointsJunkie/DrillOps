@@ -42,6 +42,21 @@ class ReportScopeTests(unittest.TestCase):
         self.assertIn("const programLabel=activeWorkspaceProgramLabel();", self.html)
         self.assertIn("projectLabel+' - '+programLabel+' Drilling Report'", self.html)
 
+    def test_period_defaults_are_limited_to_the_project_year(self):
+        body = self.function_body("selectedPeriod", "loadReportsPage")
+
+        self.assertIn("const reportYear=String(activeProjectYear());", body)
+        self.assertIn("date.startsWith(reportYear+'-')", body)
+        self.assertIn("reportYear+'-01-01'", body)
+        self.assertIn("reportYear+'-12-31'", body)
+
+    def test_standby_reasons_recheck_the_selected_period(self):
+        body = self.function_body("renderPeriodStandbyReasons", "renderPeriodProgress")
+
+        self.assertIn("const period=selectedPeriod();", body)
+        self.assertIn("if(period.from&&iso<period.from)return false;", body)
+        self.assertIn("if(period.to&&iso>period.to)return false;", body)
+
 
 if __name__ == "__main__":
     unittest.main()
