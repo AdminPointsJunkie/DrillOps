@@ -355,6 +355,10 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .management-title{font-size:26px;font-weight:780;letter-spacing:-.65px;color:var(--text);}
 .management-subtitle{font-size:12px;color:var(--muted);margin-top:4px;}
 .management-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.budget-kpi-row{grid-template-columns:repeat(4,minmax(0,1fr));}
+.budget-toolbar{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.35fr) auto auto auto;gap:8px;align-items:end;}
+.budget-toolbar .filter-group{margin:0;}
+.budget-toolbar .workspace-scope-note{min-height:36px;display:flex;align-items:center;}
 .management-search{height:36px;width:270px;max-width:100%;border:1px solid #cfd7e1;border-radius:7px;padding:0 12px;font:500 13px var(--font);outline:none;background:#fff;}
 .management-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
 .management-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 16px;}
@@ -409,6 +413,8 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
   .production-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
   .production-filter{min-width:calc(50% - 5px);flex:1;}
   .management-page{margin:0;}
+  .budget-kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .budget-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));}
   .contract-detail{grid-template-columns:1fr;}
   .contract-side{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--border);}
   .contract-side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;}
@@ -418,6 +424,7 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
   .production-kpis{grid-template-columns:1fr;}
   .production-filter{min-width:100%;}
   .management-head{flex-direction:column;}
+  .budget-kpi-row,.budget-toolbar{grid-template-columns:1fr;}
   .contract-dialog-body{grid-template-columns:1fr;}
   .contract-dialog-body .wide{grid-column:auto;}
 }
@@ -2096,6 +2103,7 @@ tbody td[contenteditable=true]:focus {
       <div class="drawer-section-title">Navigation</div>
       <div class="drawer-nav-list">
         <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients, contracts &amp; rates</span></button>
+        <button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><span class="drawer-nav-label">Budget</span><span class="drawer-nav-meta">Plan and allocations</span></button>
         <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
         <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
         <button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><span class="drawer-nav-label">Users &amp; Change Log</span><span class="drawer-nav-meta">Access and accountability</span></button>
@@ -2457,6 +2465,47 @@ tbody td[contenteditable=true]:focus {
           <table id="client-project-table">
             <thead><tr><th>Client</th><th>Project</th><th>Status</th><th>Program</th><th>Rate source</th><th>Year</th><th></th></tr></thead>
             <tbody id="client-project-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Budget -->
+    <section class="page management-page" id="page-budget">
+      <div class="management-head">
+        <div>
+          <div class="management-title">Budget</div>
+          <div class="management-subtitle">Set the contractor budget for the selected project and use it across reporting, forecasting and cost control.</div>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
+      </div>
+      <div class="kpi-row budget-kpi-row" style="margin-bottom:14px;">
+        <div class="kpi"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div><div class="kpi-sub">Selected workspace total</div></div>
+        <div class="kpi"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div><div class="kpi-sub">Drilling contractor allocation</div></div>
+        <div class="kpi"><div class="kpi-label">Support / Other</div><div class="kpi-value" id="budget-kpi-support">--</div><div class="kpi-sub">All non-drilling allocations</div></div>
+        <div class="kpi"><div class="kpi-label">Budget Lines</div><div class="kpi-value" id="budget-kpi-rows">--</div><div class="kpi-sub">Editable allocation rows</div></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:14px;">
+        <div class="budget-toolbar">
+          <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()" disabled></select></div>
+          <div class="filter-group"><label>Workspace project</label><span class="workspace-scope-note" id="budget-project-context">Selected at entry</span><select id="budget-project-filter" onchange="renderProjectBudgets()" hidden></select></div>
+          <button class="btn-primary" type="button" onclick="addProjectBudgetRow()">Add budget line</button>
+          <button class="btn-secondary" type="button" onclick="document.getElementById('project-budget-csv').click()">Import CSV</button>
+          <button class="btn-ghost" type="button" onclick="downloadProjectBudgetTemplate()">Download template</button>
+          <input id="project-budget-csv" type="file" accept=".csv,text/csv" onchange="importProjectBudgetCSV(this)" style="display:none;"/>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="budget-row-count">0</span> budget lines</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Click a value in the table to edit it. Changes save automatically.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:560px;">
+          <table>
+            <thead><tr><th>Program</th><th>Project</th><th>Section</th><th>Contractor</th><th>Category</th><th>Budget</th><th>Allocation</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="project-budget-body"><tr><td colspan="9"><div class="empty-state">Open Budget to load the selected project.</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -4932,6 +4981,7 @@ function triggerPageLoad(page){
   if(page==='boreholes')    loadBoreholes();
   if(page==='production')   loadDailyProduction();
   if(page==='project-budgets') renderClientProjectHierarchy();
+  if(page==='budget')       loadProjectBudgets();
   if(page==='cost-contracts') loadCostContracts();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
@@ -12539,10 +12589,12 @@ function parseSimpleCSV(text){
 }
 
 function projectBudgetTemplateRows(){
+  const program=activeProgram||'Exploration';
+  const project=activeProjectName||'Project name';
   return [
     ['program','project','section','contractor','budget_amount','allocation','notes'],
-    ['Exploration','Carborough Downs','Geological Support','Fortem','197920','Project level',''],
-    ['Exploration','Carborough Downs','Drilling','Allianz Drilling','918744','Project level','']
+    [program,project,'Geological Support','Contractor name','0','Project level',''],
+    [program,project,'Drilling','Drilling contractor','0','Project level','']
   ];
 }
 
