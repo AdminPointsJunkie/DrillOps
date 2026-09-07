@@ -4476,7 +4476,7 @@ let activeProjectName = '';
 let projectContractorsData = [];
 let pendingFiles = [];
 let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
-let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null, mccWeeklyAuditLoaded=false, mccWeeklyAuditLoading=false, mccWeeklyAuditScope='', mccPersonnelData=null, mccPersonnelLoading=false, selectedMccPersonKey='';
+let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodMccActivitiesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null, mccWeeklyAuditLoaded=false, mccWeeklyAuditLoading=false, mccWeeklyAuditScope='', mccPersonnelData=null, mccPersonnelLoading=false, selectedMccPersonKey='';
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], mccWeeklyReportsData=[], selectedDailyReportKey=null;
 let productionRawData=[], productionFilteredData=[];
@@ -4583,7 +4583,7 @@ async function switchProgram(program){
   periodSourceBudgetData=null;
   explorationMetresSummaryData=null;
   bhData=[];
-  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];mccWeeklyReportsData=[];mccPersonnelData=null;selectedMccPersonKey='';productionRawData=[];productionFilteredData=[];
+  activitiesData=[];consumablesData=[];reportConsumablesData=[];periodMccActivitiesData=[];crewData=[];dailyReportsData=[];mccWeeklyReportsData=[];mccPersonnelData=null;selectedMccPersonKey='';productionRawData=[];productionFilteredData=[];
   buildContractorSwitcher();
   renderDrawerContractors();
   await fetchProjects();
@@ -6260,7 +6260,8 @@ async function loadReportsPage(preserveRange){
       loadPeriodSupportInvoices(),
       fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
       fetch(API+'/project-budget-source?project='+encodeURIComponent(activeProjectName||'')+'&year='+encodeURIComponent(reportYear)+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
-      fetch(API+'/exploration-metres-summary?year='+encodeURIComponent(reportYear)+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
+      fetch(API+'/exploration-metres-summary?year='+encodeURIComponent(reportYear)+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
+      fetch(API+'/activities?contractor='+encodeURIComponent('MCC Group')+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];})
     ]);
     applyActivityReportBundle(results[0]);
     periodReportActivitiesData=activitiesData;
@@ -6271,6 +6272,7 @@ async function loadReportsPage(preserveRange){
     projectBudgetsData=results[2]||[];
     periodSourceBudgetData=results[3]||null;
     explorationMetresSummaryData=results[4]||null;
+    periodMccActivitiesData=Array.isArray(results[5])?results[5]:[];
     await ensureReportBoreholes();
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
@@ -6351,6 +6353,28 @@ function supportSectionForInvoice(inv){
 function periodFilteredSupportInvoices(){
   const period=selectedPeriod();
   return (periodSupportInvoicesData||[]).filter(function(inv){return invoiceMatchesPeriod(inv,period);});
+}
+
+function periodFilteredMccCharges(){
+  const period=selectedPeriod();
+  return (periodMccActivitiesData||[]).filter(function(row){
+    const iso=reportIso(row.date);
+    if(row.is_cost_source===false||String(row.is_cost_source).toLowerCase()==='false')return false;
+    if(period.from&&(!iso||iso<period.from))return false;
+    if(period.to&&(!iso||iso>period.to))return false;
+    if(period.project&&row.project&&!projectNamesMatch(row.project,period.project))return false;
+    if(activeProgram&&row.program&&!String(row.program).split(',').map(function(value){return value.trim();}).includes(activeProgram))return false;
+    return true;
+  });
+}
+
+function periodMccChargeSummary(invoices){
+  const weeklyRows=periodFilteredMccCharges();
+  const weeklyTotal=weeklyRows.reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
+  const mccInvoices=(invoices||[]).filter(function(invoice){return contractorSummaryKey(invoice.contractor)==='mccgroup';});
+  const invoiceTotal=mccInvoices.reduce(function(sum,invoice){return sum+numVal(invoice.total_aud);},0);
+  const unbilled=Math.max(0,weeklyTotal-invoiceTotal);
+  return {weeklyTotal:weeklyTotal,invoiceTotal:invoiceTotal,unbilled:unbilled,actual:invoiceTotal+unbilled,rowCount:weeklyRows.length};
 }
 
 function periodFilteredBudgetRows(period){
@@ -6511,6 +6535,7 @@ function renderPeriodReport(){
   const rows=periodFilteredRows();
   const consumables=periodFilteredConsumables();
   const supportInvoices=periodFilteredSupportInvoices();
+  const mccChargeSummary=periodMccChargeSummary(supportInvoices);
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=uniqueBoreholesById(activeIds.map(function(id){return holes.get(id);}).filter(Boolean));
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
@@ -6533,7 +6558,8 @@ function renderPeriodReport(){
   const budgetTotals=periodBudgetTotals(period,metrics);
   const budgetTotal=budgetTotals.total;
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
-  const supportCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const supportInvoiceCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const supportCost=supportInvoiceCost+mccChargeSummary.unbilled;
   const totalSpent=totalDrillingCost+supportCost;
   const drillingBudgetTotal=budgetTotals.drilling;
   const variance=budgetTotal-totalSpent;
@@ -6568,7 +6594,8 @@ function renderPeriodReport(){
   const reportCountLabel=drillingReports.length+' '+drillingContractor+' report'+(drillingReports.length===1?'':'s');
   setPeriodText('period-drilling-sub',reportCountLabel+(drillingBudgetTotal?' / '+cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):' / No drilling budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
-  setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+' / '+cur(budgetTotals.support)+' budget');
+  const mccAccrualLabel=mccChargeSummary.unbilled>0?' + '+cur(mccChargeSummary.unbilled)+' unbilled MCC charges':(mccChargeSummary.weeklyTotal>0?' / MCC weekly charges reconciled':'');
+  setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+mccAccrualLabel+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
   const varianceEl=document.getElementById('period-variance');
   if(varianceEl){
@@ -6587,7 +6614,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
-  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost);
+  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary);
 }
@@ -7065,7 +7092,7 @@ function clearPeriodVarianceNote(button,label){
   if(note)note.textContent='';
 }
 
-function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
+function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary){
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
   const rows=(invoices||[]).slice().sort(function(a,b){
@@ -7076,7 +7103,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
     const section=supportSectionForInvoice(inv);
     totals[section]=(totals[section]||0)+numVal(inv.total_aud);
   });
-  const total=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const invoiceTotal=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const mccUnbilled=numVal(mccChargeSummary&&mccChargeSummary.unbilled);
+  const total=invoiceTotal+mccUnbilled;
   const budgetBySection=(budgetTotals&&budgetTotals.bySection)||{};
   const contractorBudgetRows=(budgetTotals&&budgetTotals.rows)||[];
   const contractorMap=new Map();
@@ -7116,6 +7145,13 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
     item.spent+=numVal(inv.total_aud);
     item.invoices+=1;
   });
+  if(mccChargeSummary&&numVal(mccChargeSummary.weeklyTotal)>0){
+    const item=ensureContractor('MCC Group','Support');
+    item.spent+=mccUnbilled;
+    item.mccWeeklyTotal=numVal(mccChargeSummary.weeklyTotal);
+    item.mccUnbilled=mccUnbilled;
+    totals.Support=(totals.Support||0)+mccUnbilled;
+  }
   const contractorCards=Array.from(contractorMap.values()).filter(function(item){
     return item.budget>0||item.spent>0;
   }).sort(function(a,b){
@@ -7126,10 +7162,11 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
   const contractorCardHtml=contractorCards.map(function(item){
     const variance=item.budget-item.spent;
     const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
+    const mccDetail=item.mccWeeklyTotal!=null?' | '+cur(item.mccWeeklyTotal)+' MCC charges, '+cur(item.mccUnbilled)+' unbilled included':'';
     return '<div class="period-support-card">'
       +'<div class="label">'+esc(item.label)+'</div>'
       +'<div class="value">'+cur(item.spent)+' / '+cur(item.budget)+'</div>'
-      +'<div class="sub">Spent vs budget | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+'</div>'
+      +'<div class="sub">Spent vs budget | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail+'</div>'
       +'<div class="variance '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+' '+(variance>=0?'under':'over')+'</div>'
       +'</div>';
   }).join('');
@@ -7203,7 +7240,11 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
       +'<td>'+esc(inv.status||'')+'</td>'
       +'<td class="num"><b>'+cur(inv.total_aud)+'</b></td>'
       +'</tr>';
-  }).join('');
+  }).join('')+(mccUnbilled>0?'<tr>'
+      +'<td><b>Support</b></td><td>MCC Group</td><td>Unbilled accrual</td>'
+      +'<td>'+esc((selectedPeriod().from||'start')+' to '+(selectedPeriod().to||'end'))+'</td>'
+      +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
+      +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
   el.innerHTML='<div class="period-support-panel">'
     +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
     +'<div class="period-section-title">Forecast Summary</div>'
@@ -7219,7 +7260,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend){
     +'</tbody></table>'
     +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
     +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
-    +'<tr><td colspan="7"><b>Total support invoices</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
+    +'<tr><td colspan="7"><b>Total support actuals</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
     +'</tbody></table></div>';
 }
 
