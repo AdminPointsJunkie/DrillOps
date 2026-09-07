@@ -37,6 +37,8 @@ class ProjectManagementTests(unittest.TestCase):
         for table in ("activities", "invoices", "purchase_orders", "project_budgets", "cost_contracts", "boreholes"):
             self.assertIn(table, migration)
         self.assertIn("SET program='Gas Riser'", migration)
+        self.assertIn("SET project='Ironbark'", migration)
+        self.assertIn("LIKE 'IBGR%%'", migration)
         self.assertIn("LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'", migration)
         self.assertIn("assign_depco_ironbark_to_gas_riser()", MAIN_PY)
 

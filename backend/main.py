@@ -1427,28 +1427,45 @@ def assign_depco_ironbark_to_gas_riser():
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE activities
-                SET program='Gas Riser', client=COALESCE(NULLIF(client, ''), 'Argo NR')
+                SET project='Ironbark',
+                    program='Gas Riser',
+                    client=COALESCE(NULLIF(client, ''), 'Argo NR')
                 WHERE LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'
-                  AND LOWER(BTRIM(COALESCE(project, '')))='ironbark'
-                  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  AND (
+                      LOWER(BTRIM(COALESCE(project, '')))='ironbark'
+                      OR (
+                          COALESCE(BTRIM(project), '')=''
+                          AND UPPER(BTRIM(COALESCE(hole_num, ''))) LIKE 'IBGR%%'
+                      )
+                  )
+                  AND (
+                      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+                      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  )
             """)
             moved["activities"] = cur.rowcount
 
             cur.execute("""
                 UPDATE invoices
-                SET program='Gas Riser'
+                SET project='Ironbark', program='Gas Riser'
                 WHERE LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'
-                  AND LOWER(BTRIM(COALESCE(project, '')))='ironbark'
-                  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  AND LOWER(BTRIM(COALESCE(project, ''))) IN ('', 'ironbark')
+                  AND (
+                      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+                      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  )
             """)
             moved["invoices"] = cur.rowcount
 
             cur.execute("""
                 UPDATE purchase_orders
-                SET program='Gas Riser'
+                SET project='Ironbark', program='Gas Riser'
                 WHERE LOWER(BTRIM(COALESCE(contractor, '')))='depco drilling'
-                  AND LOWER(BTRIM(COALESCE(project, '')))='ironbark'
-                  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  AND LOWER(BTRIM(COALESCE(project, ''))) IN ('', 'ironbark')
+                  AND (
+                      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+                      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+                  )
             """)
             moved["purchase_orders"] = cur.rowcount
 

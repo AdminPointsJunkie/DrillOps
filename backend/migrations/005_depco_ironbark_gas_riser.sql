@@ -2,23 +2,39 @@
 -- Safe to run repeatedly and mirrored by backend/main.py startup maintenance.
 
 UPDATE activities
-SET program = 'Gas Riser',
+SET project = 'Ironbark',
+    program = 'Gas Riser',
     client = COALESCE(NULLIF(client, ''), 'Argo NR')
 WHERE LOWER(BTRIM(COALESCE(contractor, ''))) = 'depco drilling'
-  AND LOWER(BTRIM(COALESCE(project, ''))) = 'ironbark'
-  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser';
+  AND (
+      LOWER(BTRIM(COALESCE(project, ''))) = 'ironbark'
+      OR (
+          COALESCE(BTRIM(project), '') = ''
+          AND UPPER(BTRIM(COALESCE(hole_num, ''))) LIKE 'IBGR%'
+      )
+  )
+  AND (
+      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+  );
 
 UPDATE invoices
-SET program = 'Gas Riser'
+SET project = 'Ironbark', program = 'Gas Riser'
 WHERE LOWER(BTRIM(COALESCE(contractor, ''))) = 'depco drilling'
-  AND LOWER(BTRIM(COALESCE(project, ''))) = 'ironbark'
-  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser';
+  AND LOWER(BTRIM(COALESCE(project, ''))) IN ('', 'ironbark')
+  AND (
+      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+  );
 
 UPDATE purchase_orders
-SET program = 'Gas Riser'
+SET project = 'Ironbark', program = 'Gas Riser'
 WHERE LOWER(BTRIM(COALESCE(contractor, ''))) = 'depco drilling'
-  AND LOWER(BTRIM(COALESCE(project, ''))) = 'ironbark'
-  AND COALESCE(program, '') IS DISTINCT FROM 'Gas Riser';
+  AND LOWER(BTRIM(COALESCE(project, ''))) IN ('', 'ironbark')
+  AND (
+      LOWER(BTRIM(COALESCE(project, ''))) IS DISTINCT FROM 'ironbark'
+      OR COALESCE(program, '') IS DISTINCT FROM 'Gas Riser'
+  );
 
 INSERT INTO project_budgets
     (contractor, program, project, section, vendor, budget_amount,
