@@ -8023,6 +8023,7 @@ async def create_manual_invoice(request: Request):
         "due_date": str(payload.get("due_date") or "").strip(),
         "po_reference": str(payload.get("po_reference") or "").strip(),
         "project": str(payload.get("project") or "Ironbark").strip() or "Ironbark",
+        "program": str(payload.get("program") or "Exploration").strip() or "Exploration",
         "client": str(payload.get("client") or "Argo Coal Management Pty Ltd").strip(),
         "abn": str(payload.get("abn") or "").strip(),
         "subtotal": amount,
@@ -8056,11 +8057,11 @@ async def create_manual_invoice(request: Request):
                 cur.execute("""
                     INSERT INTO invoices
                     (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
-                     project,client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
+                     project,program,client,abn,subtotal,gst,total_aud,amount_paid,amount_due,status,pdf_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
                     RETURNING id
                 """, (source_file, contractor, inv["invoice_number"], inv["invoice_date"],
-                      inv["due_date"], inv["po_reference"], inv["project"], inv["client"], inv["abn"],
+                      inv["due_date"], inv["po_reference"], inv["project"], inv["program"], inv["client"], inv["abn"],
                       inv["subtotal"], inv["gst"], inv["total_aud"], inv["amount_paid"], inv["amount_due"], inv["status"]))
                 invoice_id = cur.fetchone()["id"]
                 cur.execute("""

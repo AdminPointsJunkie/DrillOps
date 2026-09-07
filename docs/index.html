@@ -3883,6 +3883,37 @@ function filteredContractors() {
   return linked.length?linked:programContractors;
 }
 
+function invoiceContractorsForWorkspace(program) {
+  const selectedProgram=program===undefined?activeProgram:program;
+  const projectKey=String(activeProjectName||'').trim().toLowerCase();
+  const byName=new Map();
+  function addContractor(contractor){
+    const name=String(contractor&&contractor.name||'').trim();
+    if(!name)return;
+    const key=name.toLowerCase();
+    const existing=byName.get(key);
+    if(!existing||(contractorCategory(existing)==='Misc'&&contractorCategory(contractor)!=='Misc')){
+      byName.set(key,contractor);
+    }
+  }
+  CONTRACTORS.forEach(function(contractor){
+    if(contractor.active===false||!contractorInProgram(contractor,selectedProgram))return;
+    const sites=contractorSites(contractor).map(function(site){return site.toLowerCase();});
+    if(projectKey&&sites.length&&!sites.includes(projectKey))return;
+    addContractor(contractor);
+  });
+  (projectContractorsData||[]).forEach(function(row){
+    const configured=CONTRACTORS.find(function(contractor){
+      return String(contractor.name||'').toLowerCase()===String(row.contractor||'').toLowerCase();
+    })||{};
+    if(configured.active===false)return;
+    addContractor(Object.assign({},configured,row,{name:row.contractor||configured.name}));
+  });
+  const active=CONTRACTORS.find(function(contractor){return contractor.name===activeContractor;});
+  if(active&&active.active!==false&&contractorInProgram(active,selectedProgram))addContractor(active);
+  return Array.from(byName.values()).sort(function(a,b){return a.name.localeCompare(b.name);});
+}
+
 async function loadProjectContractors(){
   projectContractorsData=[];
   if(!activeProjectName)return projectContractorsData;
@@ -9185,18 +9216,19 @@ if(invFileInput && invImportBtn && invDropZone) {
 }
 
 function populateManualInvoiceForm(programChanged){
-  var csel = document.getElementById('manual-inv-contractor');
-  if(csel){
-    var current = csel.value || activeContractor;
-    var availableContractors=filteredContractors();
-    csel.innerHTML = availableContractors.map(function(c){
-      return '<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>';
-    }).join('');
-    csel.value = current && availableContractors.some(function(c){ return c.name === current; }) ? current : activeContractor;
-  }
   var programSel = document.getElementById('manual-inv-program');
   var program = (programSel && programSel.value) || activeProgram || 'Exploration';
   if(programSel) programSel.value = program;
+  var csel = document.getElementById('manual-inv-contractor');
+  if(csel){
+    var current = csel.value || activeContractor;
+    var availableContractors=invoiceContractorsForWorkspace(program);
+    csel.innerHTML = availableContractors.map(function(c){
+      return '<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>';
+    }).join('');
+    var selected=availableContractors.find(function(c){return c.name.toLowerCase()===String(current||'').toLowerCase();});
+    csel.value=selected?selected.name:(availableContractors[0]&&availableContractors[0].name)||'';
+  }
   var psel = document.getElementById('manual-inv-project');
   if(psel){
     psel.innerHTML='<option value="'+attr(activeProjectName||'')+'">'+esc(activeProjectName||'No project selected')+'</option>';
@@ -9285,6 +9317,7 @@ async function createManualInvoice(){
     var csel = document.getElementById('inv-contractor-filter');
     if(csel) csel.value = payload.contractor;
     clearManualInvoiceForm();
+    await loadProjectContractors();
     await loadInvoices();
   }catch(e){
     toast('Manual invoice failed: '+((e && e.message) || 'not saved'),'err');
@@ -9296,7 +9329,7 @@ async function loadInvoices(preferredContractor){
     populateManualInvoiceForm();
     // The invoice register inherits the selected workspace project. Contractor
     // remains a useful secondary filter because a project can have many suppliers.
-    var invoiceContractors = filteredContractors().map(function(c){ return c.name; });
+    var invoiceContractors = invoiceContractorsForWorkspace().map(function(c){ return c.name; });
     if(activeContractor && !invoiceContractors.includes(activeContractor)) invoiceContractors.push(activeContractor);
     var results = await Promise.all(invoiceContractors.map(function(name){
       return fetch(API+'/invoices?contractor='+encodeURIComponent(name)+'&project='+encodeURIComponent(activeProjectName||''))
