@@ -9526,6 +9526,11 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 rows = [dict(r) for r in cur.fetchall()]
+                # The Company plan is refreshed from the current approved
+                # Ironbark workbook.  Older imports may contain superseded
+                # holes; retain those records in the database for audit
+                # purposes, but do not present them as part of the live plan.
+                rows = [row for row in rows if is_visible_borehole_plan_row(row)]
                 if contractor:
                     deduped = {}
                     fallback_fields = {
@@ -10621,6 +10626,43 @@ def load_ironbark_budget_v5_4():
         return json.load(source_file)
 
 
+@lru_cache(maxsize=1)
+def current_ironbark_plan_hole_ids():
+    """Hole IDs in the currently approved Ironbark 2026 borehole plan."""
+    return frozenset(
+        str(borehole.get("hole_id") or "").strip()
+        for borehole in load_ironbark_budget_v5_4().get("boreholes", [])
+        if str(borehole.get("hole_id") or "").strip()
+    )
+
+
+def is_visible_borehole_plan_row(row: dict) -> bool:
+    """Hide superseded Company-plan imports without deleting their history."""
+    is_ironbark_2026_company_row = (
+        str(row.get("contractor") or "").strip().lower() == "company"
+        and str(row.get("project") or "").strip().lower() == "ironbark"
+        and str(row.get("planned_year") or "").strip() == "2026"
+    )
+    if not is_ironbark_2026_company_row:
+        return True
+    return str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+
+
+def ironbark_budget_import_status(source_status: str) -> str:
+    """Map workbook scope status to the operational plan status.
+
+    An abandoned hole remains part of the approved programme and budget, while
+    a cancelled hole does not.  Treating both as Cancelled understated the
+    current Ironbark plan by one hole and its approved budget.
+    """
+    normalized = str(source_status or "Planned").strip().lower()
+    if normalized == "cancelled":
+        return "Cancelled"
+    if normalized in {"drilled", "abandoned"}:
+        return "Complete"
+    return "Planned"
+
+
 @app.on_event("startup")
 def sync_ironbark_budget_v5_4():
     """Refresh the company BH plan from Version 5.4 without overwriting live operations."""
@@ -10629,12 +10671,12 @@ def sync_ironbark_budget_v5_4():
         with conn.cursor() as cur:
             for borehole in source.get("boreholes", []):
                 source_status = str(borehole.get("source_status") or "Planned").strip().lower()
-                if source_status == "drilled":
-                    imported_status = "Complete"
-                elif source_status in {"cancelled", "abandoned"}:
-                    imported_status = "Cancelled"
-                else:
-                    imported_status = "Planned"
+                imported_status = ironbark_budget_import_status(source_status)
+                source_note = (
+                    f"Budget Version 5.4 classification: "
+                    f"{borehole.get('classification') or 'Unclassified'}; "
+                    f"source status: {source_status.title()}"
+                )
                 lat, lng = agd84_amg55_to_wgs84(
                     borehole.get("easting"),
                     borehole.get("northing"),
@@ -10666,7 +10708,8 @@ def sync_ironbark_budget_v5_4():
                         lat=EXCLUDED.lat,
                         lng=EXCLUDED.lng,
                         status=CASE
-                            WHEN LOWER(COALESCE(boreholes.status,'')) IN ('complete','in progress','cancelled')
+                            WHEN EXCLUDED.status='Cancelled' THEN 'Cancelled'
+                            WHEN LOWER(COALESCE(boreholes.status,'')) IN ('complete','in progress')
                             THEN boreholes.status
                             ELSE EXCLUDED.status
                         END,
@@ -10703,7 +10746,7 @@ def sync_ironbark_budget_v5_4():
                     lat,
                     lng,
                     imported_status,
-                    borehole.get("notes"),
+                    source_note,
                     borehole.get("drilling_budget_total"),
                     borehole.get("earthworks_budget_total"),
                     borehole.get("geophysical_budget_total"),

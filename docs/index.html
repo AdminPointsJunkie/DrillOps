@@ -3484,7 +3484,8 @@ tbody td[contenteditable=true]:focus {
         <a id="bh-csv-template-link" href="#" onclick="downloadBhCsvTemplate(event)" style="font-size:12px;color:var(--accent);text-decoration:none;">⬇ CSV Template</a>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <select id="bh-status-filter" onchange="filterBhTable()" style="background:#fff;border:1.5px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;outline:none;color:var(--text2);">
-            <option value="">All Status</option>
+            <option value="current" selected>Current plan</option>
+            <option value="">All statuses</option>
             <option value="Planned">Planned</option>
             <option value="In Progress">In Progress</option>
             <option value="Complete">Complete</option>
@@ -10979,7 +10980,9 @@ async function setBhStatus(holeId, status) {
 function filterBhTable() {
   const sf = document.getElementById('bh-status-filter').value;
   const scopedRows = currentFilteredBoreholes();
-  renderBhTable(sf ? scopedRows.filter(function(b){return b.status===sf;}) : scopedRows);
+  const rows = sf==='current' ? scopedRows.filter(function(b){return b.status!=='Cancelled';})
+    : (sf ? scopedRows.filter(function(b){return b.status===sf;}) : scopedRows);
+  renderBhTable(rows);
 }
 
 function renderBhTable(rows) {
@@ -13066,9 +13069,12 @@ function filterBoreholesByProject() {
   buildAddBoreholeProjectSelector();
   syncHierarchyYearSelector();
   const filtered = currentFilteredBoreholes();
-  updateBhKPIs(filtered);
-  renderBhTable(filtered);
-  renderBhMapFiltered(filtered);
+  // Cancelled holes remain available through the status filter, but must not
+  // inflate the current programme's hole count, budget or map.
+  const currentPlan = filtered.filter(function(b){return b.status!=='Cancelled';});
+  updateBhKPIs(currentPlan);
+  filterBhTable();
+  renderBhMapFiltered(currentPlan);
   loadDefaultMapOverlays(false);
 }
 

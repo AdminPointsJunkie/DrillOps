@@ -1,10 +1,14 @@
 import unittest
+import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 INDEX_HTML = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
 MAIN_PY = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+IRONBARK_BUDGET = json.loads(
+    (ROOT / "backend" / "data" / "ironbark_2026_budget_v5_4.json").read_text(encoding="utf-8")
+)
 
 
 class ProjectManagementTests(unittest.TestCase):
@@ -88,6 +92,21 @@ class ProjectManagementTests(unittest.TestCase):
 
         self.assertIn("workspaceProject.value = payload.name;", save_dialog)
         self.assertIn("populateWorkspaceProgramOptions();", save_dialog)
+
+    def test_ironbark_current_plan_excludes_cancelled_scope(self):
+        current = [
+            borehole for borehole in IRONBARK_BUDGET["boreholes"]
+            if borehole["source_status"] != "Cancelled"
+        ]
+        self.assertEqual(len(current), 41)
+        self.assertAlmostEqual(sum(borehole["budget_total"] for borehole in current), 3868074.75)
+        self.assertIn("def is_visible_borehole_plan_row", MAIN_PY)
+        self.assertIn("def ironbark_budget_import_status", MAIN_PY)
+        self.assertIn("if normalized in {\"drilled\", \"abandoned\"}", MAIN_PY)
+
+    def test_borehole_planning_defaults_to_current_scope(self):
+        self.assertIn('<option value="current" selected>Current plan</option>', INDEX_HTML)
+        self.assertIn("b.status!=='Cancelled'", INDEX_HTML)
 
 
 if __name__ == "__main__":
