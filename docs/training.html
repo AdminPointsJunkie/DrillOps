@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Training Matrix · DrillOps</title><link rel="stylesheet" href="./training/style.css?v=20260909"><link rel="stylesheet" href="./drillops-theme.css"><script src="./config.js"></script><script src="./auth-guard.js"></script></head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="./index.html" aria-label="Back to DrillOps"><span class="brand-icon">▥</span><span>DrillOps<span class="brand-sub">TRAINING & COMPETENCY</span></span></a>
+ <div class="workspace-label">CONTRACTOR WORKSPACE</div><select id="contractor-select" aria-label="Contractor workspace" disabled></select>
+ <nav aria-label="Main navigation"><button data-view="matrix" class="nav active"><span>▦</span> Training matrix</button><button data-view="roles" class="nav"><span>☷</span> Role requirements</button><button data-view="library" class="nav"><span>▤</span> Training library</button><button data-view="imports" class="nav"><span>↥</span> PDF reports <b id="report-count">0</b></button></nav>
+ <div class="sidebar-bottom"><span class="local-dot"></span> Shared workspace<p>Administrator access</p></div>
+</aside>
+<div class="shell"><header class="topbar"><span>People & safety <span class="slash">/</span> <strong id="breadcrumb">Training matrix</strong></span><a class="site-tag" href="./index.html">← Back to DrillOps</a></header>
+<main>
+ <div class="page-heading"><div><div class="eyebrow">WORKFORCE READINESS</div><h1 id="page-title">Training matrix</h1><p id="page-description">One view of your people, their training and what comes next.</p></div><div class="heading-actions"><button class="button" id="export">↓ Export CSV</button><button class="button primary" id="import-open">＋ Import PDFs</button></div></div>
+ <div id="notice" role="status" aria-live="polite"></div>
+ <section id="matrix-view">
+  <div id="stats" class="stats"></div>
+  <div class="setup-note" id="setup-note"></div>
+  <section class="matrix-card"><div class="matrix-toolbar"><div><h2>People & competencies <span id="people-count" class="count"></span></h2><p>Training evidence from your cardholder reports</p></div><div class="filters"><input id="search" type="search" placeholder="Search people…" aria-label="Search people"><select id="role-filter" aria-label="Filter by role"></select><select id="status-filter" aria-label="Filter by attention"><option value="all">All personnel</option><option value="gaps">Minimum gaps</option><option value="soon">Expiring soon</option><option value="unassigned">Unassigned roles</option></select></div></div>
+  <div class="category-bar" id="categories"></div>
+  <div class="matrix-scroll" tabindex="0" aria-label="Training matrix; scroll horizontally to see more training"><table id="matrix"></table></div>
+  <div class="matrix-footer"><div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot soon"></i>Due soon</span><span><i class="dot expired"></i>Expired</span><span>— No record</span><span>◇ Unmapped</span><span><b class="required-dot">●</b> Minimum</span></div><label>Due within <select id="horizon" aria-label="Expiry warning period"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></div>
+  </section><p class="footnote">Click a cell to inspect source evidence. “Current” reflects the report status and expiry date; a blank expiry is shown as “not recorded”.</p>
+ </section>
+ <section id="roles-view" hidden></section><section id="library-view" hidden></section><section id="imports-view" hidden></section>
+</main><footer class="app-footer"><span>DRILLOPS <span class="slash">/</span> Training needs analysis</span><span id="as-of"></span></footer></div>
+<dialog id="dialog"><div id="dialog-body"></div></dialog>
+<script type="module" src="./training/app.mjs?v=20260909"></script>
+</body></html>

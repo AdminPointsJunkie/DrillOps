@@ -33,6 +33,7 @@ from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
+from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
@@ -219,6 +220,9 @@ def contractor_gl_category(expense_gl: str) -> str:
     return f"{code} - {label}" if code else ""
 
 CONTRACTOR_REFERENCE_TABLES = [
+    "training_workspaces",
+    "training_sources",
+    "training_cardholders",
     "activities",
     "consumables",
     "crew",
@@ -1556,6 +1560,7 @@ def assign_depco_ironbark_to_gas_riser():
 
 init_db()
 ensure_dar_schema(get_conn)
+ensure_training_schema(get_conn)
 
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def note_field_value(text, label):
@@ -3496,7 +3501,7 @@ def root():
     return {
         "status": "ok",
         "app": "DrillOps API v3",
-        "release": "depco-ironbark-gas-riser",
+        "release": "training-matrix",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
@@ -11891,3 +11896,4 @@ from mobile_api import create_mobile_router
 
 app.include_router(create_mobile_router(get_conn))
 app.include_router(create_admin_router(get_conn))
+app.include_router(create_training_router(get_conn))

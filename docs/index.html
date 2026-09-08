@@ -2187,6 +2187,7 @@ tbody td[contenteditable=true]:focus {
           <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">↗</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></span></button>
           <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">≡</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></span></button>
           <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">▤</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></span></button>
+          <button class="drawer-nav-item" onclick="openTrainingMatrix()"><span class="drawer-nav-icon" aria-hidden="true">▦</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Training Matrix</span><span class="drawer-nav-meta">Roles, requirements &amp; PDF evidence</span></span></button>
         </div>
       </div>
       <div class="drawer-nav-group">
@@ -3760,7 +3761,7 @@ function safeReturnTo(){
   try{
     const target=new URL(value,window.location.href);
     const page=target.pathname.split('/').pop();
-    const allowed=new Set(['field.html','report.html','range-report.html','borehole.html']);
+    const allowed=new Set(['field.html','report.html','range-report.html','borehole.html','training.html']);
     if(target.origin!==window.location.origin||!allowed.has(page))return '';
     return './'+page+target.search;
   }catch(error){return '';}
@@ -4313,6 +4314,10 @@ function drawerNav(btn){
   document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   closeDrawer();
+}
+
+function openTrainingMatrix(){
+  window.location.href='./training.html?contractor='+encodeURIComponent(activeContractor||'DEPCO Drilling');
 }
 
 function openProjectsFromDrawer(){

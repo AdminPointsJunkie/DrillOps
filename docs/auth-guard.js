@@ -7,7 +7,7 @@
 
   function storeReturnTo(){
     const page=window.location.pathname.split('/').pop()||'field.html';
-    const allowed=new Set(['field.html','report.html','range-report.html','borehole.html']);
+    const allowed=new Set(['field.html','report.html','range-report.html','borehole.html','training.html']);
     const destination=allowed.has(page)?page:'field.html';
     const returnTo='./'+destination+window.location.search;
     sessionStorage.setItem('drillops_return_to',returnTo);
