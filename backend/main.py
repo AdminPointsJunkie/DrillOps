@@ -9480,7 +9480,13 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
                             SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
                             SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
+                            COALESCE(
+                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                            ) AS completion_date
                         FROM boreholes b
                         LEFT JOIN activities a ON
                             a.hole_num=b.hole_id
@@ -9497,7 +9503,13 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
                             SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
                             SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
+                            COALESCE(
+                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                            ) AS completion_date
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=%s
                             AND (
@@ -9516,7 +9528,13 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                 THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
                             SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
                             SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete
+                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
+                            COALESCE(
+                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
+                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                            ) AS completion_date
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=b.contractor
                             AND (

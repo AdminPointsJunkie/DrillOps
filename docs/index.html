@@ -3553,6 +3553,14 @@ tbody td[contenteditable=true]:focus {
         <div class="chart-title">Budget Summary by Purpose</div>
         <div id="bh-budget-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px;"></div>
       </div>
+
+      <div class="chart-card" style="padding:16px;margin-top:14px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div class="chart-title" style="margin:0;">Holes Completed by Month</div>
+          <div id="bh-completion-status" style="font-size:11px;color:var(--muted);"></div>
+        </div>
+        <div style="height:240px;margin-top:10px;"><canvas id="bh-completions-chart"></canvas></div>
+      </div>
     </section>
 
     <!-- Reconciliation -->
@@ -10847,6 +10855,32 @@ function updateBhKPIs(rows) {
     vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
   renderBhBudgetSummary(budgetScopeRows);
+  renderBoreholeCompletionChart(scopedRows);
+}
+
+function renderBoreholeCompletionChart(rows) {
+  destroyChart('bh-completions');
+  const canvas = document.getElementById('bh-completions-chart');
+  const status = document.getElementById('bh-completion-status');
+  if(!canvas || !status) return;
+  const year = document.getElementById('bh-year-select')?.value || '';
+  const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const counts = Array(12).fill(0);
+  let dated = 0, undated = 0;
+  (rows||[]).filter(function(b){return b.status==='Complete';}).forEach(function(b) {
+    const value = String(b.completion_date||'');
+    const match = value.match(/^(\d{4})-(\d{2})-\d{2}$/);
+    if(!match || (year && match[1]!==year)) { undated++; return; }
+    counts[parseInt(match[2],10)-1]++;
+    dated++;
+  });
+  status.textContent = dated+' completed with a final drilling date'+(undated ? ' · '+undated+' without a dated completion' : '');
+  if(typeof Chart==='undefined') return;
+  charts['bh-completions'] = new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{labels:labels,datasets:[{label:'Holes completed',data:counts,backgroundColor:'rgba(49, 93, 73, .82)',borderColor:'#315d49',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(context){return context.parsed.y+' hole'+(context.parsed.y===1?'':'s')+' completed';}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0,stepSize:1},title:{display:true,text:'Holes completed'},grid:{color:'rgba(148, 163, 184, .18)'}}}}
+  });
 }
 
 function renderBhBudgetSummary(rows) {

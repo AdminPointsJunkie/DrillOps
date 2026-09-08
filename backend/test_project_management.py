@@ -110,6 +110,11 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("b.status!=='Cancelled'", INDEX_HTML)
         self.assertIn("b.current_budget_scope!==false", INDEX_HTML)
 
+    def test_borehole_planning_has_monthly_completion_view(self):
+        self.assertIn('id="bh-completions-chart"', INDEX_HTML)
+        self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
+        self.assertIn("AS completion_date", MAIN_PY)
+
 
 if __name__ == "__main__":
     unittest.main()
