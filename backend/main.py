@@ -9463,6 +9463,59 @@ def apply_borehole_wgs84(row: dict):
     return row
 
 
+def is_placeholder_borehole_row(row: dict) -> bool:
+    """A source-plan row whose Hole ID is only a copy of its Site ID."""
+    hole_id = str(row.get("hole_id") or "").strip().lower()
+    site_id = str(row.get("site_id") or "").strip().lower()
+    return bool(hole_id and site_id and hole_id == site_id)
+
+
+def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> list[dict]:
+    """Collapse plan placeholders into the corresponding identified borehole.
+
+    Imports sometimes create a plan row such as site 26-002 / hole 26-002 in
+    addition to the operating row site 26-002 / hole IB652C. The latter is
+    the useful record: it carries the actual Hole ID and field costs.
+    """
+    rows_by_site = {}
+    site_less_rows = []
+    for row in rows:
+        site_id = str(row.get("site_id") or "").strip().lower()
+        if not site_id:
+            site_less_rows.append(row)
+            continue
+        rows_by_site.setdefault(site_id, []).append(row)
+
+    collapsed = []
+    for same_site_rows in rows_by_site.values():
+        placeholders = [row for row in same_site_rows if is_placeholder_borehole_row(row)]
+        identified = [row for row in same_site_rows if not is_placeholder_borehole_row(row)]
+        if not placeholders or not identified:
+            collapsed.extend(same_site_rows)
+            continue
+
+        # Prefer the operating row with an actual Hole ID. Retain plan-only
+        # fields (including budget scope) from its placeholder counterpart.
+        preferred = max(
+            identified,
+            key=lambda row: (
+                bool(row.get("activity_complete")),
+                float(row.get("drilling_cost") or 0),
+                float(row.get("eos_cost") or 0),
+            ),
+        ).copy()
+        for placeholder in placeholders:
+            for field in fallback_fields:
+                if preferred.get(field) in (None, "", 0) and placeholder.get(field) not in (None, "", 0):
+                    preferred[field] = placeholder.get(field)
+            preferred["current_budget_scope"] = bool(
+                preferred.get("current_budget_scope") or placeholder.get("current_budget_scope")
+            )
+        collapsed.append(preferred)
+
+    return collapsed + site_less_rows
+
+
 @app.get("/boreholes")
 def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
@@ -9579,7 +9632,8 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             for field in fallback_fields:
                                 if current.get(field) in (None, "", 0) and row.get(field) not in (None, "", 0):
                                     current[field] = row.get(field)
-                    rows = sorted(deduped.values(), key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
+                    rows = dedupe_borehole_plan_rows(list(deduped.values()), fallback_fields)
+                    rows = sorted(rows, key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
                 for row in rows:
                     if row.get("activity_complete") and str(row.get("status") or "Planned").lower() == "planned":
                         row["status"] = "Complete"

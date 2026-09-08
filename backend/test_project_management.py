@@ -113,6 +113,21 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("b.current_budget_scope!==false", INDEX_HTML)
         self.assertIn("renderBhMapFiltered(filtered);", INDEX_HTML)
 
+    def test_borehole_planning_collapses_site_duplicates_into_identified_hole(self):
+        start = MAIN_PY.index("def is_placeholder_borehole_row")
+        end = MAIN_PY.index('@app.get("/boreholes")', start)
+        helpers = {}
+        exec(MAIN_PY[start:end], helpers)
+        rows = [
+            {"site_id": "26-002", "hole_id": "26-002", "budget_total": 100185, "current_budget_scope": True},
+            {"site_id": "26-002", "hole_id": "IB652C", "budget_total": 100190, "drilling_cost": 75853},
+        ]
+        result = helpers["dedupe_borehole_plan_rows"](rows, {"budget_total"})
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["hole_id"], "IB652C")
+        self.assertEqual(result[0]["budget_total"], 100190)
+        self.assertTrue(result[0]["current_budget_scope"])
+
     def test_borehole_planning_has_monthly_completion_view(self):
         self.assertIn('id="bh-completions-chart"', INDEX_HTML)
         self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
