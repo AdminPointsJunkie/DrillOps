@@ -154,9 +154,11 @@ def create_training_router(get_conn):
             with conn.cursor() as cur:
                 scope(cur, request, contractor)
                 lock_settings(cur, contractor)  # Serialises imports and edits in this workspace.
-                cur.execute('SELECT role,report_date FROM training_cardholders WHERE contractor=%s AND card_id=%s', (contractor, person['id']))
+                cur.execute("SELECT role,report_date,report->>'reportPrintedAt' AS printed_at FROM training_cardholders WHERE contractor=%s AND card_id=%s", (contractor, person['id']))
                 old = cur.fetchone()
-                if old and old['report_date'] and (person['reportDate'] or '') < old['report_date'].isoformat():
+                old_stamp = (old.get('printed_at') or old['report_date'].isoformat() + 'T00:00') if old and old['report_date'] else ''
+                new_stamp = person.get('reportPrintedAt') or (person['reportDate'] + 'T00:00' if person['reportDate'] else '')
+                if old_stamp and new_stamp < old_stamp:
                     raise HTTPException(409, 'This report is older than the saved report; the saved snapshot was kept.')
                 cur.execute('INSERT INTO training_sources (contractor,source_id,filename,payload,uploaded_by) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING', (contractor, person['sourceId'], filename, payload, auth.user_id))
                 person['role'] = old['role'] if old else 'Unassigned'

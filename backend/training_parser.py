@@ -27,7 +27,7 @@ def parse_report(payload, filename):
         first = doc.pages[0].extract_text() or ''
         name = re.search(r'Cardholder Report for (.+?) at (.+)', first)
         card = re.search(r'Cardholder ID\s*=\s*([\d ]+)', first)
-        printed = re.search(r'Printed on (\d{2} \w{3} \d{2})', first)
+        printed = re.search(r'Printed on (\d{2} \w{3} \d{2})(?: at (\d{2}:\d{2}))?', first)
         company = re.search(r'^Companies:\s*(.+)', first, re.M)
         if not name or not card:
             raise ValueError('No cardholder identity found. Upload a text-based Cardholder Report.')
@@ -52,4 +52,5 @@ def parse_report(payload, filename):
         return dict(id=re.sub(r'\s', '', card.group(1)), name=name.group(1),
                     company=company.group(1) if company else '', site=name.group(2),
                     role='Unassigned', reportDate=parse_date(printed.group(1)) if printed else None,
+                    reportPrintedAt=(parse_date(printed.group(1)) + 'T' + printed.group(2)) if printed and printed.group(2) else None,
                     source=filename, sourceId=digest, records=records)

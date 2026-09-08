@@ -8,7 +8,7 @@ All `/training` endpoints require an active system administrator, following the 
 
 Three additive PostgreSQL tables are created by `ensure_training_schema` on backend startup: `training_workspaces`, `training_cardholders` and `training_sources`. Row-level security is enabled and all direct client grants are revoked. They are accessed only by the authenticated FastAPI backend through its existing privileged database connection. Original PDFs are stored as binary data in PostgreSQL and retrieved using an authenticated request; no personnel records or PDFs are included in the public `docs` directory.
 
-The normal database backups cover training data. Reimports replace a cardholder's current report snapshot by cardholder ID, preserve the assigned role, and retain prior source files. A report dated earlier than the saved snapshot is rejected. Requirements use revision checks to prevent silent overwrites from another browser session. Changes and imports are recorded in the existing audit trail.
+The normal database backups cover training data. Reimports replace a cardholder's current report snapshot by cardholder ID, preserve the assigned role, and retain prior source files. An earlier printed report is rejected, including older reports from the same day when a print time is available. Requirements use revision checks to prevent silent overwrites from another browser session. Changes and imports are recorded in the existing audit trail.
 
 ## Setup
 
@@ -33,4 +33,4 @@ The normal database backups cover training data. Reimports replace a cardholder'
 
 Deploy the backend and the GitHub Pages `docs` folder together. No additional environment variables or Python dependencies are required. `auth-guard.js` and the portal sign-in return allowlist include `training.html`.
 
-Run `python -m unittest discover -s backend -p 'test_*.py'` and `node --test tests/training_logic.test.mjs`. The training tests exercise parsed report counts, renewal and expiry handling, minimum versus optional rules, import validation, administrator checks, workspace isolation and conflicting edits.
+Install test dependencies with `python -m pip install -r backend/requirements-dev.txt`, then run `python -m unittest discover -s backend -p 'test_*.py'` and `node --test tests/training_logic.test.mjs`. The training tests exercise parsed report counts, renewal and expiry handling, minimum versus optional rules, import validation, administrator checks, workspace isolation and conflicting edits.

@@ -26,6 +26,7 @@ function openDialog(title,subtitle,body) {
   $('#dialog-body').innerHTML=`<div class="dialog-header"><div><div class="eyebrow">TRAINING WORKSPACE</div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div><button class="close" aria-label="Close dialog">×</button></div><div class="dialog-content">${body}</div>`;
   $('.close',$('#dialog')).onclick=()=>$('#dialog').close();
   if(!$('#dialog').open) $('#dialog').showModal();
+  $('#dialog').scrollTop=0;
 }
 function roleOptions(value,all=false) { return `${all?'<option value="all">All roles</option>':''}${['Unassigned',...Object.keys(state.roles)].map(r=>`<option ${r===value?'selected':''}>${esc(r)}</option>`).join('')}`; }
 function groups() { return [...new Set(state.columns.map(c=>c.group))]; }
@@ -137,7 +138,7 @@ function wireImport() {
 function renderImports() {
   $('#imports-view').innerHTML=`<div class="panel">${importMarkup()}</div><div class="panel"><div class="panel-heading"><div><h2>Imported reports</h2><p>Source documents and training records are stored behind administrator access in DrillOps.</p></div></div><table class="form-table"><thead><tr><th>PERSON</th><th>REPORT DATE</th><th>RECORDS</th><th>SOURCE</th></tr></thead><tbody>${state.people.map(p=>`<tr><td>${esc(p.name)}<small>${esc(p.company)}</small></td><td>${date(p.reportDate)}</td><td>${p.records.length}</td><td><button class="button" data-source-id="${esc(p.sourceId)}" data-source-page="1" data-source-name="${esc(p.source)}">Open PDF ↗</button></td></tr>`).join('')}</tbody></table>${!state.people.length?'<div class="empty">No reports imported yet.</div>':''}</div>`;wireImport();
 }
-function showImport() { if(!state)return; if(view==='imports'){ $('#dropzone').focus();return;} openDialog('Import PDF reports','Populate the matrix directly from Cardholder Reports.',importMarkup());wireImport(); }
+function showImport() { if(!state)return; if(view==='imports'){ $('#dropzone').focus();return;} openDialog('Import or update reports','Populate the matrix directly from Cardholder Reports.',importMarkup());wireImport(); }
 async function runImports(files) {
   if(importing||!files.length)return;importing=true;
   const results=$('#import-results'),zone=$('#dropzone');results.innerHTML='';zone.setAttribute('aria-disabled','true');
@@ -186,7 +187,7 @@ document.addEventListener('click',async event=>{
     if(!response.ok){const error=await response.json();throw new Error(error.detail||'Could not open source PDF.');}
     if(sourceBlobUrl)URL.revokeObjectURL(sourceBlobUrl);
     sourceBlobUrl=URL.createObjectURL(await response.blob());
-    openDialog('Source report',button.dataset.sourceName,`<iframe title="Source Cardholder Report" src="${sourceBlobUrl}#page=${Number(button.dataset.sourcePage)||1}" style="width:100%;height:65vh;border:0"></iframe><p><a href="${sourceBlobUrl}" download="${esc(button.dataset.sourceName)}">Download source PDF</a></p>`);
+    openDialog('Source report',button.dataset.sourceName,`<p><a href="${sourceBlobUrl}" download="${esc(button.dataset.sourceName)}">Download source PDF</a> · If your browser does not show a preview, open the downloaded file.</p><iframe title="Source Cardholder Report" src="${sourceBlobUrl}#page=${Number(button.dataset.sourcePage)||1}" style="width:100%;height:65vh;border:0"></iframe>`);
   }catch(error){notify(error.message,true);}finally{button.disabled=false;}
 });
 $('#dialog').addEventListener('close',()=>{if(sourceBlobUrl){URL.revokeObjectURL(sourceBlobUrl);sourceBlobUrl=null;}});

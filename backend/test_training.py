@@ -97,6 +97,26 @@ class TrainingRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code,409)
         self.assertFalse(any('INSERT INTO training_sources' in c.args[0] for c in self.cur.execute.call_args_list))
 
+    def test_earlier_same_day_report_is_rejected(self):
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':0},{'role':'Driller','report_date':date(2026,9,9),'printed_at':'2026-09-09T10:30'}]
+        with patch('training_api.parse_report',return_value={'company':'Depco Drilling','id':'test','reportDate':'2026-09-09','reportPrintedAt':'2026-09-09T09:00'}):
+            response=self.client.post('/training/import'+self.scope,headers=self.headers,files={'file':('test.pdf',b'%PDF-fixture','application/pdf')})
+        self.assertEqual(response.status_code,409)
+        self.assertFalse(any('INSERT INTO training_sources' in c.args[0] for c in self.cur.execute.call_args_list))
+
+    def test_updated_report_preserves_role_and_upserts_existing_cardholder(self):
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':0},{'role':'Driller','report_date':date(2026,9,9),'printed_at':'2026-09-09T06:00'},{'id':1}]
+        person={'company':'Depco Drilling','name':'Test Person','id':'fixture','role':'Unassigned','reportDate':'2026-09-09','reportPrintedAt':'2026-09-09T11:00','sourceId':'abc','records':[{'name':'New credential'}]}
+        with patch('training_api.parse_report',return_value=person):
+            response=self.client.post('/training/import'+self.scope,headers=self.headers,files={'file':('test.pdf',b'%PDF-fixture','application/pdf')})
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(response.json()['replaced'])
+        insert=next(c for c in self.cur.execute.call_args_list if 'INSERT INTO training_cardholders' in c.args[0])
+        self.assertEqual(insert.args[1][2],'Driller')
+        self.assertEqual(insert.args[1][3].adapted['role'],'Driller')
+        self.assertIn('ON CONFLICT (contractor,card_id) DO UPDATE',insert.args[0])
+        self.assertNotIn('role=EXCLUDED.role',insert.args[0])
+
 
 class TrainingParserTests(unittest.TestCase):
     @classmethod
@@ -118,6 +138,7 @@ class TrainingParserTests(unittest.TestCase):
 
     def test_expiry_without_issue_and_page_three_history(self):
         p=self.reports['Andrew Neil'][0]
+        self.assertEqual(p['reportPrintedAt'],'2026-09-09T06:44')
         row=next(r for r in p['records'] if r['expires']=='2021-05-28')
         self.assertIsNone(row['issued'])
         rows=[r for r in p['records'] if r['name']=='Mining.Statement of Attainment.RIIWHS301 Conduct safety and health investigation']
