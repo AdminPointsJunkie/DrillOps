@@ -10657,6 +10657,30 @@ def current_ironbark_plan_hole_ids():
     )
 
 
+# User-confirmed 2026 Ironbark operational statuses.  26-021 and 26-021R
+# are deliberately excluded pending separate clarification of the original vs
+# relocated records.
+IRONBARK_2026_STATUS_OVERRIDES = {
+    "26-001": "Cancelled", "26-002": "Complete", "26-003": "Cancelled",
+    "26-004": "Cancelled", "26-005": "Planned", "26-006": "Cancelled",
+    "26-007": "Planned", "26-008": "Cancelled", "26-009": "Planned",
+    "26-010": "Cancelled", "26-011": "Planned", "26-012": "Complete",
+    "26-013": "Cancelled", "26-014": "Complete", "26-015": "Complete",
+    "26-016": "Planned", "26-017": "Complete", "26-018": "Complete",
+    "26-019": "Complete", "26-020": "Complete", "26-022": "Complete",
+    "26-023": "Planned", "26-024": "Planned", "26-025": "In Progress",
+    "26-026": "Planned", "26-027": "Cancelled", "26-028": "Complete",
+    "26-029": "Planned", "26-030": "Planned", "26-031": "Planned",
+    "26-032": "Planned", "26-033": "Planned", "26-034": "Complete",
+    "26-035": "Complete", "26-036": "Complete", "26-041": "Planned",
+    "26-042": "Planned", "26-043": "Planned", "26-044": "Planned",
+    "26-045": "Planned", "26-048": "Cancelled", "26-049": "Planned",
+    "26-050": "Planned", "26-051": "Planned", "26-052": "Planned",
+    "26-053": "Complete", "26-054": "Planned", "26-055": "Planned",
+    "26-056": "Cancelled", "26-057": "Planned",
+}
+
+
 def is_visible_borehole_plan_row(row: dict) -> bool:
     """Keep the current plan and operationally completed historical holes."""
     is_ironbark_2026_company_row = (
@@ -10685,13 +10709,16 @@ def is_current_borehole_budget_row(row: dict) -> bool:
     )
 
 
-def ironbark_budget_import_status(source_status: str) -> str:
+def ironbark_budget_import_status(source_status: str, hole_id: str = "") -> str:
     """Map workbook scope status to the operational plan status.
 
     An abandoned hole remains part of the approved programme and budget, while
     a cancelled hole does not.  Treating both as Cancelled understated the
     current Ironbark plan by one hole and its approved budget.
     """
+    override = IRONBARK_2026_STATUS_OVERRIDES.get(str(hole_id or "").strip())
+    if override:
+        return override
     normalized = str(source_status or "Planned").strip().lower()
     if normalized == "cancelled":
         return "Cancelled"
@@ -10708,11 +10735,14 @@ def sync_ironbark_budget_v5_4():
         with conn.cursor() as cur:
             for borehole in source.get("boreholes", []):
                 source_status = str(borehole.get("source_status") or "Planned").strip().lower()
-                imported_status = ironbark_budget_import_status(source_status)
+                hole_id = str(borehole.get("hole_id") or "").strip()
+                has_status_override = hole_id in IRONBARK_2026_STATUS_OVERRIDES
+                imported_status = ironbark_budget_import_status(source_status, hole_id)
                 source_note = (
                     f"Budget Version 5.4 classification: "
                     f"{borehole.get('classification') or 'Unclassified'}; "
                     f"source status: {source_status.title()}"
+                    + ("; user-confirmed status override" if has_status_override else "")
                 )
                 lat, lng = agd84_amg55_to_wgs84(
                     borehole.get("easting"),
@@ -10745,6 +10775,7 @@ def sync_ironbark_budget_v5_4():
                         lat=EXCLUDED.lat,
                         lng=EXCLUDED.lng,
                         status=CASE
+                            WHEN EXCLUDED.notes LIKE '%%user-confirmed status override%%' THEN EXCLUDED.status
                             WHEN EXCLUDED.status='Cancelled' THEN 'Cancelled'
                             WHEN LOWER(COALESCE(boreholes.status,'')) IN ('complete','in progress')
                             THEN boreholes.status

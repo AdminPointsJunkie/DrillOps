@@ -102,6 +102,7 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertAlmostEqual(sum(borehole["budget_total"] for borehole in current), 3868074.75)
         self.assertIn("def is_visible_borehole_plan_row", MAIN_PY)
         self.assertIn("def is_current_borehole_budget_row", MAIN_PY)
+        self.assertIn("IRONBARK_2026_STATUS_OVERRIDES", MAIN_PY)
         self.assertIn("def ironbark_budget_import_status", MAIN_PY)
         self.assertIn("if normalized in {\"drilled\", \"abandoned\"}", MAIN_PY)
 
@@ -114,6 +115,14 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn('id="bh-completions-chart"', INDEX_HTML)
         self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
         self.assertIn("AS completion_date", MAIN_PY)
+
+    def test_user_confirmed_statuses_leave_26_021_records_unchanged(self):
+        start = MAIN_PY.index("IRONBARK_2026_STATUS_OVERRIDES = {")
+        end = MAIN_PY.index("\n}\n\n\ndef is_visible_borehole_plan_row", start)
+        overrides = MAIN_PY[start:end]
+        self.assertNotIn('"26-021":', overrides)
+        self.assertNotIn('"26-021R":', overrides)
+        self.assertIn('"26-025": "In Progress"', overrides)
 
 
 if __name__ == "__main__":
