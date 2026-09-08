@@ -86,7 +86,7 @@ function renderMatrix() {
       return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span>${esc(p.name)}</div><div class="person-meta"><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small></div></td>${columns.map(c=>{
         const e=evidence(p,c,today,horizon), req=requirement(state,p,c), status=req==='na'?'na':e.status;
         const icon={current:'✓',soon:'◷',expired:'!',missing:'—',unmapped:'◇',review:'?',na:'·'}[status];
-        return `<td class="matrix-cell"><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(e.best.expires))}</small>`:''}</button></td>`;
+        return `<td class="matrix-cell"><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon} ${statusLabel[status]}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(e.best.expires))}</small>`:''}</button></td>`;
       }).join('')}</tr>`;
     }).join('');
   }
@@ -173,6 +173,8 @@ function exportCSV() {
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`training-matrix-${today}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Exported the currently filtered training matrix.');
 }
 $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+$('#text-size').onchange=e=>{document.body.dataset.textSize=e.target.value;};
+$('#expand-table').onclick=()=>{const expanded=document.body.classList.toggle('matrix-expanded');$('#expand-table').textContent=expanded?'Exit expanded view':'Expand table';$('#expand-table').setAttribute('aria-pressed',String(expanded));};
 $('#search').oninput=renderMatrix;$('#role-filter').onchange=renderMatrix;$('#status-filter').onchange=renderMatrix;
 $('#horizon').onchange=e=>{horizon=Number(e.target.value);renderMatrix();};
 $('#import-open').onclick=showImport;$('#export').onclick=exportCSV;
