@@ -9516,6 +9516,41 @@ def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> li
     return collapsed + site_less_rows
 
 
+ACTIVITY_REPORT_DATE_AS_ISO_SQL = """
+    CASE
+        WHEN BTRIM(COALESCE(a.date,'')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN BTRIM(a.date)
+        WHEN BTRIM(COALESCE(a.date,'')) ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$'
+            THEN TO_CHAR(TO_DATE(BTRIM(a.date), 'DD/MM/YYYY'), 'YYYY-MM-DD')
+        WHEN BTRIM(COALESCE(a.date,'')) ~ '^[0-9]{1,2}-[0-9]{1,2}-[0-9]{4}$'
+            THEN TO_CHAR(TO_DATE(BTRIM(a.date), 'DD-MM-YYYY'), 'YYYY-MM-DD')
+        ELSE NULL
+    END
+"""
+
+
+COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = """
+    a.hole_num=b.hole_id
+    OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+    OR (
+        COALESCE(b.site_id,'')<>''
+        AND EXISTS (
+            SELECT 1
+            FROM boreholes mapped_borehole
+            WHERE mapped_borehole.contractor='Company'
+              AND BTRIM(COALESCE(mapped_borehole.site_id,''))=BTRIM(COALESCE(b.site_id,''))
+              AND (
+                  a.hole_num=mapped_borehole.hole_id
+                  OR (
+                      COALESCE(mapped_borehole.site_id,'')<>''
+                      AND a.site_name=mapped_borehole.site_id
+                  )
+              )
+        )
+    )
+"""
+
+
 @app.get("/boreholes")
 def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
@@ -9525,7 +9560,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                     # Borehole Planning is the company master plan.  Its actuals
                     # come from the drilling contractor Activity Reports, not
                     # from a non-existent "Company" activity feed.
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
@@ -9536,14 +9571,13 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
                             COALESCE(
                                 MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                    THEN {ACTIVITY_REPORT_DATE_AS_ISO_SQL} END),
                                 MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                                    THEN {ACTIVITY_REPORT_DATE_AS_ISO_SQL} END),
+                                MAX({ACTIVITY_REPORT_DATE_AS_ISO_SQL})
                             ) AS completion_date
                         FROM boreholes b
-                        LEFT JOIN activities a ON
-                            a.hole_num=b.hole_id
-                            OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                        LEFT JOIN activities a ON {COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL}
                         WHERE b.contractor='Company'
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
@@ -10711,6 +10745,16 @@ def current_ironbark_plan_hole_ids():
     )
 
 
+@lru_cache(maxsize=1)
+def current_ironbark_plan_site_ids():
+    """Site IDs in the currently approved Ironbark 2026 borehole plan."""
+    return frozenset(
+        str(borehole.get("site_id") or "").strip()
+        for borehole in load_ironbark_budget_v5_4().get("boreholes", [])
+        if str(borehole.get("site_id") or "").strip()
+    )
+
+
 # User-confirmed 2026 Ironbark operational statuses.
 IRONBARK_2026_STATUS_OVERRIDES = {
     "26-001": "Cancelled", "26-002": "Complete", "26-003": "Cancelled",
@@ -10743,7 +10787,10 @@ def is_visible_borehole_plan_row(row: dict) -> bool:
     )
     if not is_ironbark_2026_company_row:
         return True
-    return str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+    return (
+        str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+        or str(row.get("site_id") or "").strip() in current_ironbark_plan_site_ids()
+    )
 
 
 def is_current_borehole_budget_row(row: dict) -> bool:

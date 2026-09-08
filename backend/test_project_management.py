@@ -128,6 +128,13 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertEqual(result[0]["budget_total"], 100190)
         self.assertTrue(result[0]["current_budget_scope"])
 
+    def test_borehole_planning_uses_activity_reports_for_actuals_and_completion_dates(self):
+        self.assertIn("def current_ironbark_plan_site_ids", MAIN_PY)
+        self.assertIn("ACTIVITY_REPORT_DATE_AS_ISO_SQL", MAIN_PY)
+        self.assertIn("COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL", MAIN_PY)
+        self.assertIn("FROM boreholes mapped_borehole", MAIN_PY)
+        self.assertIn("MAX({ACTIVITY_REPORT_DATE_AS_ISO_SQL})", MAIN_PY)
+
     def test_borehole_planning_has_monthly_completion_view(self):
         self.assertIn('id="bh-completions-chart"', INDEX_HTML)
         self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
