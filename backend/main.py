@@ -9511,6 +9511,20 @@ def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> li
             preferred["current_budget_scope"] = bool(
                 preferred.get("current_budget_scope") or placeholder.get("current_budget_scope")
             )
+        # Keep every equivalent identifier with the canonical operating row.
+        # Activity reports are recorded against the rig hole ID (for example
+        # IB652C), while plan and budget files often use the site ID (26-002).
+        # Returning the aliases lets every consumer reconcile the two without
+        # inventing a second borehole or losing the source-plan budget fields.
+        activity_hole_ids = []
+        for related in same_site_rows:
+            aliases = [related.get("hole_id"), related.get("site_id")]
+            aliases.extend(related.get("activity_hole_ids") or [])
+            for alias in aliases:
+                alias = str(alias or "").strip()
+                if alias and alias not in activity_hole_ids:
+                    activity_hole_ids.append(alias)
+        preferred["activity_hole_ids"] = activity_hole_ids
         collapsed.append(preferred)
 
     return collapsed + site_less_rows

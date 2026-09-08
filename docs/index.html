@@ -492,7 +492,8 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .report-subtitle{font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;}
 .report-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 .period-report{background:#fff;border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;}
-.period-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.period-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 16px 16px;border-bottom:1px solid var(--border);background:linear-gradient(120deg,#f7faf8 0%,#f8fafc 64%,#eef5f0 100%);}
+.period-report-eyebrow{margin-bottom:5px;color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;}
 .period-report-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;}
 .period-report-meta{font-size:12px;color:var(--muted);}
 .period-report-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
@@ -507,6 +508,11 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-kpi .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-kpi .value{font-size:18px;font-weight:800;color:var(--text);line-height:1.1;}
 .period-kpi .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.period-reconciliation{display:flex;align-items:flex-start;gap:10px;margin:-2px 0 16px;padding:10px 12px;border:1px solid #cde2d4;border-radius:7px;background:#f3faf5;color:#295e43;font-size:12px;line-height:1.4;}
+.period-reconciliation.warn{border-color:#f0d59a;background:#fff9eb;color:#8a5b00;}
+.period-reconciliation-badge{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#dceee1;color:#245b3f;font-size:9px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;}
+.period-reconciliation.warn .period-reconciliation-badge{background:#fff0c8;color:#8a5b00;}
+.period-reconciliation strong{color:inherit;}
 .exploration-metres-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;}
 .exploration-metres-grid.single-site{grid-template-columns:minmax(0,1fr);}
 .exploration-metres-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:13px;break-inside:avoid;}
@@ -617,6 +623,10 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-support-card .value{font-size:18px;font-weight:800;color:var(--text);}
 .period-support-card .sub{font-size:10px;color:var(--muted);margin-top:3px;}
 .period-support-card .variance{font-size:10px;font-weight:800;margin-top:5px;}
+.period-support-card.no-actual{border-style:dashed;background:#fcfcfd;}
+.period-support-card.no-actual .value{font-size:15px;color:#6b7280;}
+.period-support-card.no-actual .variance{color:#8a5b00;}
+.period-support-note{margin:-2px 0 12px;padding:8px 10px;border-left:3px solid #91b49b;background:#f5f8f6;color:var(--text2);font-size:11px;line-height:1.45;}
 .period-issues{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text2);min-height:120px;}
 .period-issues ul{margin:0;padding-left:18px;}
 .period-bar-chart{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:10px;margin-bottom:10px;}
@@ -2815,6 +2825,7 @@ tbody td[contenteditable=true]:focus {
       <div class="period-report">
         <div class="period-report-head">
           <div>
+            <div class="period-report-eyebrow">Operations / Period report</div>
             <div class="period-report-title">Period Drilling Report</div>
             <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
           </div>
@@ -2846,13 +2857,14 @@ tbody td[contenteditable=true]:focus {
             <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
             <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
             <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
-            <div class="period-kpi"><div class="label">Support Costs</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Earthworks / support / misc</div></div>
-            <div class="period-kpi"><div class="label">Total Spent</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + support costs</div></div>
-            <div class="period-kpi"><div class="label">Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs actual</div></div>
+            <div class="period-kpi"><div class="label">Recorded Support</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Invoices / support records received</div></div>
+            <div class="period-kpi"><div class="label">Recorded Spend</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + recorded support costs</div></div>
+            <div class="period-kpi"><div class="label">Recorded Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs recorded actuals</div></div>
             <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
             <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
             <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
           </div>
+          <div class="period-reconciliation" id="period-reconciliation" aria-live="polite"></div>
           <div class="period-section-title period-print-section-start" id="exploration-metres-title">Program Drilling Metres</div>
           <div class="exploration-metres-grid" id="exploration-metres-summary">
             <div class="exploration-metres-card">Loading annual drilling metres...</div>
@@ -6203,9 +6215,9 @@ function renderDailyReportSummary(rows){
   if(isPageActive('reports'))renderPeriodReport();
 }
 
-async function ensureReportBoreholes(){
-  if(bhData&&bhData.length)return;
-  try{await loadBoreholes();}catch(e){console.warn('Borehole planning data unavailable for period report',e);}
+async function ensureReportBoreholes(force){
+  if(bhData&&bhData.length&&!force)return bhData;
+  try{return await loadBoreholes(!!force);}catch(e){console.warn('Borehole planning data unavailable for period report',e);return bhData;}
 }
 
 function numVal(value){
@@ -6221,21 +6233,46 @@ function rowHole(row){
   return String(row.hole_num||row.hole_id||'').trim();
 }
 
+function reportIdentity(value){
+  return String(value||'').trim().toUpperCase().replace(/\s+/g,'');
+}
+
+function boreholeMatchValues(borehole){
+  const aliases=[];
+  if(borehole&&Array.isArray(borehole.activity_hole_ids))aliases.push.apply(aliases,borehole.activity_hole_ids);
+  aliases.push(borehole&&borehole.hole_id,borehole&&borehole.hole_num,borehole&&borehole.site_id);
+  return new Set(aliases.map(reportIdentity).filter(Boolean));
+}
+
+function boreholeHasOperatingId(borehole){
+  const holeId=reportIdentity(borehole&&borehole.hole_id);
+  const siteId=reportIdentity(borehole&&borehole.site_id);
+  return !!(holeId&&(!siteId||holeId!==siteId));
+}
+
+function preferredBorehole(current,candidate){
+  if(!current)return candidate;
+  if(boreholeHasOperatingId(candidate)&&!boreholeHasOperatingId(current))return candidate;
+  return current;
+}
+
 function rowMatchesBorehole(row,borehole){
-  const holeId=String((borehole&&borehole.hole_id)||'').trim();
-  const siteId=String((borehole&&borehole.site_id)||'').trim();
-  const rowId=rowHole(row);
-  const rowSite=String((row&&row.site_name)||'').trim();
-  return !!((holeId&&(rowId===holeId||rowSite===holeId))||(siteId&&(rowId===siteId||rowSite===siteId)));
+  const aliases=boreholeMatchValues(borehole);
+  return aliases.has(reportIdentity(rowHole(row)))||aliases.has(reportIdentity(row&&row.site_name));
 }
 
 function holeLookup(){
   const map=new Map();
   (bhData||[]).forEach(function(b){
-    const id=String(b.hole_id||b.hole_num||'').trim();
-    if(id)map.set(id,b);
-    const site=String(b.site_id||'').trim();
-    if(site)map.set(site,b);
+    const aliases=[];
+    if(Array.isArray(b&&b.activity_hole_ids))aliases.push.apply(aliases,b.activity_hole_ids);
+    aliases.push(b&&b.hole_id,b&&b.hole_num,b&&b.site_id);
+    aliases.forEach(function(value){
+      const raw=String(value||'').trim();
+      [raw,reportIdentity(raw)].filter(Boolean).forEach(function(identity){
+        map.set(identity,preferredBorehole(map.get(identity),b));
+      });
+    });
   });
   return map;
 }
@@ -6401,7 +6438,9 @@ async function loadReportsPage(preserveRange){
     periodSourceBudgetData=results[3]||null;
     explorationMetresSummaryData=results[4]||null;
     periodMccActivitiesData=Array.isArray(results[5])?results[5]:[];
-    await ensureReportBoreholes();
+    // A previous page may have loaded an older site-ID-only plan. Reloading
+    // keeps this report aligned with the current operational-hole mapping.
+    await ensureReportBoreholes(true);
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
   }catch(e){
@@ -6654,6 +6693,25 @@ function periodHoleMetrics(rows,consumables,reportHoles,holes){
   });
 }
 
+function renderPeriodReconciliation(rows,reportHoles,metrics){
+  const el=document.getElementById('period-reconciliation');
+  if(!el)return;
+  const holeRows=(rows||[]).filter(function(row){return !!reportIdentity(rowHole(row));});
+  const matched=holeRows.filter(function(row){
+    return (reportHoles||[]).some(function(borehole){return rowMatchesBorehole(row,borehole);});
+  });
+  const unmatched=Math.max(0,holeRows.length-matched.length);
+  const linkedHoles=(metrics||[]).filter(function(metric){return (metric.rows||[]).length>0;}).length;
+  const state=unmatched?' warn':'';
+  const detail=unmatched
+    ?unmatched+' hole-coded activity line'+(unmatched===1?' needs':'s need')+' attribution before it is included in a borehole total.'
+    :'Every hole-coded activity line is linked to a borehole in this report.';
+  el.className='period-reconciliation'+state;
+  el.innerHTML='<span class="period-reconciliation-badge">Data check</span>'
+    +'<div><strong>'+matched.length+' of '+holeRows.length+' hole-coded activity lines linked</strong>'
+    +' <span>Across '+linkedHoles+' report hole'+(linkedHoles===1?'':'s')+'. '+esc(detail)+'</span></div>';
+}
+
 function renderPeriodReport(){
   const shell=document.getElementById('period-report-meta');
   if(!shell)return;
@@ -6683,6 +6741,7 @@ function renderPeriodReport(){
   const totalDrillingCost=drillingReports.reduce(function(sum,report){return sum+report.cost;},0)+ungroupedConsumableCost;
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,reportHoles,holes);
+  renderPeriodReconciliation(rows,reportHoles,metrics);
   const budgetTotals=periodBudgetTotals(period,metrics);
   const budgetTotal=budgetTotals.total;
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
@@ -7240,7 +7299,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   function ensureContractor(label,section){
     const display=String(label||section||'Unassigned').trim()||'Unassigned';
     const key=contractorSummaryKey(display);
-    if(!contractorMap.has(key))contractorMap.set(key,{label:display,sections:new Set(),budget:0,spent:0,invoices:0});
+    if(!contractorMap.has(key))contractorMap.set(key,{label:display,sections:new Set(),budget:0,spent:0,invoices:0,actualsRecorded:false,actualSources:new Set()});
     const item=contractorMap.get(key);
     if(section)item.sections.add(section);
     return item;
@@ -7260,11 +7319,15 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       const share=drillingBudget>0?numVal(r.budget_amount)/drillingBudget:1/drillingBudgetRows.length;
       if(drillingBudget<=0)item.budget+=effectiveDrillingBudget/drillingBudgetRows.length;
       item.spent+=numVal(drillingSpend)*share;
+      item.actualsRecorded=true;
+      item.actualSources.add('activity reports');
     });
   }else if(numVal(drillingSpend)>0||effectiveDrillingBudget>0){
     const item=ensureContractor(reportDrillingContractor()||'Drilling','Drilling');
     item.budget+=effectiveDrillingBudget;
     item.spent+=numVal(drillingSpend);
+    item.actualsRecorded=true;
+    item.actualSources.add('activity reports');
   }
   rows.forEach(function(inv){
     const section=supportSectionForInvoice(inv);
@@ -7272,12 +7335,16 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const item=ensureContractor(inv.contractor||section,section);
     item.spent+=numVal(inv.total_aud);
     item.invoices+=1;
+    item.actualsRecorded=true;
+    item.actualSources.add('invoices');
   });
   if(mccChargeSummary&&numVal(mccChargeSummary.weeklyTotal)>0){
     const item=ensureContractor('MCC Group','Support');
     item.spent+=mccUnbilled;
     item.mccWeeklyTotal=numVal(mccChargeSummary.weeklyTotal);
     item.mccUnbilled=mccUnbilled;
+    item.actualsRecorded=true;
+    item.actualSources.add('weekly charges');
     totals.Support=(totals.Support||0)+mccUnbilled;
   }
   const contractorCards=Array.from(contractorMap.values()).filter(function(item){
@@ -7291,14 +7358,22 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const variance=item.budget-item.spent;
     const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
     const mccDetail=item.mccWeeklyTotal!=null?' | '+cur(item.mccWeeklyTotal)+' MCC charges, '+cur(item.mccUnbilled)+' unbilled included':'';
-    return '<div class="period-support-card">'
+    const recorded=!!item.actualsRecorded;
+    const actualSource=Array.from(item.actualSources||[]).join(' + ');
+    const value=recorded?cur(item.spent)+' / '+cur(item.budget):'Actual not loaded / '+cur(item.budget);
+    const sub=recorded
+      ?'Actual from '+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
+      :'No invoice or weekly activity recorded in the selected period | '+esc(sectionText);
+    const varianceText=recorded?cur(Math.abs(variance))+' '+(variance>=0?'under':'over'):'Actuals unavailable';
+    return '<div class="period-support-card'+(recorded?'':' no-actual')+'">'
       +'<div class="label">'+esc(item.label)+'</div>'
-      +'<div class="value">'+cur(item.spent)+' / '+cur(item.budget)+'</div>'
-      +'<div class="sub">Spent vs budget | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail+'</div>'
-      +'<div class="variance '+(variance>=0?'variance-pos':'variance-neg')+'">'+cur(Math.abs(variance))+' '+(variance>=0?'under':'over')+'</div>'
+      +'<div class="value">'+value+'</div>'
+      +'<div class="sub">'+sub+'</div>'
+      +'<div class="variance '+(recorded?(variance>=0?'variance-pos':'variance-neg'):'')+'">'+varianceText+'</div>'
       +'</div>';
   }).join('');
-  const forecastItems=contractorCards.slice();
+  // Do not turn an absent invoice into a $0 actual or use it in a forecast.
+  const forecastItems=contractorCards.filter(function(item){return item.actualsRecorded;});
   const forecastRows=forecastItems.map(function(item){
     const assumption=reportForecastAssumption(item);
     const forecastCost=item.budget*assumption;
@@ -7375,6 +7450,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
   el.innerHTML='<div class="period-support-panel">'
     +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
+    +'<div class="period-support-note">Actuals are sourced from invoices, MCC weekly charges, and drilling activity reports. A contractor with no source record in the selected period is shown as <b>Actual not loaded</b>, not $0.</div>'
     +'<div class="period-section-title">Forecast Summary</div>'
     +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Activity</th><th>Total spent</th><th>Total budget</th><th>% of budget spent</th><th>Forecast assumption</th><th>Forecasted cost</th><th>Forecast variance</th></tr></thead><tbody>'
     +(forecastRows||'<tr><td colspan="7" style="padding:14px;color:var(--muted);text-align:center;">No contractor budget forecast data.</td></tr>')

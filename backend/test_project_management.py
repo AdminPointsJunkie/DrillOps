@@ -127,6 +127,7 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertEqual(result[0]["hole_id"], "IB652C")
         self.assertEqual(result[0]["budget_total"], 100190)
         self.assertTrue(result[0]["current_budget_scope"])
+        self.assertEqual(result[0]["activity_hole_ids"], ["26-002", "IB652C"])
 
     def test_borehole_planning_uses_activity_reports_for_actuals_and_completion_dates(self):
         self.assertIn("def current_ironbark_plan_site_ids", MAIN_PY)
@@ -157,6 +158,12 @@ class ProjectManagementTests(unittest.TestCase):
         period_status_logic = INDEX_HTML[start:end]
         self.assertIn("return uniqueBoreholesById(projectHoles||[]);", period_status_logic)
         self.assertIn("Current Borehole Planning status", INDEX_HTML)
+
+    def test_period_report_reloads_and_reconciles_operating_hole_ids(self):
+        self.assertIn("await ensureReportBoreholes(true);", INDEX_HTML)
+        self.assertIn("function boreholeMatchValues", INDEX_HTML)
+        self.assertIn("function renderPeriodReconciliation", INDEX_HTML)
+        self.assertIn("Actual not loaded", INDEX_HTML)
 
 
 if __name__ == "__main__":
