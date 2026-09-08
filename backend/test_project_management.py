@@ -101,12 +101,14 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertEqual(len(current), 41)
         self.assertAlmostEqual(sum(borehole["budget_total"] for borehole in current), 3868074.75)
         self.assertIn("def is_visible_borehole_plan_row", MAIN_PY)
+        self.assertIn("def is_current_borehole_budget_row", MAIN_PY)
         self.assertIn("def ironbark_budget_import_status", MAIN_PY)
         self.assertIn("if normalized in {\"drilled\", \"abandoned\"}", MAIN_PY)
 
     def test_borehole_planning_defaults_to_current_scope(self):
         self.assertIn('<option value="current" selected>Current plan</option>', INDEX_HTML)
         self.assertIn("b.status!=='Cancelled'", INDEX_HTML)
+        self.assertIn("b.current_budget_scope!==false", INDEX_HTML)
 
 
 if __name__ == "__main__":

@@ -9526,11 +9526,14 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 rows = [dict(r) for r in cur.fetchall()]
-                # The Company plan is refreshed from the current approved
-                # Ironbark workbook.  Older imports may contain superseded
-                # holes; retain those records in the database for audit
-                # purposes, but do not present them as part of the live plan.
+                # The workbook defines budget scope, not operating history.
+                # Keep completed/in-progress holes evidenced by activity
+                # reports visible even when a later workbook no longer lists
+                # them, while preventing those historic rows from changing
+                # the approved-plan budget total.
                 rows = [row for row in rows if is_visible_borehole_plan_row(row)]
+                for row in rows:
+                    row["current_budget_scope"] = is_current_borehole_budget_row(row)
                 if contractor:
                     deduped = {}
                     fallback_fields = {
@@ -10637,7 +10640,7 @@ def current_ironbark_plan_hole_ids():
 
 
 def is_visible_borehole_plan_row(row: dict) -> bool:
-    """Hide superseded Company-plan imports without deleting their history."""
+    """Keep the current plan and operationally completed historical holes."""
     is_ironbark_2026_company_row = (
         str(row.get("contractor") or "").strip().lower() == "company"
         and str(row.get("project") or "").strip().lower() == "ironbark"
@@ -10645,7 +10648,23 @@ def is_visible_borehole_plan_row(row: dict) -> bool:
     )
     if not is_ironbark_2026_company_row:
         return True
-    return str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+    return (
+        str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+        or bool(row.get("activity_complete"))
+    )
+
+
+def is_current_borehole_budget_row(row: dict) -> bool:
+    """Whether this row belongs in the approved Ironbark 2026 budget KPI."""
+    is_ironbark_2026_company_row = (
+        str(row.get("contractor") or "").strip().lower() == "company"
+        and str(row.get("project") or "").strip().lower() == "ironbark"
+        and str(row.get("planned_year") or "").strip() == "2026"
+    )
+    return (
+        not is_ironbark_2026_company_row
+        or str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
+    )
 
 
 def ironbark_budget_import_status(source_status: str) -> str:

@@ -10824,12 +10824,13 @@ function openSelectedScheduleBorehole() {
 
 function updateBhKPIs(rows) {
   const scopedRows = Array.isArray(rows) ? rows : currentFilteredBoreholes();
+  const budgetScopeRows = scopedRows.filter(function(b){return b.current_budget_scope!==false;});
   const complete = scopedRows.filter(b => b.status==='Complete').length;
   const inprog   = scopedRows.filter(b => b.status==='In Progress').length;
   const planned  = scopedRows.filter(b => b.status==='Planned').length;
-  const totalBudget = scopedRows.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
-  const drillingBudget = scopedRows.reduce((s,b) => s+(parseFloat(b.drilling_budget_total)||0), 0);
-  const totalDays   = scopedRows.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
+  const totalBudget = budgetScopeRows.reduce((s,b) => s+(parseFloat(b.budget_total)||0), 0);
+  const drillingBudget = budgetScopeRows.reduce((s,b) => s+(parseFloat(b.drilling_budget_total)||0), 0);
+  const totalDays   = budgetScopeRows.reduce((s,b) => s+(parseFloat(b.days_budgeted||b.days)||0), 0);
   const totalEos    = scopedRows.reduce((s,b) => s+(parseFloat(b.eos_cost)||0), 0);
   const totalDrilling = scopedRows.reduce((s,b) => s+(parseFloat(b.drilling_cost)||0), 0);
   const variance    = totalDrilling - drillingBudget;
@@ -10845,7 +10846,7 @@ function updateBhKPIs(rows) {
     vEl.textContent = (variance>=0?'+':'')+Math.round(variance).toLocaleString('en-AU');
     vEl.style.color = variance>0?'var(--red)':variance<0?'var(--green)':'var(--muted)';
   }
-  renderBhBudgetSummary(scopedRows);
+  renderBhBudgetSummary(budgetScopeRows);
 }
 
 function renderBhBudgetSummary(rows) {
