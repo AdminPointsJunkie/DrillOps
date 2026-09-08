@@ -112,9 +112,27 @@ class MCCReportControlTests(unittest.TestCase):
 
     def test_mcc_daily_register_hides_drilling_and_cost_columns(self):
         self.assertIn("#report-table.mcc-earthworks .mcc-drilling-only{display:none;}", INDEX_HTML)
-        for heading in ("Rig", "Driller", "Depth (m)", "Total Cost"):
-            self.assertIn(f'<th class="mcc-drilling-only">{heading}</th>', INDEX_HTML)
+        sortable_columns = {
+            "Rig": "rig",
+            "Driller": "driller",
+            "Depth (m)": "metres",
+            "Total Cost": "cost",
+        }
+        for heading, key in sortable_columns.items():
+            self.assertIn(
+                f'<th class="report-sort-header mcc-drilling-only" data-report-sort="{key}"',
+                INDEX_HTML,
+            )
+            self.assertIn(f">{heading} <span", INDEX_HTML)
         self.assertIn("reportTable.classList.toggle('mcc-earthworks',isMccEarthworks)", INDEX_HTML)
+
+    def test_daily_report_register_headers_sort_the_report_data(self):
+        for key in ("id", "status", "lock", "date", "shift", "hole", "project", "hours", "notes"):
+            self.assertIn(f'data-report-sort="{key}"', INDEX_HTML)
+        self.assertIn("function sortDailyReports(key)", INDEX_HTML)
+        self.assertIn("function sortDailyReportData(rows)", INDEX_HTML)
+        self.assertIn("dailyReportsData=sortDailyReportData(groupDailyReports(dailyRows));", INDEX_HTML)
+        self.assertIn("syncDailyReportSortHeaders();", INDEX_HTML)
 
     def test_mcc_daily_csv_omits_drilling_and_cost_fields(self):
         start = INDEX_HTML.index("function downloadDailyReportsCSV()")

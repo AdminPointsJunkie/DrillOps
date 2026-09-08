@@ -461,6 +461,10 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .plod-cell{display:flex;align-items:center;gap:7px;min-width:160px;}
 .plod-link{border:none;background:transparent;color:#315d49;font-weight:700;font-family:var(--font);font-size:14px;padding:0;cursor:pointer;}
 .plod-link:hover{text-decoration:underline;}
+.report-sort-header{cursor:pointer;user-select:none;white-space:nowrap;}
+.report-sort-header:hover{background:#f6f9fc;}
+.report-sort-header:focus{outline:2px solid #90b9ff;outline-offset:-2px;}
+.report-sort-indicator{color:#6b7890;font-size:12px;margin-left:3px;}
 .attach-icon{color:#8b98aa;font-size:14px;}
 .status-select{height:36px;border:1px solid #bcd0f7;border-radius:6px;background:#eef5ff;color:#0b48c0;font-family:var(--font);font-size:13px;font-weight:650;padding:0 28px 0 9px;max-width:210px;}
 .status-select.approved{background:#ecfdf3;border-color:#caeed6;color:#087032;}
@@ -3004,8 +3008,19 @@ tbody td[contenteditable=true]:focus {
           <table id="report-table">
             <thead><tr>
               <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
-              <th>Plod</th><th>Status</th><th>Lock</th><th>Plod date <span class="date-sort">&#8597;</span></th><th></th><th class="mcc-drilling-only">Rig</th><th>Hole</th><th>Project</th><th class="mcc-drilling-only">Driller</th>
-              <th class="mcc-drilling-only">Depth (m)</th><th>Duration (h)</th><th class="mcc-drilling-only">Total Cost</th><th>Notes</th><th></th>
+              <th class="report-sort-header" data-report-sort="id" tabindex="0" onclick="sortDailyReports('id')" onkeydown="sortDailyReportsFromKey(event,'id')">Plod <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="status" tabindex="0" onclick="sortDailyReports('status')" onkeydown="sortDailyReportsFromKey(event,'status')">Status <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="lock" tabindex="0" onclick="sortDailyReports('lock')" onkeydown="sortDailyReportsFromKey(event,'lock')">Lock <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="date" tabindex="0" onclick="sortDailyReports('date')" onkeydown="sortDailyReportsFromKey(event,'date')">Plod date <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="shift" tabindex="0" onclick="sortDailyReports('shift')" onkeydown="sortDailyReportsFromKey(event,'shift')">Shift <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="rig" tabindex="0" onclick="sortDailyReports('rig')" onkeydown="sortDailyReportsFromKey(event,'rig')">Rig <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="hole" tabindex="0" onclick="sortDailyReports('hole')" onkeydown="sortDailyReportsFromKey(event,'hole')">Hole <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="project" tabindex="0" onclick="sortDailyReports('project')" onkeydown="sortDailyReportsFromKey(event,'project')">Project <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="driller" tabindex="0" onclick="sortDailyReports('driller')" onkeydown="sortDailyReportsFromKey(event,'driller')">Driller <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="metres" tabindex="0" onclick="sortDailyReports('metres')" onkeydown="sortDailyReportsFromKey(event,'metres')">Depth (m) <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="hours" tabindex="0" onclick="sortDailyReports('hours')" onkeydown="sortDailyReportsFromKey(event,'hours')">Duration (h) <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="cost" tabindex="0" onclick="sortDailyReports('cost')" onkeydown="sortDailyReportsFromKey(event,'cost')">Total Cost <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="notes" tabindex="0" onclick="sortDailyReports('notes')" onkeydown="sortDailyReportsFromKey(event,'notes')">Notes <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th><th></th>
             </tr></thead>
             <tbody id="report-body"></tbody>
           </table>
@@ -4623,6 +4638,7 @@ let filterOpts   = {dates:[],holes:[],sites:[],codes:[]};
 let activitiesData=[], consumablesData=[], reportConsumablesData=[], crewData=[], anomaliesData=[], periodReportActivitiesData=[], periodReportConsumablesData=[], periodMccActivitiesData=[], periodSupportInvoicesData=[], projectBudgetsData=[], periodSourceBudgetData=null, explorationMetresSummaryData=null, costCentreForecastData=null, mccWeeklyAuditData=null, mccWeeklyAuditLoaded=false, mccWeeklyAuditLoading=false, mccWeeklyAuditScope='', mccPersonnelData=null, mccPersonnelLoading=false, selectedMccPersonKey='';
 let activityMissingCodesOnly=false;
 let dailyReportsData=[], mccWeeklyReportsData=[], selectedDailyReportKey=null;
+let dailyReportSort={key:'date',direction:-1};
 let productionRawData=[], productionFilteredData=[];
 let costContractsData=[], costContractRatesData=[], rateLibrarySummaryData=[], selectedCostContractId=null, activeCostContractStatus='Active', activeCostContractSection='Time Activities';
 let reportApprovalsByKey={};
@@ -4979,6 +4995,51 @@ function groupDailyReports(rows,reportConsumables){
     g.status=reportStatus(g);
   });
   return groups.sort(function(a,b){return reportDateSortKey(b.date)-reportDateSortKey(a.date)||a.hole.localeCompare(b.hole);});
+}
+
+function dailyReportSortValue(report,key){
+  if(key==='date')return reportDateSortKey(report.date);
+  if(key==='status')return String((report.status||{}).label||'');
+  if(key==='lock')return getStoredReportLock(report.date,reportRecordHole(report),report.sourceFile,report.contractor)?.locked?1:0;
+  if(key==='metres'||key==='hours'||key==='cost')return Number(report[key])||0;
+  if(key==='notes')return (report.notes||[]).join(' ');
+  return String(report[key]||'');
+}
+
+function sortDailyReportData(rows){
+  const key=dailyReportSort.key;
+  const direction=dailyReportSort.direction;
+  return (rows||[]).slice().sort(function(a,b){
+    const left=dailyReportSortValue(a,key);
+    const right=dailyReportSortValue(b,key);
+    let comparison;
+    if(typeof left==='number'&&typeof right==='number')comparison=left-right;
+    else comparison=String(left).localeCompare(String(right),undefined,{numeric:true,sensitivity:'base'});
+    if(comparison)return comparison*direction;
+    return a.id.localeCompare(b.id,undefined,{numeric:true})*direction;
+  });
+}
+
+function syncDailyReportSortHeaders(){
+  document.querySelectorAll('[data-report-sort]').forEach(function(header){
+    const active=header.dataset.reportSort===dailyReportSort.key;
+    header.classList.toggle('active-sort',active);
+    header.setAttribute('aria-sort',active?(dailyReportSort.direction===1?'ascending':'descending'):'none');
+    const indicator=header.querySelector('.report-sort-indicator');
+    if(indicator)indicator.textContent=active?(dailyReportSort.direction===1?'↑':'↓'):'↕';
+  });
+}
+
+function sortDailyReports(key){
+  if(dailyReportSort.key===key)dailyReportSort.direction*=-1;
+  else dailyReportSort={key:key,direction:1};
+  renderDailyReportSummary(activitiesData);
+}
+
+function sortDailyReportsFromKey(event,key){
+  if(event.key!=='Enter'&&event.key!==' ')return;
+  event.preventDefault();
+  sortDailyReports(key);
 }
 
 // ── Contractor switcher ───────────────────────────────────────────────────────
@@ -6168,7 +6229,7 @@ function renderDailyReportSummary(rows){
   const dailyRows=activeContractor==='MCC Group'
     ?reportRows.filter(function(row){return !isMccWeeklyReportRow(row);})
     :reportRows;
-  dailyReportsData=groupDailyReports(dailyRows);
+  dailyReportsData=sortDailyReportData(groupDailyReports(dailyRows));
   const totalCost=dailyReportsData.reduce(function(s,r){return s+r.cost;},0);
   const totalMetres=dailyReportsData.reduce(function(s,r){return s+r.metres;},0);
   const totalHours=dailyReportsData.reduce(function(s,r){return s+r.hours;},0);
@@ -6209,6 +6270,7 @@ function renderDailyReportSummary(rows){
       +'<td><button class="row-actions" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">...</button></td>'
       +'</tr>';
   }).join('');
+  syncDailyReportSortHeaders();
   filterDailyReportRows();
   updateBulkReportSelection();
   if(selectedDailyReportKey&&!dailyReportsData.find(function(r){return r.key===selectedDailyReportKey;}))closeDailyReportDetail();
