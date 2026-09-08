@@ -14,7 +14,7 @@ The normal database backups cover training data. Reimports replace a cardholder'
 
 1. Select the report's contractor and import one or more Cardholder Report PDFs. Company names are matched without case sensitivity; a mismatched company is rejected.
 2. Assign personnel roles in the matrix. Reports do not specify these roles, so initial assignments are **Unassigned**.
-3. Use **Role requirements** to set **Minimum**, **Optional**, or **Not applicable**. No minimum requirements are assumed; a role needs at least one minimum before readiness is calculated.
+3. Use **Role requirements** to add or remove roles. Removing a role moves assigned personnel to **Unassigned** and retains their reports. Set **Minimum**, **Optional**, or **Not applicable**. No minimum requirements are assumed; a role needs at least one minimum before readiness is calculated.
 4. Review **Training library** mappings. The 23 initial columns follow the supplied matrix image. Surface Induction initially uses CD site induction only; IB1 and online induction records are not silently treated as equivalent. Columns with no known exact match start **Unmapped** and cannot satisfy a minimum requirement.
 5. Click a matrix cell for its issue/expiry dates, original report status, renewal history and source PDF page. **Export CSV** exports the current filters.
 

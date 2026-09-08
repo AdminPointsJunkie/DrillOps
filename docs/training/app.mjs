@@ -14,8 +14,8 @@ const endpoint = path => API+'/training/'+path+'?contractor='+encodeURIComponent
 let sourceBlobUrl;
 
 
-async function api(path, body) {
-  const response=await fetch(endpoint(path),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,revision:state?.revision})}:{cache:'no-store'});
+async function api(path, body, method="POST") {
+  const response=await fetch(endpoint(path),body?{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,revision:state?.revision})}:{cache:'no-store'});
   const data=await response.json();
   if(!response.ok) throw new Error((typeof data.detail==='string'?data.detail:data.error)||'Request failed');
   return data;
@@ -102,16 +102,34 @@ function showEvidence(personId,columnId) {
   $('#evidence-mapping').onclick=()=>editColumn(c.id);
 }
 function renderRoles() {
+  if(!Object.keys(state.roles).length){
+    $('#roles-view').innerHTML='<div class="panel"><h2>No roles yet</h2><p>Add a role to define minimum and optional training requirements. All personnel and their evidence are retained.</p><button class="button primary" id="new-role">＋ Add role</button></div>';
+    $('#new-role').onclick=showNewRole;return;
+  }
   if(!state.roles[selectedRole])selectedRole=Object.keys(state.roles)[0];
   const values=state.roles[selectedRole]||{};
-  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Your roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>Optional training does not create a minimum training gap.</p></div><button class="button primary" type="submit">Save requirements</button></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
+  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Your roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>Optional training does not create a minimum training gap.</p></div><div class="role-actions"><button class="button danger" type="button" id="remove-role">Remove role</button><button class="button primary" type="submit">Save requirements</button></div></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
   $$('[data-role-choice]').forEach(b=>b.onclick=()=>{selectedRole=b.dataset.roleChoice;renderRoles();});
   $('#role-form').onsubmit=async event=>{event.preventDefault();const requirements=Object.fromEntries(new FormData(event.target));try{await api('role',{name:selectedRole,requirements});await refresh();notify(`Requirements saved for ${selectedRole}.`);}catch(e){notify(e.message,true);}};
-  $('#new-role').onclick=()=>{
+  $('#new-role').onclick=showNewRole;
+  $('#remove-role').onclick=showRemoveRole;
+}
+function showNewRole(){
     openDialog('Add role','Create a role, then define its training requirements.','<form id="new-role-form"><label class="field">Role name<input name="name" required maxlength="60" placeholder="e.g. Leading Hand"></label><div class="actions"><button class="button primary">Create role</button></div><p id="role-error" role="alert"></p></form>');
     $('#new-role-form').onsubmit=async event=>{event.preventDefault();const name=new FormData(event.target).get('name').trim();try{if(Object.keys(state.roles).some(r=>r.toLowerCase()===name.toLowerCase()))throw new Error('That role already exists.');await api('role',{name,requirements:{}});selectedRole=name;$('#dialog').close();await refresh();notify('Role created. Set its minimum requirements below.');}catch(e){$('#role-error').textContent=e.message;}};
+}
+function showRemoveRole(){
+  const role=selectedRole;
+  const count=state.people.filter(p=>p.role===role).length;
+  openDialog('Remove '+role+'?', 'Remove this role and its requirement settings.', `<p>${count?`${count} assigned ${count===1?'person will':'people will'} move to <strong>Unassigned</strong>.`:'No people are assigned to this role.'} Their training records and source PDFs will be kept.</p><div class="actions"><button class="button" id="cancel-remove-role">Keep role</button><button class="button danger" id="confirm-remove-role">Remove role</button></div><p id="remove-role-error" role="alert"></p>`);
+  $('#cancel-remove-role').onclick=()=>$('#dialog').close();
+  $('#confirm-remove-role').onclick=async event=>{
+    const button=event.target;button.disabled=true;
+    try{await api('role',{name:role},'DELETE');$('#dialog').close();await refresh();notify(`Removed ${role}. ${count?`${count} people moved to Unassigned.`:'Training records are unchanged.'}`);}
+    catch(error){$('#remove-role-error').textContent=error.message;button.disabled=false;}
   };
 }
+
 function renderLibrary() {
   $('#library-view').innerHTML=`<div class="panel"><div class="panel-heading"><div><h2>${state.columns.length} training columns</h2><p>Exact name matching preserves the distinction between training, appointments and authorisations.</p></div><button class="button primary" id="new-column">＋ Add training</button></div><p>Multiple mappings mean <strong>any one</strong> of those competencies can satisfy the column. Use separate columns when all competencies are required.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>CATEGORY</th><th>MAPPING</th><th></th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}</td><td>${esc(c.group)}</td><td><span class="pill ${c.aliases.length?'':'warn'}">${c.aliases.length?`${c.aliases.length} exact name${c.aliases.length===1?'':'s'}`:'Needs mapping'}</span></td><td><button class="button" data-library-column="${esc(c.id)}">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
   $('#new-column').onclick=()=>editColumn();

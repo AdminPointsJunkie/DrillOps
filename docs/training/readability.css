@@ -111,3 +111,7 @@ main { padding: 24px 28px; }
   .person-meta { padding-left: 0; }
   .site-tag { display: block; }
 }
+
+.role-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.button.danger { border-color: #dcb9b2; color: #9d3f31; background: #fff9f7; }
+.button.danger:hover { background: #fcece7; }

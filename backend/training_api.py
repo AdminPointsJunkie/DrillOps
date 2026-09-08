@@ -220,6 +220,24 @@ def create_training_router(get_conn):
                 record_audit_event(cur, action='training.mapping_updated', entity_type='training_column', entity_key=column['id'], details={'contractor': contractor, 'column': column})
         return {'ok': True}
 
+    @router.delete('/role')
+    def remove_role(request: Request, body: dict, contractor: str = Query(..., min_length=1, max_length=200)):
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                auth = scope(cur, request, contractor)
+                row = lock_settings(cur, contractor)
+                check_revision(body, row)
+                name = body.get('name')
+                if not isinstance(name, str) or name not in row['settings']['roles']:
+                    raise HTTPException(404, 'Role not found in this workspace.')
+                settings = row['settings']
+                previous = settings['roles'].pop(name)
+                cur.execute("UPDATE training_cardholders SET role='Unassigned',updated_by=%s,updated_at=NOW() WHERE contractor=%s AND role=%s", (auth.user_id, contractor, name))
+                reassigned = cur.rowcount
+                save_settings(cur, contractor, auth, settings, row)
+                record_audit_event(cur, action='training.role_removed', entity_type='training_role', entity_key=name, details={'contractor': contractor, 'previous_requirements': previous, 'personnel_moved_to_unassigned': reassigned})
+        return {'ok': True, 'reassigned': reassigned}
+
     @router.get('/sources/{source_id}')
     def source_pdf(source_id: str, request: Request, contractor: str = Query(..., min_length=1, max_length=200)):
         with get_conn(read_only=True) as conn:

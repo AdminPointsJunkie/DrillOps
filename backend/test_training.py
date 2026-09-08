@@ -78,6 +78,36 @@ class TrainingRouteTests(unittest.TestCase):
         self.assertEqual(update.args[1][0].adapted['roles']['Driller'],{'medical':'minimum','rig':'optional'})
         self.assertTrue(any('INSERT INTO audit_events' in c.args[0] for c in calls))
 
+    def test_remove_role_unassigns_people_without_deleting_training(self):
+        settings=default_settings()
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':2}]
+        self.cur.rowcount=2
+        response=self.client.request('DELETE','/training/role'+self.scope,headers=self.headers,json={'name':'Driller','revision':2})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['reassigned'],2)
+        calls=self.cur.execute.call_args_list
+        people=next(c for c in calls if 'UPDATE training_cardholders' in c.args[0])
+        self.assertIn("role='Unassigned'",people.args[0])
+        self.assertEqual(people.args[1][-2:],('DEPCO Drilling','Driller'))
+        update=next(c for c in calls if 'UPDATE training_workspaces' in c.args[0])
+        self.assertNotIn('Driller',update.args[1][0].adapted['roles'])
+        self.assertFalse(any('DELETE FROM' in c.args[0] for c in calls))
+
+    def test_removing_last_role_leaves_a_valid_empty_role_list(self):
+        settings=default_settings();settings['roles']={'Only role':{}}
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':0}]
+        self.cur.rowcount=0
+        response=self.client.request('DELETE','/training/role'+self.scope,headers=self.headers,json={'name':'Only role','revision':0})
+        self.assertEqual(response.status_code,200)
+        update=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_workspaces' in c.args[0])
+        self.assertEqual(update.args[1][0].adapted['roles'],{})
+
+    def test_remove_role_rejects_stale_revision(self):
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':2}]
+        response=self.client.request('DELETE','/training/role'+self.scope,headers=self.headers,json={'name':'Driller','revision':1})
+        self.assertEqual(response.status_code,409)
+        self.assertFalse(any('UPDATE training_cardholders' in c.args[0] for c in self.cur.execute.call_args_list))
+
     def test_invalid_file_is_rejected(self):
         self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'}]
         response=self.client.post('/training/import'+self.scope,headers=self.headers,files={'file':('fake.pdf',b'not pdf','application/pdf')})
