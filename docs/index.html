@@ -3435,7 +3435,7 @@ tbody td[contenteditable=true]:focus {
 
       <!-- KPIs -->
       <div class="kpi-row" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
-        <div class="kpi"><div class="kpi-label">Total Holes</div><div class="kpi-value" id="bh-kpi-total">—</div></div>
+        <div class="kpi"><div class="kpi-label">Active Holes</div><div class="kpi-value" id="bh-kpi-total">—</div></div>
         <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="bh-kpi-complete">—</div></div>
         <div class="kpi warn"><div class="kpi-label">In Progress</div><div class="kpi-value" id="bh-kpi-inprog">—</div></div>
         <div class="kpi"><div class="kpi-label">Planned</div><div class="kpi-value" id="bh-kpi-planned">—</div></div>
@@ -3458,6 +3458,7 @@ tbody td[contenteditable=true]:focus {
               <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:3px;background:#d97706;display:inline-block;flex-shrink:0"></span>Chip — Structure</div>
               <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#16a34a;display:inline-block;flex-shrink:0"></span>Complete</div>
               <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#dc2626;display:inline-block;flex-shrink:0"></span>In Progress</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#9b2c2c;display:inline-block;flex-shrink:0"></span>Cancelled</div>
             </div>
           </div>
           <div class="chart-card" style="padding:14px;">
@@ -3484,8 +3485,8 @@ tbody td[contenteditable=true]:focus {
         <a id="bh-csv-template-link" href="#" onclick="downloadBhCsvTemplate(event)" style="font-size:12px;color:var(--accent);text-decoration:none;">⬇ CSV Template</a>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <select id="bh-status-filter" onchange="filterBhTable()" style="background:#fff;border:1.5px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;outline:none;color:var(--text2);">
-            <option value="current" selected>Current plan</option>
-            <option value="">All statuses</option>
+            <option value="" selected>All boreholes</option>
+            <option value="current">Active plan only</option>
             <option value="Planned">Planned</option>
             <option value="In Progress">In Progress</option>
             <option value="Complete">Complete</option>
@@ -10211,6 +10212,7 @@ function mgaToWgs84(easting, northing) {
 function getBhColor(bh) {
   if(bh.status==='Complete') return '#16a34a';
   if(bh.status==='In Progress') return '#dc2626';
+  if(bh.status==='Cancelled') return '#9b2c2c';
   if(bh.type==='Chip'||bh.bh_type==='Chip') return '#d97706';
   if(bh.bit_type==='PQ') return '#315d49';
   const p=(bh.purpose||'').toLowerCase();
@@ -13093,12 +13095,12 @@ function filterBoreholesByProject() {
   buildAddBoreholeProjectSelector();
   syncHierarchyYearSelector();
   const filtered = currentFilteredBoreholes();
-  // Cancelled holes remain available through the status filter, but must not
-  // inflate the current programme's hole count, budget or map.
+  // Keep cancelled holes visible in the register and map for auditability.
+  // They are deliberately excluded from the active programme KPI and budget.
   const currentPlan = filtered.filter(function(b){return b.status!=='Cancelled';});
   updateBhKPIs(currentPlan);
   filterBhTable();
-  renderBhMapFiltered(currentPlan);
+  renderBhMapFiltered(filtered);
   loadDefaultMapOverlays(false);
 }
 
