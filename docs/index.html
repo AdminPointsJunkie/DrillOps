@@ -1144,49 +1144,67 @@ tbody td[contenteditable=true]:focus {
 #drawer {
   width:360px;
   left:-380px;
-  background:#f8fafc;
-  border-right:1px solid #d7dde5;
+  background:#f5f7f5;
+  border-right:1px solid #d8e0da;
 }
 .drawer-header {
-  min-height:76px;
+  min-height:88px;
   padding:18px 20px;
-  background:#ffffff;
-  border-bottom:1px solid #dce2e9;
+  background:linear-gradient(135deg,#173f31 0%,#2b6a4e 100%);
+  border-bottom:0;
+}
+.drawer-brand {
+  display:flex;
+  align-items:center;
+  gap:11px;
+}
+.drawer-brand-mark {
+  display:grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:10px;
+  background:rgba(255,255,255,.13);
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.04em;
 }
 .drawer-title {
-  font-size:18px;
+  font-size:17px;
   font-weight:760;
-  color:#132233;
+  color:#fff;
   text-transform:none;
   letter-spacing:0;
 }
 .drawer-subtitle {
   margin-top:2px;
-  color:#718093;
-  font-size:11px;
+  color:rgba(255,255,255,.68);
+  font-size:10px;
   font-weight:650;
   letter-spacing:0.06em;
   text-transform:uppercase;
 }
 .drawer-close {
   width:auto;
-  min-width:54px;
+  min-width:34px;
   height:32px;
-  padding:0 12px;
-  border:1px solid #cfd7e1;
-  border-radius:5px;
-  background:#fff;
-  color:#405064;
-  font-size:12px;
+  padding:0 10px;
+  border:1px solid rgba(255,255,255,.3);
+  border-radius:7px;
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  font-size:11px;
   font-weight:650;
 }
 .drawer-close:hover {
-  border-color:#9fb0c2;
-  background:#f4f7fa;
-  color:#17202b;
+  border-color:rgba(255,255,255,.65);
+  background:rgba(255,255,255,.18);
+  color:#fff;
 }
 .drawer-body {
-  padding:12px;
+  padding:16px 12px 24px;
 }
 .drawer-body::-webkit-scrollbar {
   width:8px;
@@ -1196,21 +1214,31 @@ tbody td[contenteditable=true]:focus {
   border-radius:8px;
 }
 .drawer-section {
-  margin-bottom:10px;
-  padding:14px;
-  border:1px solid #e0e6ed;
-  border-radius:7px;
-  background:#fff;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
 }
 .drawer-section-subtle {
   background:#fbfcfd;
 }
 .drawer-section-title {
-  margin-bottom:10px;
-  color:#6a788a;
+  margin:0 8px 14px;
+  color:#718177;
   font-size:10px;
   font-weight:760;
-  letter-spacing:0.12em;
+  letter-spacing:.13em;
+}
+.drawer-nav-group { margin:0 0 18px; }
+.drawer-nav-group:last-child { margin-bottom:0; }
+.drawer-nav-group-label {
+  margin:0 9px 7px;
+  color:#829087;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.11em;
+  text-transform:uppercase;
 }
 .drawer-nav-list {
   display:flex;
@@ -1220,13 +1248,13 @@ tbody td[contenteditable=true]:focus {
 .drawer-nav-item {
   position:relative;
   display:grid;
-  grid-template-columns:1fr auto;
+  grid-template-columns:34px minmax(0,1fr);
   align-items:center;
-  min-height:38px;
-  gap:12px;
-  padding:7px 10px 7px 13px;
+  min-height:56px;
+  gap:10px;
+  padding:8px 10px;
   border:1px solid transparent;
-  border-radius:5px;
+  border-radius:9px;
   background:transparent;
   color:#253244;
 }
@@ -1236,40 +1264,59 @@ tbody td[contenteditable=true]:focus {
 .drawer-nav-item::before {
   content:'';
   position:absolute;
-  left:0;
-  top:8px;
-  bottom:8px;
+  left:4px;
+  top:12px;
+  bottom:12px;
   width:3px;
   border-radius:2px;
   background:transparent;
 }
 .drawer-nav-item:hover {
-  background:#f3f6f9;
-  border-color:#e1e7ee;
+  background:#eaf0eb;
+  border-color:#dce6de;
 }
 .drawer-nav-item.active {
-  background:#eaf2f9;
-  border-color:#c9dcea;
-  color:#254b3a;
-  box-shadow:none;
+  background:#e1eee6;
+  border-color:#bfd8c7;
+  color:#1f503a;
+  box-shadow:0 3px 10px rgba(31,80,58,.07);
 }
 .drawer-nav-item.active::before {
   background:#315d49;
 }
 .drawer-nav-label {
   font-size:12.5px;
-  font-weight:720;
+  font-weight:760;
   line-height:1.2;
 }
 .drawer-nav-meta {
-  color:#7a8797;
-  font-size:9px;
-  font-weight:650;
-  text-transform:uppercase;
-  letter-spacing:0.06em;
+  margin-top:3px;
+  color:#77837b;
+  font-size:10px;
+  font-weight:600;
+  line-height:1.25;
+  text-transform:none;
+  letter-spacing:0;
 }
 .drawer-nav-item.active .drawer-nav-meta {
-  color:#4d7898;
+  color:#4d745e;
+}
+.drawer-nav-icon {
+  display:grid!important;
+  place-items:center;
+  width:30px;
+  height:30px;
+  border-radius:8px;
+  background:#e7ece8;
+  color:#456655;
+  font-size:15px;
+  font-weight:800;
+  line-height:1;
+}
+.drawer-nav-copy { min-width:0; }
+.drawer-nav-item.active .drawer-nav-icon {
+  background:#315d49;
+  color:#fff;
 }
 .tenement-grid {
   display:grid;
@@ -1664,20 +1711,26 @@ tbody td[contenteditable=true]:focus {
     min-height:64px;
     padding:14px 16px;
   }
+  .drawer-brand-mark {
+    width:30px;
+    height:30px;
+    border-radius:8px;
+    font-size:10px;
+  }
   .drawer-body {
     padding:10px;
   }
   .drawer-section {
-    padding:12px;
+    padding:0;
   }
   .drawer-nav-item {
-    grid-template-columns:1fr;
-    gap:2px;
-    min-height:44px;
-    padding:8px 10px 8px 13px;
+    grid-template-columns:34px minmax(0,1fr);
+    gap:10px;
+    min-height:54px;
+    padding:8px 10px;
   }
   .drawer-nav-meta {
-    font-size:9px;
+    font-size:10px;
   }
   .contractor-item {
     min-height:42px;
@@ -2090,9 +2143,12 @@ tbody td[contenteditable=true]:focus {
 <!-- Slide-out Drawer -->
 <div id="drawer">
   <div class="drawer-header">
-    <div>
-      <div class="drawer-title">DrillOps</div>
-      <div class="drawer-subtitle">Operations workspace</div>
+    <div class="drawer-brand">
+      <div class="drawer-brand-mark" aria-hidden="true">DO</div>
+      <div>
+        <div class="drawer-title">DrillOps</div>
+        <div class="drawer-subtitle">Operations workspace</div>
+      </div>
     </div>
     <button class="drawer-close" onclick="closeDrawer()" aria-label="Close menu">Close</button>
   </div>
@@ -2101,18 +2157,31 @@ tbody td[contenteditable=true]:focus {
     <!-- Navigation -->
     <div class="drawer-section">
       <div class="drawer-section-title">Navigation</div>
-      <div class="drawer-nav-list">
-        <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients, contracts &amp; rates</span></button>
-        <button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><span class="drawer-nav-label">Budget</span><span class="drawer-nav-meta">Plan and allocations</span></button>
-        <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></button>
-        <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></button>
-        <button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><span class="drawer-nav-label">Users &amp; Change Log</span><span class="drawer-nav-meta">Access and accountability</span></button>
-        <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></button>
-        <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></button>
-        <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></button>
-        <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></button>
-        <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></button>
-        <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></button>
+      <div class="drawer-nav-group">
+        <div class="drawer-nav-group-label">Plan &amp; setup</div>
+        <div class="drawer-nav-list">
+          <button class="drawer-nav-item" data-page="project-budgets" onclick="openProjectsFromDrawer(this)"><span class="drawer-nav-icon" aria-hidden="true">⌂</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Projects</span><span class="drawer-nav-meta">Clients, contracts &amp; rates</span></span></button>
+          <button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">$</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Budget</span><span class="drawer-nav-meta">Plan and allocations</span></span></button>
+          <button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">↓</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Import Data</span><span class="drawer-nav-meta">PDF intake</span></span></button>
+          <button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">◫</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Contractors &amp; Accounts</span><span class="drawer-nav-meta">Workspace</span></span></button>
+        </div>
+      </div>
+      <div class="drawer-nav-group">
+        <div class="drawer-nav-group-label">Field operations</div>
+        <div class="drawer-nav-list">
+          <button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">⌖</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Borehole Planning</span><span class="drawer-nav-meta">Map and budget</span></span></button>
+          <button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">↗</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Daily Drill Production</span><span class="drawer-nav-meta">Metres and trends</span></span></button>
+          <button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">≡</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Activities</span><span class="drawer-nav-meta">Daily report sheets</span></span></button>
+          <button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">▤</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Reports</span><span class="drawer-nav-meta">Period summaries</span></span></button>
+        </div>
+      </div>
+      <div class="drawer-nav-group">
+        <div class="drawer-nav-group-label">Commercial &amp; control</div>
+        <div class="drawer-nav-list">
+          <button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">⌁</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Purchase Orders</span><span class="drawer-nav-meta">Commitments</span></span></button>
+          <button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">✓</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Invoices</span><span class="drawer-nav-meta">Reconciliation</span></span></button>
+          <button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><span class="drawer-nav-icon" aria-hidden="true">◌</span><span class="drawer-nav-copy"><span class="drawer-nav-label">Users &amp; Change Log</span><span class="drawer-nav-meta">Access and accountability</span></span></button>
+        </div>
       </div>
     </div>
 
