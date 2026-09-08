@@ -164,6 +164,7 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("function boreholeMatchValues", INDEX_HTML)
         self.assertIn("function renderPeriodReconciliation", INDEX_HTML)
         self.assertIn("Actual not loaded", INDEX_HTML)
+        self.assertIn("projectNamesMatch(r.project,activeProjectName)", INDEX_HTML)
 
 
 if __name__ == "__main__":

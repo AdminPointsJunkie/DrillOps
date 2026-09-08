@@ -6453,9 +6453,14 @@ async function loadPeriodSupportInvoices(){
   const contractors=filteredContractors().filter(function(c){return contractorCategory(c)!=='Drilling';});
   const stamp=Date.now();
   const rows=await Promise.all(contractors.map(function(c){
-    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&project='+encodeURIComponent(activeProjectName||'')+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
+    // Project names on imported invoices are not always exact (for example,
+    // "Ironbark Mine" versus "Ironbark"). Fetch by contractor and apply the
+    // same normalized project matching used everywhere else in the report.
+    return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
   }));
-  return rows.flat().map(function(r){
+  return rows.flat().filter(function(r){
+    return !activeProjectName||projectNamesMatch(r.project,activeProjectName);
+  }).map(function(r){
     const c=contractorByName(r.contractor);
     return Object.assign({},r,{contractor_category:contractorCategory(c)});
   });
