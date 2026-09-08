@@ -66,14 +66,6 @@ function filteredPeople() {
     (attention==='all'||(attention==='unassigned'&&p.role==='Unassigned')||(attention==='gaps'&&readiness(state,p,today,horizon).gaps.length)||(attention==='soon'&&state.columns.some(c=>evidence(p,c,today,horizon).status==='soon'))));
 }
 function renderMatrix() {
-  const recordCount=state.people.reduce((n,p)=>n+p.records.length,0);
-  const due=state.people.reduce((n,p)=>n+state.columns.filter(c=>evidence(p,c,today,horizon).status==='soon').length,0);
-  const ready=state.people.filter(p=>{const r=readiness(state,p,today,horizon);return r.total&&r.met===r.total;}).length;
-  const configured=Object.values(state.roles).filter(r=>Object.values(r).includes('minimum')).length;
-  $('#stats').innerHTML=[['Personnel',state.people.length,'Across your imported reports','♙'],['Training records',recordCount,'Including historical evidence','▤'],['Expiring soon',due,`Mapped credentials · next ${horizon} days`,'◷'],['Minimum met',configured?ready:'—',`${configured} of ${Object.keys(state.roles).length} roles configured`,'✓']].map(([label,n,note,icon])=>`<div class="stat"><div class="stat-label">${label}</div><span class="stat-icon">${icon}</span><div class="stat-number">${n}</div><div class="stat-note">${note}</div></div>`).join('');
-  const unassigned=state.people.filter(p=>p.role==='Unassigned').length;
-  $('#setup-note').innerHTML=`<strong>${configured?'Role setup':'Ready for your requirements.'}</strong> ${configured?`${configured} roles have minimum requirements.`:'Minimum requirements have not been set. Training evidence is shown for review.'} ${unassigned?`${unassigned} people need a role.`:''}<button id="setup-roles">Configure roles →</button>`;
-  $('#setup-roles').onclick=()=>switchView('roles');
   $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" data-category="${esc(g)}">${esc(g)}</button>`).join('');
   $$('#categories button').forEach(b=>b.onclick=()=>{category=b.dataset.category;renderMatrix();});
   const columns=state.columns.filter(c=>category==='All training'||c.group===category);
@@ -195,7 +187,7 @@ function exportCSV() {
   for(const p of filteredPeople())rows.push([p.name,p.role,p.reportDate||'',readiness(state,p,today,horizon).label,...columns.flatMap(c=>{const e=evidence(p,c,today,horizon),req=requirement(state,p,c);return[req,statusLabel[req==='na'?'na':e.status],e.best?.expires||''];})]);
   const quote=value=>{let v=String(value);if(/^[=+@\-\t\r]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
   const blob=new Blob(['\ufeff'+rows.map(r=>r.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`training-matrix-${today}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Exported the currently filtered training matrix.');
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`training-matrix-${today}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
 $('#text-size').onchange=e=>{document.body.dataset.textSize=e.target.value;};

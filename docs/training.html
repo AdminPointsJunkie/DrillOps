@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Training Matrix · DrillOps</title><link rel="stylesheet" href="./training/style.css?v=20260909-global"><link rel="stylesheet" href="./drillops-theme.css"><link rel="stylesheet" href="./training/readability.css?v=20260909-global"><script src="./config.js"></script><script src="./auth-guard.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Training Matrix · DrillOps</title><link rel="stylesheet" href="./training/style.css?v=20260909-table"><link rel="stylesheet" href="./drillops-theme.css"><link rel="stylesheet" href="./training/readability.css?v=20260909-table"><script src="./config.js"></script><script src="./auth-guard.js"></script></head>
 <body data-text-size="large">
 <aside class="sidebar">
  <a class="logo" href="./index.html" aria-label="Back to DrillOps">Drill<span>Ops</span></a>
@@ -13,8 +13,6 @@
  <div class="page-heading"><div><div class="eyebrow">WORKFORCE READINESS</div><h1 id="page-title">Training matrix</h1><p id="page-description">One view of your people, their training and what comes next.</p></div><div class="heading-actions"><button class="button" id="export">↓ Export CSV</button><button class="button primary" id="import-open">＋ Import / update PDFs</button></div></div>
  <div id="notice" role="status" aria-live="polite"></div>
  <section id="matrix-view">
-  <div id="stats" class="stats"></div>
-  <div class="setup-note" id="setup-note"></div>
   <section class="matrix-card"><div class="matrix-toolbar"><div><h2>People & competencies <span id="people-count" class="count"></span></h2><p>Training evidence from your cardholder reports</p></div><div class="filters"><input id="search" type="search" placeholder="Search people…" aria-label="Search people"><select id="role-filter" aria-label="Filter by role"></select><select id="status-filter" aria-label="Filter by attention"><option value="all">All personnel</option><option value="gaps">Minimum gaps</option><option value="soon">Expiring soon</option><option value="unassigned">Unassigned roles</option></select></div></div>
   <div class="table-controls"><div class="category-bar" id="categories"></div><div class="readability-controls"><label>Text size <select id="text-size" aria-label="Table text size"><option value="standard">Standard</option><option value="large" selected>Large</option><option value="extra">Extra large</option></select></label><button class="button" id="expand-table" aria-pressed="false">Expand table</button></div></div>
   <div class="matrix-scroll" tabindex="0" aria-label="Training matrix; scroll horizontally to see more training"><table id="matrix"></table></div>
@@ -24,5 +22,5 @@
  <section id="roles-view" hidden></section><section id="library-view" hidden></section><section id="imports-view" hidden></section>
 </main><footer class="app-footer"><span>DRILLOPS <span class="slash">/</span> Training needs analysis</span><span id="as-of"></span></footer></div>
 <dialog id="dialog"><div id="dialog-body"></div></dialog>
-<script type="module" src="./training/app.mjs?v=20260909-global"></script>
+<script type="module" src="./training/app.mjs?v=20260909-table"></script>
 </body></html>

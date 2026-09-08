@@ -28,8 +28,6 @@ main { padding: 24px 28px; }
 .stat-label { font-size: 14px; color: #52645a; }
 .stat-number { font-size: 30px; margin: 7px 0; }
 .stat-note { font-size: 12px; color: #64766a; }
-.setup-note { font-size: 14px; margin-bottom: 18px; }
-.stats { margin-bottom: 18px; }
 .matrix-toolbar { padding: 18px 20px; flex-wrap: wrap; }
 .matrix-toolbar h2 { font-size: 20px; }
 .matrix-toolbar p { font-size: 14px; }
@@ -89,7 +87,7 @@ main { padding: 24px 28px; }
 .dialog-header p, .import-result { font-size: 14px; }
 .app-footer { font-size: 12px; }
 .matrix-expanded .sidebar, .matrix-expanded .topbar, .matrix-expanded .page-heading,
-.matrix-expanded .stats, .matrix-expanded .setup-note, .matrix-expanded .app-footer,
+.matrix-expanded .app-footer,
 .matrix-expanded .footnote { display: none; }
 .matrix-expanded .shell { margin-left: 0; }
 .matrix-expanded main { padding: 16px; min-height: 100vh; }
