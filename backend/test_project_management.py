@@ -116,13 +116,23 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
         self.assertIn("AS completion_date", MAIN_PY)
 
-    def test_user_confirmed_statuses_leave_26_021_records_unchanged(self):
+    def test_user_confirmed_statuses_have_all_18_completed_holes(self):
         start = MAIN_PY.index("IRONBARK_2026_STATUS_OVERRIDES = {")
         end = MAIN_PY.index("\n}\n\n\ndef is_visible_borehole_plan_row", start)
         overrides = MAIN_PY[start:end]
-        self.assertNotIn('"26-021":', overrides)
-        self.assertNotIn('"26-021R":', overrides)
+        self.assertEqual(overrides.count('"Complete"'), 18)
+        self.assertIn('"26-021": "Complete"', overrides)
+        self.assertIn('"26-021R": "Complete"', overrides)
+        self.assertIn('"26-026": "Complete"', overrides)
+        self.assertIn('"26-057": "Complete"', overrides)
         self.assertIn('"26-025": "In Progress"', overrides)
+
+    def test_period_report_uses_current_borehole_statuses(self):
+        start = INDEX_HTML.index("function periodRelevantProjectHoles")
+        end = INDEX_HTML.index("function buildPeriodProjectOptions", start)
+        period_status_logic = INDEX_HTML[start:end]
+        self.assertIn("return uniqueBoreholesById(projectHoles||[]);", period_status_logic)
+        self.assertIn("Current Borehole Planning status", INDEX_HTML)
 
 
 if __name__ == "__main__":

@@ -6253,10 +6253,10 @@ function periodPlannedBoreholes(rows){
 }
 
 function periodRelevantProjectHoles(projectHoles,activeHoles){
-  // A period report must contain only holes evidenced by activity inside the
-  // selected range. Project-wide completed holes belong to planning, not to
-  // every historical period report.
-  return uniqueBoreholesById(activeHoles||[]);
+  // Status KPIs are the current approved Borehole Planning status set.  They
+  // must not vary merely because a completion report falls outside the selected
+  // financial/reporting period.
+  return uniqueBoreholesById(projectHoles||[]);
 }
 
 function periodHoleStatusSummary(reportHoles,period,allRows){
@@ -6264,19 +6264,8 @@ function periodHoleStatusSummary(reportHoles,period,allRows){
   const inProgress=[];
   const excluded=[];
   (reportHoles||[]).forEach(function(b){
-    const dates=(allRows||[]).filter(function(r){return rowMatchesBorehole(r,b);})
-      .map(function(r){return reportIso(r.date);}).filter(Boolean).sort();
-    const startDate=dates[0]||'';
-    const completionDate=dates[dates.length-1]||'';
-    const completedInPeriod=boreholeIsComplete(b)
-      && completionDate
-      && (!period.from||completionDate>=period.from)
-      && (!period.to||completionDate<=period.to);
-    if(completedInPeriod)completed.push(b);
-    else if(boreholeIsInProgress(b)
-      && startDate
-      && (!period.from||startDate>=period.from)
-      && (!period.to||startDate<=period.to))inProgress.push(b);
+    if(boreholeIsComplete(b))completed.push(b);
+    else if(boreholeIsInProgress(b))inProgress.push(b);
     else excluded.push(b);
   });
   return {completed:completed,inProgress:inProgress,excluded:excluded};
@@ -6649,9 +6638,9 @@ function renderPeriodReport(){
   shell.textContent=projectLabel+' | '+programLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today;
   setPeriodText('period-print-meta',projectLabel+' | '+programLabel+' | '+drillingContractor+' | '+(period.from||'start')+' to '+(period.to||'end')+' | Prepared '+today);
   setPeriodText('period-holes-completed',holeStatusSummary.completed.length.toLocaleString());
-  setPeriodText('period-holes-completed-sub','Final activity recorded in selected period');
+  setPeriodText('period-holes-completed-sub','Current Borehole Planning status');
   setPeriodText('period-holes-in-progress',holeStatusSummary.inProgress.length.toLocaleString());
-  setPeriodText('period-holes-in-progress-sub','Started in period and still In Progress');
+  setPeriodText('period-holes-in-progress-sub','Current Borehole Planning status');
   setPeriodText('period-budget-total',cur(budgetTotal));
   setPeriodText('period-budget-sub',budgetTotals.hasProjectBudget?'Project budget lines':(budgetTotals.hasSourceBudget?'Version 5.4 per-hole budget':'Borehole budget fallback'));
   const drillingSummaryEl=document.getElementById('period-drilling-summary');

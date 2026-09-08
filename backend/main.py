@@ -10657,9 +10657,7 @@ def current_ironbark_plan_hole_ids():
     )
 
 
-# User-confirmed 2026 Ironbark operational statuses.  26-021 and 26-021R
-# are deliberately excluded pending separate clarification of the original vs
-# relocated records.
+# User-confirmed 2026 Ironbark operational statuses.
 IRONBARK_2026_STATUS_OVERRIDES = {
     "26-001": "Cancelled", "26-002": "Complete", "26-003": "Cancelled",
     "26-004": "Cancelled", "26-005": "Planned", "26-006": "Cancelled",
@@ -10668,8 +10666,9 @@ IRONBARK_2026_STATUS_OVERRIDES = {
     "26-013": "Cancelled", "26-014": "Complete", "26-015": "Complete",
     "26-016": "Planned", "26-017": "Complete", "26-018": "Complete",
     "26-019": "Complete", "26-020": "Complete", "26-022": "Complete",
-    "26-023": "Planned", "26-024": "Planned", "26-025": "In Progress",
-    "26-026": "Planned", "26-027": "Cancelled", "26-028": "Complete",
+    "26-021": "Complete", "26-021R": "Complete", "26-023": "Planned",
+    "26-024": "Planned", "26-025": "In Progress", "26-026": "Complete",
+    "26-027": "Cancelled", "26-028": "Complete",
     "26-029": "Planned", "26-030": "Planned", "26-031": "Planned",
     "26-032": "Planned", "26-033": "Planned", "26-034": "Complete",
     "26-035": "Complete", "26-036": "Complete", "26-041": "Planned",
@@ -10677,12 +10676,12 @@ IRONBARK_2026_STATUS_OVERRIDES = {
     "26-045": "Planned", "26-048": "Cancelled", "26-049": "Planned",
     "26-050": "Planned", "26-051": "Planned", "26-052": "Planned",
     "26-053": "Complete", "26-054": "Planned", "26-055": "Planned",
-    "26-056": "Cancelled", "26-057": "Planned",
+    "26-056": "Cancelled", "26-057": "Complete",
 }
 
 
 def is_visible_borehole_plan_row(row: dict) -> bool:
-    """Keep the current plan and operationally completed historical holes."""
+    """Show the approved current plan, not superseded imported rows."""
     is_ironbark_2026_company_row = (
         str(row.get("contractor") or "").strip().lower() == "company"
         and str(row.get("project") or "").strip().lower() == "ironbark"
@@ -10690,10 +10689,7 @@ def is_visible_borehole_plan_row(row: dict) -> bool:
     )
     if not is_ironbark_2026_company_row:
         return True
-    return (
-        str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
-        or bool(row.get("activity_complete"))
-    )
+    return str(row.get("hole_id") or "").strip() in current_ironbark_plan_hole_ids()
 
 
 def is_current_borehole_budget_row(row: dict) -> bool:
