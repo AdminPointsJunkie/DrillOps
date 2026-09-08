@@ -29,7 +29,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Reque
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from admin_api import create_admin_router
-from audit import record_import_batch
+from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
@@ -3993,7 +3993,174 @@ IMPORTED CONSUMABLES:
         return {}
 
 
-def local_import_qa(acts, cons, crew, rate_context=None):
+SITE_NAME_ALIASES = {
+    "ironbark": "Ironbark",
+}
+
+
+def canonical_site_name(value):
+    """Return a known canonical site spelling without changing unknown sites."""
+    text = str(value or "").strip()
+    if not text:
+        return text
+    key = re.sub(r"[^a-z0-9]+", "", text.casefold())
+    return SITE_NAME_ALIASES.get(key, text)
+
+
+def _clock_minutes(value):
+    match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", str(value or ""))
+    if not match:
+        return None
+    hours, minutes = int(match.group(1)), int(match.group(2))
+    if hours > 23 or minutes > 59:
+        return None
+    return hours * 60 + minutes
+
+
+def _normalised_report_date(value):
+    match = re.fullmatch(r"\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})\s*", str(value or ""))
+    if not match:
+        return None
+    day, month, year = (int(match.group(index)) for index in (1, 2, 3))
+    try:
+        calendar_date(year, month, day)
+    except ValueError:
+        return None
+    return f"{day:02d}/{month:02d}/{year:04d}"
+
+
+def _filename_report_date(filename):
+    match = re.search(r"(?<!\d)(20\d{2})[-_](\d{1,2})[-_](\d{1,2})(?!\d)", str(filename or ""))
+    if not match:
+        return None
+    year, month, day = (int(match.group(index)) for index in (1, 2, 3))
+    try:
+        calendar_date(year, month, day)
+    except ValueError:
+        return None
+    return f"{day:02d}/{month:02d}/{year:04d}"
+
+
+def activity_integrity_qa(acts, filename=""):
+    """Check OCR activity rows without altering source data or report dates."""
+    warnings = []
+    report_dates = {
+        normalised for normalised in (_normalised_report_date(row.get("date")) for row in acts or [])
+        if normalised
+    }
+    filename_date = _filename_report_date(filename)
+    if filename_date and len(report_dates) == 1 and filename_date not in report_dates:
+        report_date = next(iter(report_dates))
+        warnings.append({
+            "severity": "warning",
+            "section": "header",
+            "issue": f"Report date {report_date} conflicts with filename date {filename_date}.",
+            "recommendation": "Confirm the handwritten PDF header before correcting either date; do not bulk-replace from the filename.",
+        })
+
+    indexed_rows = list(enumerate(acts or [], 1))
+    indexed_rows.sort(key=lambda item: (_clock_minutes(item[1].get("time_from")) is None, _clock_minutes(item[1].get("time_from")) or 0, item[0]))
+    previous_end = None
+    for index, row in indexed_rows:
+        notes = str(row.get("notes") or row.get("comments") or "").strip()
+        activity_values = (
+            notes, row.get("time_from"), row.get("time_to"), row.get("total_time"),
+            row.get("metres_from"), row.get("metres_to"), row.get("total_metres"),
+            row.get("code"), row.get("bit_type"), row.get("diameter"),
+        )
+        if not any(value not in (None, "") for value in activity_values):
+            warnings.append({
+                "severity": "warning",
+                "section": "activities",
+                "row": index,
+                "issue": "Blank activity row.",
+                "recommendation": "Review the source PDF; remove the row only when it is not a meaningful activity.",
+            })
+
+        code = str(row.get("code") or "").strip()
+        if re.fullmatch(r"(?:19|20)\d{2}", code):
+            warnings.append({
+                "severity": "warning",
+                "section": "activities",
+                "row": index,
+                "code": code,
+                "issue": "A four-digit year appears in the activity code field.",
+                "recommendation": "Clear the code unless the source PDF explicitly identifies it as an activity code.",
+            })
+
+        for field in ("site_name", "location"):
+            actual = str(row.get(field) or "").strip()
+            canonical = canonical_site_name(actual)
+            if actual and canonical != actual:
+                warnings.append({
+                    "severity": "info",
+                    "section": "header",
+                    "row": index,
+                    "issue": f'{field.replace("_", " ").title()} "{actual}" should be normalised to "{canonical}".',
+                    "recommendation": "Apply the safe site-name normalisation.",
+                })
+
+        start, end, duration = (_clock_minutes(row.get(field)) for field in ("time_from", "time_to", "total_time"))
+        if start is not None and end is not None and duration is not None:
+            elapsed = end - start
+            if elapsed < 0:
+                elapsed += 24 * 60
+            if elapsed != duration:
+                warnings.append({
+                    "severity": "critical",
+                    "section": "activities",
+                    "row": index,
+                    "issue": f"Duration {row.get('total_time')} does not match the clock interval.",
+                    "recommendation": "Check the start time, finish time, and duration against the source PDF.",
+                })
+            if previous_end is not None and start < previous_end:
+                warnings.append({
+                    "severity": "warning",
+                    "section": "activities",
+                    "row": index,
+                    "issue": "Activity overlaps the preceding activity.",
+                    "recommendation": "Check activity order and time entries against the source PDF.",
+                })
+            previous_end = end
+
+        metres_from, metres_to, total_metres = (row.get(field) for field in ("metres_from", "metres_to", "total_metres"))
+        if all(value not in (None, "") for value in (metres_from, metres_to, total_metres)):
+            try:
+                interval = abs(float(metres_to) - float(metres_from))
+                if abs(interval - float(total_metres)) > 0.05:
+                    warnings.append({
+                        "severity": "critical",
+                        "section": "activities",
+                        "row": index,
+                        "issue": "Drilled metres do not match the from/to interval.",
+                        "recommendation": "Check metres from, metres to, and total metres against the source PDF.",
+                    })
+            except (TypeError, ValueError):
+                warnings.append({
+                    "severity": "warning",
+                    "section": "activities",
+                    "row": index,
+                    "issue": "Drilled metres fields are not numeric.",
+                    "recommendation": "Correct or clear the metres fields after checking the source PDF.",
+                })
+    return warnings
+
+
+def normalise_safe_ocr_fields(row):
+    """Return the non-destructive OCR cleanups that do not need PDF interpretation."""
+    updates = {}
+    for field in ("site_name", "location"):
+        value = str(row.get(field) or "").strip()
+        canonical = canonical_site_name(value)
+        if value and canonical != value:
+            updates[field] = canonical
+    code = str(row.get("code") or "").strip()
+    if re.fullmatch(r"(?:19|20)\d{2}", code):
+        updates["code"] = ""
+    return updates
+
+
+def local_import_qa(acts, cons, crew, rate_context=None, filename=""):
     def _num(value):
         try:
             return float(value or 0)
@@ -4033,7 +4200,7 @@ def local_import_qa(acts, cons, crew, rate_context=None):
             return f"Line cost {basis} mismatch: imported ${_num(actual):,.2f}, expected ${expected:,.2f}"
         return None
 
-    warnings = []
+    warnings = activity_integrity_qa(acts, filename)
     for i, row in enumerate(acts or [], 1):
         code = row.get("code") or ""
         metres = _num(row.get("total_metres"))
@@ -4093,7 +4260,7 @@ def local_import_qa(acts, cons, crew, rate_context=None):
 
 
 async def openai_import_qa(filename, contractor, header, source_text, acts, cons, crew, rate_context=None):
-    local_warnings = local_import_qa(acts, cons, crew, rate_context)
+    local_warnings = local_import_qa(acts, cons, crew, rate_context, filename)
     if not OPENAI_API_KEY:
         return {"status": "unavailable", "summary": "OpenAI import QA not run because OPENAI_API_KEY is not configured.", "warnings": local_warnings}
 
@@ -4934,8 +5101,8 @@ async def qa_existing_imports(request: Request):
                 }
                 check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context) if use_openai else {
                     "status": "local",
-                    "summary": "Local schedule-of-rates checks only.",
-                    "warnings": local_import_qa(acts, cons, crew, rate_context),
+                    "summary": "Local rate and OCR-integrity checks.",
+                    "warnings": local_import_qa(acts, cons, crew, rate_context, filename),
                 }
                 results.append({
                     "filename": filename,
@@ -4953,6 +5120,104 @@ async def qa_existing_imports(request: Request):
         "needs_review": review_count,
         "issues": issue_count,
         "results": results,
+    }
+
+
+@app.post("/imports/ocr-integrity-audit")
+async def audit_ocr_integrity(request: Request):
+    """Audit imported OCR rows without changing source data or report dates."""
+    payload = await request.json()
+    contractor = payload.get("contractor", "DEPCO Drilling")
+    limit = max(1, min(int(payload.get("limit") or 500), 500))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.source_file, MAX(a.date) AS report_date, COUNT(*) AS rows
+                FROM activities a
+                JOIN source_files sf ON sf.filename=a.source_file AND sf.contractor=a.contractor
+                WHERE a.contractor=%s AND sf.file_type='ocr'
+                GROUP BY a.source_file
+                ORDER BY MAX(a.date) DESC NULLS LAST, a.source_file
+                LIMIT %s
+            """, (contractor, limit))
+            files = [dict(row) for row in cur.fetchall()]
+            results = []
+            for item in files:
+                filename = item["source_file"]
+                cur.execute("""
+                    SELECT * FROM activities
+                    WHERE contractor=%s AND source_file=%s
+                    ORDER BY date, time_from, id
+                """, (contractor, filename))
+                warnings = activity_integrity_qa([dict(row) for row in cur.fetchall()], filename)
+                results.append({
+                    "filename": filename,
+                    "date": item.get("report_date"),
+                    "rows": item.get("rows"),
+                    "warnings": warnings,
+                })
+    issues = sum(len(item["warnings"]) for item in results)
+    return {
+        "status": "ok",
+        "contractor": contractor,
+        "checked": len(results),
+        "needs_review": sum(bool(item["warnings"]) for item in results),
+        "issues": issues,
+        "results": results,
+    }
+
+
+@app.post("/imports/ocr-integrity-fixes")
+async def apply_safe_ocr_integrity_fixes(request: Request):
+    """Apply only normalisations that cannot change a report's operational meaning."""
+    payload = await request.json()
+    contractor = payload.get("contractor", "DEPCO Drilling")
+    source_file = str(payload.get("source_file") or "").strip()
+    apply_changes = bool(payload.get("apply", False))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            query = """SELECT * FROM activities
+                       WHERE contractor=%s
+                         AND source_file IN (
+                           SELECT filename FROM source_files
+                           WHERE contractor=%s AND file_type='ocr'
+                         )"""
+            params = [contractor, contractor]
+            if source_file:
+                query += " AND source_file=%s"
+                params.append(source_file)
+            query += " ORDER BY source_file, date, time_from, id"
+            cur.execute(query, params)
+            rows = [dict(row) for row in cur.fetchall()]
+            proposals = []
+            for row in rows:
+                updates = normalise_safe_ocr_fields(row)
+                if updates:
+                    proposals.append({"id": row["id"], "source_file": row.get("source_file"), "updates": updates})
+
+            if apply_changes:
+                for proposal in proposals:
+                    assignments = ", ".join(f"{field}=%({field})s" for field in proposal["updates"])
+                    cur.execute(
+                        f"UPDATE activities SET {assignments} WHERE id=%(id)s",
+                        {"id": proposal["id"], **proposal["updates"]},
+                    )
+                if proposals:
+                    record_audit_event(
+                        cur,
+                        action="activities.ocr_safe_normalised",
+                        entity_type="activities",
+                        entity_key=source_file or contractor,
+                        details={"contractor": contractor, "source_file": source_file or None, "changes": proposals},
+                    )
+        conn.commit()
+    return {
+        "status": "applied" if apply_changes else "preview",
+        "contractor": contractor,
+        "source_file": source_file or None,
+        "changes": proposals,
+        "changed": len(proposals) if apply_changes else 0,
+        "message": "Blank rows and date conflicts are intentionally review-only and were not changed.",
     }
 
 
@@ -11250,7 +11515,13 @@ async def import_ocr_pdf(
     location = data.get("location", "")
     driller = data.get("driller", "")
     shift = data.get("shift", "Day")
-    site_name = location
+    site_name = canonical_site_name(location)
+    location = canonical_site_name(location)
+    integrity_rows = [
+        {**activity, "date": date_str, "site_name": data.get("location", ""), "location": data.get("location", "")}
+        for activity in activities
+    ]
+    integrity_warnings = activity_integrity_qa(integrity_rows, filename)
 
     rows = []
     for act in activities:
@@ -11319,7 +11590,7 @@ async def import_ocr_pdf(
                 client=str(data.get("client") or ""),
                 project=str(rows[0].get("project") or "") if rows else "",
                 row_counts={"activities": len(rows)},
-                details={"hole_num": hole_num, "report_date": date_str},
+                details={"hole_num": hole_num, "report_date": date_str, "integrity_warnings": integrity_warnings},
             )
         conn.commit()
 
@@ -11331,6 +11602,10 @@ async def import_ocr_pdf(
         "hole_num": hole_num,
         "date": date_str,
         "contractor": contractor,
+        "integrity_check": {
+            "status": "needs_review" if integrity_warnings else "ok",
+            "warnings": integrity_warnings,
+        },
     }
 
 
@@ -11341,7 +11616,16 @@ async def preview_ocr_pdf(
     """Preview OCR results without saving — for testing."""
     content = await file.read()
     data = await ocr_with_openai(content)
-    return {"ocr_data": data, "activity_count": len(data.get("activities", []))}
+    preview_rows = [
+        {**activity, "date": data.get("date", ""), "site_name": data.get("location", ""), "location": data.get("location", "")}
+        for activity in data.get("activities", [])
+    ]
+    warnings = activity_integrity_qa(preview_rows, file.filename)
+    return {
+        "ocr_data": data,
+        "activity_count": len(data.get("activities", [])),
+        "integrity_check": {"status": "needs_review" if warnings else "ok", "warnings": warnings},
+    }
 
 
 @app.get("/source_files/{filename}")
