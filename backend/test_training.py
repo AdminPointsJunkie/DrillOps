@@ -56,6 +56,32 @@ class TrainingRouteTests(unittest.TestCase):
         scoped=[c for c in calls if 'training_cardholders' in c.args[0]]
         self.assertEqual(scoped[0].args[1],('DEPCO Drilling',))
         self.assertFalse(any('payload' in c.args[0] for c in calls))
+        self.assertEqual(response.json()['requirementsScope'],'global')
+        contractor_query=next(c.args[0] for c in calls if 'ORDER BY name' in c.args[0])
+        self.assertIn('active=TRUE AND training_enabled=TRUE',contractor_query)
+
+    def test_different_contractors_read_same_shared_requirements(self):
+        shared=default_settings()
+        shared['roles']['Driller']={'medical':'minimum'}
+        for contractor in ['DEPCO Drilling','CHMS']:
+            self.cur.reset_mock()
+            self.cur.fetchone.side_effect=[{'admin':1},{'name':contractor},{'settings':copy.deepcopy(shared),'revision':7}]
+            self.cur.fetchall.side_effect=[[],[{'name':'DEPCO Drilling'},{'name':'CHMS'}]]
+            response=self.client.get('/training/state',params={'contractor':contractor},headers=self.headers)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json()['roles']['Driller'],{'medical':'minimum'})
+            self.assertEqual(response.json()['revision'],7)
+            query=next(c for c in self.cur.execute.call_args_list if 'SELECT settings' in c.args[0])
+            self.assertEqual(query.args,('SELECT settings,revision FROM training_configuration WHERE id=1',))
+
+    def test_shared_role_can_be_assigned_only_within_selected_contractor(self):
+        shared=default_settings();shared['roles']['Shared new role']={}
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'CHMS'},{'settings':shared,'revision':7},{'card_id':'fixture'}]
+        response=self.client.post('/training/person?contractor=CHMS',headers=self.headers,json={'id':'fixture','role':'Shared new role'})
+        self.assertEqual(response.status_code,200)
+        update=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_cardholders' in c.args[0])
+        self.assertIn('WHERE contractor=%s AND card_id=%s',update.args[0])
+        self.assertEqual(update.args[1][-2:],('CHMS','fixture'))
 
     def test_missing_source_does_not_fall_back_to_other_contractor(self):
         self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},None]
@@ -67,15 +93,17 @@ class TrainingRouteTests(unittest.TestCase):
         self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':2}]
         response=self.client.post('/training/role'+self.scope,headers=self.headers,json={'name':'Driller','requirements':{'medical':'minimum'},'revision':1})
         self.assertEqual(response.status_code,409)
-        self.assertFalse(any('UPDATE training_workspaces' in c.args[0] for c in self.cur.execute.call_args_list))
+        self.assertFalse(any('UPDATE training_configuration' in c.args[0] for c in self.cur.execute.call_args_list))
 
     def test_valid_requirements_save_and_write_audit(self):
         self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':2}]
         response=self.client.post('/training/role'+self.scope,headers=self.headers,json={'name':'Driller','requirements':{'medical':'minimum','rig':'optional'},'revision':2})
         self.assertEqual(response.status_code,200)
         calls=self.cur.execute.call_args_list
-        update=next(c for c in calls if 'UPDATE training_workspaces' in c.args[0])
+        update=next(c for c in calls if 'UPDATE training_configuration' in c.args[0])
         self.assertEqual(update.args[1][0].adapted['roles']['Driller'],{'medical':'minimum','rig':'optional'})
+        self.assertIn('WHERE id=1',update.args[0])
+        self.assertEqual(len(update.args[1]),2)
         self.assertTrue(any('INSERT INTO audit_events' in c.args[0] for c in calls))
 
     def test_remove_role_unassigns_people_without_deleting_training(self):
@@ -88,8 +116,9 @@ class TrainingRouteTests(unittest.TestCase):
         calls=self.cur.execute.call_args_list
         people=next(c for c in calls if 'UPDATE training_cardholders' in c.args[0])
         self.assertIn("role='Unassigned'",people.args[0])
-        self.assertEqual(people.args[1][-2:],('DEPCO Drilling','Driller'))
-        update=next(c for c in calls if 'UPDATE training_workspaces' in c.args[0])
+        self.assertEqual(people.args[1][-1],'Driller')
+        self.assertNotIn('contractor=',people.args[0])
+        update=next(c for c in calls if 'UPDATE training_configuration' in c.args[0])
         self.assertNotIn('Driller',update.args[1][0].adapted['roles'])
         self.assertFalse(any('DELETE FROM' in c.args[0] for c in calls))
 
@@ -99,7 +128,7 @@ class TrainingRouteTests(unittest.TestCase):
         self.cur.rowcount=0
         response=self.client.request('DELETE','/training/role'+self.scope,headers=self.headers,json={'name':'Only role','revision':0})
         self.assertEqual(response.status_code,200)
-        update=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_workspaces' in c.args[0])
+        update=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_configuration' in c.args[0])
         self.assertEqual(update.args[1][0].adapted['roles'],{})
 
     def test_remove_role_rejects_stale_revision(self):

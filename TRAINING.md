@@ -4,17 +4,17 @@ Open **Training Matrix** from the management portal's Operations menu, or visit 
 
 ## Access and storage
 
-All `/training` endpoints require an active system administrator, following the existing management portal access model. The API checks this both in the global middleware and the training router. Records, requirements and source PDFs are scoped to the selected contractor.
+All `/training` endpoints require an active system administrator, following the existing management portal access model. The API checks this both in the global middleware and the training router. Roles, minimum/optional requirements and training column mappings are shared across all contractors. Personnel, assignments and source PDFs remain scoped to the selected contractor.
 
-Three additive PostgreSQL tables are created by `ensure_training_schema` on backend startup: `training_workspaces`, `training_cardholders` and `training_sources`. Row-level security is enabled and all direct client grants are revoked. They are accessed only by the authenticated FastAPI backend through its existing privileged database connection. Original PDFs are stored as binary data in PostgreSQL and retrieved using an authenticated request; no personnel records or PDFs are included in the public `docs` directory.
+Four additive PostgreSQL tables are created by `ensure_training_schema` on backend startup: `training_configuration`, `training_workspaces`, `training_cardholders` and `training_sources`. Row-level security is enabled and all direct client grants are revoked. They are accessed only by the authenticated FastAPI backend through its existing privileged database connection. Original PDFs are stored as binary data in PostgreSQL and retrieved using an authenticated request; no personnel records or PDFs are included in the public `docs` directory.
 
-The normal database backups cover training data. Reimports replace a cardholder's current report snapshot by cardholder ID, preserve the assigned role, and retain prior source files. An earlier printed report is rejected, including older reports from the same day when a print time is available. Requirements use revision checks to prevent silent overwrites from another browser session. Changes and imports are recorded in the existing audit trail.
+The normal database backups cover training data. Reimports replace a cardholder's current report snapshot by cardholder ID, preserve the assigned role, and retain prior source files. An earlier printed report is rejected, including older reports from the same day when a print time is available. Shared requirements use one global revision and row lock to prevent conflicting edits across contractors. Requirements use revision checks to prevent silent overwrites from another browser session. Changes and imports are recorded in the existing audit trail.
 
 ## Setup
 
 1. Select the report's contractor and import one or more Cardholder Report PDFs. Company names are matched without case sensitivity; a mismatched company is rejected.
 2. Assign personnel roles in the matrix. Reports do not specify these roles, so initial assignments are **Unassigned**.
-3. Use **Role requirements** to add or remove roles. Removing a role moves assigned personnel to **Unassigned** and retains their reports. Set **Minimum**, **Optional**, or **Not applicable**. No minimum requirements are assumed; a role needs at least one minimum before readiness is calculated.
+3. Use **Role requirements** to add or remove roles. Removing a role removes it globally and moves assigned personnel across all contractors to **Unassigned** and retains their reports. Set **Minimum**, **Optional**, or **Not applicable**. No minimum requirements are assumed; a role needs at least one minimum before readiness is calculated.
 4. Review **Training library** mappings. The 23 initial columns follow the supplied matrix image. Surface Induction initially uses CD site induction only; IB1 and online induction records are not silently treated as equivalent. Columns with no known exact match start **Unmapped** and cannot satisfy a minimum requirement.
 5. Click a matrix cell for its issue/expiry dates, original report status, renewal history and source PDF page. **Export CSV** exports the current filters.
 
@@ -34,3 +34,7 @@ The normal database backups cover training data. Reimports replace a cardholder'
 Deploy the backend and the GitHub Pages `docs` folder together. No additional environment variables or Python dependencies are required. `auth-guard.js` and the portal sign-in return allowlist include `training.html`.
 
 Install test dependencies with `python -m pip install -r backend/requirements-dev.txt`, then run `python -m unittest discover -s backend -p 'test_*.py'` and `node --test tests/training_logic.test.mjs`. The training tests exercise parsed report counts, renewal and expiry handling, minimum versus optional rules, import validation, administrator checks, workspace isolation and conflicting edits.
+
+The training contractor selector includes active contractors with `training_enabled=TRUE`. Initially only Mitchells Drilling, DEPCO Drilling, MCC Group and Fortem are included, as requested. All other entries are hidden from this selector; their existing records elsewhere in DrillOps are retained. New contractors default to excluded. The list can be adjusted through this flag without changing service categories. Opening training from an excluded contractor defaults to an included contractor.
+
+The shared configuration is seeded once from the most recently edited legacy workspace, preserving its settings. Legacy workspace rows are retained as a backup; subsequent changes only update the shared configuration.

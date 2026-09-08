@@ -9,7 +9,7 @@ const groupColours = {'Core / Site':['#718faf','#edf3fa','#516d8a'],'Drilling':[
 let state, view='matrix', category='All training', selectedRole='Driller', horizon=90, today=todayISO();
 let importing=false;
 const API = ['localhost','127.0.0.1'].includes(location.hostname) ? 'http://localhost:8000' : 'https://api.drillops.com.au';
-const contractor = new URLSearchParams(location.search).get('contractor') || sessionStorage.getItem('drillops_contractor') || 'DEPCO Drilling';
+let contractor = new URLSearchParams(location.search).get('contractor') || sessionStorage.getItem('drillops_contractor') || 'DEPCO Drilling';
 const endpoint = path => API+'/training/'+path+'?contractor='+encodeURIComponent(contractor);
 let sourceBlobUrl;
 
@@ -21,7 +21,15 @@ async function api(path, body, method="POST") {
   return data;
 }
 function notify(message,error=false) { $('#notice').innerHTML=`<div class="notice ${error?'error':''}">${esc(message)}</div>`; }
-async function refresh() { state=await api('state'); render(); }
+async function refresh() {
+  state=await api('state');
+  if(state.contractors.length&&!state.contractors.includes(contractor)){
+    contractor=state.contractors.includes('DEPCO Drilling')?'DEPCO Drilling':state.contractors[0];
+    history.replaceState(null,'','./training.html?contractor='+encodeURIComponent(contractor));
+    state=await api('state');
+  }
+  render();
+}
 function openDialog(title,subtitle,body) {
   $('#dialog-body').innerHTML=`<div class="dialog-header"><div><div class="eyebrow">TRAINING WORKSPACE</div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div><button class="close" aria-label="Close dialog">×</button></div><div class="dialog-content">${body}</div>`;
   $('.close',$('#dialog')).onclick=()=>$('#dialog').close();
@@ -46,7 +54,7 @@ function render() {
 function switchView(next) {
   view=next;
   if(next!=='imports') $('#imports-view').innerHTML='';
-  const titles={matrix:['Training matrix','One view of your people, their training and what comes next.'],roles:['Role requirements','Define the minimum training and optional skills for each role.'],library:['Training library','Connect matrix columns to the exact competencies in your reports.'],imports:['PDF reports','Import cardholder reports to keep your training evidence up to date.']};
+  const titles={matrix:['Training matrix','One view of your people, their training and what comes next.'],roles:['Role requirements','Shared across all contractors. Define minimum training and optional skills once for each role.'],library:['Training library','Shared across all contractors. Connect matrix columns to exact competencies in your reports.'],imports:['PDF reports','Import cardholder reports to keep your training evidence up to date.']};
   $('#page-title').textContent=titles[view][0];$('#breadcrumb').textContent=titles[view][0];$('#page-description').textContent=titles[view][1];
   for(const v of ['matrix','roles','library','imports']) $('#'+v+'-view').hidden=v!==view;
   $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
@@ -108,24 +116,23 @@ function renderRoles() {
   }
   if(!state.roles[selectedRole])selectedRole=Object.keys(state.roles)[0];
   const values=state.roles[selectedRole]||{};
-  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Your roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>Optional training does not create a minimum training gap.</p></div><div class="role-actions"><button class="button danger" type="button" id="remove-role">Remove role</button><button class="button primary" type="submit">Save requirements</button></div></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
+  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Shared roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people here</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>These requirements apply to this role across all contractors.</p></div><div class="role-actions"><button class="button danger" type="button" id="remove-role">Remove role</button><button class="button primary" type="submit">Save requirements</button></div></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
   $$('[data-role-choice]').forEach(b=>b.onclick=()=>{selectedRole=b.dataset.roleChoice;renderRoles();});
-  $('#role-form').onsubmit=async event=>{event.preventDefault();const requirements=Object.fromEntries(new FormData(event.target));try{await api('role',{name:selectedRole,requirements});await refresh();notify(`Requirements saved for ${selectedRole}.`);}catch(e){notify(e.message,true);}};
+  $('#role-form').onsubmit=async event=>{event.preventDefault();const requirements=Object.fromEntries(new FormData(event.target));try{await api('role',{name:selectedRole,requirements});await refresh();notify(`Requirements saved for ${selectedRole} across all contractors.`);}catch(e){notify(e.message,true);}};
   $('#new-role').onclick=showNewRole;
   $('#remove-role').onclick=showRemoveRole;
 }
 function showNewRole(){
-    openDialog('Add role','Create a role, then define its training requirements.','<form id="new-role-form"><label class="field">Role name<input name="name" required maxlength="60" placeholder="e.g. Leading Hand"></label><div class="actions"><button class="button primary">Create role</button></div><p id="role-error" role="alert"></p></form>');
+    openDialog('Add role','Create a shared role for all contractors, then define its training requirements.','<form id="new-role-form"><label class="field">Role name<input name="name" required maxlength="60" placeholder="e.g. Leading Hand"></label><div class="actions"><button class="button primary">Create role</button></div><p id="role-error" role="alert"></p></form>');
     $('#new-role-form').onsubmit=async event=>{event.preventDefault();const name=new FormData(event.target).get('name').trim();try{if(Object.keys(state.roles).some(r=>r.toLowerCase()===name.toLowerCase()))throw new Error('That role already exists.');await api('role',{name,requirements:{}});selectedRole=name;$('#dialog').close();await refresh();notify('Role created. Set its minimum requirements below.');}catch(e){$('#role-error').textContent=e.message;}};
 }
 function showRemoveRole(){
   const role=selectedRole;
-  const count=state.people.filter(p=>p.role===role).length;
-  openDialog('Remove '+role+'?', 'Remove this role and its requirement settings.', `<p>${count?`${count} assigned ${count===1?'person will':'people will'} move to <strong>Unassigned</strong>.`:'No people are assigned to this role.'} Their training records and source PDFs will be kept.</p><div class="actions"><button class="button" id="cancel-remove-role">Keep role</button><button class="button danger" id="confirm-remove-role">Remove role</button></div><p id="remove-role-error" role="alert"></p>`);
+  openDialog('Remove '+role+'?', 'Remove this role for all contractors.', `<p>Anyone assigned to this role across <strong>all contractors</strong> will move to <strong>Unassigned</strong>. Their training records and source PDFs will be kept.</p><div class="actions"><button class="button" id="cancel-remove-role">Keep role</button><button class="button danger" id="confirm-remove-role">Remove role</button></div><p id="remove-role-error" role="alert"></p>`);
   $('#cancel-remove-role').onclick=()=>$('#dialog').close();
   $('#confirm-remove-role').onclick=async event=>{
     const button=event.target;button.disabled=true;
-    try{await api('role',{name:role},'DELETE');$('#dialog').close();await refresh();notify(`Removed ${role}. ${count?`${count} people moved to Unassigned.`:'Training records are unchanged.'}`);}
+    try{const result=await api('role',{name:role},'DELETE');$('#dialog').close();await refresh();notify(`Removed ${role} from all contractors. ${result.reassigned?`${result.reassigned} people moved to Unassigned.`:'Training records are unchanged.'}`);}
     catch(error){$('#remove-role-error').textContent=error.message;button.disabled=false;}
   };
 }

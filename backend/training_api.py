@@ -1,4 +1,4 @@
-"""Administrator-only, contractor-scoped training evidence and requirements."""
+"""Administrator-only shared requirements and contractor-scoped training evidence."""
 import json
 import re
 from pathlib import Path
@@ -45,6 +45,27 @@ ALTER TABLE training_workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE training_sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE training_cardholders ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON training_workspaces, training_sources, training_cardholders FROM PUBLIC, anon, authenticated;
+CREATE TABLE IF NOT EXISTS training_configuration (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    settings JSONB NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    updated_by UUID,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE training_configuration ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON training_configuration FROM PUBLIC, anon, authenticated;
+-- Retain old workspaces as a migration backup. Seed once, never overwrite edits.
+INSERT INTO training_configuration (id,settings,revision,updated_by)
+SELECT 1,settings,revision+1,updated_by FROM training_workspaces
+ORDER BY updated_at DESC,contractor LIMIT 1
+ON CONFLICT DO NOTHING;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contractors' AND column_name='training_enabled') THEN
+        ALTER TABLE contractors ADD COLUMN training_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+        UPDATE contractors SET training_enabled=TRUE
+        WHERE name IN ('Mitchells Drilling','DEPCO Drilling','MCC Group','Fortem');
+    END IF;
+END $$;
 """
 
 
@@ -54,6 +75,7 @@ def ensure_training_schema(get_conn):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA)
+            cur.execute('INSERT INTO training_configuration (id,settings) VALUES (1,%s) ON CONFLICT DO NOTHING', (Json(default_settings()),))
 
 
 def default_settings():
@@ -106,13 +128,12 @@ def create_training_router(get_conn):
             raise HTTPException(404, 'Choose an existing contractor workspace.')
         return auth
 
-    def lock_settings(cur, contractor):
-        cur.execute('INSERT INTO training_workspaces (contractor,settings,revision) VALUES (%s,%s,0) ON CONFLICT DO NOTHING', (contractor, Json(default_settings())))
-        cur.execute('SELECT settings,revision FROM training_workspaces WHERE contractor=%s FOR UPDATE', (contractor,))
+    def lock_settings(cur):
+        cur.execute('SELECT settings,revision FROM training_configuration WHERE id=1 FOR UPDATE')
         return cur.fetchone()
 
-    def save_settings(cur, contractor, auth, payload, row):
-        cur.execute('UPDATE training_workspaces SET settings=%s,revision=revision+1,updated_by=%s,updated_at=NOW() WHERE contractor=%s', (Json(payload), auth.user_id, contractor))
+    def save_settings(cur, auth, payload):
+        cur.execute('UPDATE training_configuration SET settings=%s,revision=revision+1,updated_by=%s,updated_at=NOW() WHERE id=1', (Json(payload), auth.user_id))
 
     def check_revision(body, row):
         if body.get('revision') != row['revision']:
@@ -123,14 +144,14 @@ def create_training_router(get_conn):
         with get_conn(read_only=True) as conn:
             with conn.cursor() as cur:
                 scope(cur, request, contractor)
-                cur.execute('SELECT settings,revision FROM training_workspaces WHERE contractor=%s', (contractor,))
+                cur.execute('SELECT settings,revision FROM training_configuration WHERE id=1')
                 workspace = cur.fetchone()
                 settings = workspace['settings'] if workspace else default_settings()
                 cur.execute('SELECT report,role FROM training_cardholders WHERE contractor=%s ORDER BY report->>\'name\'', (contractor,))
                 people = [dict(row['report'], role=row['role']) for row in cur.fetchall()]
-                cur.execute('SELECT name FROM contractors ORDER BY name')
+                cur.execute('SELECT name FROM contractors WHERE active=TRUE AND training_enabled=TRUE ORDER BY name')
                 contractors = [row['name'] for row in cur.fetchall()]
-        return dict(settings, people=people, contractor=contractor, contractors=contractors, revision=workspace['revision'] if workspace else 0)
+        return dict(settings, people=people, contractor=contractor, contractors=contractors, revision=workspace['revision'] if workspace else 0, requirementsScope='global')
 
     @router.post('/import')
     def import_pdf(request: Request, file: UploadFile = File(...), contractor: str = Query(..., min_length=1, max_length=200)):
@@ -153,7 +174,7 @@ def create_training_router(get_conn):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 scope(cur, request, contractor)
-                lock_settings(cur, contractor)  # Serialises imports and edits in this workspace.
+                lock_settings(cur)  # Serialises imports with global role removal and assignment.
                 cur.execute("SELECT role,report_date,report->>'reportPrintedAt' AS printed_at FROM training_cardholders WHERE contractor=%s AND card_id=%s", (contractor, person['id']))
                 old = cur.fetchone()
                 old_stamp = (old.get('printed_at') or old['report_date'].isoformat() + 'T00:00') if old and old['report_date'] else ''
@@ -174,7 +195,7 @@ def create_training_router(get_conn):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 auth = scope(cur, request, contractor)
-                workspace = lock_settings(cur, contractor)
+                workspace = lock_settings(cur)
                 role = body.get('role')
                 if role not in [*workspace['settings']['roles'], 'Unassigned']:
                     raise HTTPException(400, 'Unknown role.')
@@ -189,15 +210,15 @@ def create_training_router(get_conn):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 auth = scope(cur, request, contractor)
-                row = lock_settings(cur, contractor)
+                row = lock_settings(cur)
                 check_revision(body, row)
                 settings = row['settings']
                 name = validate_requirements(body.get('name'), body.get('requirements'), settings['columns'])
                 if any(r.casefold() == name.casefold() and r != name for r in settings['roles']):
                     raise HTTPException(409, 'A role with this name already exists.')
                 settings['roles'][name] = body['requirements']
-                save_settings(cur, contractor, auth, settings, row)
-                record_audit_event(cur, action='training.requirements_updated', entity_type='training_role', entity_key=name, details={'contractor': contractor, 'requirements': body['requirements']})
+                save_settings(cur, auth, settings)
+                record_audit_event(cur, action='training.requirements_updated', entity_type='training_role', entity_key=name, details={'scope': 'global', 'requirements': body['requirements']})
         return {'ok': True}
 
     @router.post('/column')
@@ -206,7 +227,7 @@ def create_training_router(get_conn):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 auth = scope(cur, request, contractor)
-                row = lock_settings(cur, contractor)
+                row = lock_settings(cur)
                 check_revision(body, row)
                 settings = row['settings']
                 old = next((c for c in settings['columns'] if c['id'] == column['id']), None)
@@ -214,10 +235,10 @@ def create_training_router(get_conn):
                     settings['columns'][settings['columns'].index(old)] = column
                 else:
                     if len(settings['columns']) >= 200:
-                        raise HTTPException(400, 'Maximum of 200 training columns per workspace.')
+                        raise HTTPException(400, 'Maximum of 200 shared training columns.')
                     settings['columns'].append(column)
-                save_settings(cur, contractor, auth, settings, row)
-                record_audit_event(cur, action='training.mapping_updated', entity_type='training_column', entity_key=column['id'], details={'contractor': contractor, 'column': column})
+                save_settings(cur, auth, settings)
+                record_audit_event(cur, action='training.mapping_updated', entity_type='training_column', entity_key=column['id'], details={'scope': 'global', 'column': column})
         return {'ok': True}
 
     @router.delete('/role')
@@ -225,17 +246,17 @@ def create_training_router(get_conn):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 auth = scope(cur, request, contractor)
-                row = lock_settings(cur, contractor)
+                row = lock_settings(cur)
                 check_revision(body, row)
                 name = body.get('name')
                 if not isinstance(name, str) or name not in row['settings']['roles']:
-                    raise HTTPException(404, 'Role not found in this workspace.')
+                    raise HTTPException(404, 'Role not found in the shared role list.')
                 settings = row['settings']
                 previous = settings['roles'].pop(name)
-                cur.execute("UPDATE training_cardholders SET role='Unassigned',updated_by=%s,updated_at=NOW() WHERE contractor=%s AND role=%s", (auth.user_id, contractor, name))
+                cur.execute("UPDATE training_cardholders SET role='Unassigned',updated_by=%s,updated_at=NOW() WHERE role=%s", (auth.user_id, name))
                 reassigned = cur.rowcount
-                save_settings(cur, contractor, auth, settings, row)
-                record_audit_event(cur, action='training.role_removed', entity_type='training_role', entity_key=name, details={'contractor': contractor, 'previous_requirements': previous, 'personnel_moved_to_unassigned': reassigned})
+                save_settings(cur, auth, settings)
+                record_audit_event(cur, action='training.role_removed', entity_type='training_role', entity_key=name, details={'scope': 'global', 'previous_requirements': previous, 'personnel_moved_to_unassigned': reassigned})
         return {'ok': True, 'reassigned': reassigned}
 
     @router.get('/sources/{source_id}')

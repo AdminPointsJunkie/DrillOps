@@ -3501,7 +3501,7 @@ def root():
     return {
         "status": "ok",
         "app": "DrillOps API v3",
-        "release": "training-matrix-report-updates",
+        "release": "training-shared-roles",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
