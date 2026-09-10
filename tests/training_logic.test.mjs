@@ -38,3 +38,25 @@ test('unassigned and unconfigured roles never show Minimum met',()=>{
   assert.equal(readiness(state,{role:'Unassigned',records:[]},today).label,'Assign role');
   assert.equal(readiness(state,{role:'Driller',records:[]},today).label,'Set requirements');
 });
+
+// A unit code appearing on an authorisation must never satisfy an RII award.
+test('qualification and site authorisation remain distinct even with identical aliases',()=>{
+  const person={records:[record({name:'RIIHAN203E',evidenceType:'site_authorisation'})]};
+  const qualified={id:'rii',aliases:['RIIHAN203E'],evidenceType:'qualification'};
+  const authorised={id:'auth',aliases:['RIIHAN203E'],evidenceType:'site_authorisation'};
+  assert.equal(evidence(person,qualified,today).status,'missing');
+  assert.equal(evidence(person,authorised,today).status,'current');
+  person.records=[record({name:'RIIHAN203E',evidenceType:'qualification'})];
+  assert.equal(evidence(person,qualified,today).status,'current');
+  assert.equal(evidence(person,authorised,today).status,'missing');
+});
+test('unresolved transcript claims cannot satisfy minimum requirements',()=>{
+  const person={role:'Driller',records:[record({reviewRequired:true})]};
+  assert.equal(evidence(person,column,today).status,'review');
+  assert.equal(readiness({columns:[column],roles:{Driller:{a:'minimum'}}},person,today).met,0);
+});
+test('document expiry remains distinct from an overdue filename renewal date',()=>{
+  const certificate=record({expires:null,renewalDue:'2026-06-23'});
+  assert.equal(recordStatus(certificate,today),'expired');
+  assert.equal(certificate.expires,null);
+});

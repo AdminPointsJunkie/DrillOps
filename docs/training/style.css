@@ -229,3 +229,16 @@ dialog::backdrop { background: rgba(25, 32, 29, .62); backdrop-filter: blur(4px)
   .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-table td, .form-table th { padding: 10px 8px; }
 }
+
+/* Individual qualifications and site permissions retain separate evidence. */
+.person-records { border: 0; background: transparent; padding: 0; font: inherit; text-align: left; color: var(--text); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
+.person-records:hover { color: var(--accent); background: transparent; text-decoration-color: currentColor; }
+.record-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.record-section { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; }
+.record-section summary { cursor: pointer; font-size: 14px; font-weight: 600; padding: 8px 0; }
+.record-source { overflow-wrap: anywhere; font-size: 12px !important; }
+.record-note { background: var(--stone-soft); padding: 10px; border-radius: var(--radius-sm); }
+.pill.evidence-expired { color: var(--red); background: var(--red-light); }
+.pill.evidence-soon, .pill.evidence-review { color: var(--amber); background: var(--yellow-light); }
+.course-kind { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 8px; }
+.dialog-header { position: sticky; top: 0; z-index: 2; }

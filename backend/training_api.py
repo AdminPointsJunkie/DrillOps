@@ -94,9 +94,13 @@ def validate_column(column):
     aliases = column.get('aliases')
     if not isinstance(aliases, list) or len(aliases) > 100 or not all(isinstance(a, str) and 0 < len(a.strip()) < 500 for a in aliases):
         raise HTTPException(400, 'Use up to 100 exact competency mappings.')
+    evidence_type = column.get('evidenceType') or None
+    if evidence_type not in [None, 'qualification', 'site_authorisation', 'voc', 'site_training', 'licence', 'medical', 'transcript', 'other']:
+        raise HTTPException(400, 'Choose a valid evidence type.')
     return {key: column[key].strip() for key in ['id', 'label', 'group']} | {
         'aliases': list(dict.fromkeys(a.strip() for a in aliases)),
         'note': str(column.get('note') or '')[:1000],
+        'evidenceType': evidence_type,
     }
 
 
@@ -111,6 +115,15 @@ def validate_requirements(name, requirements, columns):
 
 def matching_company(company, contractor):
     return contractor.casefold().strip() in [s.casefold().strip() for s in re.split(r'[,;]', company)]
+
+
+def preserve_individual_evidence(person, previous):
+    """A new cardholder snapshot must not remove separately supplied certificates."""
+    previous = previous or {}
+    person['records'].extend(r for r in previous.get('records', []) if r.get('origin') == 'individual_document')
+    if previous.get('documents'):
+        person['documents'] = previous['documents']
+    return person
 
 
 def create_training_router(get_conn):
@@ -175,7 +188,7 @@ def create_training_router(get_conn):
             with conn.cursor() as cur:
                 scope(cur, request, contractor)
                 lock_settings(cur)  # Serialises imports with global role removal and assignment.
-                cur.execute("SELECT role,report_date,report->>'reportPrintedAt' AS printed_at FROM training_cardholders WHERE contractor=%s AND card_id=%s", (contractor, person['id']))
+                cur.execute("SELECT role,report_date,report,report->>'reportPrintedAt' AS printed_at FROM training_cardholders WHERE contractor=%s AND card_id=%s", (contractor, person['id']))
                 old = cur.fetchone()
                 old_stamp = (old.get('printed_at') or old['report_date'].isoformat() + 'T00:00') if old and old['report_date'] else ''
                 new_stamp = person.get('reportPrintedAt') or (person['reportDate'] + 'T00:00' if person['reportDate'] else '')
@@ -183,6 +196,7 @@ def create_training_router(get_conn):
                     raise HTTPException(409, 'This report is older than the saved report; the saved snapshot was kept.')
                 cur.execute('INSERT INTO training_sources (contractor,source_id,filename,payload,uploaded_by) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING', (contractor, person['sourceId'], filename, payload, auth.user_id))
                 person['role'] = old['role'] if old else 'Unassigned'
+                preserve_individual_evidence(person, old.get('report') if old else None)
                 cur.execute('''INSERT INTO training_cardholders (contractor,card_id,role,report,report_date,source_id,updated_by)
                     VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (contractor,card_id) DO UPDATE SET
                     report=EXCLUDED.report,report_date=EXCLUDED.report_date,source_id=EXCLUDED.source_id,updated_by=EXCLUDED.updated_by,updated_at=NOW()''',

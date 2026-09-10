@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from security import AuthUser, DrillOpsAuthMiddleware
-from training_api import create_training_router, default_settings, matching_company, validate_column
+from training_api import create_training_router, default_settings, matching_company, validate_column, preserve_individual_evidence
 from training_parser import parse_report
 
 
@@ -163,8 +163,18 @@ class TrainingRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code,409)
         self.assertFalse(any('INSERT INTO training_sources' in c.args[0] for c in self.cur.execute.call_args_list))
 
+    def test_new_snapshot_preserves_individual_records_and_documents(self):
+        certificate = {'name': 'RII31815', 'origin': 'individual_document', 'sourceId': 'certificate', 'evidenceType': 'qualification'}
+        authorisation = {'name': 'Operate rig', 'origin': 'individual_document', 'sourceId': 'authorisation', 'evidenceType': 'site_authorisation'}
+        previous = {'records': [{'name': 'Old snapshot'}, certificate, authorisation], 'documents': [{'sourceId': 'certificate'}, {'sourceId': 'authorisation'}]}
+        incoming = {'records': [{'name': 'New snapshot'}]}
+        saved = preserve_individual_evidence(incoming, previous)
+        self.assertEqual(saved['records'], [{'name': 'New snapshot'}, certificate, authorisation])
+        self.assertEqual(saved['documents'], previous['documents'])
+        self.assertEqual(len(previous['records']), 3)
+
     def test_updated_report_preserves_role_and_upserts_existing_cardholder(self):
-        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':0},{'role':'Driller','report_date':date(2026,9,9),'printed_at':'2026-09-09T06:00'},{'id':1}]
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':0},{'role':'Driller','report_date':date(2026,9,9),'printed_at':'2026-09-09T06:00','report':{'records':[{'name':'RII31815','origin':'individual_document','sourceId':'certificate'}],'documents':[{'sourceId':'certificate'}]}},{'id':1}]
         person={'company':'Depco Drilling','name':'Test Person','id':'fixture','role':'Unassigned','reportDate':'2026-09-09','reportPrintedAt':'2026-09-09T11:00','sourceId':'abc','records':[{'name':'New credential'}]}
         with patch('training_api.parse_report',return_value=person):
             response=self.client.post('/training/import'+self.scope,headers=self.headers,files={'file':('test.pdf',b'%PDF-fixture','application/pdf')})
@@ -173,6 +183,8 @@ class TrainingRouteTests(unittest.TestCase):
         insert=next(c for c in self.cur.execute.call_args_list if 'INSERT INTO training_cardholders' in c.args[0])
         self.assertEqual(insert.args[1][2],'Driller')
         self.assertEqual(insert.args[1][3].adapted['role'],'Driller')
+        self.assertEqual(insert.args[1][3].adapted['records'][-1]['sourceId'],'certificate')
+        self.assertEqual(insert.args[1][3].adapted['documents'],[{'sourceId':'certificate'}])
         self.assertIn('ON CONFLICT (contractor,card_id) DO UPDATE',insert.args[0])
         self.assertNotIn('role=EXCLUDED.role',insert.args[0])
 
@@ -209,6 +221,12 @@ class TrainingValidationTests(unittest.TestCase):
     def test_company_matching_is_case_insensitive_but_not_fuzzy(self):
         self.assertTrue(matching_company('Depco Drilling','DEPCO Drilling'))
         self.assertFalse(matching_company('Depco Drilling','DEPCO'))
+
+    def test_evidence_type_validation_preserves_the_mapping_constraint(self):
+        column={'id':'a','label':'RII training','group':'Core','aliases':[],'evidenceType':'qualification'}
+        self.assertEqual(validate_column(column)['evidenceType'],'qualification')
+        with self.assertRaises(Exception):
+            validate_column(dict(column,evidenceType='anything'))
 
     def test_columns_accept_empty_mapping_but_reject_invalid_shapes(self):
         self.assertEqual(validate_column({'id':'a','label':'A','group':'Core','aliases':[]})['aliases'],[])
