@@ -97,17 +97,44 @@ main { padding: 20px 24px; min-height: calc(100vh - 148px); }
 .filters input, .filters select { font-size: 13px; min-height: 40px; }
 .table-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--stone-soft); }
 .category-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.section-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.section-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.section-actions .button { font-size: 12px; }
+.empty-section { padding: 32px 20px; border-top: 1px solid var(--border); }
+.empty-section p { max-width: 620px; }
+.section-list-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.section-list-row > div { min-width: 0; }
+.section-list-row small { display: block; margin-top: 8px; }
+.section-row-actions, .order-buttons { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.order-buttons .button { min-width: 36px; padding: 8px; }
+.section-training { padding: 12px 0 18px; border-bottom: 1px solid var(--border); }
+.section-training summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: 4px 0; }
+.section-training-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 14px 0 14px 16px; border-left: 2px solid var(--border); }
+.section-training-row > div:first-child { min-width: 0; flex: 1; }
+.section-training-row strong { display: block; overflow-wrap: anywhere; }
+.section-training-row label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.section-training-row select { max-width: 100%; min-width: 0; }
+.section-list-row { flex-wrap: wrap; }
+.chip { max-width: 100%; overflow-wrap: anywhere; }
+.section-label-chip { display: inline-block; padding: 8px 12px; border-left: 4px solid var(--section-ink); border-radius: var(--radius-sm); background: var(--section-wash); color: var(--section-ink); overflow-wrap: anywhere; }
+.section-colours { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 20px 0; }
+.section-colours legend { font-weight: 600; margin-bottom: 12px; }
+.section-colours label { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
+.section-colours label:has(:checked) { border-color: var(--section-ink); background: var(--section-wash); }
+.section-colours input { margin: 0; accent-color: var(--section-ink); }
+.colour-swatch { height: 16px; width: 16px; border-radius: 50%; background: var(--section-ink); }
 .chip { font-size: 12px; padding: 8px 11px; color: var(--text2); background: var(--panel); }
 .chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-hover); font-weight: 600; }
 /* Stable category colours match the filters, header bands and section rules. */
-:is([data-training-group], [data-category]) { --section-ink: #48565d; --section-band: #dfe5e8; --section-wash: #f2f5f6; }
-:is([data-training-group="Core / Site"], [data-category="Core / Site"]) { --section-ink: #315e67; --section-band: #cde4e6; --section-wash: #edf5f5; }
-:is([data-training-group="Drilling"], [data-category="Drilling"]) { --section-ink: #3e5985; --section-band: #d6e1f2; --section-wash: #eff3fa; }
-:is([data-training-group="Supervisor"], [data-category="Supervisor"]) { --section-ink: #6c507e; --section-band: #e6dbee; --section-wash: #f6f1f9; }
-:is([data-training-group="Driving"], [data-category="Driving"]) { --section-ink: #79602e; --section-band: #eee1c2; --section-wash: #faf6eb; }
-:is([data-training-group="Gas Testing"], [data-category="Gas Testing"]) { --section-ink: #28657e; --section-band: #cfe8f1; --section-wash: #edf7fa; }
-:is([data-training-group="Lifting"], [data-category="Lifting"]) { --section-ink: #595881; --section-band: #e0dff0; --section-wash: #f3f2f9; }
-:is([data-training-group="Loading Crane"], [data-category="Loading Crane"]) { --section-ink: #805943; --section-band: #efddcf; --section-wash: #faf3ee; }
+:is([data-training-group], [data-category], [data-section-colour]) { --section-ink: #48565d; --section-band: #dfe5e8; --section-wash: #f2f5f6; }
+[data-section-colour="teal"] { --section-ink: #315e67; --section-band: #cde4e6; --section-wash: #edf5f5; }
+[data-section-colour="blue"] { --section-ink: #3e5985; --section-band: #d6e1f2; --section-wash: #eff3fa; }
+[data-section-colour="purple"] { --section-ink: #6c507e; --section-band: #e6dbee; --section-wash: #f6f1f9; }
+[data-section-colour="gold"] { --section-ink: #79602e; --section-band: #eee1c2; --section-wash: #faf6eb; }
+[data-section-colour="sky"] { --section-ink: #28657e; --section-band: #cfe8f1; --section-wash: #edf7fa; }
+[data-section-colour="indigo"] { --section-ink: #595881; --section-band: #e0dff0; --section-wash: #f3f2f9; }
+[data-section-colour="clay"] { --section-ink: #805943; --section-band: #efddcf; --section-wash: #faf3ee; }
+[data-section-colour="green"] { --section-ink: #38664d; --section-band: #d4e7d9; --section-wash: #eff7f1; }
 .chip[data-category]:not([data-category="All training"]) { border-left: 4px solid var(--section-ink); background: var(--section-wash); color: var(--section-ink); }
 .chip[data-category]:not([data-category="All training"]):hover { background: var(--section-band); }
 .chip[data-category]:not([data-category="All training"]).active { background: var(--section-ink); border-color: var(--section-ink); color: white; }

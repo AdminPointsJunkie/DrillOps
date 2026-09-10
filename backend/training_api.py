@@ -12,6 +12,8 @@ from security import current_auth_user
 from training_parser import parse_report
 
 MAX_REPORT_BYTES = 20 * 1024 * 1024
+SECTION_COLOURS = ('teal', 'blue', 'purple', 'gold', 'sky', 'indigo', 'clay', 'green', 'slate')
+LEGACY_SECTION_COLOURS = dict(zip(['Core / Site', 'Drilling', 'Supervisor', 'Driving', 'Gas Testing', 'Lifting', 'Loading Crane'], SECTION_COLOURS))
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS training_workspaces (
     contractor TEXT PRIMARY KEY,
@@ -104,6 +106,22 @@ def validate_column(column):
     }
 
 
+def training_sections(settings):
+    """Keep saved empty sections and infer categories from pre-section settings."""
+    sections = [dict(s) for s in settings.get('sections', [])]
+    for column in settings['columns']:
+        if not any(s['name'] == column['group'] for s in sections):
+            name = column['group']
+            sections.append({'name': name, 'colour': LEGACY_SECTION_COLOURS.get(name, SECTION_COLOURS[len(sections) % len(SECTION_COLOURS)])})
+    return sections
+
+
+def validate_section_name(name):
+    if not isinstance(name, str) or not 0 < len(name.strip()) <= 200 or name.strip().casefold() == 'all training':
+        raise HTTPException(400, 'Enter a section name up to 200 characters, other than All training.')
+    return name.strip()
+
+
 def validate_requirements(name, requirements, columns):
     if not isinstance(name, str) or not name.strip() or name.strip() == 'Unassigned' or len(name.strip()) > 60:
         raise HTTPException(400, 'Enter a role name (up to 60 characters).')
@@ -164,7 +182,7 @@ def create_training_router(get_conn):
                 people = [dict(row['report'], role=row['role']) for row in cur.fetchall()]
                 cur.execute('SELECT name FROM contractors WHERE active=TRUE AND training_enabled=TRUE ORDER BY name')
                 contractors = [row['name'] for row in cur.fetchall()]
-        return dict(settings, people=people, contractor=contractor, contractors=contractors, revision=workspace['revision'] if workspace else 0, requirementsScope='global')
+        return dict(settings, sections=training_sections(settings), people=people, contractor=contractor, contractors=contractors, revision=workspace['revision'] if workspace else 0, requirementsScope='global')
 
     @router.post('/import')
     def import_pdf(request: Request, file: UploadFile = File(...), contractor: str = Query(..., min_length=1, max_length=200)):
@@ -244,6 +262,16 @@ def create_training_router(get_conn):
                 row = lock_settings(cur)
                 check_revision(body, row)
                 settings = row['settings']
+                sections = training_sections(settings)
+                group = validate_section_name(column['group'])
+                section = next((s for s in sections if s['name'].casefold() == group.casefold()), None)
+                if section:
+                    column['group'] = section['name']
+                else:
+                    if len(sections) >= 100:
+                        raise HTTPException(400, 'Maximum of 100 shared training sections.')
+                    sections.append({'name': group, 'colour': SECTION_COLOURS[len(sections) % len(SECTION_COLOURS)]})
+                settings['sections'] = sections
                 old = next((c for c in settings['columns'] if c['id'] == column['id']), None)
                 if old:
                     settings['columns'][settings['columns'].index(old)] = column
@@ -253,6 +281,59 @@ def create_training_router(get_conn):
                     settings['columns'].append(column)
                 save_settings(cur, auth, settings)
                 record_audit_event(cur, action='training.mapping_updated', entity_type='training_column', entity_key=column['id'], details={'scope': 'global', 'column': column})
+        return {'ok': True}
+
+    @router.post('/section')
+    def update_section(request: Request, body: dict, contractor: str = Query(..., min_length=1, max_length=200)):
+        name = validate_section_name(body.get('name'))
+        colour = body.get('colour')
+        if colour not in SECTION_COLOURS:
+            raise HTTPException(400, 'Choose a section colour.')
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                auth = scope(cur, request, contractor)
+                row = lock_settings(cur)
+                check_revision(body, row)
+                settings = row['settings']
+                sections = training_sections(settings)
+                previous = body.get('previousName')
+                old = next((s for s in sections if s['name'] == previous), None)
+                if previous is not None and old is None:
+                    raise HTTPException(404, 'Section not found. Reload the page and try again.')
+                if any(s is not old and s['name'].casefold() == name.casefold() for s in sections):
+                    raise HTTPException(409, 'A section with this name already exists.')
+                if old:
+                    old.update(name=name, colour=colour)
+                    for column in settings['columns']:
+                        if column['group'] == previous:
+                            column['group'] = name
+                else:
+                    if len(sections) >= 100:
+                        raise HTTPException(400, 'Maximum of 100 shared training sections.')
+                    sections.append({'name': name, 'colour': colour})
+                settings['sections'] = sections
+                save_settings(cur, auth, settings)
+                record_audit_event(cur, action='training.section_updated', entity_type='training_section', entity_key=name, details={'scope': 'global', 'previous_name': previous, 'colour': colour})
+        return {'ok': True}
+
+    @router.post('/order')
+    def update_order(request: Request, body: dict, contractor: str = Query(..., min_length=1, max_length=200)):
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                auth = scope(cur, request, contractor)
+                row = lock_settings(cur)
+                check_revision(body, row)
+                settings = row['settings']
+                sections = {s['name']: s for s in training_sections(settings)}
+                columns = {c['id']: c for c in settings['columns']}
+                for key, existing in [('sections', sections), ('columns', columns)]:
+                    order = body.get(key)
+                    if not isinstance(order, list) or not all(isinstance(v, str) for v in order) or len(order) != len(existing) or set(order) != set(existing):
+                        raise HTTPException(400, 'Include every section and training column exactly once when reordering.')
+                settings['sections'] = [sections[name] for name in body['sections']]
+                settings['columns'] = [columns[id] for id in body['columns']]
+                save_settings(cur, auth, settings)
+                record_audit_event(cur, action='training.order_updated', entity_type='training_configuration', entity_key='1', details={'scope': 'global', 'sections': body['sections'], 'columns': body['columns']})
         return {'ok': True}
 
     @router.delete('/role')

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from security import AuthUser, DrillOpsAuthMiddleware
-from training_api import create_training_router, default_settings, matching_company, validate_column, preserve_individual_evidence
+from training_api import create_training_router, default_settings, matching_company, validate_column, preserve_individual_evidence, training_sections
 from training_parser import parse_report
 
 
@@ -94,6 +94,83 @@ class TrainingRouteTests(unittest.TestCase):
         response=self.client.post('/training/role'+self.scope,headers=self.headers,json={'name':'Driller','requirements':{'medical':'minimum'},'revision':1})
         self.assertEqual(response.status_code,409)
         self.assertFalse(any('UPDATE training_configuration' in c.args[0] for c in self.cur.execute.call_args_list))
+
+    def test_empty_section_persists_without_changing_columns_or_roles(self):
+        settings=default_settings();previous=copy.deepcopy(settings)
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':2}]
+        response=self.client.post('/training/section'+self.scope,headers=self.headers,json={'name':' Emergency response ','colour':'green','revision':2})
+        self.assertEqual(response.status_code,200)
+        update=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_configuration' in c.args[0])
+        saved=update.args[1][0].adapted
+        self.assertEqual(saved['sections'][-1],{'name':'Emergency response','colour':'green'})
+        self.assertEqual(saved['columns'],previous['columns'])
+        self.assertEqual(saved['roles'],previous['roles'])
+        self.assertFalse(any('training_cardholders' in c.args[0] for c in self.cur.execute.call_args_list))
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'CHMS'},{'settings':saved,'revision':3}]
+        self.cur.fetchall.side_effect=[[],[{'name':'CHMS'}]]
+        loaded=self.client.get('/training/state?contractor=CHMS',headers=self.headers)
+        self.assertIn({'name':'Emergency response','colour':'green'},loaded.json()['sections'])
+
+    def test_section_rename_moves_columns_and_preserves_mappings_and_requirements(self):
+        settings=default_settings();settings['roles']['Driller']={'medical':'minimum'};previous=copy.deepcopy(settings)
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':2}]
+        response=self.client.post('/training/section'+self.scope,headers=self.headers,json={'previousName':'Core / Site','name':'Site essentials','colour':'clay','revision':2})
+        self.assertEqual(response.status_code,200)
+        saved=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_configuration' in c.args[0]).args[1][0].adapted
+        self.assertEqual(saved['roles'],previous['roles'])
+        for old,new in zip(previous['columns'],saved['columns']):
+            self.assertEqual(new,dict(old,group='Site essentials') if old['group']=='Core / Site' else old)
+        self.assertEqual(saved['sections'][0],{'name':'Site essentials','colour':'clay'})
+
+    def test_section_rejects_duplicates_reserved_names_invalid_colours_and_stale_edits(self):
+        for body,code in [({'name':'drilling','colour':'blue','revision':2},409),({'name':'All training','colour':'blue','revision':2},400),({'name':'New','colour':'red; color: red','revision':2},400),({'name':'New','colour':'green','revision':1},409),({'name':'New','previousName':'Missing','colour':'green','revision':2},404)]:
+            self.cur.reset_mock();self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':2}]
+            response=self.client.post('/training/section'+self.scope,headers=self.headers,json=body)
+            self.assertEqual(response.status_code,code,body)
+            self.assertFalse(any('UPDATE training_configuration' in c.args[0] for c in self.cur.execute.call_args_list))
+
+    def test_section_requires_administrator(self):
+        body={'name':'New','colour':'green','revision':2}
+        self.assertEqual(self.client.post('/training/section'+self.scope,json=body).status_code,401)
+        self.cur.execute.assert_not_called()
+        self.cur.fetchone.return_value=None
+        self.assertEqual(self.client.post('/training/section'+self.scope,headers=self.headers,json=body).status_code,403)
+        self.assertEqual(self.cur.execute.call_count,1)
+
+    def test_reorder_keeps_all_training_definitions_and_role_requirements(self):
+        settings=default_settings();settings['sections']=training_sections(settings)+[{'name':'Empty','colour':'green'}]
+        settings['roles']['Driller']={'medical':'minimum'};previous=copy.deepcopy(settings)
+        names=[s['name'] for s in reversed(settings['sections'])];ids=[c['id'] for c in reversed(settings['columns'])]
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':2}]
+        response=self.client.post('/training/order'+self.scope,headers=self.headers,json={'sections':names,'columns':ids,'revision':2})
+        self.assertEqual(response.status_code,200)
+        saved=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_configuration' in c.args[0]).args[1][0].adapted
+        self.assertEqual(saved['sections'],list(reversed(previous['sections'])))
+        self.assertEqual(saved['columns'],list(reversed(previous['columns'])))
+        self.assertEqual(saved['roles'],previous['roles'])
+        self.assertFalse(any('training_cardholders' in c.args[0] for c in self.cur.execute.call_args_list))
+
+    def test_order_rejects_missing_duplicate_unknown_and_stale_entries(self):
+        settings=default_settings();names=[s['name'] for s in training_sections(settings)];ids=[c['id'] for c in settings['columns']]
+        for sections,columns,revision,status in [(names[:-1],ids,2,400),(names,ids[:-1]+[ids[0]],2,400),(names,ids[:-1]+['unknown'],2,400),(names,ids,1,409)]:
+            self.cur.reset_mock();self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':copy.deepcopy(settings),'revision':2}]
+            response=self.client.post('/training/order'+self.scope,headers=self.headers,json={'sections':sections,'columns':columns,'revision':revision})
+            self.assertEqual(response.status_code,status)
+            self.assertFalse(any('UPDATE training_configuration' in c.args[0] for c in self.cur.execute.call_args_list))
+
+    def test_column_moves_to_saved_empty_section_without_losing_type_or_requirements(self):
+        settings=default_settings();settings['sections']=training_sections(settings)+[{'name':'Emergency response','colour':'green'}]
+        settings['roles']['Driller']={'medical':'minimum'}
+        column=dict(settings['columns'][0],group='emergency response',evidenceType='medical')
+        self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':settings,'revision':2}]
+        response=self.client.post('/training/column'+self.scope,headers=self.headers,json={'column':column,'revision':2})
+        self.assertEqual(response.status_code,200)
+        saved=next(c for c in self.cur.execute.call_args_list if 'UPDATE training_configuration' in c.args[0]).args[1][0].adapted
+        self.assertEqual(saved['columns'][0]['group'],'Emergency response')
+        self.assertEqual(saved['columns'][0]['evidenceType'],'medical')
+        self.assertEqual(saved['columns'][0]['aliases'],column['aliases'])
+        self.assertEqual(saved['roles']['Driller'],{'medical':'minimum'})
+        self.assertEqual(saved['sections'][-1]['colour'],'green')
 
     def test_valid_requirements_save_and_write_audit(self):
         self.cur.fetchone.side_effect=[{'admin':1},{'name':'DEPCO Drilling'},{'settings':default_settings(),'revision':2}]

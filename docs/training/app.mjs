@@ -1,4 +1,5 @@
 import {evidence, readiness, requirement, recordStatus, todayISO, evidenceType, evidenceTypes, recordDueDate} from './logic.mjs?v=20260911-evidence';
+import {sectionColours, trainingSections, orderedTrainingColumns} from './sections.mjs?v=20260911-section-editor';
 const $ = (s,root=document)=>root.querySelector(s);
 const $$ = (s,root=document)=>[...root.querySelectorAll(s)];
 const esc = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -39,7 +40,9 @@ function openDialog(title,subtitle,body) {
   $('#dialog').scrollTop=0;
 }
 function roleOptions(value,all=false) { return `${all?'<option value="all">All roles</option>':''}${['Unassigned',...Object.keys(state.roles)].map(r=>`<option ${r===value?'selected':''}>${esc(r)}</option>`).join('')}`; }
-function groups() { return [...new Set(state.columns.map(c=>c.group))]; }
+function groups() { return trainingSections(state).map(s=>s.name); }
+function sectionColour(name) { return trainingSections(state).find(s=>s.name===name)?.colour||'slate'; }
+function sectionAttrs(name) { return `data-training-group="${esc(name)}" data-section-colour="${esc(sectionColour(name))}"`; }
 function render() {
   $('#report-count').textContent=state.people.reduce((total,p)=>total+1+(p.documents?.length||0),0);
   $('#contractor-select').innerHTML=state.contractors.map(c=>`<option ${c===contractor?'selected':''}>${esc(c)}</option>`).join('');
@@ -68,17 +71,21 @@ function filteredPeople() {
     (attention==='all'||(attention==='unassigned'&&p.role==='Unassigned')||(attention==='gaps'&&readiness(state,p,today,horizon).gaps.length)||(attention==='soon'&&state.columns.some(c=>evidence(p,c,today,horizon).status==='soon'))));
 }
 function renderMatrix() {
-  $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" aria-pressed="${category===g}" data-category="${esc(g)}">${esc(g)}</button>`).join('');
+  if(category!=='All training'&&!groups().includes(category))category='All training';
+  $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" aria-pressed="${category===g}" data-category="${esc(g)}" data-section-colour="${esc(sectionColour(g))}">${esc(g)}</button>`).join('');
   $$('#categories button').forEach(b=>b.onclick=()=>{category=b.dataset.category;renderMatrix();});
-  const columns=state.columns.filter(c=>category==='All training'||c.group===category);
+  const columns=orderedTrainingColumns(state).filter(c=>category==='All training'||c.group===category);
+  $('#empty-section').hidden=columns.length>0;
+  $('#empty-section-name').textContent=category==='All training'?'No training columns yet':category;
+  $('#matrix-scroll').hidden=!columns.length;
   const sectionClass=i=>i===0||columns[i-1].group!==columns[i].group?' section-start':'';
   const people=filteredPeople();$('#people-count').textContent=people.length;
   let groupHeaders='';
   for(let i=0;i<columns.length;) {
     const group=columns[i].group;let count=1;while(columns[i+count]?.group===group)count++;
-    groupHeaders+=`<th class="group-head" data-training-group="${esc(group)}" colspan="${count}" scope="colgroup"><span>${esc(group)}</span></th>`;i+=count;
+    groupHeaders+=`<th class="group-head" ${sectionAttrs(group)} colspan="${count}" scope="colgroup"><span>${esc(group)}</span></th>`;i+=count;
   }
-  const head=`<thead><tr><th class="person-head" rowspan="2" scope="col">Personnel <p style="font-size:10px;font-weight:400;margin:8px 0 0">Role & minimum requirements</p></th>${groupHeaders}</tr><tr>${columns.map((c,i)=>`<th class="course-head${sectionClass(i)}" data-training-group="${esc(c.group)}" scope="col"><button data-edit-column="${esc(c.id)}" title="Edit mapping: ${esc(c.label)}">${esc(c.label)}${!c.aliases.length?' ◇':''}${c.evidenceType?`<small class="course-kind">${esc(kindLabel[c.evidenceType])}</small>`:''}</button></th>`).join('')}</tr></thead>`;
+  const head=`<thead><tr><th class="person-head" rowspan="2" scope="col">Personnel <p style="font-size:10px;font-weight:400;margin:8px 0 0">Role & minimum requirements</p></th>${groupHeaders}</tr><tr>${columns.map((c,i)=>`<th class="course-head${sectionClass(i)}" ${sectionAttrs(c.group)} scope="col"><button data-edit-column="${esc(c.id)}" title="Edit mapping: ${esc(c.label)}">${esc(c.label)}${!c.aliases.length?' ◇':''}${c.evidenceType?`<small class="course-kind">${esc(kindLabel[c.evidenceType])}</small>`:''}</button></th>`).join('')}</tr></thead>`;
   let body='';
   for(const role of [...Object.keys(state.roles),'Unassigned']) {
     const list=people.filter(p=>p.role===role);if(!list.length)continue;
@@ -88,7 +95,7 @@ function renderMatrix() {
       return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span><button class="person-records" data-person-records="${esc(p.id)}" title="View all training records and documents">${esc(p.name)}</button></div><div class="person-meta"><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small></div></td>${columns.map((c,i)=>{
         const e=evidence(p,c,today,horizon), req=requirement(state,p,c), status=req==='na'?'na':e.status;
         const icon={current:'✓',soon:'◷',expired:'!',missing:'—',unmapped:'◇',review:'?',na:'·'}[status];
-        return `<td class="matrix-cell${sectionClass(i)}" data-training-group="${esc(c.group)}"><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon} ${evidenceStatusLabel(e.best,status)}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(recordDueDate(e.best)))}</small>`:''}</button></td>`;
+        return `<td class="matrix-cell${sectionClass(i)}" ${sectionAttrs(c.group)}><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon} ${evidenceStatusLabel(e.best,status)}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(recordDueDate(e.best)))}</small>`:''}</button></td>`;
       }).join('')}</tr>`;
     }).join('');
   }
@@ -125,7 +132,7 @@ function renderRoles() {
   }
   if(!state.roles[selectedRole])selectedRole=Object.keys(state.roles)[0];
   const values=state.roles[selectedRole]||{};
-  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Shared roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people here</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>These requirements apply to this role across all contractors.</p></div><div class="role-actions"><button class="button danger" type="button" id="remove-role">Remove role</button><button class="button primary" type="submit">Save requirements</button></div></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
+  $('#roles-view').innerHTML=`<div class="role-layout"><div><div class="section-label">Shared roles</div>${Object.entries(state.roles).map(([r,req])=>`<button class="role-choice ${r===selectedRole?'active':''}" data-role-choice="${esc(r)}"><strong>${esc(r)}</strong><small>${Object.values(req).filter(v=>v==='minimum').length} minimum · ${state.people.filter(p=>p.role===r).length} people here</small></button>`).join('')}<button class="button" id="new-role">＋ Add role</button></div><form id="role-form" class="panel"><div class="panel-heading"><div><h2>${esc(selectedRole)}</h2><p>These requirements apply to this role across all contractors.</p></div><div class="role-actions"><button class="button danger" type="button" id="remove-role">Remove role</button><button class="button primary" type="submit">Save requirements</button></div></div><p>Choose <strong>Minimum</strong>, <strong>Optional</strong> or <strong>Not applicable</strong> for each competency. Roles with no minimum requirements remain unconfigured.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>REQUIREMENT</th></tr></thead><tbody>${orderedTrainingColumns(state).map(c=>`<tr><td>${esc(c.label)}<small>${esc(c.group)}${!c.aliases.length?' · mapping needed':''}</small></td><td><select name="${esc(c.id)}" aria-label="Requirement for ${esc(c.label)}">${[['optional','Optional'],['minimum','Minimum'],['na','Not applicable']].map(([v,l])=>`<option value="${v}" ${(values[c.id]||'optional')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><div class="actions"><button type="submit" class="button primary">Save requirements</button></div></form></div>`;
   $$('[data-role-choice]').forEach(b=>b.onclick=()=>{selectedRole=b.dataset.roleChoice;renderRoles();});
   $('#role-form').onsubmit=async event=>{event.preventDefault();const requirements=Object.fromEntries(new FormData(event.target));try{await api('role',{name:selectedRole,requirements});await refresh();notify(`Requirements saved for ${selectedRole} across all contractors.`);}catch(e){notify(e.message,true);}};
   $('#new-role').onclick=showNewRole;
@@ -146,15 +153,67 @@ function showRemoveRole(){
   };
 }
 
+function manageSections(expanded=[]) {
+  if(!state)return;
+  if(!Array.isArray(expanded))expanded=[];
+  const sections=trainingSections(state);
+  const arrows=(kind,index,label,first,last)=>`<div class="order-buttons"><button type="button" class="button" data-order-kind="${kind}" data-order-index="${index}" data-order-step="-1" aria-label="Move ${esc(label)} left" title="Move left" ${first?'disabled':''}>←</button><button type="button" class="button" data-order-kind="${kind}" data-order-index="${index}" data-order-step="1" aria-label="Move ${esc(label)} right" title="Move right" ${last?'disabled':''}>→</button></div>`;
+  openDialog('Training sections','Shared across all contractors. Arrange the matrix from left to right.',`<div class="panel-heading"><p>Use the arrows to move sections. Expand a section to arrange its training columns or move them to another section. Changes save automatically.</p><button class="button primary" id="dialog-new-section">＋ Add section</button></div><p id="order-error" role="alert"></p><div class="section-list">${sections.map((s,i)=>{
+    const columns=state.columns.filter(c=>c.group===s.name);
+    return `<div class="section-list-row"><div><span class="section-label-chip" data-section-colour="${esc(s.colour)}">${i+1}. ${esc(s.name)}</span><small>${columns.length} training columns</small></div><div class="section-row-actions">${arrows('section',i,s.name+' section',i===0,i===sections.length-1)}<button class="button" data-edit-section="${i}" aria-label="Edit ${esc(s.name)} section">Edit</button></div></div><details class="section-training" data-section-details="${i}" ${expanded.includes(s.name)?'open':''}><summary>Arrange training in ${esc(s.name)}</summary>${columns.length?columns.map((c,j)=>`<div class="section-training-row"><div><strong>${j+1}. ${esc(c.label)}</strong><label>Section<select data-move-column="${esc(c.id)}" aria-label="Section for ${esc(c.label)}">${sections.map(target=>`<option value="${esc(target.name)}" ${target.name===s.name?'selected':''}>${esc(target.name)}</option>`).join('')}</select></label></div>${arrows('column',state.columns.indexOf(c),c.label+' training',j===0,j===columns.length-1)}</div>`).join(''):'<p>No training columns yet. Add training from the matrix or move a column here from another section.</p>'}</details>`;
+  }).join('')}</div>`);
+  $('#dialog-new-section').onclick=()=>editSection();
+  $$('[data-edit-section]').forEach(b=>b.onclick=()=>editSection(trainingSections(state)[Number(b.dataset.editSection)].name));
+  const openSections=()=>$$('[data-section-details][open]').map(el=>sections[Number(el.dataset.sectionDetails)].name);
+  $$('[data-order-kind]').forEach(b=>b.onclick=async()=>{
+    const names=sections.map(s=>s.name),ids=state.columns.map(c=>c.id),index=Number(b.dataset.orderIndex),step=Number(b.dataset.orderStep);
+    if(b.dataset.orderKind==='section') [names[index],names[index+step]]=[names[index+step],names[index]];
+    else {
+      const peers=state.columns.map((c,i)=>c.group===state.columns[index].group?i:-1).filter(i=>i!==-1),other=peers[peers.indexOf(index)+step];
+      [ids[index],ids[other]]=[ids[other],ids[index]];
+    }
+    await saveSectionArrangement('order',{sections:names,columns:ids},openSections(),b.getAttribute('aria-label'));
+  });
+  $$('[data-move-column]').forEach(select=>select.onchange=async()=>{
+    const column=state.columns.find(c=>c.id===select.dataset.moveColumn),group=select.value;
+    await saveSectionArrangement('column',{column:{...column,group}},[...openSections(),group],select.getAttribute('aria-label'));
+  });
+}
+async function saveSectionArrangement(path,body,expanded,focusLabel) {
+  const scroll=$('#dialog').scrollTop;
+  $$('#dialog button,#dialog select').forEach(el=>el.disabled=true);
+  try{await api(path,body);await refresh();manageSections(expanded);notify('Training layout saved across all contractors.');}
+  catch(e){manageSections(expanded);$('#order-error').textContent=e.message;}
+  $('#dialog').scrollTop=scroll;
+  const control=$$('#dialog [aria-label]').find(el=>el.getAttribute('aria-label')===focusLabel);
+  if(control&&!control.disabled)control.focus({preventScroll:true});
+}
+function editSection(previousName) {
+  if(!state)return;
+  const section=trainingSections(state).find(s=>s.name===previousName)||{name:'',colour:Object.keys(sectionColours)[groups().length%Object.keys(sectionColours).length]};
+  openDialog(previousName?'Edit section':'Add training section','Sections and colours are shared across all contractors.',`<form id="section-form"><label class="field">Section name<input name="name" required maxlength="200" value="${esc(section.name)}" placeholder="e.g. Emergency response"></label><fieldset class="section-colours"><legend>Section colour</legend>${Object.entries(sectionColours).map(([value,label])=>`<label data-section-colour="${value}"><input type="radio" name="colour" value="${value}" ${section.colour===value?'checked':''}><span class="colour-swatch" aria-hidden="true"></span>${label}</label>`).join('')}</fieldset><p>${previousName?'Renaming this section moves its training columns with it.':'Your new section will appear beside the existing section buttons. You can add training afterwards.'}</p><div class="actions"><button class="button" type="button" id="section-back">Manage sections</button><button class="button primary" type="submit">${previousName?'Save section':'Create section'}</button></div><p id="section-error" role="alert"></p></form>`);
+  $('#section-back').onclick=manageSections;
+  $('#section-form').onsubmit=async event=>{
+    event.preventDefault();const form=event.target,button=$('[type="submit"]',form),data=new FormData(form),name=data.get('name').trim();
+    button.disabled=true;
+    try{
+      if(!name||name.toLowerCase()==='all training')throw new Error('Enter a section name other than All training.');
+      if(groups().some(g=>g!==previousName&&g.toLowerCase()===name.toLowerCase()))throw new Error('A section with this name already exists.');
+      await api('section',{name,colour:data.get('colour'),...(previousName?{previousName}:{})});
+      category=name;$('#dialog').close();await refresh();notify(`Section “${name}” saved. Add training or edit a column’s section in the training library.`);
+    }catch(e){$('#section-error').textContent=e.message;button.disabled=false;}
+  };
+}
 function renderLibrary() {
-  $('#library-view').innerHTML=`<div class="panel"><div class="panel-heading"><div><h2>${state.columns.length} training columns</h2><p>Exact name matching preserves the distinction between training, appointments and authorisations.</p></div><button class="button primary" id="new-column">＋ Add training</button></div><p>Multiple mappings mean <strong>any one</strong> of those competencies can satisfy the column. Use separate columns when all competencies are required.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>CATEGORY</th><th>MAPPING</th><th></th></tr></thead><tbody>${state.columns.map(c=>`<tr><td>${esc(c.label)}${c.evidenceType?`<small>${esc(evidenceTypes[c.evidenceType])}</small>`:''}</td><td>${esc(c.group)}</td><td><span class="pill ${c.aliases.length?'':'warn'}">${c.aliases.length?`${c.aliases.length} exact name${c.aliases.length===1?'':'s'}`:'Needs mapping'}</span></td><td><button class="button" data-library-column="${esc(c.id)}">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
+  $('#library-view').innerHTML=`<div class="panel"><div class="panel-heading"><div><h2>${state.columns.length} training columns</h2><p>Exact name matching preserves the distinction between training, appointments and authorisations.</p></div><div class="role-actions"><button class="button" id="library-sections">Manage sections</button><button class="button primary" id="new-column">＋ Add training</button></div></div><p>Multiple mappings mean <strong>any one</strong> of those competencies can satisfy the column. Use separate columns when all competencies are required.</p><table class="form-table"><thead><tr><th>TRAINING</th><th>SECTION</th><th>MAPPING</th><th></th></tr></thead><tbody>${orderedTrainingColumns(state).map(c=>`<tr><td>${esc(c.label)}${c.evidenceType?`<small>${esc(evidenceTypes[c.evidenceType])}</small>`:''}</td><td>${esc(c.group)}</td><td><span class="pill ${c.aliases.length?'':'warn'}">${c.aliases.length?`${c.aliases.length} exact name${c.aliases.length===1?'':'s'}`:'Needs mapping'}</span></td><td><button class="button" data-library-column="${esc(c.id)}">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
   $('#new-column').onclick=()=>editColumn();
+  $('#library-sections').onclick=manageSections;
   $$('[data-library-column]').forEach(b=>b.onclick=()=>editColumn(b.dataset.libraryColumn));
 }
 function editColumn(id) {
-  const c=state.columns.find(c=>c.id===id)||{id:crypto.randomUUID(),label:'',group:'Core / Site',aliases:[]};
+  const c=state.columns.find(c=>c.id===id)||{id:crypto.randomUUID(),label:'',group:category==='All training'?(groups()[0]||'Core / Site'):category,aliases:[]};
   const names=[...new Set(state.people.flatMap(p=>p.records.map(r=>r.name)))].sort();
-  openDialog(id?'Edit training & mapping':'Add training column','Map to exact competency names from the imported reports.',`<form id="column-form"><label class="field">Training name<input name="label" required maxlength="200" value="${esc(c.label)}"></label><label class="field">Category<input name="group" required maxlength="200" list="group-names" value="${esc(c.group)}"><datalist id="group-names">${groups().map(g=>`<option value="${esc(g)}">`).join('')}</datalist></label><label class="field">Evidence type<select name="evidenceType"><option value="">Any type (legacy mapping)</option>${Object.entries(evidenceTypes).map(([type,label])=>`<option value="${type}" ${c.evidenceType===type?'selected':''}>${esc(label)}</option>`).join('')}</select></label><label class="field">Find competencies<input id="mapping-search" type="search" placeholder="Search imported competency names…"></label><div class="mapping-list">${names.map((n,i)=>`<label class="mapping-option" data-mapping-name="${esc(n.toLowerCase())}"><input type="checkbox" data-mapping-index="${i}" ${c.aliases.includes(n)?'checked':''}><span>${esc(n)}</span></label>`).join('')}</div><label class="field">Exact mappings · one per line<textarea name="aliases" id="aliases">${esc(c.aliases.join('\n'))}</textarea></label><p>Only add alternatives that satisfy the same requirement. An empty mapping shows “Unmapped”; it cannot satisfy a minimum requirement.</p><div class="actions"><button class="button primary">Save training</button></div><p id="column-error" role="alert"></p></form>`);
+  openDialog(id?'Edit training & mapping':'Add training column','Map to exact competency names from the imported reports.',`<form id="column-form"><label class="field">Training name<input name="label" required maxlength="200" value="${esc(c.label)}"></label><label class="field">Section<select name="group">${groups().map(g=>`<option value="${esc(g)}" ${g===c.group?'selected':''}>${esc(g)}</option>`).join('')}</select></label><label class="field">Evidence type<select name="evidenceType"><option value="">Any type (legacy mapping)</option>${Object.entries(evidenceTypes).map(([type,label])=>`<option value="${type}" ${c.evidenceType===type?'selected':''}>${esc(label)}</option>`).join('')}</select></label><label class="field">Find competencies<input id="mapping-search" type="search" placeholder="Search imported competency names…"></label><div class="mapping-list">${names.map((n,i)=>`<label class="mapping-option" data-mapping-name="${esc(n.toLowerCase())}"><input type="checkbox" data-mapping-index="${i}" ${c.aliases.includes(n)?'checked':''}><span>${esc(n)}</span></label>`).join('')}</div><label class="field">Exact mappings · one per line<textarea name="aliases" id="aliases">${esc(c.aliases.join('\n'))}</textarea></label><p>Only add alternatives that satisfy the same requirement. An empty mapping shows “Unmapped”; it cannot satisfy a minimum requirement.</p><div class="actions"><button class="button primary">Save training</button></div><p id="column-error" role="alert"></p></form>`);
   $('#mapping-search').oninput=event=>$$('[data-mapping-name]').forEach(l=>l.hidden=!l.dataset.mappingName.includes(event.target.value.toLowerCase()));
   $$('[data-mapping-index]').forEach(box=>box.onchange=()=>{
     const aliases=new Set($('#aliases').value.split('\n').map(s=>s.trim()).filter(Boolean));const name=names[Number(box.dataset.mappingIndex)];box.checked?aliases.add(name):aliases.delete(name);$('#aliases').value=[...aliases].join('\n');
@@ -199,7 +258,7 @@ async function runImports(files) {
 }
 function exportCSV() {
   if(!state)return;
-  const columns=state.columns.filter(c=>category==='All training'||c.group===category);
+  const columns=orderedTrainingColumns(state).filter(c=>category==='All training'||c.group===category);
   const rows=[['Person','Role','Report date','Minimum status',...columns.flatMap(c=>[c.label+' | requirement',c.label+' | status',c.label+' | expiry / renewal due'])]];
   for(const p of filteredPeople())rows.push([p.name,p.role,p.reportDate||'',readiness(state,p,today,horizon).label,...columns.flatMap(c=>{const e=evidence(p,c,today,horizon),req=requirement(state,p,c);return[req,statusLabel[req==='na'?'na':e.status],recordDueDate(e.best||{})||''];})]);
   const quote=value=>{let v=String(value);if(/^[=+@\-\t\r]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
@@ -207,6 +266,10 @@ function exportCSV() {
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`training-matrix-${today}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+$('#new-section').onclick=()=>editSection();
+$('#manage-sections').onclick=manageSections;
+$('#empty-section-add').onclick=()=>editColumn();
+$('#empty-section-move').onclick=()=>switchView('library');
 $('#text-size').onchange=e=>{document.body.dataset.textSize=e.target.value;};
 $('#expand-table').onclick=()=>{const expanded=document.body.classList.toggle('matrix-expanded');$('#expand-table').textContent=expanded?'Exit expanded view':'Expand table';$('#expand-table').setAttribute('aria-pressed',String(expanded));};
 $('#search').oninput=renderMatrix;$('#role-filter').onchange=renderMatrix;$('#status-filter').onchange=renderMatrix;
