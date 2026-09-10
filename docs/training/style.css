@@ -1,5 +1,5 @@
 /* Training uses the same mineral tokens as the rest of DrillOps.
-   Keep colour definitions in ../drillops-theme.css. */
+   Category accents below distinguish table sections from evidence status. */
 :root {
   --font: 'Inter', 'Segoe UI', Arial, sans-serif;
   --radius: 8px;
@@ -99,6 +99,18 @@ main { padding: 20px 24px; min-height: calc(100vh - 148px); }
 .category-bar { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { font-size: 12px; padding: 8px 11px; color: var(--text2); background: var(--panel); }
 .chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-hover); font-weight: 600; }
+/* Stable category colours match the filters, header bands and section rules. */
+:is([data-training-group], [data-category]) { --section-ink: #48565d; --section-band: #dfe5e8; --section-wash: #f2f5f6; }
+:is([data-training-group="Core / Site"], [data-category="Core / Site"]) { --section-ink: #315e67; --section-band: #cde4e6; --section-wash: #edf5f5; }
+:is([data-training-group="Drilling"], [data-category="Drilling"]) { --section-ink: #3e5985; --section-band: #d6e1f2; --section-wash: #eff3fa; }
+:is([data-training-group="Supervisor"], [data-category="Supervisor"]) { --section-ink: #6c507e; --section-band: #e6dbee; --section-wash: #f6f1f9; }
+:is([data-training-group="Driving"], [data-category="Driving"]) { --section-ink: #79602e; --section-band: #eee1c2; --section-wash: #faf6eb; }
+:is([data-training-group="Gas Testing"], [data-category="Gas Testing"]) { --section-ink: #28657e; --section-band: #cfe8f1; --section-wash: #edf7fa; }
+:is([data-training-group="Lifting"], [data-category="Lifting"]) { --section-ink: #595881; --section-band: #e0dff0; --section-wash: #f3f2f9; }
+:is([data-training-group="Loading Crane"], [data-category="Loading Crane"]) { --section-ink: #805943; --section-band: #efddcf; --section-wash: #faf3ee; }
+.chip[data-category]:not([data-category="All training"]) { border-left: 4px solid var(--section-ink); background: var(--section-wash); color: var(--section-ink); }
+.chip[data-category]:not([data-category="All training"]):hover { background: var(--section-band); }
+.chip[data-category]:not([data-category="All training"]).active { background: var(--section-ink); border-color: var(--section-ink); color: white; }
 .readability-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-left: auto; font-size: 13px; }
 .readability-controls select { padding: 8px; font-size: 13px; }
 .matrix-scroll { overflow: auto; max-height: 650px; min-height: 360px; border-top: 1px solid var(--border); scrollbar-color: var(--muted2) var(--stone); }
@@ -108,15 +120,18 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
 #matrix .person-head { position: sticky; left: 0; z-index: 5; text-align: left; padding: 16px; background: var(--stone-soft); vertical-align: bottom; border-right: 2px solid var(--border); }
 #matrix .person-head p { font-size: 13px !important; }
 #matrix thead { position: sticky; top: 0; z-index: 4; }
-#matrix .group-head { padding: 12px; font-size: 13px; font-weight: 700; white-space: nowrap; color: var(--accent-hover); background: var(--accent-light); border-top: 3px solid var(--accent); }
-#matrix .course-head { height: 130px; padding: 0; background: var(--stone-soft); vertical-align: middle; }
+#matrix .group-head { padding: 13px 16px; font-size: 14px; font-weight: 700; white-space: nowrap; text-align: left; color: var(--section-ink); background: var(--section-band); border-top: 4px solid var(--section-ink); border-left: 4px solid var(--section-ink); border-bottom: 1px solid var(--section-ink); }
+#matrix .group-head > span { position: sticky; left: 310px; }
+#matrix .course-head { height: 130px; padding: 0; background: var(--section-wash); vertical-align: middle; }
+#matrix .section-start { border-left: 4px solid var(--section-ink); }
 #matrix .course-head button { background: transparent; border: 0; border-radius: 0; display: block; padding: 18px 14px; text-align: left; font-weight: 600; line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
-#matrix .course-head button:hover { background: var(--accent-light); color: var(--accent-hover); }
-#matrix .role-row th { background: var(--stone); text-align: left; padding: 10px 16px; font-size: 13px; color: var(--text2); }
+#matrix .course-head button:hover { background: var(--section-band); color: var(--section-ink); }
+#matrix .role-row th { background: var(--graphite-soft); text-align: left; padding: 10px 16px; font-size: 13px; color: white; border-top: 2px solid var(--graphite); border-bottom: 2px solid var(--graphite); }
+#matrix .role-row small { color: #d5ded8; }
 #matrix .role-row th span { position: sticky; left: 16px; }
 #matrix .person-cell { background: var(--panel); position: sticky; left: 0; z-index: 2; padding: 16px; border-right: 2px solid var(--border); }
 #matrix tbody tr.person-row:nth-child(odd) > td { background: var(--stone-soft); }
-#matrix tbody tr.person-row:hover > td { background: var(--accent-light); }
+#matrix tbody tr.person-row:hover > td { background: #eef1ef; }
 .person-name { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .avatar { width: 38px; height: 38px; border-radius: var(--radius-sm); background: var(--accent-light); color: var(--accent-hover); display: grid; place-items: center; font-size: 13px; flex-shrink: 0; }
 .person-meta { padding-left: 48px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 5px; }
@@ -204,6 +219,7 @@ dialog::backdrop { background: rgba(25, 32, 29, .62); backdrop-filter: blur(4px)
   .readability-controls { margin-left: 0; }
 }
 @media (max-width: 760px) {
+  #matrix .group-head > span { left: 230px; }
   .topbar { padding: 0 16px; gap: 12px; }
   .topbar-context { display: none; }
   .site-tag { font-size: 11px; padding: 8px; }

@@ -71,23 +71,24 @@ function renderMatrix() {
   $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" aria-pressed="${category===g}" data-category="${esc(g)}">${esc(g)}</button>`).join('');
   $$('#categories button').forEach(b=>b.onclick=()=>{category=b.dataset.category;renderMatrix();});
   const columns=state.columns.filter(c=>category==='All training'||c.group===category);
+  const sectionClass=i=>i===0||columns[i-1].group!==columns[i].group?' section-start':'';
   const people=filteredPeople();$('#people-count').textContent=people.length;
   let groupHeaders='';
   for(let i=0;i<columns.length;) {
     const group=columns[i].group;let count=1;while(columns[i+count]?.group===group)count++;
-    groupHeaders+=`<th class="group-head" colspan="${count}" scope="colgroup">${esc(group)}</th>`;i+=count;
+    groupHeaders+=`<th class="group-head" data-training-group="${esc(group)}" colspan="${count}" scope="colgroup"><span>${esc(group)}</span></th>`;i+=count;
   }
-  const head=`<thead><tr><th class="person-head" rowspan="2" scope="col">Personnel <p style="font-size:10px;font-weight:400;margin:8px 0 0">Role & minimum requirements</p></th>${groupHeaders}</tr><tr>${columns.map(c=>`<th class="course-head" scope="col"><button data-edit-column="${esc(c.id)}" title="Edit mapping: ${esc(c.label)}">${esc(c.label)}${!c.aliases.length?' ◇':''}${c.evidenceType?`<small class="course-kind">${esc(kindLabel[c.evidenceType])}</small>`:''}</button></th>`).join('')}</tr></thead>`;
+  const head=`<thead><tr><th class="person-head" rowspan="2" scope="col">Personnel <p style="font-size:10px;font-weight:400;margin:8px 0 0">Role & minimum requirements</p></th>${groupHeaders}</tr><tr>${columns.map((c,i)=>`<th class="course-head${sectionClass(i)}" data-training-group="${esc(c.group)}" scope="col"><button data-edit-column="${esc(c.id)}" title="Edit mapping: ${esc(c.label)}">${esc(c.label)}${!c.aliases.length?' ◇':''}${c.evidenceType?`<small class="course-kind">${esc(kindLabel[c.evidenceType])}</small>`:''}</button></th>`).join('')}</tr></thead>`;
   let body='';
   for(const role of [...Object.keys(state.roles),'Unassigned']) {
     const list=people.filter(p=>p.role===role);if(!list.length)continue;
     body+=`<tr class="role-row"><th colspan="${columns.length+1}"><span>${esc(role)} <small> / ${list.length} ${list.length===1?'person':'people'}</small></span></th></tr>`;
     body+=list.map(p=>{
       const r=readiness(state,p,today,horizon);
-      return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span><button class="person-records" data-person-records="${esc(p.id)}" title="View all training records and documents">${esc(p.name)}</button></div><div class="person-meta"><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small></div></td>${columns.map(c=>{
+      return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span><button class="person-records" data-person-records="${esc(p.id)}" title="View all training records and documents">${esc(p.name)}</button></div><div class="person-meta"><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small></div></td>${columns.map((c,i)=>{
         const e=evidence(p,c,today,horizon), req=requirement(state,p,c), status=req==='na'?'na':e.status;
         const icon={current:'✓',soon:'◷',expired:'!',missing:'—',unmapped:'◇',review:'?',na:'·'}[status];
-        return `<td class="matrix-cell"><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon} ${evidenceStatusLabel(e.best,status)}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(recordDueDate(e.best)))}</small>`:''}</button></td>`;
+        return `<td class="matrix-cell${sectionClass(i)}" data-training-group="${esc(c.group)}"><button class="cell-button ${status}" data-person-cell="${esc(p.id)}" data-column="${esc(c.id)}" title="${esc(p.name+' · '+c.label+' · '+statusLabel[status]+' · '+(req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional / not configured'))}" aria-label="${esc(p.name+', '+c.label+', '+statusLabel[status])}">${req==='minimum'?'<b class="required-dot">●</b>':''}<span>${icon} ${evidenceStatusLabel(e.best,status)}</span>${e.best&&status!=='na'?`<small>${esc(shortDate(recordDueDate(e.best)))}</small>`:''}</button></td>`;
       }).join('')}</tr>`;
     }).join('');
   }
