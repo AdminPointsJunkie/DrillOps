@@ -1,115 +1,24 @@
-/* Readable defaults for the training workspace. Use the existing portal wordmark. */
-.sidebar .logo {
-  display: block;
-  padding: 0 12px;
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--accent);
-  letter-spacing: 0;
-  line-height: 1;
-  white-space: nowrap;
-  text-decoration: none;
-}
-.sidebar .logo span { color: var(--text); }
-body { font-size: 16px; --training-font: 16px; --training-detail: 14px; --training-col: 166px; }
+/* Retain accessible table sizes independently of the portal chrome. */
+body { --training-font: 16px; --training-detail: 14px; --training-col: 166px; }
 body[data-text-size="standard"] { --training-font: 14px; --training-detail: 13px; --training-col: 150px; }
 body[data-text-size="extra"] { --training-font: 19px; --training-detail: 17px; --training-col: 195px; }
-.topbar { font-size: 14px; height: 56px; }
-main { padding: 24px 28px; }
-.page-heading { margin-bottom: 20px; }
-.page-heading p, .panel p, .dialog-content p { font-size: 15px; color: #53645a; }
-.eyebrow, .workspace-label { font-size: 12px; }
-.workspace-label { margin-top: 38px; }
-.nav { font-size: 15px; padding: 13px 10px; }
-#contractor-select { font-size: 14px; width: 100%; margin-bottom: 16px; }
-.sidebar-bottom, .sidebar-bottom p { font-size: 12px; }
-.button { font-size: 14px; min-height: 42px; }
-.stat { padding: 14px 20px; }
-.stat-label { font-size: 14px; color: #52645a; }
-.stat-number { font-size: 30px; margin: 7px 0; }
-.stat-note { font-size: 12px; color: #64766a; }
-.matrix-toolbar { padding: 18px 20px; flex-wrap: wrap; }
-.matrix-toolbar h2 { font-size: 20px; }
-.matrix-toolbar p { font-size: 14px; }
-.count { font-size: 13px; }
-.filters input, .filters select { font-size: 14px; min-height: 42px; }
-.filters input { width: 200px; }
-.table-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0 20px 18px; }
-.category-bar { padding: 0; gap: 8px; }
-.chip { font-size: 13px; padding: 9px 12px; color: #53685a; }
-.readability-controls { display: flex; gap: 14px; align-items: center; margin-left: auto; font-size: 14px; }
-.readability-controls select { padding: 8px; font-size: 14px; }
-.matrix-scroll { max-height: 650px; min-height: 360px; }
-#matrix { width: max-content; min-width: 100%; table-layout: fixed; }
 #matrix .person-head, #matrix .person-cell { min-width: 290px; width: 290px; }
 #matrix .person-head { font-size: 16px; }
-#matrix .person-head p { font-size: 13px !important; }
-#matrix .group-head { font-size: 14px; padding: 13px 12px; }
-#matrix .course-head { min-width: var(--training-col); width: var(--training-col); height: 130px; padding: 0; vertical-align: middle; }
-#matrix .course-head button {
-  writing-mode: horizontal-tb;
-  transform: none;
-  display: block;
-  width: var(--training-col);
-  max-height: none;
-  padding: 18px 14px;
-  text-align: left;
-  font-size: var(--training-font);
-  font-weight: 600;
-  line-height: 1.45;
-  color: #30473a;
-  overflow-wrap: anywhere;
-}
-#matrix .role-row th, #matrix .role-row small { font-size: 14px; }
-#matrix .person-cell { padding: 16px; }
+#matrix .course-head { min-width: var(--training-col); width: var(--training-col); }
+#matrix .course-head button { width: var(--training-col); font-size: var(--training-font); }
 .person-name { font-size: calc(var(--training-font) + 2px); }
-.avatar { width: 38px; height: 38px; font-size: 14px; }
-.person-meta { padding-left: 48px; flex-wrap: wrap; gap: 5px; }
-.person-meta select { font-size: 14px; max-width: 150px; padding: 4px; color: #4e6856; border-color: #dfe7e0; }
-.person-meta small { font-size: 13px; color: #5b6c60; }
-.matrix-cell { padding: 9px; }
-.cell-button { min-width: 120px; min-height: 64px; font-size: var(--training-font); gap: 8px; padding: 10px 6px; }
-.cell-button small { font-size: var(--training-detail); font-variant-numeric: tabular-nums; }
-.cell-button.current { color: #246644; }
-.cell-button.soon { color: #855d13; }
-.cell-button.expired { color: #a13e32; }
-.cell-button.missing, .cell-button.unmapped, .cell-button.na { color: #647669; }
-.required-dot { font-size: 9px; }
-.matrix-footer, .matrix-footer select, .footnote { font-size: 13px; }
-.legend { gap: 17px; }
-.dot { width: 8px; height: 8px; }
-.form-table td { font-size: 15px; }
-.form-table th { font-size: 13px; }
-.form-table td small, .form-table select, .form-table .button, .pill { font-size: 13px; }
-.field, .role-choice small, .mapping-option, .field textarea, .data-warning { font-size: 14px; }
-.evidence-record h3, .evidence-grid { font-size: 15px; }
-.evidence-grid small { font-size: 13px; }
-.dialog-header p, .import-result { font-size: 14px; }
-.app-footer { font-size: 12px; }
-.matrix-expanded .sidebar, .matrix-expanded .topbar, .matrix-expanded .page-heading,
-.matrix-expanded .app-footer,
-.matrix-expanded .footnote { display: none; }
+.cell-button { font-size: var(--training-font); }
+.cell-button small { font-size: var(--training-detail); }
+.matrix-expanded .sidebar, .matrix-expanded .topbar, .matrix-expanded .breadcrumb,
+.matrix-expanded .page-heading, .matrix-expanded .app-footer, .matrix-expanded .footnote { display: none; }
 .matrix-expanded .shell { margin-left: 0; }
 .matrix-expanded main { padding: 16px; min-height: 100vh; }
-.matrix-expanded .matrix-scroll { max-height: calc(100vh - 220px); }
-@media(max-width: 900px) {
-  .table-controls { align-items: flex-start; }
-  .readability-controls { margin-left: 0; }
-  .matrix-expanded .matrix-scroll { max-height: calc(100vh - 300px); }
+.matrix-expanded .matrix-scroll { max-height: calc(100dvh - 220px); }
+@media (max-width: 900px) {
+  .matrix-expanded .matrix-scroll { max-height: calc(100dvh - 300px); }
 }
-@media(max-width: 760px) {
-  main { padding: 20px 12px; }
-  .sidebar .logo { font-size: 26px; }
-  .nav { font-size: 13px; padding: 10px; }
-  .page-heading { flex-wrap: wrap; }
-  .heading-actions { flex-direction: row; }
-  .page-heading p { max-width: none; font-size: 14px; }
-  #matrix .person-head, #matrix .person-cell { min-width: 235px; width: 235px; }
-  .person-name { font-size: 16px; }
+@media (max-width: 760px) {
+  #matrix .person-head, #matrix .person-cell { min-width: 210px; width: 210px; }
+  .person-name { font-size: var(--training-font); }
   .person-meta { padding-left: 0; }
-  .site-tag { display: block; }
 }
-
-.role-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.button.danger { border-color: #dcb9b2; color: #9d3f31; background: #fff9f7; }
-.button.danger:hover { background: #fcece7; }

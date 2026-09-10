@@ -5,7 +5,6 @@ const esc = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 const date = s => s ? new Date(s+'T00:00:00').toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'}) : 'Not recorded';
 const shortDate = s => s ? new Date(s+'T00:00:00').toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'2-digit'}) : 'No expiry date';
 const statusLabel = {current:'Current',soon:'Due soon',expired:'Expired',missing:'No record',unmapped:'Unmapped',review:'Review',na:'Not applicable'};
-const groupColours = {'Core / Site':['#718faf','#edf3fa','#516d8a'],'Drilling':['#73a784','#eef6ec','#55794b'],'Supervisor':['#d8a45c','#fcf3e7','#9a713b'],'Driving':['#9483bb','#f2eef9','#807198'],'Gas Testing':['#8599a3','#eff3f5','#687d88'],'Lifting':['#c38c73','#fbefe9','#a57761'],'Loading Crane':['#66a5b1','#eaf6f8','#538e98']};
 let state, view='matrix', category='All training', selectedRole='Driller', horizon=90, today=todayISO();
 let importing=false;
 const API = ['localhost','127.0.0.1'].includes(location.hostname) ? 'http://localhost:8000' : 'https://api.drillops.com.au';
@@ -57,7 +56,7 @@ function switchView(next) {
   const titles={matrix:['Training matrix','One view of your people, their training and what comes next.'],roles:['Role requirements','Shared across all contractors. Define minimum training and optional skills once for each role.'],library:['Training library','Shared across all contractors. Connect matrix columns to exact competencies in your reports.'],imports:['PDF reports','Import cardholder reports to keep your training evidence up to date.']};
   $('#page-title').textContent=titles[view][0];$('#breadcrumb').textContent=titles[view][0];$('#page-description').textContent=titles[view][1];
   for(const v of ['matrix','roles','library','imports']) $('#'+v+'-view').hidden=v!==view;
-  $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  $$('.nav').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   render();
 }
 function filteredPeople() {
@@ -66,15 +65,14 @@ function filteredPeople() {
     (attention==='all'||(attention==='unassigned'&&p.role==='Unassigned')||(attention==='gaps'&&readiness(state,p,today,horizon).gaps.length)||(attention==='soon'&&state.columns.some(c=>evidence(p,c,today,horizon).status==='soon'))));
 }
 function renderMatrix() {
-  $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" data-category="${esc(g)}">${esc(g)}</button>`).join('');
+  $('#categories').innerHTML=['All training',...groups()].map(g=>`<button class="chip ${category===g?'active':''}" aria-pressed="${category===g}" data-category="${esc(g)}">${esc(g)}</button>`).join('');
   $$('#categories button').forEach(b=>b.onclick=()=>{category=b.dataset.category;renderMatrix();});
   const columns=state.columns.filter(c=>category==='All training'||c.group===category);
   const people=filteredPeople();$('#people-count').textContent=people.length;
   let groupHeaders='';
   for(let i=0;i<columns.length;) {
     const group=columns[i].group;let count=1;while(columns[i+count]?.group===group)count++;
-    const colours=groupColours[group]||['#8d9b94','#f0f5f2','#61726b'];
-    groupHeaders+=`<th class="group-head" colspan="${count}" scope="colgroup" style="--group-color:${colours[0]};--group-bg:${colours[1]};--group-ink:${colours[2]}">${esc(group)}</th>`;i+=count;
+    groupHeaders+=`<th class="group-head" colspan="${count}" scope="colgroup">${esc(group)}</th>`;i+=count;
   }
   const head=`<thead><tr><th class="person-head" rowspan="2" scope="col">Personnel <p style="font-size:10px;font-weight:400;margin:8px 0 0">Role & minimum requirements</p></th>${groupHeaders}</tr><tr>${columns.map(c=>`<th class="course-head" scope="col"><button data-edit-column="${esc(c.id)}" title="Edit mapping: ${esc(c.label)}">${esc(c.label)}${!c.aliases.length?' ◇':''}</button></th>`).join('')}</tr></thead>`;
   let body='';
@@ -171,7 +169,7 @@ async function runImports(files) {
         const result=await response.json();
         if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'Could not import this report.');
         successful++;row.textContent=`✓ ${result.name} · ${result.records} records · ${result.replaced?'updated':'imported'}`;
-      }catch(e){row.textContent=`Unable to import ${file.name}: ${e.message}`;row.style.color='#a45244';}
+      }catch(e){row.textContent=`Unable to import ${file.name}: ${e.message}`;row.style.color='var(--red)';}
       messages.push(row.textContent);
     }
     state=await api('state');render();
