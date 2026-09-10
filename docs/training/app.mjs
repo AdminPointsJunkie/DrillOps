@@ -12,24 +12,37 @@ let state, view='matrix', category='All training', selectedRole='Driller', horiz
 let importing=false;
 const API = ['localhost','127.0.0.1'].includes(location.hostname) ? 'http://localhost:8000' : 'https://api.drillops.com.au';
 let contractor = new URLSearchParams(location.search).get('contractor') || sessionStorage.getItem('drillops_contractor') || 'DEPCO Drilling';
-const endpoint = path => API+'/training/'+path+'?contractor='+encodeURIComponent(contractor);
+const ALL_CONTRACTORS='All contractors';
+let workspaceContractor=contractor===ALL_CONTRACTORS?'DEPCO Drilling':contractor;
+const endpoint = (path,scope=workspaceContractor) => API+'/training/'+path+'?contractor='+encodeURIComponent(scope);
 let sourceBlobUrl;
 
 
-async function api(path, body, method="POST") {
-  const response=await fetch(endpoint(path),body?{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,revision:state?.revision})}:{cache:'no-store'});
+async function api(path, body, method="POST", scope=workspaceContractor) {
+  const response=await fetch(endpoint(path,scope),body?{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,revision:state?.revision})}:{cache:'no-store'});
   const data=await response.json();
   if(!response.ok) throw new Error((typeof data.detail==='string'?data.detail:data.error)||'Request failed');
   return data;
 }
 function notify(message,error=false) { $('#notice').innerHTML=`<div class="notice ${error?'error':''}">${esc(message)}</div>`; }
 async function refresh() {
-  state=await api('state');
-  if(state.contractors.length&&!state.contractors.includes(contractor)){
-    contractor=state.contractors.includes('DEPCO Drilling')?'DEPCO Drilling':state.contractors[0];
-    history.replaceState(null,'','./training.html?contractor='+encodeURIComponent(contractor));
-    state=await api('state');
+  let snapshot=await api('state');
+  if(contractor===ALL_CONTRACTORS){
+    const snapshots=await Promise.all(snapshot.contractors.map(c=>c===workspaceContractor?snapshot:api('state',null,'GET',c)));
+    // Keep the complete view atomic: never show a partial workforce after a failed request.
+    if(snapshots.some(s=>s.revision!==snapshot.revision))throw new Error('Requirements changed while loading. Reload to get a consistent matrix.');
+    workspaceContractor=snapshot.contractors[0]||workspaceContractor;
+    snapshot={...snapshot,people:snapshots.flatMap((s,i)=>s.people.map(p=>({...p,recordId:p.id,id:JSON.stringify([snapshot.contractors[i],p.id]),contractor:snapshot.contractors[i]})))};
+  }else{
+    if(snapshot.contractors.length&&!snapshot.contractors.includes(contractor)){
+      contractor=snapshot.contractors.includes('DEPCO Drilling')?'DEPCO Drilling':snapshot.contractors[0];
+      workspaceContractor=contractor;
+      history.replaceState(null,'','./training.html?contractor='+encodeURIComponent(contractor));
+      snapshot=await api('state');
+    }
+    snapshot={...snapshot,people:snapshot.people.map(p=>({...p,contractor}))};
   }
+  state=snapshot;
   render();
 }
 function openDialog(title,subtitle,body) {
@@ -45,7 +58,7 @@ function sectionColour(name) { return trainingSections(state).find(s=>s.name===n
 function sectionAttrs(name) { return `data-training-group="${esc(name)}" data-section-colour="${esc(sectionColour(name))}"`; }
 function render() {
   $('#report-count').textContent=state.people.reduce((total,p)=>total+1+(p.documents?.length||0),0);
-  $('#contractor-select').innerHTML=state.contractors.map(c=>`<option ${c===contractor?'selected':''}>${esc(c)}</option>`).join('');
+  $('#contractor-select').innerHTML=[ALL_CONTRACTORS,...state.contractors].map(c=>`<option ${c===contractor?'selected':''}>${esc(c)}</option>`).join('');
   $('#contractor-select').disabled=importing;
   $('#contractor-select').onchange=e=>{location.href='./training.html?contractor='+encodeURIComponent(e.target.value);};
   $('#as-of').textContent='As of '+date(today);
@@ -92,7 +105,7 @@ function renderMatrix() {
     body+=`<tr class="role-row"><th colspan="${columns.length+1}"><span>${esc(role)} <small> / ${list.length} ${list.length===1?'person':'people'}</small></span></th></tr>`;
     body+=list.map(p=>{
       const r=readiness(state,p,today,horizon);
-      return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span><button class="person-records" data-person-records="${esc(p.id)}" title="View all training records and documents">${esc(p.name)}</button></div><div class="person-meta"><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small>${r.gaps.length?`<small class="minimum-gap-flag" title="${esc(r.gaps.map(c=>c.label).join(', '))}">⚑ ${r.gaps.length} minimum unmet</small>`:''}</div></td>${columns.map((c,i)=>{
+      return `<tr class="person-row"><td class="person-cell"><div class="person-name"><span class="avatar">${esc(p.name.split(' ').map(s=>s[0]).slice(0,2).join(''))}</span><button class="person-records" data-person-records="${esc(p.id)}" title="View all training records and documents">${esc(p.name)}</button></div><div class="person-meta"><small class="person-contractor">${esc(p.contractor)}</small><select data-person="${esc(p.id)}" aria-label="Role for ${esc(p.name)}">${roleOptions(p.role)}</select><small title="${esc(r.label)}">${r.total?`${r.met}/${r.total} minimum`:'Setup needed'}</small>${r.gaps.length?`<small class="minimum-gap-flag" title="${esc(r.gaps.map(c=>c.label).join(', '))}">⚑ ${r.gaps.length} minimum unmet</small>`:''}</div></td>${columns.map((c,i)=>{
         const e=evidence(p,c,today,horizon), req=requirement(state,p,c), status=req==='na'?'na':e.status;
         const icon={current:'✓',soon:'◷',expired:'!',missing:'—',unmapped:'◇',review:'?',na:'·'}[status];
         const minimumGap=r.gaps.some(g=>g.id===c.id);
@@ -102,16 +115,16 @@ function renderMatrix() {
   }
   if(!people.length) body=`<tr><td colspan="${columns.length+1}" class="empty">${state.people.length?'No people match these filters.':'Import your first Cardholder Report to populate the matrix.'}</td></tr>`;
   $('#matrix').innerHTML=head+`<tbody>${body}</tbody>`;
-  $$('[data-person]').forEach(s=>s.onchange=async()=>{try{await api('person',{id:s.dataset.person,role:s.value});await refresh();notify('Role assignment saved.');}catch(e){notify(e.message,true);await refresh();}});
+  $$('[data-person]').forEach(s=>s.onchange=async()=>{try{const p=state.people.find(p=>p.id===s.dataset.person);await api('person',{id:p.recordId||p.id,role:s.value},'POST',p.contractor);await refresh();notify('Role assignment saved.');}catch(e){notify(e.message,true);await refresh();}});
   $$('[data-person-cell]').forEach(b=>b.onclick=()=>showEvidence(b.dataset.personCell,b.dataset.column));
   $$('[data-edit-column]').forEach(b=>b.onclick=()=>editColumn(b.dataset.editColumn));
 }
-function sourceButton(sourceId, source, page=1) {
-  return `<button class="button" data-source-id="${esc(sourceId)}" data-source-page="${Number(page)||1}" data-source-name="${esc(source)}">Open source PDF · page ${Number(page)||1} ↗</button>`;
+function sourceButton(sourceId, source, page=1, scope=workspaceContractor) {
+  return `<button class="button" data-source-contractor="${esc(scope)}" data-source-id="${esc(sourceId)}" data-source-page="${Number(page)||1}" data-source-name="${esc(source)}">Open source PDF · page ${Number(page)||1} ↗</button>`;
 }
 function recordCard(p,r,used=false) {
   const status=recordStatus(r,today,horizon);
-  return `<article class="evidence-record"><div class="record-tags"><span class="pill">${esc(evidenceTypes[evidenceType(r)]||'Other evidence')}</span>${r.transcriptCategory?`<span class="pill">${esc(r.transcriptCategory)}</span>`:''}<span class="pill evidence-${status}">${evidenceStatusLabel(r,status)}${used?' · used in matrix':''}</span></div><h3>${esc(r.name)}</h3>${r.unitCode?`<p>Unit / qualification: <strong>${esc(r.unitCode)}</strong></p>`:''}${r.relatedUnitCodes?.length?`<p>Related RII: ${esc(r.relatedUnitCodes.join(', '))}. This record provides ${esc(evidenceTypes[evidenceType(r)]?.toLowerCase()||'supporting evidence')}, not an RII award.</p>`:''}<div class="evidence-grid"><div><small>Issue / completion date</small>${date(r.issued)}</div><div><small>Document expiry</small>${date(r.expires)}</div>${r.renewalDue?`<div><small>Renewal due · ${r.renewalBasis==='supplied_filename'?'supplied filename':'source document'}</small>${date(r.renewalDue)}</div>`:''}<div><small>Location / scope</small>${esc(r.location||'Not recorded')}</div><div><small>Issuer</small>${esc(r.issuer||'Not recorded')}</div>${r.reportDate?`<div><small>Transcript / report date</small>${date(r.reportDate)}</div>`:''}</div>${r.notes?`<p class="${r.reviewRequired?'data-warning':'record-note'}">${esc(r.notes)}</p>`:''}<p class="record-source">${esc(r.source||p.source)}</p>${sourceButton(r.sourceId||p.sourceId,r.source||p.source,r.page)}</article>`;
+  return `<article class="evidence-record"><div class="record-tags"><span class="pill">${esc(evidenceTypes[evidenceType(r)]||'Other evidence')}</span>${r.transcriptCategory?`<span class="pill">${esc(r.transcriptCategory)}</span>`:''}<span class="pill evidence-${status}">${evidenceStatusLabel(r,status)}${used?' · used in matrix':''}</span></div><h3>${esc(r.name)}</h3>${r.unitCode?`<p>Unit / qualification: <strong>${esc(r.unitCode)}</strong></p>`:''}${r.relatedUnitCodes?.length?`<p>Related RII: ${esc(r.relatedUnitCodes.join(', '))}. This record provides ${esc(evidenceTypes[evidenceType(r)]?.toLowerCase()||'supporting evidence')}, not an RII award.</p>`:''}<div class="evidence-grid"><div><small>Issue / completion date</small>${date(r.issued)}</div><div><small>Document expiry</small>${date(r.expires)}</div>${r.renewalDue?`<div><small>Renewal due · ${r.renewalBasis==='supplied_filename'?'supplied filename':'source document'}</small>${date(r.renewalDue)}</div>`:''}<div><small>Location / scope</small>${esc(r.location||'Not recorded')}</div><div><small>Issuer</small>${esc(r.issuer||'Not recorded')}</div>${r.reportDate?`<div><small>Transcript / report date</small>${date(r.reportDate)}</div>`:''}</div>${r.notes?`<p class="${r.reviewRequired?'data-warning':'record-note'}">${esc(r.notes)}</p>`:''}<p class="record-source">${esc(r.source||p.source)}</p>${sourceButton(r.sourceId||p.sourceId,r.source||p.source,r.page,p.contractor)}</article>`;
 }
 function showPersonRecords(id) {
   const p=state.people.find(p=>p.id===id);if(!p)return;
@@ -119,7 +132,7 @@ function showPersonRecords(id) {
     const records=p.records.filter(r=>evidenceType(r)===type);
     return records.length?`<details class="record-section" ${type==='qualification'?'open':''}><summary>${esc(label)} <span class="count">${records.length}</span></summary>${records.map(r=>recordCard(p,r)).join('')}</details>`:'';
   }).join('');
-  openDialog(p.name+' · Training records',p.role+' · '+contractor,`<p>Qualifications, VOCs and site authorisations are assessed separately. Each record retains its own scope, dates and source. Renewal dates from supplied filenames are shown separately from document expiry.</p>${sections}<details class="record-section"><summary>Source documents <span class="count">${1+(p.documents||[]).length}</span></summary><article class="evidence-record"><h3>${esc(p.source)}</h3>${sourceButton(p.sourceId,p.source)}</article>${(p.documents||[]).map(d=>`<article class="evidence-record"><h3>${esc(d.filename)}</h3><p>${esc(d.notes||'Supporting document')}</p>${sourceButton(d.sourceId,d.filename)}</article>`).join('')}</details>`);
+  openDialog(p.name+' · Training records',p.role+' · '+p.contractor,`<p>Qualifications, VOCs and site authorisations are assessed separately. Each record retains its own scope, dates and source. Renewal dates from supplied filenames are shown separately from document expiry.</p>${sections}<details class="record-section"><summary>Source documents <span class="count">${1+(p.documents||[]).length}</span></summary><article class="evidence-record"><h3>${esc(p.source)}</h3>${sourceButton(p.sourceId,p.source,1,p.contractor)}</article>${(p.documents||[]).map(d=>`<article class="evidence-record"><h3>${esc(d.filename)}</h3><p>${esc(d.notes||'Supporting document')}</p>${sourceButton(d.sourceId,d.filename,1,p.contractor)}</article>`).join('')}</details>`);
 }
 function showEvidence(personId,columnId) {
   const p=state.people.find(p=>p.id===personId),c=state.columns.find(c=>c.id===columnId),e=evidence(p,c,today,horizon),req=requirement(state,p,c);
@@ -221,18 +234,18 @@ function editColumn(id) {
   });
   $('#column-form').onsubmit=async event=>{event.preventDefault();const data=new FormData(event.target);try{await api('column',{column:{...c,label:data.get('label').trim(),group:data.get('group').trim(),evidenceType:data.get('evidenceType')||null,aliases:[...new Set(data.get('aliases').split('\n').map(s=>s.trim()).filter(Boolean))]}});$('#dialog').close();await refresh();notify('Training column saved.');}catch(e){$('#column-error').textContent=e.message;}};
 }
-function importMarkup() {return `<div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PDF reports"><span class="drop-icon">↥</span><h3>Drop your cardholder PDFs here</h3><p>Or click to browse · multiple files supported · 20 MB per file</p><span class="button primary">Choose PDFs</span></div><input id="pdf-files" type="file" accept=".pdf,application/pdf" multiple hidden><p>Reports are saved securely in the selected DrillOps contractor workspace. Re-importing a cardholder replaces their report snapshot and keeps their role. Older dated reports are rejected.</p><div id="import-results" role="status" aria-live="polite"></div>`;}
+function importMarkup() {if(contractor===ALL_CONTRACTORS)return '<p>Select a contractor in the sidebar before importing reports.</p>';return `<div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PDF reports"><span class="drop-icon">↥</span><h3>Drop your cardholder PDFs here</h3><p>Or click to browse · multiple files supported · 20 MB per file</p><span class="button primary">Choose PDFs</span></div><input id="pdf-files" type="file" accept=".pdf,application/pdf" multiple hidden><p>Reports are saved securely in the selected DrillOps contractor workspace. Re-importing a cardholder replaces their report snapshot and keeps their role. Older dated reports are rejected.</p><div id="import-results" role="status" aria-live="polite"></div>`;}
 function wireImport() {
-  const zone=$('#dropzone'),input=$('#pdf-files');
+  const zone=$('#dropzone'),input=$('#pdf-files');if(!zone)return;
   zone.onclick=()=>{if(!importing)input.click();};zone.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();zone.click();}};
   input.onchange=()=>runImports([...input.files]);
   zone.ondragover=e=>{e.preventDefault();zone.classList.add('drag');};zone.ondragleave=()=>zone.classList.remove('drag');
   zone.ondrop=e=>{e.preventDefault();zone.classList.remove('drag');if(!importing)runImports([...e.dataTransfer.files]);};
 }
 function renderImports() {
-  $('#imports-view').innerHTML=`<div class="panel">${importMarkup()}</div><div class="panel"><div class="panel-heading"><div><h2>Imported reports</h2><p>Source documents and training records are stored behind administrator access in DrillOps.</p></div></div><table class="form-table"><thead><tr><th>PERSON</th><th>REPORT DATE</th><th>RECORDS</th><th>SOURCES</th></tr></thead><tbody>${state.people.map(p=>`<tr><td>${esc(p.name)}<small>${esc(p.company)}</small></td><td>${date(p.reportDate)}</td><td>${p.records.length}</td><td><button class="button" data-source-id="${esc(p.sourceId)}" data-source-page="1" data-source-name="${esc(p.source)}">Open PDF ↗</button> <button class="button" data-person-records="${esc(p.id)}">All records${p.documents?.length?` · ${p.documents.length} documents`: ""}</button></td></tr>`).join('')}</tbody></table>${!state.people.length?'<div class="empty">No reports imported yet.</div>':''}</div>`;wireImport();
+  $('#imports-view').innerHTML=`<div class="panel">${importMarkup()}</div><div class="panel"><div class="panel-heading"><div><h2>Imported reports</h2><p>Source documents and training records are stored behind administrator access in DrillOps.</p></div></div><table class="form-table"><thead><tr><th>PERSON</th><th>REPORT DATE</th><th>RECORDS</th><th>SOURCES</th></tr></thead><tbody>${state.people.map(p=>`<tr><td>${esc(p.name)}<small>${esc(p.company)}</small></td><td>${date(p.reportDate)}</td><td>${p.records.length}</td><td><button class="button" data-source-contractor="${esc(p.contractor)}" data-source-id="${esc(p.sourceId)}" data-source-page="1" data-source-name="${esc(p.source)}">Open PDF ↗</button> <button class="button" data-person-records="${esc(p.id)}">All records${p.documents?.length?` · ${p.documents.length} documents`: ""}</button></td></tr>`).join('')}</tbody></table>${!state.people.length?'<div class="empty">No reports imported yet.</div>':''}</div>`;wireImport();
 }
-function showImport() { if(!state)return; if(view==='imports'){ $('#dropzone').focus();return;} openDialog('Import or update reports','Populate the matrix directly from Cardholder Reports.',importMarkup());wireImport(); }
+function showImport() { if(!state)return; if(view==='imports'){ ($('#dropzone')||$('#contractor-select')).focus();return;} openDialog('Import or update reports','Populate the matrix directly from Cardholder Reports.',importMarkup());wireImport(); }
 async function runImports(files) {
   if(importing||!files.length)return;importing=true;
   const results=$('#import-results'),zone=$('#dropzone');results.innerHTML='';zone.setAttribute('aria-disabled','true');
@@ -251,17 +264,38 @@ async function runImports(files) {
       }catch(e){row.textContent=`Unable to import ${file.name}: ${e.message}`;row.style.color='var(--red)';}
       messages.push(row.textContent);
     }
-    state=await api('state');render();
+    await refresh();
     // renderImports rebuilds its panel; preserve the completed batch summary.
     if(view==='imports')$('#import-results').innerHTML=messages.map(m=>`<div class="import-result">${esc(m)}</div>`).join('');
     notify(`${successful} of ${files.length} reports imported.`,successful!==files.length);
   }catch(e){notify(e.message,true);}finally{importing=false;zone.removeAttribute('aria-disabled');}
 }
+function preparePDF() {
+  if(!state)return;
+  const columns=orderedTrainingColumns(state).filter(c=>category==='All training'||c.group===category);
+  const people=filteredPeople();
+  const filters=[contractor,category,$('#role-filter').selectedOptions[0]?.textContent,$('#status-filter').selectedOptions[0]?.textContent,$('#search').value?`Search: ${$('#search').value}`:''].filter(Boolean).join(' · ');
+  let output='';
+  // Six training columns per sheet keeps even the full matrix readable on A4.
+  for(let offset=0;offset<Math.max(columns.length,1);offset+=6){
+    const batch=columns.slice(offset,offset+6);
+    output+=`<section class="pdf-sheet"><table><colgroup><col style="width:22%">${batch.map(()=>'<col>').join('')}</colgroup><thead><tr><td colspan="${batch.length+1}" class="pdf-title"><h1>DrillOps · Training matrix</h1><p>${esc(filters)}</p><p>As of ${date(today)} · ${people.length} people · Due soon within ${horizon} days · Column group ${Math.floor(offset/6)+1} of ${Math.max(1,Math.ceil(columns.length/6))}</p><p>Red box / ⚑ = minimum unmet. Qualification, VOC and site authorisation are assessed separately.</p></td></tr><tr><th>Personnel / contractor</th>${batch.map(c=>`<th ${sectionAttrs(c.group)}><small>${esc(c.group)}</small>${esc(c.label)}<small>${esc(kindLabel[c.evidenceType]||'')}</small></th>`).join('')}</tr></thead><tbody>${people.map(p=>{
+      const r=readiness(state,p,today,horizon);
+      return `<tr><th>${esc(p.name)}<small>${esc(p.contractor)} · ${esc(p.role)}</small><small>${esc(r.label)}</small></th>${batch.map(c=>{
+        const e=evidence(p,c,today,horizon),req=requirement(state,p,c),status=req==='na'?'na':e.status,gap=r.gaps.some(g=>g.id===c.id);
+        return `<td class="pdf-${status}${gap?' pdf-gap':''}">${gap?'<strong>⚑ Minimum unmet</strong>':''}${esc(statusLabel[status])}<small>${req==='minimum'?'Minimum':req==='na'?'Not applicable':'Optional'}</small>${req!=='na'&&e.best?`<small>${shortDate(recordDueDate(e.best))}</small>`:''}</td>`;
+      }).join('')}</tr>`;
+    }).join('')||`<tr><td colspan="${batch.length+1}">No people match the selected filters.</td></tr>`}</tbody></table>${!columns.length?'<p>No training columns in this section.</p>':''}</section>`;
+  }
+  $('#pdf-output').innerHTML=output;
+}
+window.addEventListener('beforeprint',preparePDF);
+function exportPDF(){if(!state)return;preparePDF();window.print();}
 function exportCSV() {
   if(!state)return;
   const columns=orderedTrainingColumns(state).filter(c=>category==='All training'||c.group===category);
-  const rows=[['Person','Role','Report date','Minimum status',...columns.flatMap(c=>[c.label+' | requirement',c.label+' | status',c.label+' | expiry / renewal due'])]];
-  for(const p of filteredPeople())rows.push([p.name,p.role,p.reportDate||'',readiness(state,p,today,horizon).label,...columns.flatMap(c=>{const e=evidence(p,c,today,horizon),req=requirement(state,p,c);return[req,statusLabel[req==='na'?'na':e.status],recordDueDate(e.best||{})||''];})]);
+  const rows=[['Person','Contractor','Role','Report date','Minimum status',...columns.flatMap(c=>[c.label+' | requirement',c.label+' | status',c.label+' | expiry / renewal due'])]];
+  for(const p of filteredPeople())rows.push([p.name,p.contractor,p.role,p.reportDate||'',readiness(state,p,today,horizon).label,...columns.flatMap(c=>{const e=evidence(p,c,today,horizon),req=requirement(state,p,c);return[req,statusLabel[req==='na'?'na':e.status],recordDueDate(e.best||{})||''];})]);
   const quote=value=>{let v=String(value);if(/^[=+@\-\t\r]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
   const blob=new Blob(['\ufeff'+rows.map(r=>r.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`training-matrix-${today}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -276,6 +310,7 @@ $('#expand-table').onclick=()=>{const expanded=document.body.classList.toggle('m
 $('#search').oninput=renderMatrix;$('#role-filter').onchange=renderMatrix;$('#status-filter').onchange=renderMatrix;
 $('#horizon').onchange=e=>{horizon=Number(e.target.value);renderMatrix();};
 $('#import-open').onclick=showImport;$('#export').onclick=exportCSV;
+$('#export-pdf').onclick=exportPDF;
 $('#dialog').addEventListener('click',e=>{if(e.target===$('#dialog')){const r=$('#dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('#dialog').close();}});
 try{await refresh();}catch(e){notify('Could not load the workspace: '+e.message,true);}
 
@@ -284,7 +319,7 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-source-id]');if(!button)return;
   button.disabled=true;
   try{
-    const response=await fetch(endpoint('sources/'+encodeURIComponent(button.dataset.sourceId)),{cache:'no-store'});
+    const response=await fetch(endpoint('sources/'+encodeURIComponent(button.dataset.sourceId),button.dataset.sourceContractor||workspaceContractor),{cache:'no-store'});
     if(!response.ok){const error=await response.json();throw new Error(error.detail||'Could not open source PDF.');}
     if(sourceBlobUrl)URL.revokeObjectURL(sourceBlobUrl);
     sourceBlobUrl=URL.createObjectURL(await response.blob());

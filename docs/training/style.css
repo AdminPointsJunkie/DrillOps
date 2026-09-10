@@ -291,3 +291,27 @@ dialog::backdrop { background: rgba(25, 32, 29, .62); backdrop-filter: blur(4px)
 .pill.evidence-soon, .pill.evidence-review { color: var(--amber); background: var(--yellow-light); }
 .course-kind { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 8px; }
 .dialog-header { position: sticky; top: 0; z-index: 2; }
+#pdf-output { display: none; }
+.person-meta .person-contractor { flex-basis: 100%; }
+@page { size: A4 landscape; margin: 10mm; }
+@media print {
+  body > :not(#pdf-output) { display: none !important; }
+  body { background: white !important; margin: 0 !important; }
+  #pdf-output { display: block; font: 9pt Arial, sans-serif; color: #19201d; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  #pdf-output .pdf-sheet { break-before: page; }
+  #pdf-output .pdf-sheet:first-child { break-before: auto; }
+  #pdf-output table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+  #pdf-output thead { display: table-header-group; }
+  #pdf-output tr { break-inside: avoid; }
+  #pdf-output th, #pdf-output td { border: 1px solid #9ba6a0; padding: 7px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+  #pdf-output th { background: #f0f2ef; }
+  #pdf-output th[data-section-colour] { background: var(--section-band); border-top: 3px solid var(--section-ink); color: var(--section-ink); }
+  #pdf-output small, #pdf-output strong { display: block; margin: 4px 0; }
+  #pdf-output .pdf-title { border: 0; padding: 0 0 8px; }
+  #pdf-output h1 { font-size: 17pt; margin: 0 0 6px; }
+  #pdf-output p { font-size: 9pt; margin: 4px 0; color: inherit; }
+  #pdf-output .pdf-current { background: #e7f2e8; }
+  #pdf-output .pdf-soon { background: #fff2cc; }
+  #pdf-output .pdf-expired, #pdf-output .pdf-gap { background: #fce7e7; color: #9b2020; }
+  #pdf-output .pdf-gap { border: 2px solid #b42323; }
+}
