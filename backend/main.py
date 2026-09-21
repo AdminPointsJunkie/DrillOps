@@ -2267,6 +2267,16 @@ def adjust_imported_minimum_shift_rows(rows: list[dict], contractor: str = "", e
                 minimum_cost = rule["cost"]
             key = allianz_minimum_shift_group_key(updated)
             preserve_total = target_total_by_key.get(key)
+            # A minimum-shift top-up can never be larger than the configured
+            # shift minimum itself.  Do not let a corrupt imported top-up
+            # become the preserved target for a locked/approved report.
+            if preserve_total is not None and rule:
+                try:
+                    current_topup = float(updated.get("line_cost") or 0)
+                except (TypeError, ValueError):
+                    current_topup = 0
+                if current_topup > float(rule["cost"]):
+                    preserve_total = None
             activity_cost = minimum_shift_activity_subtotal(updated, rows)
             if preserve_total is not None:
                 minimum_cost = round(float(preserve_total or 0), 2)
