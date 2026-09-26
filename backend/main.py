@@ -35,7 +35,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
-from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, SCOPES as DEPCO_SCOPES
+from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
     MCC_RATE_TABLE,
@@ -4845,7 +4845,7 @@ async def import_pdf(
     with get_conn() as conn:
         with conn.cursor() as cur:
             # Prefer the active project contract; preserve contractor/year schedules as fallback.
-            depco_lines = depco_contract_rates(cur, contractor, project, program) if contractor == "DEPCO Drilling" else None
+            acts = suggest_depco_rows(cur, acts, contractor)
             all_hr, all_dr, all_cr, applied_contract = effective_rate_rows(cur, contractor, project)
 
         hr_lookup = {}
@@ -4876,7 +4876,6 @@ async def import_pdf(
 
         def _price_row(row):
             if contractor == "DEPCO Drilling":
-                row.update(price_depco_activity(row, depco_lines))
                 return row
             if contractor == "Weatherfords" and str(row.get("rate_basis") or "").startswith("Weatherford"):
                 return row
@@ -11715,6 +11714,8 @@ Extract ALL data from this image into a JSON object with these exact fields:
   "activities": [
     {
       "comments": "handwritten description of the activity",
+      "bit_type": "bit type or HQ/PQ core size if explicitly written, otherwise null",
+      "diameter": "hole diameter with original units if explicitly written, otherwise null",
       "time_from": "HH:MM format e.g. 05:30",
       "time_to": "HH:MM format e.g. 06:00",
       "total_time": "duration in H:MM or fraction e.g. 0:30 or 0.5",
@@ -11758,6 +11759,8 @@ OPENAI_OCR_RESPONSE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "comments": {"type": ["string", "null"]},
+                    "bit_type": {"type": ["string", "null"]},
+                    "diameter": {"type": ["string", "null"]},
                     "time_from": {"type": ["string", "null"]},
                     "time_to": {"type": ["string", "null"]},
                     "total_time": {"type": ["string", "number", "null"]},
@@ -11766,7 +11769,7 @@ OPENAI_OCR_RESPONSE_SCHEMA = {
                     "total_metres": {"type": ["number", "null"]},
                 },
                 "required": [
-                    "comments", "time_from", "time_to", "total_time",
+                    "comments", "bit_type", "diameter", "time_from", "time_to", "total_time",
                     "metres_from", "metres_to", "total_metres",
                 ],
                 "additionalProperties": False,
@@ -11827,6 +11830,8 @@ async def import_ocr_pdf(
     file: UploadFile = File(...),
     contractor: str = Form(default="DEPCO Drilling"),
     program: str = Form(default=""),
+    project: str = Form(default=""),
+    client: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
     """Import a handwritten drill log PDF using reviewed or fresh OpenAI OCR data."""
@@ -11904,20 +11909,21 @@ async def import_ocr_pdf(
             "contract": "", "shift": shift,
             "time_from": time_from, "time_to": time_to,
             "total_time": total_time,
-            "bit_type": "", "diameter": "",
-            "metres_from": float(metres_from) if metres_from else None,
-            "metres_to": float(metres_to) if metres_to else None,
-            "total_metres": float(total_metres) if total_metres else None,
-            "code": "", "notes": comments,
-            "rate_year": None, "unit_rate": None, "quantity": None,
+            "bit_type": act.get("bit_type") or "", "diameter": act.get("diameter") or "",
+            "metres_from": float(metres_from) if metres_from not in (None, "") else None,
+            "metres_to": float(metres_to) if metres_to not in (None, "") else None,
+            "total_metres": float(total_metres) if total_metres not in (None, "") else None,
+            "code": act.get("code") or "", "notes": comments,
+            "rate_year": None, "unit_rate": None, "quantity": act.get("quantity"),
             "line_cost": None, "rate_basis": None, "po_id": None,
         })
 
-    rows = apply_import_activity_scope(rows, contractor, program)
+    rows = apply_import_activity_scope(rows, contractor, program, project, client)
 
     # Save to database
     with get_conn() as conn:
         with conn.cursor() as cur:
+            rows = suggest_depco_rows(cur, rows, contractor)
             if rows:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
@@ -11955,6 +11961,7 @@ async def import_ocr_pdf(
         "filename": filename,
         "ocr_data": data,
         "rows": len(rows),
+        "pricing_summary": {"priced":sum(r.get("line_cost") is not None for r in rows), "review":sum(r.get("line_cost") is None for r in rows)},
         "hole_num": hole_num,
         "date": date_str,
         "contractor": contractor,
@@ -11965,9 +11972,24 @@ async def import_ocr_pdf(
     }
 
 
+@app.post("/import/depco/suggestions")
+async def preview_depco_suggestions(request: Request):
+    payload = await request.json()
+    data = payload.get("ocr_data")
+    if not isinstance(data, dict) or not isinstance(data.get("activities"), list) or len(data["activities"]) > 500 or any(not isinstance(a, dict) for a in data["activities"]):
+        raise HTTPException(400, "Provide up to 500 activity rows")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", str(payload.get("project") or ""), str(payload.get("program") or ""))
+    return {"ocr_data":data,"contract_rates":rates}
+
+
 @app.post("/import/ocr/preview")
 async def preview_ocr_pdf(
     file: UploadFile = File(...),
+    contractor: str = Form(default="DEPCO Drilling"),
+    project: str = Form(default=""),
+    program: str = Form(default=""),
 ):
     """Preview OCR results without saving — for testing."""
     content = await file.read()
@@ -11977,7 +11999,13 @@ async def preview_ocr_pdf(
         for activity in data.get("activities", [])
     ]
     warnings = activity_integrity_qa(preview_rows, file.filename)
+    rates = []
+    if contractor == "DEPCO Drilling" or str(file.filename or "").upper().startswith("DEPCO"):
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", project, program)
     return {
+        "contract_rates": rates,
         "ocr_data": data,
         "activity_count": len(data.get("activities", [])),
         "integrity_check": {"status": "needs_review" if warnings else "ok", "warnings": warnings},

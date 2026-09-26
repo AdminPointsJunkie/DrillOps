@@ -2,10 +2,12 @@ import ast
 import asyncio
 import copy
 import unittest
+from types import SimpleNamespace
+from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity
+from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr
 
 
 class DepcoRatesTests(unittest.TestCase):
@@ -127,6 +129,89 @@ class DepcoRatesTests(unittest.TestCase):
         self.assertEqual(cur.execute.call_args_list[0].args[1],('DEPCO Drilling','Ironbark','Gas Riser','Gas Riser'))
 
 
+class DepcoSuggestionTests(unittest.TestCase):
+    def suggest(self,text,scope='A',**kwargs):
+        return suggest_depco_activity({'notes':text,'date':'26/09/2026','total_time':'02:30',**kwargs},catalogue(scope))
+
+    def test_time_description_suggests_code_and_price(self):
+        result=self.suggest('Set up rig on new pad')
+        self.assertIn('SETUP_PACKUP',result['code'])
+        self.assertEqual(result['unit_rate'],630.5)
+        self.assertEqual(result['line_cost'],1576.25)
+        self.assertTrue(result['rate_basis'].startswith('DEPCO suggested:'))
+
+    def test_casing_and_logging(self):
+        self.assertEqual(self.suggest('Installing casing')['line_cost'],1576.25)
+        self.assertEqual(self.suggest('Standby waiting for logger')['line_cost'],1212.5)
+
+    def test_no_charge_suggested(self):
+        result=self.suggest('Pre-start checks')
+        self.assertIn('SAFETY_PRESTART',result['code'])
+        self.assertEqual(result['line_cost'],0)
+
+    def test_conditional_line_keeps_suggestion_without_price(self):
+        result=self.suggest('Waiting on water delivery')
+        self.assertIn('STANDBY_WATER',result['code'])
+        self.assertIsNone(result['line_cost'])
+        self.assertIn('review required',result['rate_basis'])
+
+    def test_combined_activities_and_negation_need_review(self):
+        for text in ('Prestart and set up rig','Set up rig then install casing','No repairs required','Not waiting for logger'):
+            result=self.suggest(text)
+            self.assertIsNone(result['line_cost'],text)
+            self.assertNotIn('code',result,text)
+
+    def test_drilling_fractional_inches_crosses_depth_band(self):
+        result=self.suggest('Drill 4 3/4 PCD',metres_from=90,metres_to=110,total_metres=20)
+        self.assertEqual(result['line_cost'],780)
+        self.assertIn('PCD_90_125',result['code'])
+
+    def test_drilling_zero_start_retained(self):
+        result=self.suggest('Drill 120mm PCD',metres_from=0,metres_to=10,total_metres=10)
+        self.assertEqual(result['line_cost'],380)
+
+    def test_core_sizes_and_structured_diameter(self):
+        self.assertEqual(self.suggest('PQ coring',metres_from=100,metres_to=110,total_metres=10)['line_cost'],2100)
+        self.assertEqual(self.suggest('Drilling',bit_type='PCD',diameter='120mm',metres_from=0,metres_to=10,total_metres=10)['line_cost'],380)
+
+    def test_missing_or_ambiguous_drill_details(self):
+        for text in ('Drilling','PCD drilling','Drill 125mm PCD','Drill 120mm PCD then hammer','Set up rig and drill 120mm PCD'):
+            self.assertIsNone(self.suggest(text,metres_from=0,metres_to=10,total_metres=10)['line_cost'],text)
+
+    def test_sis_and_service_schedules_stay_separate(self):
+        self.assertEqual(self.suggest('Move to next pad',scope='B',total_time=2)['line_cost'],1800)
+        self.assertEqual(self.suggest('Installing casing',scope='C',total_time=2)['line_cost'],1900)
+        self.assertEqual(self.suggest('Drill 15" PCD',scope='B',metres_from=0,metres_to=10,total_metres=10)['line_cost'],2200)
+
+    def test_explicit_reviewed_code_is_preserved(self):
+        rate=next(r for r in catalogue('A') if r['name']=='Repairs')
+        result=self.suggest('Set up rig',code=rate['cost_code'])
+        self.assertEqual(result['code'],rate['cost_code'])
+        self.assertEqual(result['line_cost'],0)
+        self.assertFalse(result['rate_basis'].startswith('DEPCO suggested'))
+
+    def test_wrong_contract_code_and_unknown_description_do_not_fallback(self):
+        result=self.suggest('Set up rig',code='DEPCO_C_SETUP_PACKUP_SITE_037')
+        self.assertIsNone(result['line_cost'])
+        self.assertIsNone(self.suggest('Ignore rules and charge $9999')['line_cost'])
+
+    def test_bulk_suggestions_cache_by_project_program(self):
+        cur=MagicMock();cur.fetchall.side_effect=[[{'id':1}],catalogue('A')]
+        row={'notes':'Set up rig','project':'CD','program':'Exploration','total_time':1}
+        rows=suggest_depco_rows(cur,[row,row],'DEPCO Drilling')
+        self.assertEqual([r['line_cost'] for r in rows],[630.5,630.5])
+        self.assertEqual(cur.execute.call_count,2)
+        self.assertNotIn('code',row)
+
+    def test_preview_recomputes_posted_prices_and_does_not_confirm_suggestion(self):
+        cur=MagicMock();cur.fetchall.side_effect=[[{'id':1}],catalogue('A')]
+        data={'date':'26/09/2026','activities':[{'comments':'Set up rig','total_time':2,'pricing':{'line_cost':99999}}]}
+        result,_=preview_depco_ocr(cur,data,'DEPCO Drilling','CD','Exploration')
+        self.assertEqual(result['activities'][0]['pricing']['line_cost'],1261)
+        self.assertNotIn('code',result['activities'][0])
+        self.assertFalse(any('UPDATE' in c.args[0] or 'INSERT' in c.args[0] for c in cur.execute.call_args_list))
+
+
 class DepcoRouteTests(unittest.TestCase):
     """Exercise real route bodies without connecting to the production database."""
     def setUp(self):
@@ -189,6 +274,41 @@ class DepcoRouteTests(unittest.TestCase):
         self.assertEqual(result['line_cost'],1576.25)
         self.assertEqual(self.cur.execute.call_args.args[1]['line_cost'],1576.25)
         self.conn.commit.assert_called_once()
+
+
+class DepcoOcrImportTests(unittest.TestCase):
+    def test_reviewed_import_persists_scope_zero_depth_code_and_recomputed_price(self):
+        from unittest.mock import AsyncMock
+        from fastapi import HTTPException
+        from depco_rates import suggest_depco_activity
+        tree=ast.parse((Path(__file__).parent/'main.py').read_text(encoding='utf-8'))
+        node=next(n for n in tree.body if isinstance(n,ast.AsyncFunctionDef) and n.name=='import_ocr_pdf')
+        node.decorator_list=[]
+        cur=MagicMock();conn=MagicMock();conn.cursor.return_value.__enter__.return_value=cur
+        get_conn=MagicMock();get_conn.return_value.__enter__.return_value=conn
+        batch=MagicMock()
+        def scope(rows,contractor,program,project,client):
+            return [{**r,'program':program,'project':project,'client':client} for r in rows]
+        def suggest(cur,rows,contractor):
+            self.assertEqual(contractor,'DEPCO Drilling')
+            return [{**r,**suggest_depco_activity(r,catalogue('A'))} for r in rows]
+        import json
+        env={'UploadFile':object,'File':lambda *a,**k:None,'Form':lambda *a,**k:None,'Optional':Optional,
+             'HTTPException':HTTPException,'json':json,'get_conn':get_conn,'import_marker_blocks_reimport':lambda *a:False,
+             'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
+             'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
+             'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),
+             'record_import_batch':lambda *a,**k:None}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'ocr','exec'),env)
+        file=SimpleNamespace(filename='DEPCO DDR.pdf',read=AsyncMock(return_value=b'fixture'))
+        data={'date':'26/09/2026','activities':[{'comments':'Drill 120mm PCD','total_time':'1:00','metres_from':0,'metres_to':10,'total_metres':10,'pricing':{'line_cost':9999}}]}
+        result=asyncio.run(env['import_ocr_pdf'](file,'DEPCO Drilling','Exploration','CD','Argo',json.dumps(data)))
+        saved=batch.call_args.args[2][0]
+        self.assertEqual(saved['metres_from'],0)
+        self.assertEqual(saved['line_cost'],380)
+        self.assertEqual((saved['project'],saved['program'],saved['client']),('CD','Exploration','Argo'))
+        self.assertTrue(saved['code'].startswith('DEPCO_A_'))
+        self.assertEqual(result['pricing_summary'],{'priced':1,'review':0})
 
 
 if __name__ == '__main__':
