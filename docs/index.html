@@ -6148,7 +6148,7 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
       <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
       <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
-      <td>${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">'+(/\.xlsx$/i.test(r.source_file)?'XLSX':'PDF')+'</button>':''}</td>
+      <td>${r.contractor==='DEPCO Drilling'?'<button class="btn-secondary" onclick="chooseDepcoCode('+Number(r.id)+')">Contract code</button>':''}${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">'+(/\.xlsx$/i.test(r.source_file)?'XLSX':'PDF')+'</button>':''}</td>
     </tr>`).join('');
 
   function setCellValue(row,col,value){
@@ -6172,7 +6172,7 @@ function renderActivities(rows){
     const res=await fetch(`${API}/activities/${id}/reprice`,{method:'POST'});
     if(!res.ok)throw new Error(await res.text());
     const updated=await res.json();
-    ['rate_year','unit_rate','quantity','line_cost','rate_basis'].forEach(function(col){setCellValue(row,col,updated[col]);});
+    ['code','rate_year','unit_rate','quantity','line_cost','rate_basis'].forEach(function(col){setCellValue(row,col,updated[col]);});
     updateActivityRowCache(id,updated);
     renderDailyReportSummary(activitiesData);
     refreshCostingIfActive(150);
@@ -6201,7 +6201,7 @@ function renderActivities(rows){
       try{
         await fetch(`${API}/activities/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
         updateActivityRowCache(id,{[col]:val});
-        if(scheduleRepriceCols.has(col)){
+        if(scheduleRepriceCols.has(col)||(col==='quantity'&&activitiesData.find(r=>Number(r.id)===Number(id))?.contractor==='DEPCO Drilling')){
           await repriceRenderedActivityRow(row);
         }else if(col==='unit_rate'||col==='quantity'||col==='line_cost'){
           updateActivityRowCache(id,{
@@ -12231,10 +12231,63 @@ function renderCostContractDetail(contract){
     +'</div>'
     +'<aside class="contract-side">'+sections.map(function(section){return '<button type="button" class="'+(section===activeCostContractSection?'active':'')+'" onclick="setCostContractSection(&apos;'+attr(section)+'&apos;)">'+esc(section)+'</button>';}).join('')+'</aside>'
     +'<div class="contract-main"><div class="contract-main-head"><div><div style="font-size:16px;font-weight:780;">'+esc(activeCostContractSection)+'</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">Rates in this section belong only to this cost contract.</div></div>'
-      +'<div style="display:flex;gap:8px;"><button class="btn-secondary" type="button" onclick="importCostContractSchedule()">Refresh from Rate Library</button><button class="btn-primary" type="button" onclick="addCostContractRate()">Add rate</button></div>'
+      +'<div style="display:flex;gap:8px;">'+(contract.contractor==='DEPCO Drilling'?'<select id="depco-scope" aria-label="DEPCO schedule"><option value="A"'+(contract.program==='Exploration'?' selected':'')+'>Exploration — revised</option><option value="C"'+(contract.program==='Gas Riser'?' selected':'')+'>Service Casing</option><option value="B"'+(contract.program==='SIS'?' selected':'')+'>SIS</option></select><button class="btn-secondary" type="button" onclick="importDepcoSchedule()">Add DEPCO codes</button>':'<button class="btn-secondary" type="button" onclick="importCostContractSchedule()">Refresh from Rate Library</button>')+'<button class="btn-primary" type="button" onclick="addCostContractRate()">Add rate</button></div>'
     +'</div><div class="contract-rate-table">'+costContractRateTable()+'</div></div>'
     +'</div>';
   attachCostContractRateEdits();
+}
+
+async function importDepcoSchedule(){
+  const scope=document.getElementById('depco-scope').value;
+  try{
+    const response=await fetch(API+'/cost-contracts/'+selectedCostContractId+'/import-depco',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope})});
+    if(!response.ok)throw new Error(await response.text());
+    const result=await response.json();
+    await openCostContract(selectedCostContractId,false);
+    toast(result.added+' codes added. '+result.review+' schedule items need review.');
+  }catch(error){toast(error.message,'err');}
+}
+
+async function chooseDepcoCode(id){
+  try{
+    const response=await fetch(API+'/activities/'+id+'/contract-codes');
+    if(!response.ok)throw new Error(await response.text());
+    const rates=await response.json();
+    if(!rates.length){toast('Add DEPCO codes to an active contract for this project and program first.','err');return;}
+    document.getElementById('depco-code-dialog')?.remove();
+    const dialog=document.createElement('dialog');
+    dialog.id='depco-code-dialog';dialog.className='contract-dialog';
+    dialog.style.cssText='margin:auto;max-height:85vh;overflow:auto;width:min(800px,calc(100vw - 32px));';
+    dialog.innerHTML='<div style="padding:24px"><h2>Choose contract activity</h2><p>Select the drilling size or activity. Drilling prices split across depth bands. Daily and item charges use the activity quantity.</p><input id="depco-code-search" class="management-search" placeholder="Search activity or code" aria-label="Search contract codes"><select id="depco-code-choice" size="12" style="display:block;width:100%;margin:12px 0"></select><label id="depco-quantity-label" hidden>Quantity <input id="depco-code-quantity" type="number" min="0" step="any"></label><p id="depco-code-note" style="white-space:pre-wrap"></p><button class="btn-secondary" id="depco-code-cancel">Cancel</button> <button class="btn-primary" id="depco-code-save">Apply code and price</button></div>';
+    document.body.appendChild(dialog);
+    const choice=dialog.querySelector('#depco-code-choice');
+    choice.style.cssText='display:block;width:100%;margin:12px 0;padding:8px;font:inherit;font-size:14px;border:1px solid #cbd5e1;border-radius:6px;';
+    function render(){
+      const search=dialog.querySelector('#depco-code-search').value.toLowerCase();
+      choice.innerHTML=rates.filter(r=>[r.name,r.cost_code,r.reference_name].join(' ').toLowerCase().includes(search)).map(r=>'<option value="'+Number(r.id)+'">'+esc(r.name)+(r.depth_from!=null?' ('+r.depth_from+'–'+r.depth_to+'m)':'')+' — '+(r.charge==null?'Needs price':cur(r.charge)+'/'+esc(r.unit))+(r.status!=='Active'?' — '+esc(r.status):'')+'</option>').join('');
+      note();
+    }
+    function note(){const rate=rates.find(r=>Number(r.id)===Number(choice.value));dialog.querySelector('#depco-code-note').textContent=rate?rate.reference_name||'':'';dialog.querySelector('#depco-quantity-label').hidden=!rate||['hour','metre'].includes(rate.unit);}
+    dialog.querySelector('#depco-code-search').oninput=render;choice.onchange=note;
+    dialog.querySelector('#depco-code-cancel').onclick=()=>dialog.close();
+    dialog.querySelector('#depco-code-save').onclick=async()=>{
+      const rate=rates.find(r=>Number(r.id)===Number(choice.value));if(!rate)return;
+      const patch={code:rate.cost_code};
+      if(!['hour','metre'].includes(rate.unit)){
+        const raw=dialog.querySelector('#depco-code-quantity').value;
+        if(raw===''||!Number.isFinite(Number(raw))||Number(raw)<0){toast('Enter the quantity in '+rate.unit,'err');return;}
+        patch.quantity=Number(raw);
+      }
+      const button=dialog.querySelector('#depco-code-save');button.disabled=true;
+      try{
+        const saved=await fetch(API+'/activities/'+id+'/contract-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+        if(!saved.ok)throw new Error(await saved.text());
+        const priced=await saved.json();dialog.close();await loadActivities();
+        toast(priced.line_cost==null?priced.rate_basis:'Contract code applied and activity priced');
+      }catch(error){toast(error.message,'err');}finally{button.disabled=false;}
+    };
+    render();dialog.showModal();
+  }catch(error){toast(error.message,'err');}
 }
 
 async function updateCostContractStatus(status){
@@ -12261,10 +12314,10 @@ function costContractRateTable(){
         ? '<td contenteditable="true" data-col="depth_from" data-num="true">'+(rate.depth_from==null?'':Number(rate.depth_from).toFixed(2))+'</td><td contenteditable="true" data-col="depth_to" data-num="true">'+(rate.depth_to==null?'':Number(rate.depth_to).toFixed(2))+'</td>'
         : '<td contenteditable="true" data-col="rig_type">'+esc(rate.rig_type||'All')+'</td><td contenteditable="true" data-col="category">'+esc(rate.category||'')+'</td>')
       +'<td contenteditable="true" data-col="unit">'+esc(rate.unit||'')+'</td>'
-      +'<td contenteditable="true" data-col="charge" data-num="true" style="font-weight:780;">'+cur(rate.charge||0)+'</td>'
+      +'<td contenteditable="true" data-col="charge" data-num="true" style="font-weight:780;">'+(rate.charge==null?'Needs price':cur(rate.charge))+'</td>'
       +'<td contenteditable="true" data-col="reference_name">'+esc(rate.reference_name||'')+'</td>'
       +'<td contenteditable="true" data-col="cost_code">'+esc(rate.cost_code||'')+'</td>'
-      +'<td><select data-col="status" onchange="saveCostContractRateSelect(this)"><option'+(rate.status==='Active'?' selected':'')+'>Active</option><option'+(rate.status==='Inactive'?' selected':'')+'>Inactive</option></select></td>'
+      +'<td><select data-col="status" onchange="saveCostContractRateSelect(this)"><option'+(rate.status==='Active'?' selected':'')+'>Active</option><option'+(rate.status==='Inactive'?' selected':'')+'>Inactive</option><option'+(rate.status==='Review'?' selected':'')+'>Review</option></select></td>'
       +'<td><button class="icon-btn" type="button" onclick="deleteCostContractRate('+Number(rate.id)+')">Delete</button></td>'
       +'</tr>';
   }).join('');

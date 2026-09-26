@@ -35,6 +35,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
+from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
     MCC_RATE_TABLE,
@@ -2465,6 +2466,10 @@ def effective_rate_rows(cur, contractor: str, project: str = ""):
 
 
 def price_activity(cur, row, contractor):
+    if contractor == "DEPCO Drilling":
+        lines = depco_contract_rates(cur, contractor, row.get("project"), row.get("program"))
+        row.update(price_depco_activity(row, lines))
+        return row
     code         = row.get("code","") or ""
     total_time   = row.get("total_time","") or ""
     total_metres = row.get("total_metres")
@@ -4840,6 +4845,7 @@ async def import_pdf(
     with get_conn() as conn:
         with conn.cursor() as cur:
             # Prefer the active project contract; preserve contractor/year schedules as fallback.
+            depco_lines = depco_contract_rates(cur, contractor, project, program) if contractor == "DEPCO Drilling" else None
             all_hr, all_dr, all_cr, applied_contract = effective_rate_rows(cur, contractor, project)
 
         hr_lookup = {}
@@ -4869,6 +4875,9 @@ async def import_pdf(
             return None
 
         def _price_row(row):
+            if contractor == "DEPCO Drilling":
+                row.update(price_depco_activity(row, depco_lines))
+                return row
             if contractor == "Weatherfords" and str(row.get("rate_basis") or "").startswith("Weatherford"):
                 return row
             if mcc_site_services_report and str(row.get("code") or "").startswith("MCC_"):
@@ -5240,6 +5249,8 @@ async def apply_safe_ocr_integrity_fixes(request: Request):
 async def ai_fix_import_rates(request: Request):
     payload = await request.json()
     contractor = payload.get("contractor", "Allianz Drilling")
+    if contractor == "DEPCO Drilling":
+        raise HTTPException(400, "Use DEPCO contract codes and Recalculate Database to price activities")
     limit = int(payload.get("limit") or 500)
     apply_changes = bool(payload.get("apply", True))
     if limit < 1:
@@ -6748,6 +6759,7 @@ def reprice_activity_row(row_id: int):
                 return locked_row
             priced = price_activity(cur, dict(row), row["contractor"])
             updates = {
+                "code": priced.get("code"),
                 "rate_year": priced.get("rate_year"),
                 "unit_rate": priced.get("unit_rate"),
                 "quantity": priced.get("quantity"),
@@ -6756,7 +6768,7 @@ def reprice_activity_row(row_id: int):
             }
             cur.execute("""
                 UPDATE activities
-                SET rate_year=%(rate_year)s,
+                SET code=%(code)s, rate_year=%(rate_year)s,
                     unit_rate=%(unit_rate)s,
                     quantity=%(quantity)s,
                     line_cost=%(line_cost)s,
@@ -9082,6 +9094,10 @@ def reprice_activities(contractor: str = Query(...)):
 
             dr_years = sorted(set(r["year"] for r in all_dr))
             hr_years = sorted(set(r["year"] for r in all_hr))
+            depco_rate_sets = {}
+            if contractor == "DEPCO Drilling":
+                for project_name, program_name in {(r.get("project") or "", r.get("program") or "") for r in rows}:
+                    depco_rate_sets[(project_name, program_name)] = depco_contract_rates(cur, contractor, project_name, program_name)
             project_rate_sets = {}
             for project_name in {str(row.get("project") or "").strip() for row in rows} - {""}:
                 project_hr, project_dr, _, contract = effective_rate_rows(cur, contractor, project_name)
@@ -9183,6 +9199,17 @@ def reprice_activities(contractor: str = Query(...)):
             loc = (row.get("location","") or "").lower()
             if loc in ("cdm sth","cdm south","cdm","carborough downs mine"):
                 updates["location"] = "Carborough Downs"
+
+            # DEPCO uses explicit contract units and review states. Clear stale prices on unresolved rows.
+            if contractor == "DEPCO Drilling":
+                priced = price_depco_activity(row, depco_rate_sets.get((row.get("project") or "", row.get("program") or "")))
+                updates.update(priced)
+                if priced.get("line_cost") is not None:
+                    stats["priced"] += 1
+                else:
+                    skipped_codes[row.get("code") or "empty"] = skipped_codes.get(row.get("code") or "empty", 0) + 1
+                batch_updates.append((updates, rid))
+                continue
 
             # 5. Reprice (in memory — no DB queries)
             year = extract_year(row.get("date",""))
@@ -10554,6 +10581,98 @@ def delete_cost_contract_rate(rate_id: int):
                 raise HTTPException(404, "Contract rate not found")
         conn.commit()
     return {"status": "deleted"}
+
+
+@app.get("/depco-schedule")
+def get_depco_schedule(scope: str = Query(...)):
+    try:
+        return depco_catalogue(scope)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/activities/{activity_id}/contract-codes")
+def get_activity_contract_codes(activity_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM activities WHERE id=%s", (activity_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(404, "Activity not found")
+            return depco_contract_rates(cur, row["contractor"], row.get("project"), row.get("program")) or []
+
+
+@app.post("/activities/{activity_id}/contract-code")
+async def apply_activity_contract_code(activity_id: int, request: Request):
+    payload = await request.json()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM activities WHERE id=%s FOR UPDATE", (activity_id,))
+            found = cur.fetchone()
+            if not found:
+                raise HTTPException(404, "Activity not found")
+            row = dict(found)
+            if row.get("contractor") != "DEPCO Drilling":
+                raise HTTPException(400, "Select a DEPCO activity")
+            if activity_sheet_is_locked(cur, row["contractor"], row.get("date") or "", row.get("hole_num") or "", row.get("source_file") or ""):
+                raise HTTPException(409, "Unlock this report before changing its contract code")
+            lines = depco_contract_rates(cur, row["contractor"], row.get("project"), row.get("program")) or []
+            if not any(r.get("cost_code") == payload.get("code") for r in lines):
+                raise HTTPException(400, "Choose a code from this activity's active contract")
+            row["code"] = payload["code"]
+            if "quantity" in payload:
+                row["quantity"] = payload["quantity"]
+            elif row.get("code") != found.get("code"):
+                row["quantity"] = None
+            row.update(price_depco_activity(row, lines))
+            cur.execute("""
+                UPDATE activities SET code=%(code)s, rate_year=%(rate_year)s,
+                    unit_rate=%(unit_rate)s, quantity=%(quantity)s, line_cost=%(line_cost)s,
+                    rate_basis=%(rate_basis)s WHERE id=%(id)s RETURNING *
+            """, row)
+            result = dict(cur.fetchone())
+        conn.commit()
+    return result
+
+
+@app.post("/cost-contracts/{contract_id}/import-depco")
+async def import_depco_contract(contract_id: int, request: Request):
+    payload = await request.json()
+    scope = payload.get("scope")
+    try:
+        rates = depco_catalogue(scope)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT cc.*, p.program FROM cost_contracts cc JOIN projects p ON p.id=cc.project_id WHERE cc.id=%s FOR UPDATE OF cc", (contract_id,))
+            contract = cur.fetchone()
+            if not contract:
+                raise HTTPException(404, "Cost contract not found")
+            if contract["contractor"] != "DEPCO Drilling":
+                raise HTTPException(400, "This schedule belongs to DEPCO Drilling")
+            if contract.get("program") != DEPCO_SCOPES[scope]:
+                raise HTTPException(400, "Choose the schedule matching this project's program: " + str(contract.get("program")))
+            cur.execute("SELECT cost_code FROM cost_contract_rates WHERE contract_id=%s", (contract_id,))
+            existing = {r.get("cost_code") for r in cur.fetchall()}
+            if any(str(code).startswith("DEPCO_") and not str(code).startswith("DEPCO_" + scope + "_") for code in existing):
+                raise HTTPException(409, "This contract already contains another DEPCO schedule")
+            added = 0
+            for rate in rates:
+                if rate["cost_code"] in existing:
+                    continue
+                values = {"contract_id":contract_id, "depth_from":None, "depth_to":None, **rate}
+                cur.execute("""
+                    INSERT INTO cost_contract_rates
+                        (contract_id, section, name, rig_type, category, depth_from, depth_to,
+                         unit, charge, reference_name, cost_code, status, sort_order)
+                    VALUES (%(contract_id)s, %(section)s, %(name)s, %(rig_type)s, %(category)s,
+                            %(depth_from)s, %(depth_to)s, %(unit)s, %(charge)s,
+                            %(reference_name)s, %(cost_code)s, %(status)s, %(sort_order)s)
+                """, values)
+                added += 1
+        conn.commit()
+    return {"added":added, "review":sum(r["status"] == "Review" for r in rates), "scope":scope}
 
 
 @app.post("/cost-contracts/{contract_id}/import-schedule")
