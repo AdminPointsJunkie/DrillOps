@@ -686,6 +686,7 @@ body.period-print-prep .period-map{display:none!important;}
 body.period-print-prep .period-map-print{display:block!important;height:250px!important;}
 
 @media print{
+  .fortem-estimate-editor,.fortem-estimate-heading{display:none!important;}
   @page{size:A4 landscape;margin:8mm 8mm 12mm;
     @bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:8.5px;color:#64748b;}
   }
@@ -7412,7 +7413,7 @@ function renderFortemEstimateEditor(fortem){
   if(!selectedPeriod().project)return '';
   const s=fortem.settings;
   const fields=[['geologist','Geologist ($/day)'],['vehicle','Vehicle ($/day)'],['flightRate','Flight ($/flight)'],['days','Chargeable calendar days'],['flights','Number of flights']];
-  return '<div class="period-section-title">Fortem — estimated cost</div>'
+  return '<div class="period-section-title fortem-estimate-heading">Fortem — estimated cost</div>'
     +'<form onsubmit="saveFortemEstimate(event)" class="fortem-estimate-editor" style="padding:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">'
     +'<div style="display:flex;flex-wrap:wrap;gap:12px;">'+fields.map(([field,label])=>'<label style="display:grid;gap:4px;font-size:12px;">'+label+'<input name="'+field+'" aria-label="'+label+'" type="number" min="0" max="100000000" step="'+(['days','flights'].includes(field)?'1':'0.01')+'" required value="'+s[field]+'" style="width:150px;padding:7px;border:1px solid var(--border);border-radius:4px;"/></label>').join('')+'</div>'
     +'<p style="font-size:12px;margin:10px 0;">'+(fortem.firstHoleStart?'First hole started '+esc(fortem.firstHoleStart)+'. Defaults count calendar days from that date (or the report start, if later) through the report end, including weekends.':'No dated hole activity found for this project and program year. Enter chargeable days manually.')+' One flight per commenced seven days. Days and flights remain editable. All amounts use the same tax basis as report invoices.</p>'
@@ -10034,7 +10035,7 @@ function renderExplorationMetresSummary(){
     return '<div class="exploration-metres-card">'
       +'<div class="exploration-metres-head"><div class="exploration-metres-site">'+esc(site.site_name||site.site_code)+'<span class="exploration-metres-code">'+esc(site.site_code)+'</span></div><div class="exploration-metres-asof">As at '+esc(data.as_of||'--')+'</div></div>'
       +'<div class="exploration-metres-kpis">'
-      +'<div class="exploration-metres-kpi"><span>Drilled in 2026</span><strong>'+numVal(site.actual_metres).toLocaleString('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1})+' m</strong></div>'
+      +'<div class="exploration-metres-kpi"><span>Drilled in '+esc(data.year)+'</span><strong>'+numVal(site.actual_metres).toLocaleString('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1})+' m</strong></div>'
       +'<div class="exploration-metres-kpi"><span>Remaining</span><strong>'+numVal(site.remaining_metres).toLocaleString('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1})+' m</strong></div>'
       +'<div class="exploration-metres-kpi"><span>Open plan</span><strong>'+esc(openLabel)+'</strong></div>'
       +'</div>'
@@ -10044,7 +10045,7 @@ function renderExplorationMetresSummary(){
   }).join('');
   if(note){
     const deduplicated=sites.reduce(function(sum,site){return sum+numVal(site.deduplicated_rows);},0);
-    note.textContent='Actuals: 2026 Drill Core and Chip/Open Hole activity intervals; '+deduplicated+' exact duplicate interval'+(deduplicated===1?'':'s')+' removed. Remaining: open Borehole Planning EOH balance; completed and cancelled holes excluded.';
+    note.textContent='Actuals: '+data.year+' Drill Core and Chip/Open Hole activity intervals; '+deduplicated+' exact duplicate interval'+(deduplicated===1?'':'s')+' removed. Remaining: open Borehole Planning EOH balance; completed and cancelled holes excluded.';
   }
 }
 

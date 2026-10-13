@@ -6936,17 +6936,20 @@ def get_analytics(contractor: str = Query(...), hole: Optional[str] = Query(None
 
 @app.get("/exploration-metres-summary")
 def get_exploration_metres_summary(year: int = Query(2026, ge=2000, le=2100)):
-    """Annual CD and IB drilling metres, remaining plan, and depth bands."""
+    """Annual exploration drilling metres, remaining plan, and depth bands."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT date, hole_num, site_name, code, metres_from, metres_to,
-                       total_metres, source_file, contractor
+                       total_metres, source_file, contractor, project, program, notes
                 FROM activities
-                WHERE code IN ('Drill_Core', 'Drill_Chip_or_Open_hole')
-                  AND (UPPER(COALESCE(hole_num,'')) LIKE 'CD%%'
-                       OR UPPER(COALESCE(hole_num,'')) LIKE 'IB%%')
+                WHERE (code IN ('Drill_Core', 'Drill_Chip_or_Open_hole')
+                       OR COALESCE(notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)')
+                  AND (project IN ('Carborough Downs', 'Ironbark', 'BCC Fugitive Emissions')
+                       OR (BTRIM(COALESCE(project,''))='' AND
+                           (UPPER(COALESCE(hole_num,'')) LIKE 'CD%%'
+                            OR UPPER(COALESCE(hole_num,'')) LIKE 'IB%%')))
                   AND COALESCE(date,'') LIKE %s
                 ORDER BY date, hole_num, metres_from, id
                 """,
@@ -6956,11 +6959,12 @@ def get_exploration_metres_summary(year: int = Query(2026, ge=2000, le=2100)):
             cur.execute(
                 """
                 SELECT contractor, planned_year, project, hole_id, site_id,
-                       status, eoh_depth
+                       status, eoh_depth, program
                 FROM boreholes
                 WHERE contractor='Company'
                   AND planned_year=%s
-                  AND project IN ('Carborough Downs', 'Ironbark')
+                  AND project IN ('Carborough Downs', 'Ironbark', 'BCC Fugitive Emissions')
+                  AND (COALESCE(program,'')='' OR program='Exploration')
                 ORDER BY project, drill_order NULLS LAST, hole_id
                 """,
                 (str(year),),

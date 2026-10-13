@@ -11,7 +11,7 @@ class ExplorationMetresSummaryTests(unittest.TestCase):
             {"date": "2026-01-02", "hole_num": "IB001", "code": "Drill_Core", "metres_from": 295, "metres_to": 305, "total_metres": 10},
         ]
         result = summarize_exploration_metres(activities, [], 2026)
-        cd, ib = result["sites"]
+        cd, ib, _ = result["sites"]
 
         self.assertEqual(cd["actual_metres"], 20)
         self.assertEqual(cd["deduplicated_rows"], 1)
@@ -46,6 +46,29 @@ class ExplorationMetresSummaryTests(unittest.TestCase):
         self.assertEqual(cd["actual_metres"], 15)
         self.assertEqual(cd["depth_bands"][0]["metres"], 15)
         self.assertEqual(cd["unallocated_depth_metres"], 0)
+
+    def test_burton_aliases_completed_holes_and_project_program_boundaries(self):
+        project = 'BCC Fugitive Emissions'
+        def activity(hole, **extra):
+            return dict(date='2026-09-18', project=project, program='Exploration',
+                        hole_num=hole, code='Drill_Core', metres_from=0,
+                        metres_to=50, total_metres=50, **extra)
+        rows = [activity('ESPGN8'), activity('ESPNG08'), activity('ESPGN10')]
+        rows += [dict(date='2026-09-19',project=project,hole_num='ESPGN8',code='H_Circulation_Flush',notes='End of hole flush')]
+        rows += [{**activity('ESPGN10'), 'program':'Gas Riser', 'total_metres':1000}]
+        rows += [{**activity('ESPGN10'), 'project':'Other', 'total_metres':1000}]
+        holes = [dict(contractor='Company',planned_year='2026',project=project,hole_id=hole,site_id='',status=status,eoh_depth=120)
+                 for hole,status in [('ESPNG08','Planned'),('ESPNG10','In Progress'),('ESPNG12','Planned')]]
+        bcc = summarize_exploration_metres(rows, holes, 2026)['sites'][2]
+        self.assertEqual(bcc['actual_metres'],100)
+        self.assertEqual(bcc['deduplicated_rows'],1)
+        self.assertEqual(bcc['remaining_metres'],190)
+        self.assertEqual(bcc['open_holes'],2)
+        self.assertEqual(bcc['in_progress_holes'],1)
+
+    def test_year_is_not_hardcoded(self):
+        result=summarize_exploration_metres([],[],2027)
+        self.assertIn('2027',result['methodology']['actual'])
 
 
 if __name__ == "__main__":

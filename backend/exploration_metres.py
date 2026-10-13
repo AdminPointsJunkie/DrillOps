@@ -2,11 +2,13 @@
 
 from datetime import date as calendar_date
 from datetime import datetime
+import re
 
 
 SITE_DEFINITIONS = {
     "CD": {"name": "Carborough Downs", "project": "Carborough Downs"},
     "IB": {"name": "Ironbark", "project": "Ironbark"},
+    "BCC": {"name": "BCC Fugitive Emissions", "project": "BCC Fugitive Emissions"},
 }
 
 DEPTH_BANDS = (
@@ -37,11 +39,22 @@ def _activity_date(value):
 
 
 def _activity_site(row):
+    project = str(row.get("project") or "").strip().casefold()
+    if project:
+        return next((code for code, definition in SITE_DEFINITIONS.items()
+                     if definition["project"].casefold() == project), None)
     hole = str(row.get("hole_num") or "").strip().upper()
     for site_code in SITE_DEFINITIONS:
         if hole.startswith(site_code):
             return site_code
     return None
+
+
+def _hole_identity(value, site_code):
+    identity = str(value or "").strip().upper()
+    if site_code == "BCC":
+        return {"ESPNG8": "ESPNG08", "ESPGN8": "ESPNG08", "ESPGN10": "ESPNG10", "ESPGN13": "ESPNG13"}.get(identity, identity)
+    return identity
 
 
 def _drilling_interval(row):
@@ -81,7 +94,7 @@ def _dedupe_key(row, site_code, report_date):
 
     return (
         site_code,
-        str(row.get("hole_num") or "").strip().upper(),
+        _hole_identity(row.get("hole_num"), site_code),
         report_date.isoformat(),
         str(row.get("code") or "").strip(),
         rounded(row.get("metres_from")),
@@ -124,12 +137,19 @@ def _site_plan_summary(boreholes, activity_rows, site_code, year):
             group["hole_ids"].add(hole_id)
 
     activity_depths = {}
+    completed_holes = set()
     for row in activity_rows:
+        if _activity_site(row) != site_code:
+            continue
+        hole_id = _hole_identity(row.get("hole_num"), site_code)
+        site_id = _hole_identity(row.get("site_name"), site_code)
+        if re.search(r'(^|[^a-z])(end of hole|eoh)([^a-z]|$)', str(row.get("notes") or ""), re.I):
+            completed_holes.update({hole_id, site_id} - {""})
+        if str(row.get("code") or "").strip() not in DRILLING_CODES:
+            continue
         interval = _drilling_interval(row)
         if not interval:
             continue
-        hole_id = str(row.get("hole_num") or "").strip().upper()
-        site_id = str(row.get("site_name") or "").strip().upper()
         end = interval[1]
         for key in {hole_id, site_id} - {""}:
             activity_depths[key] = max(activity_depths.get(key, 0.0), end)
@@ -144,6 +164,8 @@ def _site_plan_summary(boreholes, activity_rows, site_code, year):
             for row in group["rows"]
         }
         if any(status.startswith("complete") for status in statuses):
+            continue
+        if statuses == {"planned"} and completed_holes.intersection({group_key} | group["hole_ids"]):
             continue
         if statuses and statuses.issubset({"cancelled", "canceled", "abandoned"}):
             continue
@@ -172,7 +194,7 @@ def _site_plan_summary(boreholes, activity_rows, site_code, year):
 
 
 def summarize_exploration_metres(activity_rows, boreholes, year):
-    """Build the annual CD/IB actual, remaining, and depth-band summary."""
+    """Build annual exploration actuals, remaining plan, and depth bands."""
     year = int(year)
     summaries = {
         code: {
@@ -190,13 +212,16 @@ def summarize_exploration_metres(activity_rows, boreholes, year):
     seen = set()
     current_year_rows = []
     for row in activity_rows:
-        if str(row.get("code") or "").strip() not in DRILLING_CODES:
+        programs = {p.strip().casefold() for p in str(row.get("program") or "").split(',') if p.strip()}
+        if programs and "exploration" not in programs:
             continue
         report_date = _activity_date(row.get("date"))
         site_code = _activity_site(row)
         if not report_date or report_date.year != year or not site_code:
             continue
         current_year_rows.append(row)
+        if str(row.get("code") or "").strip() not in DRILLING_CODES:
+            continue
         summary = summaries[site_code]
         summary["report_rows"] += 1
         key = _dedupe_key(row, site_code, report_date)
@@ -241,7 +266,7 @@ def summarize_exploration_metres(activity_rows, boreholes, year):
         "as_of": calendar_date.today().isoformat(),
         "sites": result_rows,
         "methodology": {
-            "actual": "Sum of 2026 Drill_Core and Drill_Chip_or_Open_hole report metres after exact interval de-duplication.",
+            "actual": f"Sum of {year} Drill_Core and Drill_Chip_or_Open_hole report metres after exact interval de-duplication.",
             "remaining": "Open Borehole Planning EOH metres less reported depth on mapped in-progress holes; completed and cancelled holes are excluded.",
             "depth_bands": "Reported metres are proportionally split where an interval crosses a 100 m depth boundary.",
         },
