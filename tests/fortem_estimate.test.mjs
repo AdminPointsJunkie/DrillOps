@@ -29,6 +29,14 @@ test('partial weeks, leap dates and invalid ranges are explicit',()=>{
   assert.throws(()=>calculate({...settings,days:1.5},0));
   assert.throws(()=>calculate({...settings,flights:NaN},0));
 });
+test('chargeable days start with the first hole and stay inside the report period',()=>{
+  const range={from:'2026-05-19',to:'2026-10-12'};
+  assert.equal(defaults(range,'2026-09-18').days,25);
+  assert.equal(defaults(range,'2026-09-18').flights,4);
+  assert.equal(defaults({from:'2026-10-01',to:'2026-10-12'},'2026-09-18').days,12);
+  assert.equal(defaults(range,'').days,0);
+  assert.equal(defaults(range,'2026-10-13').days,0);
+});
 test('saved scenarios cannot leak across clients, projects, programs or report periods',()=>{
   const scope={...period,client:1,program:'Exploration'};
   for(const [key,value] of Object.entries({client:2,project:'Ironbark',program:'Production',from:'2026-10-02',to:'2026-10-08'})){
@@ -45,6 +53,9 @@ test('all portal scripts compile',()=>{
 function context(){
   const store=new Map();
   const c=vm.createContext({FortemEstimate:globalThis.FortemEstimate,activeClientId:1,activeProgramLabel:()=> 'Exploration',selectedPeriod:()=>period,
+    periodReportActivitiesData:[{date:'2026-10-01',project:'Burton',hole_num:'H1'}],activitiesData:[],bhData:[{project:'Burton',hole_id:'H1'}],
+    projectNamesMatch:(a,b)=>a===b,rowMatchesActiveProgram:()=>true,rowMatchesBorehole:(r,b)=>r.project===b.project&&r.hole_num===b.hole_id,
+    reportIso:v=>v,activeProjectYear:()=>2026,
     localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},numVal:v=>Number(v)||0,
     contractorSummaryKey:v=>String(v).toLowerCase(),renderPeriodReport:()=>{},toast:()=>{}});
   const start=html.indexOf('function periodFortemEstimate(');
@@ -63,6 +74,17 @@ test('save, reload, disable and invoice reconciliation use the same scoped setti
   elements.enabled.checked=false;
   c.saveFortemEstimate({preventDefault(){},target:{elements,reportValidity:()=>true,querySelector:()=>({textContent:''})}});
   assert.equal(c.periodFortemEstimate(period,[]).unbilled,0);
+});
+test('first-hole date ignores other projects and reset retains edited rates',()=>{
+  const c=context();
+  c.periodReportActivitiesData.unshift({date:'2026-05-19',project:'Other',hole_num:'H1'});
+  assert.equal(c.periodFortemEstimate(period,[]).firstHoleStart,'2026-10-01');
+  const elements={days:{value:'200'},flights:{value:'29'},geologist:{value:'1550'},enabled:{checked:true}};
+  c.useFortemFirstHoleDates({closest:()=>({elements,querySelector:()=>({textContent:''})})});
+  assert.equal(elements.days.value,7);
+  assert.equal(elements.flights.value,1);
+  assert.equal(elements.geologist.value,'1550');
+  assert.equal(elements.enabled.checked,true);
 });
 test('corrupt saved settings fall back to a disabled estimate with a visible warning',()=>{
   const c=context();

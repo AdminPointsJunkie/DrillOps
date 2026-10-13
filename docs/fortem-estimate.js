@@ -1,8 +1,9 @@
 (function(root){
   'use strict';
   const money=value=>Math.round((value+Number.EPSILON)*100)/100;
-  function defaults(period){
-    const from=Date.parse(period.from+'T00:00:00Z');
+  function defaults(period,firstHoleStart=period.from){
+    const start=firstHoleStart&&(!period.from||firstHoleStart>period.from)?firstHoleStart:(firstHoleStart?period.from:'');
+    const from=Date.parse(start+'T00:00:00Z');
     const to=Date.parse(period.to+'T00:00:00Z');
     const days=Number.isFinite(from)&&Number.isFinite(to)&&to>=from?Math.round((to-from)/86400000)+1:0;
     return {enabled:false,geologist:1400,vehicle:110,flightRate:600,days,flights:Math.ceil(days/7)};

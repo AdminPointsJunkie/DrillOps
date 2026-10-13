@@ -7368,14 +7368,27 @@ function clearPeriodVarianceNote(button,label){
 function periodFortemEstimate(period,invoices){
   const scope={...period,client:activeClientId,program:activeProgramLabel()};
   const key=FortemEstimate.storageKey(scope);
-  let settings=FortemEstimate.defaults(period);
+  const source=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
+  const projectHoles=(bhData||[]).filter(b=>projectNamesMatch(b.project,period.project));
+  const firstHoleStart=(source||[]).filter(row=>rowMatchesActiveProgram(row)&&projectHoles.some(b=>rowMatchesBorehole(row,b)))
+    .map(row=>reportIso(row.date)).filter(date=>date&&date.startsWith(String(activeProjectYear())+'-')).sort()[0]||'';
+  let settings=FortemEstimate.defaults(period,firstHoleStart);
   let storageWarning='';
   try{
     const saved=JSON.parse(localStorage.getItem(key)||'null');
     if(saved){FortemEstimate.calculate(saved,0);settings={...saved,enabled:saved.enabled===true};}
   }catch(error){storageWarning='Saved settings could not be loaded. Review and apply the estimate again.';}
   const invoiced=(invoices||[]).filter(inv=>contractorSummaryKey(inv.contractor)==='fortem').reduce((sum,inv)=>sum+numVal(inv.total_aud),0);
-  return {...FortemEstimate.calculate(settings,invoiced),settings,key,storageWarning};
+  return {...FortemEstimate.calculate(settings,invoiced),settings,key,storageWarning,firstHoleStart};
+}
+
+function useFortemFirstHoleDates(button){
+  const form=button.closest('form');
+  const estimate=periodFortemEstimate(selectedPeriod(),[]);
+  const defaults=FortemEstimate.defaults(selectedPeriod(),estimate.firstHoleStart);
+  form.elements.days.value=defaults.days;
+  form.elements.flights.value=defaults.flights;
+  form.querySelector('[role="status"]').textContent='Days and flights reset from the first hole. Click Apply estimate to save.';
 }
 
 function saveFortemEstimate(event){
@@ -7402,7 +7415,8 @@ function renderFortemEstimateEditor(fortem){
   return '<div class="period-section-title">Fortem — estimated cost</div>'
     +'<form onsubmit="saveFortemEstimate(event)" class="fortem-estimate-editor" style="padding:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">'
     +'<div style="display:flex;flex-wrap:wrap;gap:12px;">'+fields.map(([field,label])=>'<label style="display:grid;gap:4px;font-size:12px;">'+label+'<input name="'+field+'" aria-label="'+label+'" type="number" min="0" max="100000000" step="'+(['days','flights'].includes(field)?'1':'0.01')+'" required value="'+s[field]+'" style="width:150px;padding:7px;border:1px solid var(--border);border-radius:4px;"/></label>').join('')+'</div>'
-    +'<p style="font-size:12px;margin:10px 0;">Defaults count every day in the selected report period, including weekends, and one flight per commenced seven days. Adjust days and flights to match the actual roster. All amounts use the same tax basis as report invoices.</p>'
+    +'<p style="font-size:12px;margin:10px 0;">'+(fortem.firstHoleStart?'First hole started '+esc(fortem.firstHoleStart)+'. Defaults count calendar days from that date (or the report start, if later) through the report end, including weekends.':'No dated hole activity found for this project and program year. Enter chargeable days manually.')+' One flight per commenced seven days. Days and flights remain editable. All amounts use the same tax basis as report invoices.</p>'
+    +'<button type="button" class="btn-csv" onclick="useFortemFirstHoleDates(this)" style="margin-bottom:10px;">Use first-hole dates</button><br>'
     +'<label style="font-size:12px;"><input type="checkbox" name="enabled" '+(s.enabled?'checked':'')+'/> Include estimated unbilled cost in report totals</label> '
     +'<button type="submit" class="btn-csv">Apply estimate</button>'
     +'<p style="font-size:12px;margin:10px 0 0;"><b>'+(s.enabled?'Applied estimate':'Estimate preview — not included')+': '+cur(fortem.gross)+'</b> = '+s.days+' days × '+cur(s.geologist+s.vehicle)+' + '+s.flights+' flights × '+cur(s.flightRate)+'. Fortem invoices in this period: '+cur(fortem.invoices)+'. Estimated unbilled amount included: '+cur(fortem.unbilled)+'.</p>'
