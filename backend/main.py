@@ -9571,6 +9571,38 @@ def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> li
     return collapsed + site_less_rows
 
 
+def burton_borehole_activity_aliases(row: dict) -> dict:
+    """Link confirmed Burton source spellings without rewriting approved DARs."""
+    if row.get("project") != "BCC Fugitive Emissions":
+        return row
+    aliases = {
+        "ESPNG08": ["ESPNG8", "ESPGN8"],
+        "ESPNG10": ["ESPGN10"],
+        "ESPNG13": ["ESPGN13"],
+    }.get(row.get("hole_id"), [])
+    if aliases:
+        row["activity_hole_ids"] = list(dict.fromkeys(
+            list(row.get("activity_hole_ids") or []) + [row["hole_id"]] + aliases
+        ))
+    return row
+
+
+# These are evidenced aliases in Burton's September/October 2026 Mitchells
+# source reports, not a fuzzy rule for similarly named holes in other projects.
+BURTON_BOREHOLE_ACTIVITY_MATCH_SQL = """
+    b.project='BCC Fugitive Emissions'
+    AND a.project='BCC Fugitive Emissions'
+    AND a.contractor='Mitchells Drilling'
+    AND b.hole_id = CASE a.hole_num
+        WHEN 'ESPNG8' THEN 'ESPNG08'
+        WHEN 'ESPGN8' THEN 'ESPNG08'
+        WHEN 'ESPGN10' THEN 'ESPNG10'
+        WHEN 'ESPGN13' THEN 'ESPNG13'
+        ELSE NULL
+    END
+"""
+
+
 ACTIVITY_REPORT_DATE_AS_ISO_SQL = """
     CASE
         WHEN BTRIM(COALESCE(a.date,'')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
@@ -9584,9 +9616,10 @@ ACTIVITY_REPORT_DATE_AS_ISO_SQL = """
 """
 
 
-COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = """
+COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = f"""
     a.hole_num=b.hole_id
     OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+    OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
     OR (
         COALESCE(b.site_id,'')<>''
         AND EXISTS (
@@ -9637,7 +9670,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
                 elif contractor:
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
@@ -9648,21 +9681,22 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
                             COALESCE(
                                 MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END),
                                 MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END)
                             ) AS completion_date
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=%s
                             AND (
                                 a.hole_num=b.hole_id
                                 OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                                OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
                             )
                         WHERE b.contractor IN (%s, 'Company')
                         GROUP BY b.id ORDER BY b.drill_order
                     """, (contractor, contractor))
                 else:
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT b.*,
                             COALESCE(SUM(a.line_cost),0) AS eos_cost,
                             COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
@@ -9673,15 +9707,16 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                             COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
                             COALESCE(
                                 MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END),
+                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END),
                                 MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    AND a.date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN a.date END)
+                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END)
                             ) AS completion_date
                         FROM boreholes b
                         LEFT JOIN activities a ON a.contractor=b.contractor
                             AND (
                                 a.hole_num=b.hole_id
                                 OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
+                                OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
                             )
                         GROUP BY b.id ORDER BY b.drill_order
                     """)
@@ -9726,7 +9761,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                 for row in rows:
                     if row.get("activity_complete") and str(row.get("status") or "Planned").lower() == "planned":
                         row["status"] = "Complete"
-                return [apply_borehole_wgs84(row) for row in rows]
+                return [apply_borehole_wgs84(burton_borehole_activity_aliases(row)) for row in rows]
     except Exception as e:
         raise HTTPException(500, f"Boreholes error: {str(e)}")
 
