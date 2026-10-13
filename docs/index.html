@@ -3669,6 +3669,7 @@ tbody td[contenteditable=true]:focus {
 <div id="toast"></div>
 
 <script src="./config.js"></script>
+<script src="./fortem-estimate.js"></script>
 <script>
 // ── Supabase authentication ──────────────────────────────────────────────────
 const API = window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'
@@ -6818,7 +6819,8 @@ function renderPeriodReport(){
   const budgetTotal=budgetTotals.total;
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
   const supportInvoiceCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
-  const supportCost=supportInvoiceCost+mccChargeSummary.unbilled;
+  const fortem=periodFortemEstimate(period,supportInvoices);
+  const supportCost=supportInvoiceCost+mccChargeSummary.unbilled+fortem.unbilled;
   const totalSpent=totalDrillingCost+supportCost;
   const drillingBudgetTotal=budgetTotals.drilling;
   const variance=budgetTotal-totalSpent;
@@ -6853,9 +6855,13 @@ function renderPeriodReport(){
   const reportCountLabel=drillingReports.length+' '+drillingContractor+' report'+(drillingReports.length===1?'':'s');
   setPeriodText('period-drilling-sub',reportCountLabel+(drillingBudgetTotal?' / '+cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):' / No drilling budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
+  document.getElementById('period-support-total').previousElementSibling.textContent=fortem.unbilled>0?'Support incl. estimate':'Recorded Support';
   const mccAccrualLabel=mccChargeSummary.unbilled>0?' + '+cur(mccChargeSummary.unbilled)+' unbilled MCC charges':(mccChargeSummary.weeklyTotal>0?' / MCC weekly charges reconciled':'');
-  setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+mccAccrualLabel+' / '+cur(budgetTotals.support)+' budget');
+  setPeriodText('period-support-sub',supportInvoices.length+' invoice'+(supportInvoices.length===1?'':'s')+mccAccrualLabel+(fortem.unbilled>0?' + '+cur(fortem.unbilled)+' Fortem estimate':'')+' / '+cur(budgetTotals.support)+' budget');
   setPeriodText('period-total-spent',cur(totalSpent));
+  const spentEl=document.getElementById('period-total-spent');
+  spentEl.previousElementSibling.textContent=fortem.unbilled>0?'Spend incl. estimate':'Recorded Spend';
+  spentEl.nextElementSibling.textContent=fortem.unbilled>0?'Includes '+cur(fortem.unbilled)+' estimated Fortem cost':'Drilling + recorded support costs';
   const varianceEl=document.getElementById('period-variance');
   if(varianceEl){
     varianceEl.textContent=cur(Math.abs(variance));
@@ -6873,7 +6879,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
-  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary);
+  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary,fortem);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary);
 }
@@ -7351,7 +7357,53 @@ function clearPeriodVarianceNote(button,label){
   if(note)note.textContent='';
 }
 
-function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary){
+function periodFortemEstimate(period,invoices){
+  const scope={...period,client:activeClientId,program:activeProgramLabel()};
+  const key=FortemEstimate.storageKey(scope);
+  let settings=FortemEstimate.defaults(period);
+  let storageWarning='';
+  try{
+    const saved=JSON.parse(localStorage.getItem(key)||'null');
+    if(saved){FortemEstimate.calculate(saved,0);settings={...saved,enabled:saved.enabled===true};}
+  }catch(error){storageWarning='Saved settings could not be loaded. Review and apply the estimate again.';}
+  const invoiced=(invoices||[]).filter(inv=>contractorSummaryKey(inv.contractor)==='fortem').reduce((sum,inv)=>sum+numVal(inv.total_aud),0);
+  return {...FortemEstimate.calculate(settings,invoiced),settings,key,storageWarning};
+}
+
+function saveFortemEstimate(event){
+  event.preventDefault();
+  const form=event.target;
+  if(!form.reportValidity())return;
+  const settings={enabled:form.elements.enabled.checked};
+  for(const field of ['geologist','vehicle','flightRate','days','flights'])settings[field]=Number(form.elements[field].value);
+  const feedback=form.querySelector('[role="status"]');
+  try{
+    FortemEstimate.calculate(settings,0);
+    const period=selectedPeriod();
+    const key=FortemEstimate.storageKey({...period,client:activeClientId,program:activeProgramLabel()});
+    localStorage.setItem(key,JSON.stringify(settings));
+    renderPeriodReport();
+    toast('Fortem estimate saved for this report in this browser.');
+  }catch(error){feedback.textContent='Estimate not saved: '+error.message;}
+}
+
+function renderFortemEstimateEditor(fortem){
+  if(!selectedPeriod().project)return '';
+  const s=fortem.settings;
+  const fields=[['geologist','Geologist ($/day)'],['vehicle','Vehicle ($/day)'],['flightRate','Flight ($/flight)'],['days','Chargeable calendar days'],['flights','Number of flights']];
+  return '<div class="period-section-title">Fortem — estimated cost</div>'
+    +'<form onsubmit="saveFortemEstimate(event)" class="fortem-estimate-editor" style="padding:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:12px;">'+fields.map(([field,label])=>'<label style="display:grid;gap:4px;font-size:12px;">'+label+'<input name="'+field+'" aria-label="'+label+'" type="number" min="0" max="100000000" step="'+(['days','flights'].includes(field)?'1':'0.01')+'" required value="'+s[field]+'" style="width:150px;padding:7px;border:1px solid var(--border);border-radius:4px;"/></label>').join('')+'</div>'
+    +'<p style="font-size:12px;margin:10px 0;">Defaults count every day in the selected report period, including weekends, and one flight per commenced seven days. Adjust days and flights to match the actual roster. All amounts use the same tax basis as report invoices.</p>'
+    +'<label style="font-size:12px;"><input type="checkbox" name="enabled" '+(s.enabled?'checked':'')+'/> Include estimated unbilled cost in report totals</label> '
+    +'<button type="submit" class="btn-csv">Apply estimate</button>'
+    +'<p style="font-size:12px;margin:10px 0 0;"><b>'+(s.enabled?'Applied estimate':'Estimate preview — not included')+': '+cur(fortem.gross)+'</b> = '+s.days+' days × '+cur(s.geologist+s.vehicle)+' + '+s.flights+' flights × '+cur(s.flightRate)+'. Fortem invoices in this period: '+cur(fortem.invoices)+'. Estimated unbilled amount included: '+cur(fortem.unbilled)+'.</p>'
+    +'<p style="font-size:12px;margin:6px 0 0;">Invoices already counted in this period reduce the estimate, down to $0. Check that their service dates match this estimate. Saved in this browser for this project, program and date range; changing the report range requires a new estimate.</p>'
+    +'<div role="status" style="color:#b45309;">'+esc(fortem.storageWarning)+'</div></form>';
+}
+
+function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary,fortem){
+  fortem=fortem||periodFortemEstimate(selectedPeriod(),invoices);
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
   const rows=(invoices||[]).slice().sort(function(a,b){
@@ -7364,7 +7416,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   });
   const invoiceTotal=rows.reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const mccUnbilled=numVal(mccChargeSummary&&mccChargeSummary.unbilled);
-  const total=invoiceTotal+mccUnbilled;
+  const total=invoiceTotal+mccUnbilled+fortem.unbilled;
   const budgetBySection=(budgetTotals&&budgetTotals.bySection)||{};
   const contractorBudgetRows=(budgetTotals&&budgetTotals.rows)||[];
   const contractorMap=new Map();
@@ -7419,6 +7471,14 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     item.actualSources.add('weekly charges');
     totals.Support=(totals.Support||0)+mccUnbilled;
   }
+  if(fortem.settings.enabled){
+    const item=ensureContractor('Fortem','Geophysical / Geological Support');
+    item.spent+=fortem.unbilled;
+    item.estimated=true;
+    item.actualsRecorded=true;
+    item.actualSources.add('editable daily estimate');
+    totals['Geophysical / Geological Support']+=fortem.unbilled;
+  }
   const contractorCards=Array.from(contractorMap.values()).filter(function(item){
     return item.budget>0||item.spent>0;
   }).sort(function(a,b){
@@ -7432,9 +7492,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const mccDetail=item.mccWeeklyTotal!=null?' | '+cur(item.mccWeeklyTotal)+' MCC charges, '+cur(item.mccUnbilled)+' unbilled included':'';
     const recorded=!!item.actualsRecorded;
     const actualSource=Array.from(item.actualSources||[]).join(' + ');
-    const value=recorded?cur(item.spent)+' / '+cur(item.budget):'Actual not loaded / '+cur(item.budget);
+    const value=recorded?(item.estimated?'Estimated total ':'')+cur(item.spent)+' / '+cur(item.budget):'Actual not loaded / '+cur(item.budget);
     const sub=recorded
-      ?'Actual from '+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
+      ?(item.estimated?'Includes ':'Actual from ')+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
       :'No invoice or weekly activity recorded in the selected period | '+esc(sectionText);
     const varianceText=recorded?cur(Math.abs(variance))+' '+(variance>=0?'under':'over'):'Actuals unavailable';
     return '<div class="period-support-card'+(recorded?'':' no-actual')+'">'
@@ -7445,7 +7505,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'</div>';
   }).join('');
   // Do not turn an absent invoice into a $0 actual or use it in a forecast.
-  const forecastItems=contractorCards.filter(function(item){return item.actualsRecorded;});
+  const forecastItems=contractorCards.filter(function(item){return item.actualsRecorded&&!item.estimated;});
   const forecastRows=forecastItems.map(function(item){
     const assumption=reportForecastAssumption(item);
     const forecastCost=item.budget*assumption;
@@ -7520,9 +7580,11 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc((selectedPeriod().from||'start')+' to '+(selectedPeriod().to||'end'))+'</td>'
       +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
+  const fortemRow=fortem.unbilled>0?'<tr><td>Geophysical / Geological Support</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
   el.innerHTML='<div class="period-support-panel">'
+    +renderFortemEstimateEditor(fortem)
     +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
-    +'<div class="period-support-note">Actuals are sourced from invoices, MCC weekly charges, and drilling activity reports. A contractor with no source record in the selected period is shown as <b>Actual not loaded</b>, not $0.</div>'
+    +'<div class="period-support-note">Actuals are sourced from invoices, MCC weekly charges, and drilling activity reports. Applied Fortem estimates are labelled separately and included in support totals and budget variance. Fortem daily estimates are excluded from the percentage-based forecast below. A contractor with no source record or applied estimate is shown as <b>Actual not loaded</b>, not $0.</div>'
     +'<div class="period-section-title">Forecast Summary</div>'
     +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Activity</th><th>Total spent</th><th>Total budget</th><th>% of budget spent</th><th>Forecast assumption</th><th>Forecasted cost</th><th>Forecast variance</th></tr></thead><tbody>'
     +(forecastRows||'<tr><td colspan="7" style="padding:14px;color:var(--muted);text-align:center;">No contractor budget forecast data.</td></tr>')
@@ -7531,12 +7593,12 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Activity</th><th>Forecast variance</th><th>Calculated detail</th><th>Manual variance note</th></tr></thead><tbody>'
     +(topVarianceRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No forecast overruns in this period.</td></tr>')
     +'</tbody></table>'
-    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>Spent</th><th>Variance</th></tr></thead><tbody>'
+    +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>'+(fortem.unbilled>0?'Cost incl. estimate':'Spent')+'</th><th>Variance</th></tr></thead><tbody>'
     +(sectionRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project budgets recorded.</td></tr>')
     +'</tbody></table>'
     +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
-    +(body||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
-    +'<tr><td colspan="7"><b>Total support actuals</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
+    +(body+fortemRow||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
+    +'<tr><td colspan="7"><b>'+(fortem.unbilled>0?'Total support including estimate':'Total support actuals')+'</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
     +'</tbody></table></div>';
 }
 
