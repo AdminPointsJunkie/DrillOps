@@ -6325,6 +6325,7 @@ function preferredBorehole(current,candidate){
 }
 
 function rowMatchesBorehole(row,borehole){
+  if(row.project&&borehole.project&&!projectNamesMatch(row.project,borehole.project))return false;
   const aliases=boreholeMatchValues(borehole);
   return aliases.has(reportIdentity(rowHole(row)))||aliases.has(reportIdentity(row&&row.site_name));
 }
@@ -6387,6 +6388,8 @@ function projectNamesMatch(left,right){
 
 function rowMatchesPeriodProject(row,holes,project){
   if(!project)return true;
+  // An explicit project assignment takes precedence over a matching hole alias.
+  if(String(row.project||'').trim())return projectNamesMatch(row.project,project);
   const bh=holes.get(rowHole(row));
   if(projectNamesMatch((bh&&bh.project)||'',project))return true;
   if(projectNamesMatch(row.project,project))return true;
@@ -6551,12 +6554,17 @@ function periodFilteredRows(){
 function periodFilteredConsumables(){
   const period=selectedPeriod();
   const holes=holeLookup();
+  const activities=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
   const source=(periodReportConsumablesData&&periodReportConsumablesData.length)?periodReportConsumablesData:consumablesData;
   return (source||[]).filter(function(r){
     const iso=reportIso(r.date);
     if(period.from&&(!iso||iso<period.from))return false;
     if(period.to&&(!iso||iso>period.to))return false;
     if(!period.project&&!rowMatchesActiveProgram(r))return false;
+    // Consumables have no project column. Respect the project on their source
+    // report before falling back to hole identity for older source-less rows.
+    const related=r.source_file?(activities||[]).filter(a=>a.source_file===r.source_file&&a.contractor===r.contractor):[];
+    if(period.project&&related.length&&related.every(a=>String(a.project||'').trim())&&!related.some(a=>projectNamesMatch(a.project,period.project)))return false;
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
     return true;
   });

@@ -49,7 +49,8 @@ class BurtonHoleAliasesTests(unittest.TestCase):
                  for h in ['ESPNG06', 'ESPNG08', 'ESPNG10', 'ESPNG11', 'ESPNG13']]
         html = (ROOT / 'docs/index.html').read_text(encoding='utf-8')
         functions = []
-        for name in ['rowHole', 'reportIdentity', 'boreholeMatchValues', 'rowMatchesBorehole']:
+        for name in ['rowHole', 'reportIdentity', 'boreholeMatchValues', 'rowMatchesBorehole',
+                     'normalizeProjectName', 'projectNamesMatch', 'rowMatchesPeriodProject', 'periodFilteredConsumables']:
             start = html.index('function ' + name + '(')
             functions.append(html[start:html.index('\nfunction ', start + 1)])
         script = '\n'.join(functions) + '\nconst holes=' + json.dumps(holes) + ';'
@@ -63,6 +64,18 @@ for(const [hole_num,site_name,count] of groups){
 }
 if(linked!==466)throw new Error('Wrong coverage');
 if(holes.some(h=>rowMatchesBorehole({hole_num:'ESPGN12',site_name:''},h)))throw new Error('Invented alias');
+const lookup=new Map(holes.flatMap(h=>[h.hole_id,...(h.activity_hole_ids||[])].map(id=>[id,h])));
+const foreign={project:'Ironbark',hole_num:'ESPGN13',contractor:'Mitchells Drilling',source_file:'foreign.csv'};
+if(rowMatchesPeriodProject(foreign,lookup,'BCC Fugitive Emissions'))throw new Error('Cross-project activity leak');
+if(rowMatchesBorehole(foreign,holes.find(h=>h.hole_id==='ESPNG13')))throw new Error('Cross-project hole allocation');
+if(!rowMatchesPeriodProject({hole_num:'ESPGN13'},lookup,'BCC Fugitive Emissions'))throw new Error('Lost legacy lookup');
+const selectedPeriod=()=>({project:'BCC Fugitive Emissions',from:'2026-09-01',to:'2026-10-12'});
+const holeLookup=()=>lookup, reportIso=v=>v;
+const periodReportActivitiesData=[foreign,{...foreign,project:'BCC Fugitive Emissions',source_file:'burton.csv'}];
+const periodReportConsumablesData=[{contractor:'Mitchells Drilling',source_file:'foreign.csv',hole_num:'ESPGN13',date:'2026-09-17'},
+{contractor:'Mitchells Drilling',source_file:'burton.csv',hole_num:'ESPGN13',date:'2026-09-18'}];
+const consumables=periodFilteredConsumables();
+if(consumables.length!==1||consumables[0].source_file!=='burton.csv')throw new Error('Cross-project consumable leak');
 console.log(linked);
 """
         result = subprocess.run(['node', '-'], input=script, text=True, capture_output=True, check=True)
