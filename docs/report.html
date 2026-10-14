@@ -885,9 +885,32 @@ async function loadReportData(){
     document.getElementById('activity-body').innerHTML='<tr><td colspan="8" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
   }
 }
+async function resolveReassignedDepcoReport(){
+  // Old register tabs can retain the original contractor after a corrected import.
+  // Resolve only an exact source/date/program match before changing the link.
+  if(contractor!=='Allianz Drilling'||!/(^|[^a-z0-9])depco(?=$|[^a-z0-9])/i.test(source))return false;
+  const query=new URLSearchParams({contractor:'DEPCO Drilling'});
+  if(reportDate)query.set('dates',reportDate);
+  try{
+    const candidates=await fetchJson(API+'/activities?'+query.toString());
+    const match=candidates.find(function(row){
+      return row.contractor==='DEPCO Drilling'&&row.source_file===source
+        &&isoReportDate(row.date)===isoReportDate(reportDate)
+        &&(!program||row.program===program);
+    });
+    if(!match)return false;
+    const corrected=new URLSearchParams(window.location.search);
+    corrected.set('contractor',match.contractor);
+    corrected.set('date',match.date);
+    corrected.delete('nav');
+    window.location.replace('report.html?'+corrected.toString());
+    return true;
+  }catch(error){return false;}
+}
 async function loadReport(){
   document.getElementById('title').textContent=title;
   document.title=title+' | DrillOps';
+  if(await resolveReassignedDepcoReport())return;
   await initApprovalControls();
   await initLockControls();
   await initMinimumShiftControls();
