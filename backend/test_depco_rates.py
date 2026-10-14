@@ -11,6 +11,15 @@ from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity
 
 
 class DepcoRatesTests(unittest.TestCase):
+    def test_user_confirmed_travel_to_site(self):
+        rates=catalogue('A')
+        for notes in ('Travel to site','Travel to the site','TRAVEL TO SITE.'):
+            result=suggest_depco_activity({'notes':notes,'total_time':'0:30'},rates)
+            self.assertEqual(result['code'],'DEPCO_A_CREW_TRAVEL_ON_014')
+            self.assertEqual(result['line_cost'],275)
+        result=suggest_depco_activity({'notes':'Travel to camp','total_time':'0:30'},rates)
+        self.assertEqual(result['code'],'DEPCO_A_CREW_TRAVEL_OFF_015')
+
     def test_user_confirmed_geo_and_toolbox_codes(self):
         rates=catalogue('A')
         for notes,name in [('Standby Geo','Standby AAC'),('Stand by geologist','Standby AAC'),('Toolbox','Safety Company'),('Toolbox talk','Safety Company'),('Company toolbox','Safety Company'),('Contractor toolbox','Safety Contractor')]:

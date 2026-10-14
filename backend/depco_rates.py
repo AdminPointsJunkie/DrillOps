@@ -118,6 +118,7 @@ DESCRIPTION_RULES = [
     ('Standby AAC', r'\b(?:client|company|argo)\s+(?:instruct\w*|delay|stand[ -]?by)|\bstand[ -]?by.*\b(?:client|company|argo)\b'),
     ('Standby AAC', r'\b(?:stand[ -]?by|wait\w*)\b.*\b(?:geo|geologist)\b|\b(?:geo|geologist)\s+stand[ -]?by\b'),
     ('Crew Travel On', r'\b(?:on[ -](?:lease|site) travel|travel.*(?:gate to (?:rig|site|pad)|on (?:company )?lease))\b'),
+    ('Crew Travel On', r'\btravel to (?:the )?site\b'),
     ('Crew Travel Off', r'\b(?:off[ -]lease travel|travel.*(?:accommodation|camp|off (?:company )?lease))\b'),
 ]
 
