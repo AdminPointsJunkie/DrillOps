@@ -7,10 +7,34 @@ from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr
+from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report
 
 
 class DepcoRatesTests(unittest.TestCase):
+    def test_report_wording_and_combined_prestart(self):
+        rates=catalogue('A')
+        for notes,amount in [('Run 5 in PVC casing',630.5),('On-site travel',550),('Site familiarization',485)]:
+            self.assertEqual(suggest_depco_activity({'notes':notes,'total_time':1},rates)['line_cost'],amount)
+        self.assertIsNone(suggest_depco_activity({'notes':'Carborough prestart & travelling','total_time':3},rates)['line_cost'])
+
+    def test_ai_codes_are_validated_and_contract_prices_recomputed(self):
+        from unittest.mock import AsyncMock
+        from depco_rates import ai_depco_suggestions
+        rate=catalogue('A')[0]
+        row={'notes':'fixture','total_time':2,'rate_basis':'DEPCO review required: no reliable contract-code match'}
+        generate=AsyncMock(return_value=({'suggestions':[{'index':0,'code':rate['cost_code'],'confidence':0.95,'reason':'fixture','line_cost':999999}]},None))
+        result=asyncio.run(ai_depco_suggestions([row],catalogue('A'),generate))
+        self.assertEqual(result[0]['line_cost'],1261)
+        for code,confidence in [('invented',1),(rate['cost_code'],0.5)]:
+            generate.return_value=({'suggestions':[{'index':0,'code':code,'confidence':confidence}]},None)
+            self.assertEqual(asyncio.run(ai_depco_suggestions([row],catalogue('A'),generate)),[row])
+
+    def test_depco_filename_identity(self):
+        for filename in ['DEPCO DDR.pdf','DDR_Depco DR17_20261008.pdf','ddr-depco-20261009.pdf']:
+            self.assertTrue(is_depco_report(filename))
+        for filename in ['ADR001.pdf','notdepco.pdf',None]:
+            self.assertFalse(is_depco_report(filename))
+
     def rate(self, scope, name, **kwargs):
         return next(r for r in catalogue(scope) if r['name'] == name and all(r.get(k)==v for k,v in kwargs.items()))
 
@@ -203,12 +227,12 @@ class DepcoSuggestionTests(unittest.TestCase):
         self.assertEqual(cur.execute.call_count,2)
         self.assertNotIn('code',row)
 
-    def test_preview_recomputes_posted_prices_and_does_not_confirm_suggestion(self):
+    def test_preview_recomputes_posted_prices_and_selects_suggested_code(self):
         cur=MagicMock();cur.fetchall.side_effect=[[{'id':1}],catalogue('A')]
         data={'date':'26/09/2026','activities':[{'comments':'Set up rig','total_time':2,'pricing':{'line_cost':99999}}]}
         result,_=preview_depco_ocr(cur,data,'DEPCO Drilling','CD','Exploration')
         self.assertEqual(result['activities'][0]['pricing']['line_cost'],1261)
-        self.assertNotIn('code',result['activities'][0])
+        self.assertEqual(result['activities'][0]['code'],result['activities'][0]['pricing']['code'])
         self.assertFalse(any('UPDATE' in c.args[0] or 'INSERT' in c.args[0] for c in cur.execute.call_args_list))
 
 
@@ -298,11 +322,11 @@ class DepcoOcrImportTests(unittest.TestCase):
              'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
              'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
              'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),
-             'record_import_batch':lambda *a,**k:None}
+             'record_import_batch':lambda *a,**k:None,'is_depco_report':is_depco_report}
         exec(compile(ast.Module(body=[node],type_ignores=[]),'ocr','exec'),env)
-        file=SimpleNamespace(filename='DEPCO DDR.pdf',read=AsyncMock(return_value=b'fixture'))
+        file=SimpleNamespace(filename='DDR_Depco DR17_20261008.pdf',read=AsyncMock(return_value=b'fixture'))
         data={'date':'26/09/2026','activities':[{'comments':'Drill 120mm PCD','total_time':'1:00','metres_from':0,'metres_to':10,'total_metres':10,'pricing':{'line_cost':9999}}]}
-        result=asyncio.run(env['import_ocr_pdf'](file,'DEPCO Drilling','Exploration','CD','Argo',json.dumps(data)))
+        result=asyncio.run(env['import_ocr_pdf'](file,'Allianz Drilling','Exploration','CD','Argo',json.dumps(data)))
         saved=batch.call_args.args[2][0]
         self.assertEqual(saved['metres_from'],0)
         self.assertEqual(saved['line_cost'],380)

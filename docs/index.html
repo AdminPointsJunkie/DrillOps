@@ -4993,6 +4993,7 @@ function groupDailyReports(rows,reportConsumables){
     if(holes.length>1)g.hole=holes.length+' holes';
     else if(holes.length===1)g.hole=holes[0];
     g.cost=g.activityCost+g.consumableCost;
+    g.unpriced=g.rows.filter(function(row){return row.is_cost_source!==false&&(row.line_cost==null||row.line_cost==='');}).length;
     g.id=reportIdFor(g,i);
     g.driller=crewData.filter(function(c){
       return (!c.contractor||c.contractor===g.contractor)
@@ -6277,7 +6278,7 @@ function renderDailyReportSummary(rows){
       +'<td class="mcc-drilling-only">'+esc(r.driller||'--')+'</td>'
       +'<td class="mcc-drilling-only">'+r.metres.toFixed(2)+'</td>'
       +'<td>'+r.hours.toFixed(2)+'</td>'
-      +'<td class="mcc-drilling-only" style="font-weight:700;color:var(--text);">'+cur(r.cost)+'</td>'
+      +'<td class="mcc-drilling-only" style="font-weight:700;color:var(--text);">'+(r.unpriced===r.rows.length?'Pricing pending':cur(r.cost))+(r.unpriced?'<div style="color:var(--muted);font-size:11px;">'+r.unpriced+' lines need pricing review</div>':'')+'</td>'
       +'<td><span class="notes-preview">'+esc(note||'--')+'</span></td>'
       +'<td><button class="row-actions" type="button" onclick="openDailyReportDetailByKey(this.closest(\'tr\').dataset.reportKey)">...</button></td>'
       +'</tr>';
@@ -9355,6 +9356,7 @@ var ocrCurrentIntegrityCheck = null;
 var ocrReviewActive = false;
 var ocrContractRates = [];
 var ocrImportScope = null;
+var ocrPreviewContractor = '';
 var ocrPricingDirty = false;
 
 if(ocrFileInput) {
@@ -9431,7 +9433,7 @@ async function refreshDepcoOcrPrices(){
 function renderOcrPreview() {
   var panel = document.getElementById('ocr-preview-panel');
   var data = ocrCurrentData || {};
-  var depcoPricing = ocrImportScope.contractor==='DEPCO Drilling' || /^DEPCO/i.test(ocrCurrentFile.name);
+  var depcoPricing = (ocrPreviewContractor||ocrImportScope.contractor)==='DEPCO Drilling' || /(^|[^a-z0-9])depco(?=$|[^a-z0-9])/i.test(ocrCurrentFile.name);
   var fields = [
     ['hole_num', 'Hole number'], ['date', 'Date (DD/MM/YYYY)'], ['client', 'Client'],
     ['location', 'Location'], ['rig_no', 'Rig'], ['shift', 'Shift'], ['driller', 'Driller']
@@ -9504,6 +9506,7 @@ async function importReviewedOcrFile() {
   fd.append('program', ocrImportScope.program);
   fd.append('project', ocrImportScope.project);
   fd.append('client', ocrImportScope.client);
+  fd.set('contractor',ocrPreviewContractor||ocrImportScope.contractor);
   fd.append('ocr_data', JSON.stringify(ocrCurrentData));
   try {
     var res = await fetch(API + '/import/ocr', {method:'POST', body:fd});
@@ -9552,6 +9555,7 @@ async function previewNextOcrFile() {
     return;
   }
   ocrCurrentFile = ocrPendingFiles[ocrPreviewIndex];
+  ocrPreviewContractor = '';
   ocrImportBtn.innerHTML = '<span class="spinner"></span>AI reading...';
   var log = document.getElementById('ocr-import-log');
   log.innerHTML += '<div style="color:var(--accent);">\u23f3 Previewing ' + esc(ocrCurrentFile.name) + ' with OpenAI...</div>';
@@ -9564,6 +9568,7 @@ async function previewNextOcrFile() {
     var res = await fetch(API + '/import/ocr/preview', {method:'POST', body:fd});
     var d = await res.json();
     if (!res.ok) throw new Error(d.detail || 'Preview failed');
+    ocrPreviewContractor=d.contractor||ocrImportScope.contractor;
     ocrCurrentData = d.ocr_data || {activities:[]};
     ocrContractRates = d.contract_rates || [];
     ocrPricingDirty = false;

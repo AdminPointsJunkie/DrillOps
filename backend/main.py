@@ -35,7 +35,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
-from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, SCOPES as DEPCO_SCOPES
+from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
     MCC_RATE_TABLE,
@@ -11876,7 +11876,7 @@ async def import_ocr_pdf(
     """Import a handwritten drill log PDF using reviewed or fresh OpenAI OCR data."""
     filename = file.filename
     content = await file.read()
-    if str(filename or "").strip().upper().startswith("DEPCO"):
+    if is_depco_report(filename):
         contractor = "DEPCO Drilling"
 
     # Check if already imported
@@ -12020,6 +12020,8 @@ async def preview_depco_suggestions(request: Request):
     with get_conn() as conn:
         with conn.cursor() as cur:
             data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", str(payload.get("project") or ""), str(payload.get("program") or ""))
+    if OPENAI_API_KEY:
+        data = await enrich_depco_preview(data, rates, openai_generate_json)
     return {"ocr_data":data,"contract_rates":rates}
 
 
@@ -12039,11 +12041,16 @@ async def preview_ocr_pdf(
     ]
     warnings = activity_integrity_qa(preview_rows, file.filename)
     rates = []
-    if contractor == "DEPCO Drilling" or str(file.filename or "").upper().startswith("DEPCO"):
+    if is_depco_report(file.filename):
+        contractor = "DEPCO Drilling"
+    if contractor == "DEPCO Drilling":
         with get_conn() as conn:
             with conn.cursor() as cur:
                 data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", project, program)
+    if rates and OPENAI_API_KEY:
+        data = await enrich_depco_preview(data, rates, openai_generate_json)
     return {
+        "contractor": contractor,
         "contract_rates": rates,
         "ocr_data": data,
         "activity_count": len(data.get("activities", [])),
