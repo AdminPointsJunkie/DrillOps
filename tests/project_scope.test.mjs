@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-const names=['normalizeProjectName','projectNamesMatch','rowMatchesActiveProgram','filterRowsForActiveProgram','rowMatchesPeriodProject'];
+const names=['normalizeProjectName','projectNamesMatch','rowMatchesActiveProgram','filterRowsForActiveProgram','filterWorkspaceActivities','rowMatchesPeriodProject'];
 const functions=names.map(name=>{
   const start=html.indexOf('function '+name+'(');
   assert.ok(start>=0);
@@ -16,8 +16,8 @@ function context(project){
 test('Round 2 register excludes original-project DDRs in both directions',()=>{
   for(const project of ['Carborough Downs','Carborough Downs - Round 2']){
     const c=context(project);vm.runInContext(functions,c);
-    c.rows=[{id:1,project:'Carborough Downs',program:'Exploration'},{id:2,project:'Carborough Downs - Round 2',program:'Exploration'}];
-    const result=vm.runInContext('filterRowsForActiveProgram(rows)',c);
+    c.rows=[{id:1,project:'Carborough Downs',program:'Exploration'},{id:2,project:'Carborough Downs - Round 2',program:'Exploration'},{id:3,project:null,program:'Exploration'}];
+    const result=vm.runInContext('filterWorkspaceActivities(rows)',c);
     assert.equal(result.length,1);
     assert.equal(result[0].project,project);
   }

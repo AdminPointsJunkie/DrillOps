@@ -4729,6 +4729,11 @@ function filterRowsForActiveProgram(rows){
   if(activeContractor==='MCC Group')return rows||[];
   return (rows||[]).filter(rowMatchesActiveProgram);
 }
+function filterWorkspaceActivities(rows){
+  return filterRowsForActiveProgram(rows).filter(function(row){
+    return !activeProjectName||projectNamesMatch(row.project,activeProjectName);
+  });
+}
 function ensureActiveContractorInProgram(){
   const allowed=filteredContractors();
   if(!allowed.length){
@@ -6040,7 +6045,7 @@ async function loadActivities(){
     const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
     if(!response.ok)throw new Error('HTTP '+response.status);
     applyActivityReportBundle(await response.json());
-    activitiesData=filterRowsForActiveProgram(activitiesData);
+    activitiesData=filterWorkspaceActivities(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
     crewData=filterRowsForActiveProgram(crewData);
     // Paint the report register before doing any work for the optional raw
