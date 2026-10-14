@@ -9445,13 +9445,13 @@ function renderOcrPreview() {
     + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;">';
   fields.forEach(function(item) {
     html += '<label style="font-size:10px;color:var(--muted);">' + item[1]
-      + '<input type="text" data-ocr-header="' + item[0] + '" value="' + attr(data[item[0]] == null ? '' : data[item[0]]) + '" style="display:block;width:100%;margin-top:3px;padding:7px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);"></label>';
+      + '<input type="text" data-ocr-header="' + item[0] + '"'+(item[0]==='date'?' placeholder="DD/MM/YYYY" inputmode="numeric"':'')+' value="' + attr(data[item[0]] == null ? '' : data[item[0]]) + '" style="display:block;width:100%;margin-top:3px;padding:7px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);"></label>';
   });
   html += '</div>' + renderOcrIntegrityCheck(ocrCurrentIntegrityCheck) + '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Activities (' + ((data.activities || []).length) + ')</div>'
     + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Comments</th>'+ (depcoPricing?'<th>Contract code &amp; price (ex GST)</th>':'') +'<th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th>Bit / core</th><th>Diameter</th><th></th></tr></thead><tbody>';
   (data.activities || []).forEach(function(activity, index) {
     html += '<tr data-ocr-activity="' + index + '"><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index) + '</td>'
-      + (depcoPricing?'<td style="min-width:260px;max-width:300px;white-space:normal;overflow-wrap:anywhere;"><div data-ocr-pricing>'+renderDepcoOcrPrice(activity.pricing)+'</div><select data-ocr-field="code" style="max-width:260px;"><option value="">Suggest automatically</option>'+ocrContractRates.map(function(rate){return '<option value="'+attr(rate.cost_code)+'"'+(activity.code===rate.cost_code?' selected':'')+'>'+esc(rate.name)+' ['+esc(rate.cost_code)+']</option>';}).join('')+'</select>'
+      + (depcoPricing?'<td style="min-width:260px;max-width:300px;white-space:normal;overflow-wrap:anywhere;"><label>Suggested code — change if needed<select aria-label="Activity '+(index+1)+' contract code" data-ocr-field="code" style="display:block;width:100%;max-width:260px;"><option value="">Suggest automatically</option>'+ocrContractRates.map(function(rate){return '<option value="'+attr(rate.cost_code)+'"'+(activity.code===rate.cost_code?' selected':'')+'>'+esc(rate.name)+' ['+esc(rate.cost_code)+']</option>';}).join('')+'</select></label><div data-ocr-pricing>'+renderDepcoOcrPrice(activity.pricing)+'</div>'
       + '<details><summary>Quantity (days/items)</summary>'+ocrInput(activity.quantity, 'quantity', index)+'</details></td>':'')
       + '<td>' + ocrInput(activity.time_from, 'time_from', index) + '</td><td>' + ocrInput(activity.time_to, 'time_to', index) + '</td>'
       + '<td>' + ocrInput(activity.total_time, 'total_time', index) + '</td><td>' + ocrInput(activity.metres_from, 'metres_from', index) + '</td>'
@@ -9466,6 +9466,7 @@ function renderOcrPreview() {
   panel.innerHTML = html;
   panel.style.display = 'block';
   panel.oninput = function(){ocrPricingDirty=depcoPricing;panel.querySelectorAll('[data-ocr-pricing]').forEach(function(cell){cell.textContent='Edited — refresh suggestions';});};
+  panel.onchange = function(e){if(depcoPricing&&e.target.matches('select[data-ocr-field="code"]'))refreshDepcoOcrPrices();};
 
   panel.onclick = function(e) {
     var removeButton = e.target.closest('[data-remove-ocr-row]');

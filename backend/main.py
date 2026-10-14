@@ -35,7 +35,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
-from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, SCOPES as DEPCO_SCOPES
+from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
     MCC_RATE_TABLE,
@@ -11909,6 +11909,10 @@ async def import_ocr_pdf(
             raise HTTPException(422, f"OCR failed: {str(e)}")
 
     # Convert to activity rows
+    try:
+        data['date'] = normalise_ocr_date(data.get('date'))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     activities = data.get("activities", [])
     hole_num = data.get("hole_num", "")
     date_str = data.get("date", "")
@@ -12017,6 +12021,10 @@ async def preview_depco_suggestions(request: Request):
     data = payload.get("ocr_data")
     if not isinstance(data, dict) or not isinstance(data.get("activities"), list) or len(data["activities"]) > 500 or any(not isinstance(a, dict) for a in data["activities"]):
         raise HTTPException(400, "Provide up to 500 activity rows")
+    try:
+        data['date'] = normalise_ocr_date(data.get('date'))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     with get_conn() as conn:
         with conn.cursor() as cur:
             data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", str(payload.get("project") or ""), str(payload.get("program") or ""))
@@ -12035,11 +12043,18 @@ async def preview_ocr_pdf(
     """Preview OCR results without saving — for testing."""
     content = await file.read()
     data = await ocr_with_openai(content)
+    date_warning = None
+    try:
+        data['date'] = normalise_ocr_date(data.get('date'))
+    except ValueError as exc:
+        date_warning = {'issue': str(exc), 'recommendation': 'Correct the date before importing.'}
     preview_rows = [
         {**activity, "date": data.get("date", ""), "site_name": data.get("location", ""), "location": data.get("location", "")}
         for activity in data.get("activities", [])
     ]
     warnings = activity_integrity_qa(preview_rows, file.filename)
+    if date_warning:
+        warnings.append(date_warning)
     rates = []
     if is_depco_report(file.filename):
         contractor = "DEPCO Drilling"

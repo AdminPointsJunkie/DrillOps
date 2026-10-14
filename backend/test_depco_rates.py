@@ -7,10 +7,17 @@ from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report
+from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report, normalise_ocr_date
 
 
 class DepcoRatesTests(unittest.TestCase):
+    def test_ocr_dates_are_always_day_first(self):
+        self.assertEqual(normalise_ocr_date('08/10/2026'),'08/10/2026')
+        self.assertEqual(normalise_ocr_date('2026-10-08'),'08/10/2026')
+        self.assertEqual(normalise_ocr_date('8/10/2026'),'08/10/2026')
+        for value in ('10/14/2026','31/02/2026','',None):
+            with self.assertRaises(ValueError): normalise_ocr_date(value)
+
     def test_report_wording_and_combined_prestart(self):
         rates=catalogue('A')
         for notes,amount in [('Run 5 in PVC casing',630.5),('On-site travel',550),('Site familiarization',485)]:
@@ -322,7 +329,7 @@ class DepcoOcrImportTests(unittest.TestCase):
              'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
              'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
              'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),
-             'record_import_batch':lambda *a,**k:None,'is_depco_report':is_depco_report}
+             'record_import_batch':lambda *a,**k:None,'is_depco_report':is_depco_report,'normalise_ocr_date':normalise_ocr_date}
         exec(compile(ast.Module(body=[node],type_ignores=[]),'ocr','exec'),env)
         file=SimpleNamespace(filename='DDR_Depco DR17_20261008.pdf',read=AsyncMock(return_value=b'fixture'))
         data={'date':'26/09/2026','activities':[{'comments':'Drill 120mm PCD','total_time':'1:00','metres_from':0,'metres_to':10,'total_metres':10,'pricing':{'line_cost':9999}}]}

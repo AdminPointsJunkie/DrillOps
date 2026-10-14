@@ -16,6 +16,17 @@ def is_depco_report(filename):
     return bool(re.search(r'(^|[^a-z0-9])depco(?=$|[^a-z0-9])', str(filename or ''), re.I))
 
 
+def normalise_ocr_date(value):
+    """Interpret report dates day-first, and store a consistent display format."""
+    text=str(value or '').strip()
+    for fmt in ('%d/%m/%Y','%Y-%m-%d'):
+        try:
+            return datetime.strptime(text,fmt).strftime('%d/%m/%Y')
+        except ValueError:
+            pass
+    raise ValueError('Enter a valid report date in DD/MM/YYYY format')
+
+
 def norm(value):
     return re.sub(r'[^a-z0-9]+', '', str(value or '').lower())
 
