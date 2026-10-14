@@ -6532,9 +6532,9 @@ async def update_activity_report_date(request: Request):
     if not source_file and not hole_num:
         raise HTTPException(400, "source file or hole is required")
     try:
-        calendar_date.fromisoformat(new_date)
+        new_date = normalise_ocr_date(new_date)
     except (TypeError, ValueError):
-        raise HTTPException(400, "new_date must use YYYY-MM-DD")
+        raise HTTPException(400, "new_date must be a valid DD/MM/YYYY date")
     if new_date == old_date:
         return {
             "status": "unchanged",
