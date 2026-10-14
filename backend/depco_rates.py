@@ -95,6 +95,8 @@ DESCRIPTION_RULES = [
     ('Maintenance', r'\b(?:maintenance|servicing)\b'),
     ('Safety Contractor', r'\b(?:depco|contractor|internal)\b.*\btoolbox\b'),
     ('Safety Company', r'\b(?:client|company|argo|mine)\b.*\btoolbox\b'),
+    # User-confirmed DDR shorthand; explicitly contractor-led talks stay separate.
+    ('Safety Company', r'^(?!.*\b(?:depco|contractor|internal)\b).*\btool[ -]?box\b'),
     ('Training', r'\b(?:induction\w*|training|site familiari[sz]ation)\b'),
     ('Inspections', r'\b(?:client|company)\b.*\binspection\w*\b'),
     ('Casing Install', r'\b(?:install\w*|run(?:ning)?|lower\w*)\s+(?:\w+\s+){0,4}casing\b|\bcasing installation\b'),
@@ -114,6 +116,7 @@ DESCRIPTION_RULES = [
     ('Standby Wet Weat', r'\b(?:wet weather|rain delay|standby.*rain|wait.*rain)\b'),
     ('Standby Blasting', r'\b(?:blast\w* delay|standby.*blast|wait.*blast)\b'),
     ('Standby AAC', r'\b(?:client|company|argo)\s+(?:instruct\w*|delay|stand[ -]?by)|\bstand[ -]?by.*\b(?:client|company|argo)\b'),
+    ('Standby AAC', r'\b(?:stand[ -]?by|wait\w*)\b.*\b(?:geo|geologist)\b|\b(?:geo|geologist)\s+stand[ -]?by\b'),
     ('Crew Travel On', r'\b(?:on[ -](?:lease|site) travel|travel.*(?:gate to (?:rig|site|pad)|on (?:company )?lease))\b'),
     ('Crew Travel Off', r'\b(?:off[ -]lease travel|travel.*(?:accommodation|camp|off (?:company )?lease))\b'),
 ]

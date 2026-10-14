@@ -11,6 +11,14 @@ from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity
 
 
 class DepcoRatesTests(unittest.TestCase):
+    def test_user_confirmed_geo_and_toolbox_codes(self):
+        rates=catalogue('A')
+        for notes,name in [('Standby Geo','Standby AAC'),('Stand by geologist','Standby AAC'),('Toolbox','Safety Company'),('Toolbox talk','Safety Company'),('Company toolbox','Safety Company'),('Contractor toolbox','Safety Contractor')]:
+            result=suggest_depco_activity({'notes':notes,'total_time':'1:00'},rates)
+            rate=next(r for r in rates if r['name']==name)
+            self.assertEqual(result['code'],rate['cost_code'],notes)
+            self.assertEqual(result['line_cost'],rate['charge'],notes)
+
     def test_ocr_dates_are_always_day_first(self):
         self.assertEqual(normalise_ocr_date('08/10/2026'),'08/10/2026')
         self.assertEqual(normalise_ocr_date('2026-10-08'),'08/10/2026')
