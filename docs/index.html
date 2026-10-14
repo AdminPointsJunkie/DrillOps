@@ -9430,6 +9430,33 @@ async function refreshDepcoOcrPrices(){
   }catch(error){toast('Could not refresh code suggestions: '+error.message,'err');}
 }
 
+function importCodeGroup(rate){
+  const text=String(rate.cost_code||'')+' '+String(rate.name||'');
+  if(rate.section==='Consumables')return 'Consumables';
+  if(rate.section==='Personnel'||/SUPERVISOR|ACCOMMODATION/i.test(text))return 'Personnel & accommodation';
+  if(/STANDBY/i.test(text))return 'Standby & delays';
+  if(/TRAVEL|MOBILISATION|DEMOBILISATION|MOB_DEMOB/i.test(text))return 'Travel & mobilisation';
+  if(/SAFETY|TRAINING|INSPECTION/i.test(text))return 'Safety, training & inspections';
+  if(rate.section==='Equipment')return 'Equipment';
+  if(/_PCD_/i.test(text))return 'Drilling — PCD';
+  if(/_BLADE_/i.test(text))return 'Drilling — blade';
+  if(/_HAMMER_/i.test(text))return 'Drilling — hammer';
+  if(/_CORE_/i.test(text))return 'Drilling — coring';
+  if(/SETUP|PACKUP/i.test(text))return 'Setup & pack-up';
+  if(/CASING|CEMENT|GROUT/i.test(text))return 'Casing & cementing';
+  if(/REPAIR|MAINTENANCE|RIG_TESTING/i.test(text))return 'Repairs, maintenance & testing';
+  if(/WATER_COLLECT|CON_COLLECT/i.test(text))return 'Water & supply collection';
+  if(/DRILL|BORING|RIG_RATE|TRIPPING|REAMING|CLEANOUT|CIRCULATION|MUD_MIXING|FISING|FISHING|WATER_FLOW/i.test(text))return 'Drilling operations';
+  return 'Other activities';
+}
+function groupedImportCodeOptions(rates,current){
+  const order=['Drilling — PCD','Drilling — blade','Drilling — hammer','Drilling — coring','Drilling operations','Setup & pack-up','Travel & mobilisation','Standby & delays','Safety, training & inspections','Casing & cementing','Water & supply collection','Repairs, maintenance & testing','Equipment','Personnel & accommodation','Consumables','Other activities'];
+  return order.map(group=>{
+    const items=rates.filter(r=>importCodeGroup(r)===group).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true})||Number(a.depth_from||0)-Number(b.depth_from||0)||String(a.cost_code).localeCompare(String(b.cost_code),undefined,{numeric:true}));
+    if(!items.length)return '';
+    return '<optgroup label="'+attr(group)+'">'+items.map(r=>'<option value="'+attr(r.cost_code)+'"'+(current===r.cost_code?' selected':'')+'>'+esc(r.name)+(r.depth_from!=null?' ('+esc(r.depth_from)+'–'+esc(r.depth_to==null?'':r.depth_to)+' m)':'')+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Price needs review':cur(r.charge)+'/'+esc(r.unit||''))+'</option>').join('')+'</optgroup>';
+  }).join('');
+}
 function renderOcrPreview() {
   var panel = document.getElementById('ocr-preview-panel');
   var data = ocrCurrentData || {};
@@ -9451,7 +9478,7 @@ function renderOcrPreview() {
     + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Comments</th>'+ (depcoPricing?'<th>Contract code &amp; price (ex GST)</th>':'') +'<th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th>Bit / core</th><th>Diameter</th><th></th></tr></thead><tbody>';
   (data.activities || []).forEach(function(activity, index) {
     html += '<tr data-ocr-activity="' + index + '"><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index) + '</td>'
-      + (depcoPricing?'<td style="min-width:260px;max-width:300px;white-space:normal;overflow-wrap:anywhere;"><label>Suggested code — change if needed<select aria-label="Activity '+(index+1)+' contract code" data-ocr-field="code" style="display:block;width:100%;max-width:260px;"><option value="">Suggest automatically</option>'+ocrContractRates.map(function(rate){return '<option value="'+attr(rate.cost_code)+'"'+(activity.code===rate.cost_code?' selected':'')+'>'+esc(rate.name)+' ['+esc(rate.cost_code)+']</option>';}).join('')+'</select></label><div data-ocr-pricing>'+renderDepcoOcrPrice(activity.pricing)+'</div>'
+      + (depcoPricing?'<td style="min-width:260px;max-width:300px;white-space:normal;overflow-wrap:anywhere;"><label>Suggested code — change if needed<select aria-label="Activity '+(index+1)+' contract code" data-ocr-field="code" style="display:block;width:100%;max-width:260px;"><option value="">Suggest automatically</option>'+groupedImportCodeOptions(ocrContractRates,activity.code)+'</select></label><div data-ocr-pricing>'+renderDepcoOcrPrice(activity.pricing)+'</div>'
       + '<details><summary>Quantity (days/items)</summary>'+ocrInput(activity.quantity, 'quantity', index)+'</details></td>':'')
       + '<td>' + ocrInput(activity.time_from, 'time_from', index) + '</td><td>' + ocrInput(activity.time_to, 'time_to', index) + '</td>'
       + '<td>' + ocrInput(activity.total_time, 'total_time', index) + '</td><td>' + ocrInput(activity.metres_from, 'metres_from', index) + '</td>'
