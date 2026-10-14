@@ -5,6 +5,12 @@ import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../docs/report.html',import.meta.url),'utf8');
 const start=html.indexOf('async function resolveReassignedDepcoReport(');
 const fn=html.slice(start,html.indexOf('\nasync function loadReport()',start));
+test('DEPCO PCD metres remain visible after assigning the contract code',()=>{
+ const c={num:v=>Number(v)||0};vm.createContext(c);
+ vm.runInContext(html.match(/function isDrilledMetresRow\(row\)\{[^\n]+/)[0],c);
+ assert.equal(c.isDrilledMetresRow({code:'DEPCO_A_PCD_125_175_011',total_metres:32.9}),true);
+ assert.equal(c.isDrilledMetresRow({code:'DEPCO_A_SETUP_PACKUP_SITE_037',total_metres:0}),false);
+});
 function fixture(day,overrides={}){
  const source=`DDR_Depco DR17_202610${day}.pdf`,date=`${day}/10/2026`;
  const rows=[{contractor:'DEPCO Drilling',source_file:source,date,program:'Exploration',...overrides}];
