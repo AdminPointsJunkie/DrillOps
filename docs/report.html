@@ -418,6 +418,41 @@ function optionalNumber(text){
   const n=parseFloat(raw);
   return Number.isFinite(n)?n:null;
 }
+const reportContractCodes=new Map();
+const savingReportCodes=new Set();
+function contractCodeKey(row){return JSON.stringify([row.contractor,row.project,row.program]);}
+async function loadReportContractCodes(rows){
+  const groups=new Map(rows.filter(r=>r.contractor==='DEPCO Drilling').map(r=>[contractCodeKey(r),r]));
+  await Promise.all([...groups].map(async([key,row])=>{
+    try{reportContractCodes.set(key,await fetchJson(API+'/activities/'+encodeURIComponent(row.id)+'/contract-codes'));}
+    catch(e){reportContractCodes.set(key,null);}
+  }));
+}
+function reportCodeCell(row){
+  if(row.contractor!=='DEPCO Drilling')return '<td contenteditable="true" data-col="code" class="code">'+esc(row.code||'')+'</td>';
+  const rates=reportContractCodes.get(contractCodeKey(row));
+  const disabled=sheetLock.locked||savingReportCodes.size>0||!rates||!rates.length;
+  const current=String(row.code||'');
+  let options='<option value="" disabled'+(!current?' selected':'')+'>Choose contract code</option>';
+  if(current&&!(rates||[]).some(r=>r.cost_code===current))options+='<option selected value="'+attr(current)+'">'+esc(current)+'</option>';
+  options+=(rates||[]).map(r=>'<option value="'+attr(r.cost_code)+'"'+(current===r.cost_code?' selected':'')+'>'+esc(r.name)+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Price needs review':cur(r.charge)+'/'+esc(r.unit||''))+'</option>').join('');
+  return '<td class="code"><select class="report-code-select" aria-label="Activity '+attr(row.id)+' contract code" style="width:100%;min-width:220px;max-width:360px"'+(disabled?' disabled':'')+'>'+options+'</select>'+(!rates?'<small>Could not load contract codes. Reload to retry.</small>':!rates.length?'<small>No contract codes available.</small>':'')+'</td>';
+}
+async function saveReportCode(control){
+  const id=control.closest('tr').dataset.id;
+  const row=reportRows.find(r=>String(r.id)===String(id));
+  if(!row||sheetLock.locked||savingReportCodes.size||control.value===(row.code||''))return;
+  savingReportCodes.add(id);
+  document.querySelectorAll('.report-code-select').forEach(el=>el.disabled=true);
+  try{
+    const response=await fetch(API+'/activities/'+encodeURIComponent(id)+'/contract-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:control.value})});
+    if(!response.ok)throw new Error(await response.text());
+    const updated=await response.json();
+    updateCachedActivity(id,updated);
+    broadcastActivityUpdate(updated);
+  }catch(e){alert('Could not update code and pricing: '+e.message);}
+  finally{savingReportCodes.delete(id);renderReport(reportRows,reportConsumables,reportCrew);}
+}
 function activityRowPatch(col,value){
   if(col==='time'){
     const parts=String(value||'').split(/\s*-\s*/);
@@ -872,6 +907,7 @@ async function loadReportData(){
   try{
     let rows=await fetchJson(API+'/activities?'+actParams.toString());
     rows=rows.filter(belongsToThisReport);
+    await loadReportContractCodes(rows);
     drillingRates=await fetchJson(API+'/rates/drilling?contractor='+encodeURIComponent(contractor)).catch(()=>[]);
     hourlyRates=contractor==='MCC Group'?await fetchJson(API+'/rates/hourly?contractor='+encodeURIComponent(contractor)+'&year=2026').catch(()=>[]):[];
     const consumables=contractor==='MCC Group'?[]:await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
@@ -981,6 +1017,10 @@ async function initLockControls(){
 }
 function renderSheetLock(record){
   sheetLock=record||{locked:false,reason:''};
+  document.querySelectorAll('.report-code-select').forEach(control=>{
+    const row=reportRows.find(r=>String(r.id)===control.closest('tr').dataset.id);
+    control.disabled=!!sheetLock.locked||savingReportCodes.size>0||!row||!(reportContractCodes.get(contractCodeKey(row))||[]).length;
+  });
   const btn=document.getElementById('lock-btn');
   const badge=document.getElementById('approval-status');
   btn.classList.toggle('locked',!!sheetLock.locked);
@@ -1490,7 +1530,7 @@ function renderReport(rows,consumables,crew){
     const chargeM=rowChargePerMetre(r);
     return '<tr data-id="'+attr(r.id)+'">'
       +'<td contenteditable="true" data-col="time">'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td>'
-      +'<td contenteditable="true" data-col="code" class="code">'+esc(r.code||'')+'</td>'
+      +reportCodeCell(r)
       +'<td contenteditable="true" data-col="total_time">'+esc(r.total_time||'')+'</td>'
       +'<td contenteditable="true" data-col="depth">'+esc(depth)+'</td>'
       +'<td contenteditable="true" data-col="notes">'+esc(r.notes||'')+'</td>'
@@ -1499,6 +1539,7 @@ function renderReport(rows,consumables,crew){
       +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
       +'</tr>';
   }).join('')||'<tr><td colspan="8" class="empty">No activities found</td></tr>';
+  activityBody.querySelectorAll('.report-code-select').forEach(control=>control.addEventListener('change',()=>saveReportCode(control)));
   activityBody.querySelectorAll('[contenteditable]').forEach(cell=>{
     cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
     cell.addEventListener('keydown',e=>{
