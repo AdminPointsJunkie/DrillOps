@@ -428,6 +428,33 @@ async function loadReportContractCodes(rows){
     catch(e){reportContractCodes.set(key,null);}
   }));
 }
+function reportCodeGroup(rate){
+  const text=String(rate.cost_code||'')+' '+String(rate.name||'');
+  if(rate.section==='Consumables')return 'Consumables';
+  if(rate.section==='Personnel'||/SUPERVISOR|ACCOMMODATION/i.test(text))return 'Personnel & accommodation';
+  if(/STANDBY/i.test(text))return 'Standby & delays';
+  if(/TRAVEL|MOBILISATION|DEMOBILISATION|MOB_DEMOB/i.test(text))return 'Travel & mobilisation';
+  if(/SAFETY|TRAINING|INSPECTION/i.test(text))return 'Safety, training & inspections';
+  if(rate.section==='Equipment')return 'Equipment';
+  if(/_PCD_/i.test(text))return 'Drilling — PCD';
+  if(/_BLADE_/i.test(text))return 'Drilling — blade';
+  if(/_HAMMER_/i.test(text))return 'Drilling — hammer';
+  if(/_CORE_/i.test(text))return 'Drilling — coring';
+  if(/SETUP|PACKUP/i.test(text))return 'Setup & pack-up';
+  if(/CASING|CEMENT|GROUT/i.test(text))return 'Casing & cementing';
+  if(/REPAIR|MAINTENANCE|RIG_TESTING/i.test(text))return 'Repairs, maintenance & testing';
+  if(/WATER_COLLECT|CON_COLLECT/i.test(text))return 'Water & supply collection';
+  if(/DRILL|BORING|RIG_RATE|TRIPPING|REAMING|CLEANOUT|CIRCULATION|MUD_MIXING|FISING|FISHING|WATER_FLOW/i.test(text))return 'Drilling operations';
+  return 'Other activities';
+}
+function groupedReportCodeOptions(rates,current){
+  const order=['Drilling — PCD','Drilling — blade','Drilling — hammer','Drilling — coring','Drilling operations','Setup & pack-up','Travel & mobilisation','Standby & delays','Safety, training & inspections','Casing & cementing','Water & supply collection','Repairs, maintenance & testing','Equipment','Personnel & accommodation','Consumables','Other activities'];
+  return order.map(group=>{
+    const items=rates.filter(r=>reportCodeGroup(r)===group).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true})||Number(a.depth_from||0)-Number(b.depth_from||0)||String(a.cost_code).localeCompare(String(b.cost_code),undefined,{numeric:true}));
+    if(!items.length)return '';
+    return '<optgroup label="'+attr(group)+'">'+items.map(r=>'<option value="'+attr(r.cost_code)+'"'+(current===r.cost_code?' selected':'')+'>'+esc(r.name)+(r.depth_from!=null?' ('+esc(r.depth_from)+'–'+esc(r.depth_to==null?'':r.depth_to)+' m)':'')+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Price needs review':cur(r.charge)+'/'+esc(r.unit||''))+'</option>').join('')+'</optgroup>';
+  }).join('');
+}
 function reportCodeCell(row){
   if(row.contractor!=='DEPCO Drilling')return '<td contenteditable="true" data-col="code" class="code">'+esc(row.code||'')+'</td>';
   const rates=reportContractCodes.get(contractCodeKey(row));
@@ -435,7 +462,7 @@ function reportCodeCell(row){
   const current=String(row.code||'');
   let options='<option value="" disabled'+(!current?' selected':'')+'>Choose contract code</option>';
   if(current&&!(rates||[]).some(r=>r.cost_code===current))options+='<option selected value="'+attr(current)+'">'+esc(current)+'</option>';
-  options+=(rates||[]).map(r=>'<option value="'+attr(r.cost_code)+'"'+(current===r.cost_code?' selected':'')+'>'+esc(r.name)+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Price needs review':cur(r.charge)+'/'+esc(r.unit||''))+'</option>').join('');
+  options+=groupedReportCodeOptions(rates||[],current);
   return '<td class="code"><select class="report-code-select" aria-label="Activity '+attr(row.id)+' contract code" style="width:100%;min-width:220px;max-width:360px"'+(disabled?' disabled':'')+'>'+options+'</select>'+(!rates?'<small>Could not load contract codes. Reload to retry.</small>':!rates.length?'<small>No contract codes available.</small>':'')+'</td>';
 }
 async function saveReportCode(control){
