@@ -11285,9 +11285,10 @@ function initBhMap() {
   ['bh-filter-core','bh-filter-chip','bh-filter-labels'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=true;});
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
-  bhMap = L.map('bh-map', {layers:[osm]});
+  bhMap = L.map('bh-map', {layers:[osm],center:[-22,148.25],zoom:11});
   L.control.layers({'Street':osm,'Satellite':sat}).addTo(bhMap);
   renderBhMapFiltered(currentFilteredBoreholes());
+  bhMap.invalidateSize();
   setTimeout(loadDefaultMapOverlays, 250);
 }
 
@@ -11433,6 +11434,7 @@ function renderBhTable(rows) {
       +'</tr>';
   }).join('');
 
+  if(!rows.length)document.getElementById('bh-body').innerHTML='<tr><td colspan="24" style="padding:20px;color:var(--muted);">No boreholes match this project, year and filters. Add a borehole or import the plan for '+esc(activeProjectName||'this project')+'.</td></tr>';
   document.getElementById('bh-body').querySelectorAll('[contenteditable]').forEach(function(cell) {
     cell.addEventListener('blur', async function() {
       const row = cell.closest('tr');
@@ -11686,7 +11688,7 @@ function clearMapOverlays() {
 
 async function loadDefaultMapOverlays(forceReload) {
   if(!bhMap) return;
-  var project = document.getElementById('bh-project-select') ? document.getElementById('bh-project-select').value : '';
+  var project = (document.getElementById('bh-project-select')?.value || activeProjectName || '');
   var key = project || 'All Projects';
   if(!forceReload && mapOverlaysAutoLoaded && mapOverlayProjectKey===key) return;
   mapOverlaysAutoLoaded = true;
@@ -11695,6 +11697,9 @@ async function loadDefaultMapOverlays(forceReload) {
   clearMapOverlays();
   setMapOverlayStatus('Mine drawings loading for '+key+'...');
   var assets = mapOverlayAssetsForProject(project);
+  if(!currentFilteredBoreholes().some(b=>Number.isFinite(parseFloat(b.lat))&&Number.isFinite(parseFloat(b.lng)))&&assets.length){
+    bhMap.fitBounds(L.latLngBounds(assets.flatMap(asset=>asset.bounds)),{padding:[20,20]});
+  }
   for(var i=0;i<assets.length;i++) {
     loadImageMapOverlay(assets[i]);
   }
