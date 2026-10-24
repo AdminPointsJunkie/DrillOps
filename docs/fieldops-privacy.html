@@ -15,7 +15,8 @@
     .bar { max-width: 760px; margin: auto; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
     .brand { font-size: 22px; font-weight: 760; }
     .brand span { color: #a8cf72; }
-    nav { display: flex; gap: 18px; }
+    nav { display: flex; flex-wrap: wrap; gap: 12px 18px; }
+    @media (max-width: 560px) { .bar { align-items: flex-start; flex-direction: column; gap: 12px; } }
     nav a { color: #dcecff; text-decoration: none; font-size: 14px; }
     h1, h2 { line-height: 1.2; color: #174c3b; }
     h1 { font-size: 2.2rem; }
@@ -25,7 +26,7 @@
   </style>
 </head>
 <body>
-<header><div class="bar"><div class="brand">Drill<span>Ops</span></div><nav><a href="/fieldops.html">FieldOps</a><a href="/">DrillOps</a><a href="/fieldops-support.html">Support</a></nav></div></header>
+<header><div class="bar"><div class="brand">Drill<span>Ops</span></div><nav><a href="/fieldops.html">FieldOps</a><a href="/">DrillOps</a><a href="/fieldops-support.html">Support</a><a href="https://apps.apple.com/app/id6797079076">Get FieldOps</a></nav></div></header>
 <main>
   <h1>FieldOps Privacy Policy</h1>
   <p class="date">Effective 2 August 2026</p>
@@ -54,7 +55,7 @@
   <p>If this policy changes, the effective date and published policy will be updated before the changed practices apply.</p>
 
   <h2>Contact</h2>
-  <p>Privacy and support enquiries can be made through the <a href="/fieldops-support.html">FieldOps Support page</a>.</p>
+  <p>For privacy or support enquiries, email <a href="mailto:admin@drillops.com.au">admin@drillops.com.au</a> or visit the <a href="/fieldops-support.html">FieldOps Support page</a>.</p>
 </main>
 </body>
 </html>
