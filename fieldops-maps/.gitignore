@@ -1,5 +1,7 @@
 node_modules/
 dist/
+public/gdal-engine.bin
+public/gdal-worker.js
 .venv/
 data/
 .env*

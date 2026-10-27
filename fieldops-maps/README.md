@@ -22,6 +22,10 @@ The development URL is `/maps/`. Copy `dist/` into the DrillOps repository's `do
 
 ## Architecture
 
+Saved maps are presented as projects. Each project owns its existing layers and can have an optional EPSG default CRS, editable through Project settings. The default prepopulates import review (including files with embedded CRS); the user can override it or select Use file CRS instead. Existing projects without a default keep using embedded CRS where available. Changing a default does not reproject existing layers.
+
+The View selector offers Street (OpenStreetMap), Satellite (Esri World Imagery), and Hybrid (imagery plus Esri transportation and place labels). Basemap changes preserve the map extent and imported layers.
+
 - Browser: Vite, Leaflet, GDAL 3.8.4 / PROJ 9.3.1 in a Web Worker, Papa Parse.
 - PostGIS: `public.maps`, `public.layers`, `public.features`, a GiST geometry index, and an atomic vector-import function.
 - Supabase Storage: private `gis-files` bucket; paths scoped to the signed-in user.

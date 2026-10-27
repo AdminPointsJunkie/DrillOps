@@ -1,7 +1,8 @@
 create extension if not exists postgis with schema extensions;
 create table public.maps (
  id uuid primary key default gen_random_uuid(), owner_id uuid not null default auth.uid() references auth.users(id),
- name text not null check (length(name) between 1 and 160), created_at timestamptz not null default now()
+ name text not null check (length(name) between 1 and 160), created_at timestamptz not null default now(),
+ default_crs text check(default_crs is null or default_crs ~ '^EPSG:[0-9]+$'), default_crs_label text
 );
 create index maps_owner_idx on public.maps(owner_id);
 create table public.layers (
