@@ -1,3 +1,4 @@
+import {installSidebarResize} from '../src/sidebar-resize.js';
 import {orderPanes} from '../src/pane-order.js';
 import {pointLabels} from '../src/point-labels.js';
 import {cachedConversion} from '../src/conversion-cache.js';
@@ -12,7 +13,7 @@ import {installBasemaps} from '../src/basemaps.js';
 import {vectorStyle,pointMarker,styleControls,visibilityIcon} from '../src/layer-style.js';
 
 test('create, edit and switch projects; retain per-import CRS overrides through preview', async () => {
- const dom=new JSDOM('<div id="app"></div>', {url:'https://example.test/maps/',runScripts:'outside-only'});
+ const dom=new JSDOM('<div id="app"></div>', {url:'https://example.test/maps/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window, catalogue=[{code:'EPSG:7856',name:'GDA2020 / MGA zone 56'},{code:'EPSG:4326',name:'WGS 84'}];
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
@@ -25,13 +26,13 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   return query;
  }};
  const layer=()=>({addTo(){return this;},getBounds(){return {};},bindPopup(){return this;}});
- const panes={};const map={closePopup(){},getBounds:()=>({pad:()=>({contains:()=>true})}),getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(){return this;},on(){},removeLayer(){},fitBounds(){}};
+ const panes={};const map={invalidateSize(){},closePopup(){},getBounds:()=>({pad:()=>({contains:()=>true})}),getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(){return this;},on(){},removeLayer(){},fitBounds(){}};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:(fc,options)=>{for(const f of fc.features)options.onEachFeature(f,{on:(name,handler)=>featureHandlers.push(handler)});return layer();},imageOverlay:layer,circleMarker:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>true})};
  const fc={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]};
- Object.assign(w,{orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
+ Object.assign(w,{installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
   errorText:e=>e.message,fetch:async()=>({json:async()=>catalogue}),
-  inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[]}],errors:[]}),
+  inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
   convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
  const code=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(code);
@@ -56,6 +57,22 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   $('#review').close();change('#map-select','2');await tick();assert.equal($('#map-select').value,'1','pending imports prevent switching projects');
   $('#queue [data-discard]').click();change('#map-select','2');await tick();assert.match($('#project-default').textContent,/4326/);
   $('#project-settings').click();input('#project-crs','');submit('#name-form');await tick();assert.equal(projects[1].default_crs,null);
+  // Editing a source reuses its layer identity and applies new import settings.
+  w.eval('user=null');
+  $('#files').dispatchEvent(new w.Event('change'));await tick();
+  $('#crs-search').value='4326';$('#crs-search').dispatchEvent(new w.Event('input'));$('#crs-results [data-code="EPSG:4326"]').click();
+  submit('#review-form');await tick();
+  const originalId=$('.layer-card').dataset.id;
+  $('[data-action="settings"]').click();await tick();
+  assert.equal($('#review').open,true);assert.equal($('#layer-name').value,'Survey');
+  assert.equal($('#csv-x').value,'x');assert.equal($('#csv-y').value,'y');
+  assert.equal($('#import-layer').textContent,'Save layer settings');
+  input('#layer-name','Edited survey');input('#crs-search','7856');$('#crs-results [data-code="EPSG:7856"]').click();
+  submit('#review-form');await tick();
+  assert.equal($('.layer-card').dataset.id,originalId);assert.match($('.layer-card').textContent,/Edited survey/);
+  assert.equal(conversions.at(-1),'EPSG:7856');assert.equal(w.document.querySelectorAll('.layer-card').length,1);
+  $('[data-action="settings"]').click();await tick();assert.match($('#crs-search').value,/7856/);
+  $('#review').close();$('#queue [data-discard]').click();
   // A slow raster releases the modal immediately, retains navigation, and prevents closing mid-job.
   rasterMode=true;$('#files').dispatchEvent(new w.Event('change'));await tick();
   $('#preview-layer').click();await tick();

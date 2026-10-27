@@ -1,3 +1,4 @@
+import {installSidebarResize} from '../src/sidebar-resize.js';
 import {orderPanes} from '../src/pane-order.js';
 import {pointLabels} from '../src/point-labels.js';
 import {cachedConversion} from '../src/conversion-cache.js';
@@ -26,18 +27,18 @@ test('XYZ validates templates, transport and zoom; escapes provider attribution'
 });
 
 test('XYZ add, save, edit, visibility, target, opacity and project reload never download a raster',async()=>{
- const dom=new JSDOM('<div id="app"></div>',{url:'https://example.test/maps/',runScripts:'outside-only'}),w=dom.window;
+ const dom=new JSDOM('<div id="app"></div>',{url:'https://example.test/maps/',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const db=createLocalWorkspace(new IDBFactory());
  db.storage.from=()=>{throw Error('XYZ must not upload or download raster blobs');};
  const project=(await db.from('maps').insert({name:'XYZ project'}).single()).data;
  const calls=[],views=[];
  const layer=()=>({addTo(){return this;},once(){return this;},getBounds(){return {};}});
- const panes={};const map={getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(center,zoom){views.push({center,zoom});return this;},on(){},removeLayer(){},fitBounds(){},getCenter:()=>({lat:-22,lng:148}),getZoom:()=>12,
+ const panes={};const map={invalidateSize(){},getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(center,zoom){views.push({center,zoom});return this;},on(){},removeLayer(){},fitBounds(){},getCenter:()=>({lat:-22,lng:148}),getZoom:()=>12,
   getBounds:()=>({pad:()=>({contains:()=>true}),getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
- Object.assign(w,{orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);
