@@ -33,12 +33,12 @@ export function styleControls(layer){
  const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const fields=[...new Set(layer.fc?.features?.flatMap(f=>Object.keys(f.properties||{}))||[])];
  const options=(values,current)=>values.map(v=>`<option value="${v}" ${v===current?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('');
- return `<details class="layer-style-controls"><summary>Style layer</summary><div class="style-fields">
+ return `<div class="layer-style-controls" data-layer-panel="style" hidden><div class="style-fields">
  <label>${kinds.has('shape')?'Outline / line colour':'Colour'}<input type="color" value="${/^#[0-9a-f]{6}$/i.test(layer.color)?layer.color:'#147d72'}" data-action="color" aria-label="Layer colour"></label>
  <label>Layer opacity <output>${Math.round(s.opacity*100)}%</output><input type="range" min="0" max="1" step="0.05" value="${s.opacity}" data-action="opacity" aria-label="Layer opacity"></label>
  ${kinds.has('point')?`<label>Point symbol<select data-action="symbol" aria-label="Point symbol">${options(symbols,s.symbol)}</select></label><label>Point size<input type="number" min="4" max="48" value="${s.pointSize}" data-action="pointSize" aria-label="Point size"></label>`:''}
  ${kinds.has('line')||kinds.has('shape')?`<label>${kinds.has('shape')?'Outline':'Line'} style<select data-action="lineStyle" aria-label="Line style">${options(Object.keys(lineStyles),s.lineStyle)}</select></label><label>${kinds.has('shape')?'Outline':'Line'} width<input type="number" min="0" max="12" step="0.5" value="${s.lineWidth}" data-action="lineWidth" aria-label="Line width"></label>`:''}
  ${kinds.has('shape')?`<label>Fill colour<input type="color" value="${s.fillColor}" data-action="fillColor" aria-label="Fill colour"></label><label>Fill opacity <output>${Math.round(s.fillOpacity*100)}%</output><input type="range" min="0" max="1" step="0.05" value="${s.fillOpacity}" data-action="fillOpacity" aria-label="Fill opacity"></label>`:''}
  ${kinds.has('point')?`<label class="label-field">Point labels<select data-action="labelField" aria-label="Point label field"><option value="">Off</option>${fields.map(f=>`<option value="${esc(f)}" ${layer.metadata?.style?.labelField===f?'selected':''}>${esc(f)}</option>`).join('')}</select><small>Up to 500 visible labels. Zoom in for dense layers.</small></label>`:''}
- </div></details>`;
+ </div></div>`;
 }
