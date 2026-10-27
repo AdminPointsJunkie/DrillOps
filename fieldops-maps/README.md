@@ -1,5 +1,19 @@
 # DrillOps Maps
 
+## SYNC and operators
+
+Drafts autosave. The sidebar shows Saving, Saved, Unsaved changes or Save failed, with Retry for retained style/layout failures and unsaved imports. SYNC saves pending changes and publishes a versioned operator release. Later edits remain private until the next SYNC. Last-sync time and an unsynced-change indicator distinguish saving from publication.
+
+Publication checks the draft revision; retrying without intervening changes returns the same release. Raster previews are copied to separate release paths so draft image replacement does not affect operators. Interrupted copies may leave unreferenced files; future cleanup must retain every path referenced by a release.
+
+The future iPhone app reads `map_releases` by map_id, descending version, using the latest manifest. It includes project CRS/name, group/order defaults, styles/visibility, vector GeoJSON and private preview paths. Operators with server-managed `app_metadata.maps_role=operator` read only projects assigned through `map_operators`. They may pan, zoom, toggle layers and personalise their view locally, but cannot edit drafts, upload files or publish. Original source files are not exposed. Owners/main admins manage assignments; none are created implicitly.
+
+The native iPhone interface and notifications remain separate work. SYNC prepares the database/API contract and does not claim delivery to a device. Transaction-only tests in `tests/operator-sync.sql` verify snapshot isolation, retries, revision conflicts and access controls. Security advisor reports the existing Auth warning [leaked-password protection disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+## KML and KMZ
+
+Upload KML or zipped KMZ directly. KMZ uses GDAL's ZIP virtual filesystem. KML coordinates default to embedded WGS 84 rather than the project's projected default. Supported: points, lines, polygons, elevations, names and descriptions. Layer names start from filenames. Google Earth icons/styles, image overlays, tours and network links are not imported; apply styling after import. Custom extension attributes depend on the bundled GDAL KML driver. Empty/overlay-only documents report no supported geometry. Existing cloud file and feature limits apply.
+
 Unadvertised GIS workspace for the DrillOps / FieldOps ecosystem.
 
 Production route: https://www.drillops.com.au/maps/

@@ -12,8 +12,8 @@ export async function inspect(files,progress){
  if(all.reduce((s,f)=>s+f.size,0)>300*1024*1024)throw Error('Import up to 300 MB per batch.');
  if(new Set(all.map(f=>f.name)).size!==all.length)throw Error('Files in one batch must have unique names.');
  const items=[]; const errors=[];
- const ordinary=all.filter(f=>! /\.(csv|zip)$/i.test(f.name));
- const groups=[...all.filter(f=>/\.csv$/i.test(f.name)).map(f=>[f]),...all.filter(f=>/\.zip$/i.test(f.name)).map(f=>[f])];
+ const ordinary=all.filter(f=>! /\.(csv|zip|kml|kmz)$/i.test(f.name));
+ const groups=[...all.filter(f=>/\.csv$/i.test(f.name)).map(f=>[f]),...all.filter(f=>/\.(zip|kml|kmz)$/i.test(f.name)).map(f=>[f])];
  if(ordinary.length)groups.push(ordinary);
  for(const group of groups){
  try{
@@ -25,7 +25,7 @@ export async function inspect(files,progress){
  if(!parsed.data.length)throw Error('The CSV contains no point rows.');
  items.push({name:group[0].name.replace(/\.csv$/i,''),kind:'vector',format:'CSV',files:group,rows:parsed.data,fields:parsed.meta.fields,source:'',count:parsed.data.length});continue;
  }
- const G=await gdal();const result=await G.open(group,[],/\.zip$/i.test(group[0].name)?['vsizip']:[]);
+ const G=await gdal();const result=await G.open(group,[],/\.(zip|kmz)$/i.test(group[0].name)?['vsizip']:[]);
  for(const ds of result.datasets){
  const info=ds.info||await G.getInfo(ds);
  if(ds.type==='raster'){
@@ -35,12 +35,14 @@ export async function inspect(files,progress){
  }else{
  const info2=await G.ogrinfo(ds,['-al','-so']);
  for(const layer of info2.layers||[]){
+ if(info2.driverShortName==='KML'&&layer.featureCount===0)continue;
  const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
- items.push({name:fileLayerName(group,ds.path,layer.name,info2.layers.length>1),layerName:layer.name,kind:'vector',format:info2.driverShortName||'Vector',files:group,ds,info:layer,source,count:layer.featureCount||0});
+ items.push({name:fileLayerName(group,ds.path,layer.name,info2.layers.length>1),layerName:layer.name,kind:'vector',format:/\.kmz$/i.test(group[0].name)?'KMZ':info2.driverShortName||'Vector',files:group,ds,info:layer,source,count:layer.featureCount||0});
  }
  }
  }
  if(!result.datasets.length)throw Error('No supported GIS dataset was found.');
+ if(/\.km[lz]$/i.test(group[0].name)&&!items.some(item=>item.files===group&&item.count>0))throw Error('No KML/KMZ points, lines or polygons were found. Image overlays and network links are not imported.');
  }catch(e){errors.push(`${group.map(f=>f.name).join(', ')}: ${errorText(e)}`);}
  }
  return {items,errors};
