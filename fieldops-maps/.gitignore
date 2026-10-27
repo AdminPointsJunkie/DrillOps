@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.venv/
+data/
+.env*
+__pycache__/
+.pytest_cache/
+.DS_Store
+*.tar.gz

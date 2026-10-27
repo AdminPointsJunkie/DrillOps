@@ -1,0 +1,29 @@
+{
+  "name": "shared-map",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test": "node --test tests/*.test.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "prebuild": "node scripts/prepare-engine.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "2.95.3",
+    "gdal3.js": "2.8.1",
+    "leaflet": "1.9.4",
+    "papaparse": "5.5.3"
+  },
+  "devDependencies": {
+    "vite": "6.4.5"
+  }
+}
