@@ -1,13 +1,19 @@
-# FieldOps Maps
+# DrillOps Maps
 
 Unadvertised GIS workspace for the DrillOps / FieldOps ecosystem.
 
 Production route: https://www.drillops.com.au/maps/
 Supabase project: `dzthwvxrltkltfvubvld` (Shared Map, Sydney).
 
-## Temporary no-login testing mode
+## Cloud workspace
 
-`LOCAL_TESTING=true` in `src/config.js` uses IndexedDB for projects, original files, geometry and raster previews. There is no sign-in requirement or cloud upload. Data survives refresh in the same browser, but is not shared across devices and is lost if site storage is cleared. Existing Supabase data and owner-only policies are unchanged. Set the flag to false and rebuild to restore the existing authenticated cloud workspace; browser test data is not automatically migrated.
+`LOCAL_TESTING=false` uses Supabase Auth, PostgreSQL/PostGIS and the private `gis-files` bucket. Sign in with email/password or an emailed sign-in link. New accounts must verify their email. Owners access their own projects; a main administrator with server-managed `app_metadata.maps_role=admin` can manage all GIS projects and files. User-editable metadata never grants access. No admin credential is shipped to the browser.
+
+The **Import browser projects** button appears after sign-in. It copies a selected IndexedDB project, original files, vectors, raster previews, XYZ links, styles, labels and group/order settings into that account. Local data is retained. Stable destination IDs allow interrupted copies to resume without duplicate layers. Completed copies do not overwrite subsequent cloud edits. Run this from the same browser/profile that holds the testing data.
+
+The current free-plan bucket allows **50 MB per file**. Transfers preflight every source and preview before creating a destination project. A project containing a larger file remains local and displays an error; there is no automatic plan upgrade, server raster processing or silent loss of original files.
+
+Cloud layer edits use an atomic PostGIS replacement function; validation errors roll back to the previous geometry. Layout/group settings now live on `maps.layer_layout`. Apply schema.sql plus every migration for a new installation. The cloud workspace migration was applied remotely as `20261027212459`.
 
 Google was deferred because billing/API credentials are not being enabled. Esri imagery and OpenStreetMap remain configured.
 
@@ -34,7 +40,7 @@ The View selector offers Street (OpenStreetMap), Satellite (Esri World Imagery),
 
 Satellite tiles request `blankTile=false`; where detailed coverage is missing, a cropped parent tile is enlarged instead of showing Esri's placeholder. Imagery can be magnified to zoom 22 without claiming additional resolution. Imported layer names default to the filename stem, with internal names appended only for multi-layer datasets.
 
-Expand **Style layer** on a vector layer: points offer symbols and size; lines offer colour, width and dashes; shapes offer fill colour/opacity and outline styling. Mixed layers expose all relevant controls. Overall opacity applies to fills as well as outlines. Styles are saved in the layer metadata and restored with the project. Raster layers have an opacity control. The eye toggles visibility; the target button reveals a hidden layer and fits the map to its extent.
+Click the **style icon** on a vector layer: points offer symbols and size; lines offer colour, width and dashes; shapes offer fill colour/opacity and outline styling. Mixed layers expose all relevant controls. Overall opacity applies to fills as well as outlines. Styles are saved in the layer metadata and restored with the project. Raster layers have an opacity control. The eye toggles visibility; the target button reveals a hidden layer and fits the map to its extent.
 
 - Browser: Vite, Leaflet, GDAL 3.8.4 / PROJ 9.3.1 in a Web Worker, Papa Parse.
 - PostGIS: `public.maps`, `public.layers`, `public.features`, a GiST geometry index, and an atomic vector-import function.
@@ -53,12 +59,12 @@ Preview stays in browser memory. Import attempts to save to the selected project
 
 ## Current limits
 
-- 250 MB per GeoTIFF, 50 MB per other file, 300 MB per batch, 20,000 features per vector layer.
+- 50 MB per file in cloud mode (local testing supports GeoTIFFs up to 250 MB), 300 MB per batch, 20,000 features per vector layer.
 - Raster previews are reduced to 1,536 pixels on the longer source dimension. Full originals are retained; this is not a tiled full-resolution raster service.
 - Browser memory and the bundled driver determine format support. DWG is not promised. GeoTIFF/world-file georeferencing is required for raster positioning.
 - Source coordinate systems are never inferred from coordinate magnitudes. CSV requires confirmation; missing CRS requires a choice.
 - PROJ requests best available operations without downloading grids. Missing resources may cause import to fail. No survey accuracy is certified. Height reference is recorded, not vertically transformed. Expert pipelines and first-order local-grid control points are vector-only.
-- Online access only. No offline downloads, cross-account sharing, native FieldOps sign-on integration, automatic refresh, replacement/versioning. Raster jobs run while the tab stays open.
+- Online access only. No offline downloads, cross-account sharing, native FieldOps sign-on integration, automatic refresh or version history. Raster jobs run while the tab stays open.
 - Remove hides a saved layer from the current view; Refresh restores it. No cloud deletion UI is exposed.
 
 ## Engine packaging
@@ -75,13 +81,13 @@ Raster processing runs in the GDAL worker with a non-modal job card after review
 
 ## XYZ tile links
 
-Choose **Add XYZ tile link** beneath the file drop area. Supply a name and HTTPS Web Mercator image-tile template containing `{z}`, `{x}` and `{y}` (in the provider’s order). `{s}` and `{r}` are optional. Set provider attribution and native zoom limits. Links are raster layer metadata, not uploaded raster files; they save with the project in the current browser-only testing workspace. Each has eye, target, opacity and Edit tiles controls. The target restores the view captured when the link was added; XYZ URLs do not provide coverage bounds. Only browser-safe URL keys are supported, not private credentials or custom authentication headers. WMS, vector PBF tiles and TileJSON documents are not XYZ image templates.
+Choose **Add XYZ tile link** beneath the file drop area. Supply a name and HTTPS Web Mercator image-tile template containing `{z}`, `{x}` and `{y}` (in the provider’s order). `{s}` and `{r}` are optional. Set provider attribution and native zoom limits. Links are raster layer metadata, not uploaded raster files; they save with the project in the cloud workspace. Each has eye, target, opacity and Edit tiles controls. The target restores the view captured when the link was added; XYZ URLs do not provide coverage bounds. Only browser-safe URL keys are supported, not private credentials or custom authentication headers. WMS, vector PBF tiles and TileJSON documents are not XYZ image templates.
 
 ## Layer organisation and point information
 
 The compact sidebar is 285 px wide; the header is 58 px high. Drag the six-dot handles to order layers or whole groups. The first layer in the list draws on top for points, lines, polygons, raster previews and XYZ tiles. Each imported layer uses its own Leaflet pane so ordering is consistent across geometry types. SVG path rendering avoids blank canvas surfaces intercepting clicks on lower layers.
 
-Use **+ Group** to create a group. Drop layers on its heading or drop area, or select a group under **Organise**. Groups collapse, rename and hide/show without changing each child's visibility setting. **Ungroup** preserves children. Up/down controls provide a keyboard/touch alternative. Project arrangements persist atomically in the local testing workspace; cloud mode keeps layout preferences in browser storage until a shared-layout schema is introduced. Styles and labels remain in each layer's metadata.
+Use **+ Group** to create a group. Drop layers on its heading or drop area, or select a group under **Organise**. Groups collapse, rename and hide/show without changing each child's visibility setting. **Ungroup** preserves children. Up/down controls provide a keyboard/touch alternative. Project arrangements persist in the database, including groups, collapsed state, visibility and draw order. Styles and labels remain in each layer's metadata.
 
 Select a CSV field under **Style layer → Point labels**. Up to 500 visible labels per layer are rendered; zoom in for dense datasets. The right-hand **i** tool opens an attribute panel for clicked points, lines and polygons. Attribute text is escaped through DOM text nodes.
 
