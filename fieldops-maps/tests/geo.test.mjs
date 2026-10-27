@@ -1,5 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {coordinate,csvGeoJSON,validateCollection} from '../src/geo.js';
+import {coordinate,csvGeoJSON,validateCollection,preserveCollapsedDXFLines} from '../src/geo.js';
+test('collapsed CAD lines retain entity attributes and height as points; real and vertical lines remain intact',()=>{
+ const fc={features:[{properties:{EntityHandle:'7E'},geometry:{type:'LineString',coordinates:[[148,-21,12],[148,-21,12]]}},{geometry:{type:'LineString',coordinates:[[148,-21,12],[149,-21,12]]}},{geometry:{type:'LineString',coordinates:[[148,-21,12],[148,-21,13]]}}]};
+ preserveCollapsedDXFLines(fc);assert.deepEqual(fc.features.map(f=>f.geometry.type),['Point','LineString','LineString']);assert.deepEqual(fc.features[0].geometry.coordinates,[148,-21,12]);assert.equal(fc.features[0].properties.EntityHandle,'7E');assert.match(fc.features[0].properties._drillops_geometry_note,/Collapsed DXF/);
+});
 test('decimal and DMS coordinates, hemispheres and malformed values',()=>{assert.equal(coordinate('-27.5'),-27.5);assert.equal(coordinate('27° 30\' 0" S'),-27.5);assert.equal(coordinate('153° 0\' 0" E'),153);assert.throws(()=>coordinate(''));assert.throws(()=>coordinate('27° 90\' 0" S'));});
 test('CSV preserves attributes and reports bad rows',()=>{const fc=csvGeoJSON([{lon:'153',lat:'-27',name:'A'}],'lon','lat');assert.equal(fc.features[0].properties.name,'A');assert.deepEqual(validateCollection(fc),[153,-27,153,-27]);assert.throws(()=>csvGeoJSON([{x:'bad',y:'1'}],'x','y'),/row 2/);});
 test('out-of-range, missing, empty and huge geometry fail without skipping',()=>{assert.throws(()=>validateCollection({type:'FeatureCollection',features:[]}));assert.throws(()=>validateCollection({type:'FeatureCollection',features:[{geometry:null}]}));assert.throws(()=>validateCollection(csvGeoJSON([{x:'500000',y:'7000000'}],'x','y')));assert.throws(()=>validateCollection({type:'FeatureCollection',features:[{geometry:{type:'Point',coordinates:[NaN,1]}}]}));});

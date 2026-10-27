@@ -2,7 +2,7 @@ import initGdalJs from 'gdal3.js';
 const workerUrl=import.meta.env.BASE_URL+'gdal-worker.js';
 import dataUrl from 'gdal3.js/dist/package/gdal3WebAssembly.data?url';
 import Papa from 'papaparse';
-import {csvGeoJSON,validateCollection,errorText} from './geo.js';
+import {csvGeoJSON,validateCollection,errorText,preserveCollapsedDXFLines} from './geo.js';
 import {fileLayerName} from './layer-name.js';
 let engine;
 export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
@@ -64,6 +64,7 @@ export async function convert(item,settings,progress=()=>{}){
  progress('Transforming vector coordinates…');
  const out=await G.ogr2ogr(ds,options,`vector_${id()}`);
  const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));
+ if(item.format==='DXF')preserveCollapsedDXFLines(fc);
  const bounds=validateCollection(fc);if(csv)await G.close(ds);return {fc,bounds};
  }
  // Reproject the raster to the map's actual projection before making a bounded display image.

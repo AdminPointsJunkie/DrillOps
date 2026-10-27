@@ -17,3 +17,11 @@ export function validateCollection(fc) {
 }
 export function csvGeoJSON(rows,x,y){if(rows.length>20000)throw Error('CSV supports up to 20,000 points per layer. Split this file before importing.');if(!rows.length)throw Error('The CSV contains no point rows.');return {type:'FeatureCollection',features:rows.map((r,i)=>{try{return{type:'Feature',properties:r,geometry:{type:'Point',coordinates:[coordinate(r[x]),coordinate(r[y])]}}}catch(e){throw Error(`CSV row ${i+2}: ${e.message}`)}})};}
 export function errorText(e){return e?.message||e?.error|| (Array.isArray(e)?e.map(errorText).join('; '):String(e));}
+export function preserveCollapsedDXFLines(fc){
+ for(const f of fc.features||[]){const g=f.geometry,c=g?.coordinates;
+  if(g?.type==='LineString'&&c.length>=2&&c.every(p=>p.length===c[0].length&&p.every((v,i)=>Number.isFinite(v)&&v===c[0][i]))){
+   f.geometry={type:'Point',coordinates:[...c[0]]};
+   f.properties={...f.properties,_drillops_geometry_note:'Collapsed DXF line preserved as a point'};
+  }
+ }return fc;
+}
