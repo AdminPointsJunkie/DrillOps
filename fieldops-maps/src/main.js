@@ -1,3 +1,4 @@
+import {orderPanes} from './pane-order.js';
 import {pointLabels} from './point-labels.js';
 import {cachedConversion} from './conversion-cache.js';
 import {nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree} from './layer-tree.js';
@@ -56,8 +57,8 @@ function layerPane(item){
 function isVisible(item){return item.visible!==false&&parentGroup(layerTree,item.id)?.visible!==false;}
 function syncStack(){
  const ids=flattenTree(layerTree).filter(id=>rendered.has(id));
- ids.forEach((id,index)=>{const l=layers.find(l=>l.id===id),ml=rendered.get(id),pane=map.getPane(l._pane);
-  if(pane)pane.style.zIndex=String(400+(ids.length-index)*190/(ids.length+1));
+ orderPanes(ids.map(id=>map.getPane(layers.find(l=>l.id===id)._pane)));
+ ids.forEach(id=>{const l=layers.find(l=>l.id===id),ml=rendered.get(id);
   if(isVisible(l)){if(!map.hasLayer(ml))ml.addTo(map);}else if(map.hasLayer(ml))map.removeLayer(ml);
  });
  refreshLabels();
