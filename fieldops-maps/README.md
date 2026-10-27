@@ -76,3 +76,13 @@ Raster processing runs in the GDAL worker with a non-modal job card after review
 ## XYZ tile links
 
 Choose **Add XYZ tile link** beneath the file drop area. Supply a name and HTTPS Web Mercator image-tile template containing `{z}`, `{x}` and `{y}` (in the provider’s order). `{s}` and `{r}` are optional. Set provider attribution and native zoom limits. Links are raster layer metadata, not uploaded raster files; they save with the project in the current browser-only testing workspace. Each has eye, target, opacity and Edit tiles controls. The target restores the view captured when the link was added; XYZ URLs do not provide coverage bounds. Only browser-safe URL keys are supported, not private credentials or custom authentication headers. WMS, vector PBF tiles and TileJSON documents are not XYZ image templates.
+
+## Layer organisation and point information
+
+The compact sidebar is 285 px wide; the header is 58 px high. Drag the six-dot handles to order layers or whole groups. The first layer in the list draws on top for points, lines, polygons, raster previews and XYZ tiles. Each imported layer uses its own Leaflet pane so ordering is consistent across geometry types. SVG path rendering avoids blank canvas surfaces intercepting clicks on lower layers.
+
+Use **+ Group** to create a group. Drop layers on its heading or drop area, or select a group under **Organise**. Groups collapse, rename and hide/show without changing each child's visibility setting. **Ungroup** preserves children. Up/down controls provide a keyboard/touch alternative. Project arrangements persist atomically in the local testing workspace; cloud mode keeps layout preferences in browser storage until a shared-layout schema is introduced. Styles and labels remain in each layer's metadata.
+
+Select a CSV field under **Style layer → Point labels**. Up to 500 visible labels per layer are rendered; zoom in for dense datasets. The right-hand **i** tool opens an attribute panel for clicked points, lines and polygons. Attribute text is escaped through DOM text nodes.
+
+CSV previews no longer prebuild every feature's popup DOM. Confirming a preview reuses its conversion only when all CRS, coordinate-column and advanced settings match. EPSG:4326 CSV points bypass GDAL unless advanced transformations are requested; projected CSVs still use GDAL. The 20,000-point limit is checked before conversion. Browser QA covered preview/import/save of 5,000 CSV points.

@@ -21,6 +21,8 @@ export async function inspect(files,progress){
  if(group.length===1&&/\.csv$/i.test(group[0].name)){
  const parsed=Papa.parse(await group[0].text(),{header:true,skipEmptyLines:'greedy'});
  if(parsed.errors.length)throw Error(parsed.errors[0].message);
+ if(parsed.data.length>20000)throw Error('CSV supports up to 20,000 points per layer. Split this file before importing.');
+ if(!parsed.data.length)throw Error('The CSV contains no point rows.');
  items.push({name:group[0].name.replace(/\.csv$/i,''),kind:'vector',format:'CSV',files:group,rows:parsed.data,fields:parsed.meta.fields,source:'',count:parsed.data.length});continue;
  }
  const G=await gdal();const result=await G.open(group,[],/\.zip$/i.test(group[0].name)?['vsizip']:[]);
@@ -44,19 +46,23 @@ export async function inspect(files,progress){
  return {items,errors};
 }
 export async function convert(item,settings,progress=()=>{}){
- const G=await gdal();let ds=item.ds;
  const source=settings.crs.trim();if(!source)throw Error('Choose the source coordinate system before importing.');
  if(item.kind==='raster'&&!item.hasTransform)throw Error('This raster has no georeferencing. Supply a georeferenced raster or its world file.');
- if(item.rows){const fc=csvGeoJSON(item.rows,settings.x,settings.y);ds=(await G.open(new File([JSON.stringify(fc)],`csv_${id()}.geojson`))).datasets[0];}
+ const csv=item.rows?csvGeoJSON(item.rows,settings.x,settings.y):null;
+ if(csv&&/^EPSG:4326$/i.test(source)&&!settings.epoch&&!settings.pipeline&&!settings.gcps)return {fc:csv,bounds:validateCollection(csv)};
+ progress('Loading coordinate transformation engine…');
+ const G=await gdal();let ds=item.ds;
+ if(csv)ds=(await G.open(new File([JSON.stringify(csv)],`csv_${id()}.geojson`))).datasets[0];
  const opts=['-s_srs',source,'-t_srs','EPSG:4326','--config','PROJ_ONLY_BEST_DEFAULT','YES'];
  if(settings.epoch)opts.push('-s_coord_epoch',String(settings.epoch));
  if(settings.pipeline)opts.push('-ct',settings.pipeline);
  if(settings.gcps){const rows=settings.gcps.trim().split('\n').filter(Boolean);if(rows.length<3)throw Error('Enter at least three control points.');for(const row of rows){const v=row.split(/[,\s]+/).map(Number);if(v.length!==4||!v.every(Number.isFinite))throw Error('Each control point needs local X, local Y, target X, target Y.');opts.push('-gcp',...v.map(String));}opts.push('-order','1');}
  if(item.kind==='vector'){
  const options=['-f','GeoJSON',...opts,'-lco','RFC7946=YES'];if(item.layerName)options.push(item.layerName);
+ progress('Transforming vector coordinates…');
  const out=await G.ogr2ogr(ds,options,`vector_${id()}`);
  const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));
- const bounds=validateCollection(fc);return {fc,bounds};
+ const bounds=validateCollection(fc);if(csv)await G.close(ds);return {fc,bounds};
  }
  // Reproject the raster to the map's actual projection before making a bounded display image.
  const rasterOptions=['-of','GTiff','-s_srs',source,'-t_srs','EPSG:3857','-ts',...(item.info.size?.[1]>item.info.size?.[0]?['0','1536']:['1536','0']),'-r','bilinear','-dstalpha','--config','PROJ_ONLY_BEST_DEFAULT','YES'];

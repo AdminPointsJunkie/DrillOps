@@ -21,15 +21,17 @@ export function vectorStyle(layer){
  const s=layerStyle(layer);
  return {color:layer.color,weight:s.lineWidth,dashArray:lineStyles[s.lineStyle],opacity:s.opacity,fillColor:s.fillColor,fillOpacity:s.fillOpacity*s.opacity};
 }
-export function pointMarker(L,layer,ll){
+export function pointMarker(L,layer,ll,options={}){
  const s=layerStyle(layer),color=/^#[0-9a-f]{6}$/i.test(layer.color)?layer.color:'#147d72';
- if(s.symbol==='circle')return L.circleMarker(ll,{radius:s.pointSize/2,color:'#fff',weight:1.5,opacity:s.opacity,fillColor:color,fillOpacity:s.opacity});
+ if(s.symbol==='circle')return L.circleMarker(ll,{...options,radius:s.pointSize/2,color:'#fff',weight:1.5,opacity:s.opacity,fillColor:color,fillOpacity:s.opacity});
  const shapes={square:'<rect x="2" y="2" width="20" height="20"/>',triangle:'<path d="M12 2 L22 22 H2 Z"/>',diamond:'<path d="M12 1 L23 12 L12 23 L1 12 Z"/>',cross:'<path d="M8 2 H16 V8 H22 V16 H16 V22 H8 V16 H2 V8 H8 Z"/>'};
- return L.marker(ll,{opacity:s.opacity,icon:L.divIcon({className:'layer-point-symbol',iconSize:[s.pointSize,s.pointSize],iconAnchor:[s.pointSize/2,s.pointSize/2],
+ return L.marker(ll,{...options,opacity:s.opacity,icon:L.divIcon({className:'layer-point-symbol',iconSize:[s.pointSize,s.pointSize],iconAnchor:[s.pointSize/2,s.pointSize/2],
   html:`<svg xmlns="http://www.w3.org/2000/svg" width="${s.pointSize}" height="${s.pointSize}" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="1.5">${shapes[s.symbol]}</svg>`})});
 }
 export function styleControls(layer){
  const s=layerStyle(layer),kinds=geometryKinds(layer.fc);
+ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const fields=[...new Set(layer.fc?.features?.flatMap(f=>Object.keys(f.properties||{}))||[])];
  const options=(values,current)=>values.map(v=>`<option value="${v}" ${v===current?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('');
  return `<details class="layer-style-controls"><summary>Style layer</summary><div class="style-fields">
  <label>${kinds.has('shape')?'Outline / line colour':'Colour'}<input type="color" value="${/^#[0-9a-f]{6}$/i.test(layer.color)?layer.color:'#147d72'}" data-action="color" aria-label="Layer colour"></label>
@@ -37,5 +39,6 @@ export function styleControls(layer){
  ${kinds.has('point')?`<label>Point symbol<select data-action="symbol" aria-label="Point symbol">${options(symbols,s.symbol)}</select></label><label>Point size<input type="number" min="4" max="48" value="${s.pointSize}" data-action="pointSize" aria-label="Point size"></label>`:''}
  ${kinds.has('line')||kinds.has('shape')?`<label>${kinds.has('shape')?'Outline':'Line'} style<select data-action="lineStyle" aria-label="Line style">${options(Object.keys(lineStyles),s.lineStyle)}</select></label><label>${kinds.has('shape')?'Outline':'Line'} width<input type="number" min="0" max="12" step="0.5" value="${s.lineWidth}" data-action="lineWidth" aria-label="Line width"></label>`:''}
  ${kinds.has('shape')?`<label>Fill colour<input type="color" value="${s.fillColor}" data-action="fillColor" aria-label="Fill colour"></label><label>Fill opacity <output>${Math.round(s.fillOpacity*100)}%</output><input type="range" min="0" max="1" step="0.05" value="${s.fillOpacity}" data-action="fillOpacity" aria-label="Fill opacity"></label>`:''}
+ ${kinds.has('point')?`<label class="label-field">Point labels<select data-action="labelField" aria-label="Point label field"><option value="">Off</option>${fields.map(f=>`<option value="${esc(f)}" ${layer.metadata?.style?.labelField===f?'selected':''}>${esc(f)}</option>`).join('')}</select><small>Up to 500 visible labels. Zoom in for dense layers.</small></label>`:''}
  </div></details>`;
 }

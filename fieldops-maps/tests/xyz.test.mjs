@@ -1,3 +1,6 @@
+import {pointLabels} from '../src/point-labels.js';
+import {cachedConversion} from '../src/conversion-cache.js';
+import {nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree} from '../src/layer-tree.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -29,11 +32,11 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
  const project=(await db.from('maps').insert({name:'XYZ project'}).single()).data;
  const calls=[],views=[];
  const layer=()=>({addTo(){return this;},once(){return this;},getBounds(){return {};}});
- const map={setView(center,zoom){views.push({center,zoom});return this;},on(){},removeLayer(){},fitBounds(){},getCenter:()=>({lat:-22,lng:148}),getZoom:()=>12,
-  getBounds:()=>({getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
+ const panes={};const map={getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(center,zoom){views.push({center,zoom});return this;},on(){},removeLayer(){},fitBounds(){},getCenter:()=>({lat:-22,lng:148}),getZoom:()=>12,
+  getBounds:()=>({pad:()=>({contains:()=>true}),getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
- Object.assign(w,{L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);
@@ -54,5 +57,29 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   $('#refresh').click();await tick();
   assert.match($('#layers').textContent,/Updated imagery/);assert.equal($('#layers [data-action=opacity]').value,'0.35');
   assert.equal(calls.at(-1).url,'https://tiles.example.com/new/{z}/{x}/{y}.png');assert.equal(calls.at(-1).options.opacity,.35);
+  // Add a second layer, group it via the accessible selector, then drag the first into the group.
+  $('#add-xyz').click();$('#xyz-name').value='Upper tiles';$('#xyz-url').value='https://tiles.example.com/top/{z}/{x}/{y}.png';submit();await tick();
+  $('#new-group').click();$('#group-name').value='Imagery';$('#group-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await tick();
+  const groupId=$('.layer-group').dataset.group;
+  const membership=$('[data-membership]');membership.value=groupId;membership.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
+  assert.match($('.group-contents').textContent,/Upper tiles/);
+  const rootCard=$('#layers > .layer-card'),dragId=rootCard.dataset.id;
+  const transfer={effectAllowed:'',dropEffect:'',setData(){},types:['text/plain']};
+  const drag=new w.Event('dragstart',{bubbles:true});Object.defineProperty(drag,'dataTransfer',{value:transfer});rootCard.querySelector('[data-drag]').dispatchEvent(drag);
+  const drop=new w.Event('drop',{bubbles:true,cancelable:true});Object.defineProperty(drop,'dataTransfer',{value:transfer});$('.group-drop-zone').dispatchEvent(drop);await tick();
+  assert.equal($('.group-contents').querySelectorAll('.layer-card').length,2);
+  const cards=[...$('.group-contents').querySelectorAll('.layer-card')];
+  const savedRows=(await db.from('layers').select().eq('map_id',project.id).order()).data;
+  const stored=(await db.from('maps').select().eq('id',project.id).single()).data.layer_layout;
+  assert.equal(stored[0].children[1],dragId);assert.equal(savedRows.length,2);
+  // Each tile layer owns a pane; top card has the highest z-index, including after redraw.
+  const paneNames=calls.filter(c=>c.options?.pane).slice(-2).map(c=>c.options.pane);
+  assert.notEqual(paneNames[0],paneNames[1]);
+  assert.ok(Number(panes[paneNames[1]].style.zIndex)>Number(panes[paneNames[0]].style.zIndex));
+  $('[data-group-action=visibility]').click();await tick();assert.equal($('[data-group-action=visibility]').getAttribute('aria-pressed'),'false');
+  $('[data-group-action=collapse]').click();await tick();$('#refresh').click();await tick();
+  assert.equal($('.group-contents').hidden,true);assert.equal($('[data-group-action=visibility]').getAttribute('aria-pressed'),'false');
+  $('[data-group-action=collapse]').click();await tick();$('[data-group-action=remove]').click();await tick();
+  assert.equal($('.layer-group'),null);assert.equal($('#layers').querySelectorAll('.layer-card').length,2);
  }finally{w.close();}
 });

@@ -11,9 +11,9 @@ export function xyzSettings({url,attribution='',minZoom=0,maxZoom=19}){
  return {url,attribution:String(attribution).trim(),minZoom,maxZoom};
 }
 
-export function xyzLayer(L,item,onError=()=>{}){
+export function xyzLayer(L,item,onError=()=>{},options={}){
  const settings=xyzSettings(item.metadata.xyz);
- const layer=L.tileLayer(settings.url,{minZoom:settings.minZoom,maxZoom:22,maxNativeZoom:settings.maxZoom,
+ const layer=L.tileLayer(settings.url,{...options,minZoom:settings.minZoom,maxZoom:22,maxNativeZoom:settings.maxZoom,
   opacity:item.opacity??1,attribution:escapeHTML(settings.attribution),zIndex:10});
  layer.once('tileerror',()=>onError(`Tiles for “${item.name}” could not load. Check the URL, access key, coverage and zoom range in Edit tiles.`));
  return layer;
