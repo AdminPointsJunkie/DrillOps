@@ -15,3 +15,6 @@
 .layer-visibility,.layer-zoom{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:5px;color:#315d49}.layer-visibility:hover,.layer-zoom:hover{background:#edf3e9}.layer-visibility[aria-pressed=false]{color:#9aa59e}
 
 .import-job{margin:16px 20px;padding:14px;border:1px solid #b8cfc5;border-radius:8px;background:#f3f8f5;font-size:12px;overflow-wrap:anywhere}.import-job p{margin:8px 0}.import-job progress{width:100%;accent-color:#147d72}.import-job small{display:block;line-height:1.5;margin-top:8px}
+
+.add-xyz{display:block;margin:0 20px 18px;width:calc(100% - 40px)}
+#xyz-dialog{width:min(560px,calc(100vw - 32px))}
