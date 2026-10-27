@@ -41,7 +41,7 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   getBounds:()=>({pad:()=>({contains:()=>true}),getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
- Object.assign(w,{createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);

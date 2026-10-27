@@ -4,6 +4,7 @@ insert into auth.users(id,email) values
  ('eeb0bb01-a101-4a01-a101-000000000001','sync-owner@example.invalid'),
  ('eeb0bb01-a101-4a01-a101-000000000002','sync-operator@example.invalid'),
  ('eeb0bb01-a101-4a01-a101-000000000003','sync-unassigned@example.invalid');
+update auth.users set raw_app_meta_data=jsonb_build_object('maps_role',case when id='eeb0bb01-a101-4a01-a101-000000000001' then 'editor' else 'operator' end) where id in ('eeb0bb01-a101-4a01-a101-000000000001','eeb0bb01-a101-4a01-a101-000000000002','eeb0bb01-a101-4a01-a101-000000000003');
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"eeb0bb01-a101-4a01-a101-000000000001","role":"authenticated","app_metadata":{}}',true);
 insert into public.maps(id,name,layer_layout) values

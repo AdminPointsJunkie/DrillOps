@@ -1,5 +1,12 @@
 # DrillOps Maps
 
+## People and access
+
+Admins open **People & access** in the header to invite people, edit names, assign Admin / Editor / Operator roles, suspend access and select operator projects. Editors manage their own projects; admins manage all projects. New signups and invitations are pending with no GIS access until approved. Invitations use the configured Supabase email provider and its limits. No emails are sent automatically during deployment.
+
+Permissions read current server-managed roles, so revoked privileges do not survive in stale JWTs. Suspended accounts may still authenticate but cannot access GIS data. Account changes are atomic, and admins cannot alter their own account here. The invitation Edge Function validates the signed-in user and current admin status before using its server-only service key; gateway JWT verification is disabled because the function performs authentication itself.
+
+
 ## SYNC and operators
 
 Drafts autosave. The sidebar shows Saving, Saved, Unsaved changes or Save failed, with Retry for retained style/layout failures and unsaved imports. SYNC saves pending changes and publishes a versioned operator release. Later edits remain private until the next SYNC. Last-sync time and an unsynced-change indicator distinguish saving from publication.
