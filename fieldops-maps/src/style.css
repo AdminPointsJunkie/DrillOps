@@ -7,3 +7,11 @@
 
 .project-settings{width:100%;text-align:left;padding:9px 12px}.map-picker{margin-bottom:10px}#project-default{margin-bottom:24px;overflow-wrap:anywhere}.basemap-picker{position:absolute;z-index:500;top:26px;right:78px;background:white;border:1px solid var(--line);border-radius:7px;padding:8px 10px;display:flex;align-items:center;gap:8px}.basemap-picker label{margin:0;font-size:10px;color:var(--muted)}.basemap-picker select{border:0;background:white;color:#294235;font-size:12px;max-width:110px}.map-title{max-width:calc(100% - 290px)}
 @media(max-width:760px){.basemap-picker{top:122px;left:16px;right:auto}.map-title{max-width:calc(100% - 85px)}#project-default{margin-bottom:22px}}
+
+.testing-notice{font-size:10px;line-height:1.6;background:#faf7ee;color:#796638;border:1px solid #eee6cd;border-radius:6px;padding:10px;margin:0 0 18px}
+
+.layer-style-controls{margin-top:10px;padding-top:10px}.layer-style-controls summary{font-size:11px;font-weight:600;color:#315d49}.style-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.style-fields label{font-size:10px;margin:0;min-width:0}.style-fields select,.style-fields input[type=number]{font-size:11px;padding:6px;width:100%;margin-top:5px}.style-fields input[type=color]{width:100%;height:28px;padding:2px;margin-top:5px}.style-fields input[type=range]{padding:0;width:100%;accent-color:#315d49;margin-top:12px}.style-fields output{float:right;font-size:9px;font-weight:400}.layer-point-symbol{background:none;border:0}.layer-bottom .raster-opacity{margin:0;flex:1;font-size:10px}.raster-opacity input{padding:0}.layer-bottom{justify-content:flex-end}
+
+.layer-visibility,.layer-zoom{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:5px;color:#315d49}.layer-visibility:hover,.layer-zoom:hover{background:#edf3e9}.layer-visibility[aria-pressed=false]{color:#9aa59e}
+
+.import-job{margin:16px 20px;padding:14px;border:1px solid #b8cfc5;border-radius:8px;background:#f3f8f5;font-size:12px;overflow-wrap:anywhere}.import-job p{margin:8px 0}.import-job progress{width:100%;accent-color:#147d72}.import-job small{display:block;line-height:1.5;margin-top:8px}

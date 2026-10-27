@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {IDBFactory} from 'fake-indexeddb';
+import {createLocalWorkspace} from '../src/local-workspace.js';
+
+test('no-login workspace persists projects, CRS, vectors, raster blobs and styles after reopening',async()=>{
+ const factory=new IDBFactory(), db=createLocalWorkspace(factory);
+ const user=await new Promise(resolve=>db.auth.onAuthStateChange((event,session)=>resolve(session.user)));
+ assert.equal(user.id,'local-testing');
+ const a=(await db.from('maps').insert({name:'Ironbark',default_crs:'EPSG:7856'}).select().single()).data;
+ const b=(await db.from('maps').insert({name:'Carborough',default_crs:'EPSG:4326'}).select().single()).data;
+ assert.notEqual(a.id,b.id);
+ const features=[{type:'Feature',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'A'}}];
+ const saved=await db.rpc('import_vector',{p_layer:{map_id:a.id,name:'Survey',kind:'vector'},p_features:features});
+ assert.equal(saved.error,null);
+ const blob=new Blob(['sample raster'],{type:'image/png'});
+ assert.equal((await db.storage.from('gis-files').upload('preview.png',blob)).error,null);
+ await db.from('layers').insert({map_id:b.id,name:'Raster',kind:'raster',raster_path:'preview.png'}).select().single();
+ await db.from('layers').update({color:'#123456',visible:false,opacity:.5}).eq('id',saved.data);
+ const reopened=createLocalWorkspace(factory);
+ assert.equal((await reopened.from('maps').select('*').order('created_at')).data.length,2);
+ const layers=(await reopened.from('layers').select('*').eq('map_id',a.id).order('created_at')).data;
+ assert.equal(layers.length,1);assert.equal(layers[0].color,'#123456');assert.equal(layers[0].visible,false);
+ assert.deepEqual((await reopened.rpc('layer_geojson',{p_layer_id:saved.data})).data.features,features);
+ assert.equal(await (await reopened.storage.from('gis-files').download('preview.png')).data.text(),'sample raster');
+ await reopened.from('maps').update({default_crs:null}).eq('id',b.id).select().single();
+ assert.equal((await reopened.from('maps').select('*').eq('id',a.id).single()).data.default_crs,'EPSG:7856');
+ await reopened.storage.from('gis-files').remove(['preview.png']);
+ assert.ok((await reopened.storage.from('gis-files').download('preview.png')).error);
+});

@@ -4,13 +4,14 @@ import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 import {importCRS,projectCRS} from '../src/project.js';
 import {installBasemaps} from '../src/basemaps.js';
+import {vectorStyle,pointMarker,styleControls,visibilityIcon} from '../src/layer-style.js';
 
 test('create, edit and switch projects; retain per-import CRS overrides through preview', async () => {
  const dom=new JSDOM('<div id="app"></div>', {url:'https://example.test/maps/',runScripts:'outside-only'});
  const w=dom.window, catalogue=[{code:'EPSG:7856',name:'GDA2020 / MGA zone 56'},{code:'EPSG:4326',name:'WGS 84'}];
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
- const projects=[], conversions=[];
+ const projects=[], conversions=[];let rasterMode=false,finishRaster;
  const db={auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner'}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
@@ -20,13 +21,13 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  }};
  const layer=()=>({addTo(){return this;},getBounds(){return {};},bindPopup(){return this;}});
  const map={setView(){return this;},on(){},removeLayer(){},fitBounds(){}};
- const L={map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:layer,imageOverlay:layer,circleMarker:layer,
+ const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:layer,imageOverlay:layer,circleMarker:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>true})};
  const fc={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]};
- Object.assign(w,{L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
   errorText:e=>e.message,fetch:async()=>({json:async()=>catalogue}),
-  inspect:async()=>({items:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[]}],errors:[]}),
-  convert:async(item,settings)=>{conversions.push(settings.crs);return {fc,bounds:[153,-27,153,-27]};}});
+  inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[]}],errors:[]}),
+  convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
  const code=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(code);
  const $=s=>w.document.querySelector(s), tick=()=>new Promise(r=>setTimeout(r,20));
@@ -49,5 +50,17 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   $('#review').close();change('#map-select','2');await tick();assert.equal($('#map-select').value,'1','pending imports prevent switching projects');
   $('#queue [data-discard]').click();change('#map-select','2');await tick();assert.match($('#project-default').textContent,/4326/);
   $('#project-settings').click();input('#project-crs','');submit('#name-form');await tick();assert.equal(projects[1].default_crs,null);
+  // A slow raster releases the modal immediately, retains navigation, and prevents closing mid-job.
+  rasterMode=true;$('#files').dispatchEvent(new w.Event('change'));await tick();
+  $('#preview-layer').click();await tick();
+  assert.equal($('#review').open,false);assert.equal($('#import-job').hidden,false);
+  assert.ok($('#import-job progress'));assert.equal($('#fit').disabled,false);
+  const unloading=new w.Event('beforeunload',{cancelable:true});w.dispatchEvent(unloading);assert.equal(unloading.defaultPrevented,true);
+  finishRaster.reject(new Error('Insufficient raster memory'));await tick();
+  assert.match($('#import-job').textContent,/Import failed.*Insufficient raster memory/);
+  assert.ok($('#queue [data-index]'),'failed raster remains retryable');
+  $('#queue [data-index]').click();$('#preview-layer').click();await tick();
+  finishRaster.resolve({bounds:[150,-28,151,-27]});await tick();
+  assert.match($('#import-job').textContent,/Preview ready/);assert.equal($('#import-job progress'),null);
  }finally{w.close();}
 });

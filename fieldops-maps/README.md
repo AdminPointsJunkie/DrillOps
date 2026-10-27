@@ -5,6 +5,12 @@ Unadvertised GIS workspace for the DrillOps / FieldOps ecosystem.
 Production route: https://www.drillops.com.au/maps/
 Supabase project: `dzthwvxrltkltfvubvld` (Shared Map, Sydney).
 
+## Temporary no-login testing mode
+
+`LOCAL_TESTING=true` in `src/config.js` uses IndexedDB for projects, original files, geometry and raster previews. There is no sign-in requirement or cloud upload. Data survives refresh in the same browser, but is not shared across devices and is lost if site storage is cleared. Existing Supabase data and owner-only policies are unchanged. Set the flag to false and rebuild to restore the existing authenticated cloud workspace; browser test data is not automatically migrated.
+
+Google was deferred because billing/API credentials are not being enabled. Esri imagery and OpenStreetMap remain configured.
+
 ## Run and build
 
 Use Node 20.19+ (tested with the installed Node runtime).
@@ -26,13 +32,17 @@ Saved maps are presented as projects. Each project owns its existing layers and 
 
 The View selector offers Street (OpenStreetMap), Satellite (Esri World Imagery), and Hybrid (imagery plus Esri transportation and place labels). Basemap changes preserve the map extent and imported layers.
 
+Satellite tiles request `blankTile=false`; where detailed coverage is missing, a cropped parent tile is enlarged instead of showing Esri's placeholder. Imagery can be magnified to zoom 22 without claiming additional resolution. Imported layer names default to the filename stem, with internal names appended only for multi-layer datasets.
+
+Expand **Style layer** on a vector layer: points offer symbols and size; lines offer colour, width and dashes; shapes offer fill colour/opacity and outline styling. Mixed layers expose all relevant controls. Overall opacity applies to fills as well as outlines. Styles are saved in the layer metadata and restored with the project. Raster layers have an opacity control. The eye toggles visibility; the target button reveals a hidden layer and fits the map to its extent.
+
 - Browser: Vite, Leaflet, GDAL 3.8.4 / PROJ 9.3.1 in a Web Worker, Papa Parse.
 - PostGIS: `public.maps`, `public.layers`, `public.features`, a GiST geometry index, and an atomic vector-import function.
 - Supabase Storage: private `gis-files` bucket; paths scoped to the signed-in user.
 - Supabase Auth: email/password. Configure production email delivery and redirect URLs in the Supabase dashboard before opening registration broadly. The browser uses only a publishable key. No service-role secret is present.
 - CRS catalogue: non-deprecated geographic 2D/projected EPSG records exported from installed PROJ database; exact EPSG numbers and name fragments are searchable. Runtime conversion validates the selected definition with the bundled PROJ engine.
 
-Importing does not upload data until Save is used. Originals, source CRS, chosen epoch/pipeline/control points, height-reference label and display geometry are retained on save. Preview and unsaved layers are held in browser memory. A signed-in account can use saved maps from another browser/phone and refresh them.
+Preview stays in browser memory. Import attempts to save to the selected project, using browser storage in testing mode or Supabase in cloud mode. Originals, source CRS, chosen epoch/pipeline/control points, height-reference label and display geometry are retained on save. Cross-device access requires cloud mode and a signed-in account.
 
 ## Tested
 
@@ -43,12 +53,12 @@ Importing does not upload data until Save is used. Originals, source CRS, chosen
 
 ## Current limits
 
-- 50 MB per input file, 100 MB per batch, 20,000 features per vector layer.
+- 250 MB per GeoTIFF, 50 MB per other file, 300 MB per batch, 20,000 features per vector layer.
 - Raster previews are reduced to 1,536 pixels on the longer source dimension. Full originals are retained; this is not a tiled full-resolution raster service.
 - Browser memory and the bundled driver determine format support. DWG is not promised. GeoTIFF/world-file georeferencing is required for raster positioning.
 - Source coordinate systems are never inferred from coordinate magnitudes. CSV requires confirmation; missing CRS requires a choice.
 - PROJ requests best available operations without downloading grids. Missing resources may cause import to fail. No survey accuracy is certified. Height reference is recorded, not vertically transformed. Expert pipelines and first-order local-grid control points are vector-only.
-- Online access only. No offline downloads, cross-account sharing, native FieldOps sign-on integration, automatic refresh, replacement/versioning, or background processing for large datasets yet.
+- Online access only. No offline downloads, cross-account sharing, native FieldOps sign-on integration, automatic refresh, replacement/versioning. Raster jobs run while the tab stays open.
 - Remove hides a saved layer from the current view; Refresh restores it. No cloud deletion UI is exposed.
 
 ## Engine packaging
@@ -60,3 +70,5 @@ Importing does not upload data until Save is used. Originals, source CRS, chosen
 Dashboard: https://supabase.com/dashboard/project/dzthwvxrltkltfvubvld
 API: https://dzthwvxrltkltfvubvld.supabase.co
 Direct PostgreSQL host: `db.dzthwvxrltkltfvubvld.supabase.co`, port 5432, database `postgres`, username `postgres`, SSL required. Passwords and pooler connection details must be obtained from the dashboard Connect panel. Do not put database passwords or service-role keys in client code.
+
+Raster processing runs in the GDAL worker with a non-modal job card after review. Status shows conversion, preview encoding and file-save stages, rather than an estimated percentage. Keep the tab open; jobs do not survive closing it. Imports are serialized, and project switching waits until completion to keep the destination stable. Failed conversion remains in the review queue; failed saving retains the layer with a Save retry. Very large decoded rasters can still exceed browser memory; this is not a server tiling service.
