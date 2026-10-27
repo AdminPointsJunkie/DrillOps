@@ -56,4 +56,3 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   assert.equal(calls.at(-1).url,'https://tiles.example.com/new/{z}/{x}/{y}.png');assert.equal(calls.at(-1).options.opacity,.35);
  }finally{w.close();}
 });
-
