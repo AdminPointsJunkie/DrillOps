@@ -20,7 +20,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  const w=dom.window, catalogue=[{code:'EPSG:7856',name:'GDA2020 / MGA zone 56'},{code:'EPSG:4326',name:'WGS 84'}];
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
- const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster;
+ const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor;
  const db={auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner'}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
@@ -33,7 +33,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:(fc,options)=>{for(const f of fc.features)options.onEachFeature(f,{on:(name,handler)=>featureHandlers.push(handler)});return layer();},imageOverlay:layer,circleMarker:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>true})};
  const fc={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]};
- Object.assign(w,{readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
+ Object.assign(w,{openAttributeStyle:(layer,onApply)=>{attributeEditor={layer,onApply};},readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
   errorText:e=>e.message,fetch:async()=>({json:async()=>catalogue}),
   inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
   convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
@@ -66,6 +66,12 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   $('#crs-search').value='4326';$('#crs-search').dispatchEvent(new w.Event('input'));$('#crs-results [data-code="EPSG:4326"]').click();
   submit('#review-form');await tick();
   const originalId=$('.layer-card').dataset.id;
+  $('[data-action="attribute-style"]').click();
+  assert.equal(attributeEditor.layer.id,originalId);
+  const rules={mode:'expression',expressions:{color:"'#ff0000'",symbol:"'triangle'",pointSize:'20'}};
+  await attributeEditor.onApply(rules);
+  assert.deepEqual(attributeEditor.layer.metadata.style.rules,rules);
+  assert.match($('.layer-card').textContent,/Value-based styling is active/);
   $('[data-action="settings"]').click();await tick();
   assert.equal($('#review').open,true);assert.equal($('#layer-name').value,'Survey');
   assert.equal($('#csv-x').value,'x');assert.equal($('#csv-y').value,'y');

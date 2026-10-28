@@ -1,3 +1,4 @@
+import {openAttributeStyle} from './attribute-style-dialog.js';
 import {readAuthLink,installPasswordSetup} from './password-setup.js';
 import {installAccounts} from './accounts.js';
 import {createSaveStatus} from './save-status.js';
@@ -47,7 +48,7 @@ fetch(import.meta.env.BASE_URL+'crs.json').then(r=>r.json()).then(r=>{crsList=r;
 let toastTimer;function toast(msg){clearTimeout(toastTimer);$('#toast').textContent=msg;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
 function setBusy(value,message){busy=value;refreshSaveStatus();$('#cloud-state').textContent=message||(LOCAL_TESTING?'Testing · saved in this browser':user?(user.app_metadata?.maps_role==='admin'?'Main admin · Cloud workspace':'Cloud workspace'):'Sign in to save projects');$('#files').disabled=value;}
 function popup(feature){const el=document.createElement('div');el.className='feature-popup';const heading=document.createElement('strong');heading.textContent='Feature details';el.append(heading);const table=document.createElement('table');for(const [k,v] of Object.entries(feature.properties||{})){const tr=document.createElement('tr');for(const t of [k,typeof v==='object'?JSON.stringify(v):String(v??'—')]){const td=document.createElement('td');td.textContent=t;tr.append(td)}table.append(tr)}el.append(table);return el;}
-function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});return L.geoJSON(item.fc,{pane,style:()=>vectorStyle(item),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane}),onEachFeature:(f,l)=>l.on('click',()=>{if(identifyActive){$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f));}else{if(!l.getPopup())l.bindPopup(()=>popup(f),{maxWidth:340});l.openPopup();}})});}
+function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});return L.geoJSON(item.fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>l.on('click',()=>{if(identifyActive){$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f));}else{if(!l.getPopup())l.bindPopup(()=>popup(f),{maxWidth:340});l.openPopup();}})});}
 function updateEmpty(){refreshSaveStatus();$('#empty-map').hidden=layers.length>0||!!preview;$('#layer-count').textContent=layers.length;$('#map-subtitle').textContent=layers.length?`${layers.length} layer${layers.length===1?'':'s'} · ${layers.filter(l=>l.saved).length} saved ${LOCAL_TESTING?'in this browser':'to your account'}`:'A clear view of all your spatial data.';}
 function addLayer(item){layers.push(item);if(!flattenTree(layerTree).includes(item.id))layerTree.unshift(item.id);const ml=makeLayer(item);rendered.set(item.id,ml);if(isVisible(item))ml.addTo(map);renderLayers();updateEmpty();}
 function fit(){const bounds=L.latLngBounds([]);for(const l of rendered.values())if(l.getBounds)bounds.extend(l.getBounds());if(preview)bounds.extend(preview.getBounds());if(bounds.isValid())map.fitBounds(bounds,{padding:[55,55],maxZoom:17});}
@@ -172,8 +173,13 @@ $('#layers').addEventListener('dragover',e=>{if(!draggedNode)return;e.preventDef
 $('#layers').addEventListener('drop',e=>{if(!draggedNode)return;e.preventDefault();e.stopPropagation();const target=dropTarget(e);if(target&&moveNode(layerTree,draggedNode,target.id,target.position))arrangementChanged();draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
 $('#layers').addEventListener('dragend',()=>{draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
 const styleNumbers=new Set(['pointSize','lineWidth','fillOpacity']);
-const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField']);
+const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField','rules']);
 const styleSaves=new Map();
+$('#layers').addEventListener('click',e=>{
+ const button=e.target.closest('[data-action="attribute-style"]');if(!button||busy)return;
+ const card=button.closest('[data-id]'),layer=layers.find(l=>l.id===card?.dataset.id);if(!layer||layer.saving)return;
+ openAttributeStyle(layer,async rules=>{if(!layers.includes(layer))throw new Error('This layer is no longer open.');await changeLayerStyle({target:{closest:()=>card,dataset:{action:'rules'},value:rules}});renderLayers();});
+});
 async function changeLayerStyle(e){
  const card=e.target.closest('[data-id]');if(!card)return;
  const l=layers.find(l=>l.id===card.dataset.id),action=e.target.dataset.action;if(!l)return;

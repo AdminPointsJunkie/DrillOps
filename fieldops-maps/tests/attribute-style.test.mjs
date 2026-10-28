@@ -1,0 +1,57 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import {IDBFactory} from 'fake-indexeddb';
+import {compileExpression} from '../src/style-expression.js';
+import {classifyFeatures,attributeEvaluator,featureAppearance} from '../src/attribute-style.js';
+import {pointMarker,vectorStyle} from '../src/layer-style.js';
+import {openAttributeStyle} from '../src/attribute-style-dialog.js';
+import {createLocalWorkspace} from '../src/local-workspace.js';
+const fc={type:'FeatureCollection',features:[0,10,20,null].map((Depth,i)=>({type:'Feature',geometry:{type:'Point',coordinates:[148+i*.001,-22]},properties:{Depth,Status:i%2?'Complete':'Planned'}}))};
+test('formulas evaluate CSV strings, conditional styles and arithmetic without executing code',()=>{
+ const fields=['Depth','Status'];
+ assert.equal(compileExpression("if([Status] = 'Complete' and [Depth] >= 10, '#147d72', '#ce6359')",fields)({Status:'Complete',Depth:'15'}),'#147d72');
+ assert.equal(compileExpression('=min(30, 6 + [Depth] / 10)',fields)({Depth:'100'}),16);
+ assert.equal(compileExpression('if([Depth] = null, 12, max(4, [Depth]))',fields)({Depth:null}),12);
+ assert.equal(compileExpression('2 + 3 * 4',fields)({}),14);
+ for(const source of ['globalThis.alert(1)','[Unknown]','constructor(1)','if(true, 2)','[Depth].constructor','[Depth]; alert(1)'])assert.throws(()=>compileExpression(source,fields));
+});
+test('categories distinguish missing, empty and typed values; ranges cover boundaries and exclude blanks',()=>{
+ const rules={mode:'graduated',field:'Depth',classes:classifyFeatures(fc,'Depth','graduated',2)};
+ rules.classes[0].pointSize=8;rules.classes[1].pointSize=20;
+ const evaluate=attributeEvaluator(rules,[]);
+ assert.equal(evaluate({Depth:0}).pointSize,8);assert.equal(evaluate({Depth:'10'}).pointSize,20);assert.equal(evaluate({Depth:20}).pointSize,20);
+ for(const Depth of [null,'',undefined,'bad',-1,21])assert.deepEqual(evaluate({Depth}),{});
+ const cats=classifyFeatures({features:[null,'',1,'1'].map(v=>({properties:{v}}))},'v','categorized');assert.equal(new Set(cats.map(c=>c.key)).size,4);
+ assert.throws(()=>classifyFeatures({features:Array.from({length:101},(_,v)=>({properties:{v}}))},'v','categorized'),/100/);
+});
+test('feature colours survive Leaflet style callback; formulas clamp size and reject unsafe output; reload preserves rules',async()=>{
+ const rules={mode:'expression',expressions:{color:"if([Status] = 'Complete', '#147d72', '#ce6359')",symbol:"if([Depth] > 10, 'triangle', 'circle')",pointSize:'[Depth] * 10'}};
+ const layer={name:'Survey',kind:'vector',color:'#123456',opacity:.5,fc,metadata:{style:{rules,pointSize:12}}};
+ const L={marker:(ll,options)=>options,divIcon:options=>options,circleMarker:(ll,options)=>options};
+ assert.equal(pointMarker(L,layer,[0,0],{},fc.features[1]).fillColor,'#147d72');
+ assert.equal(vectorStyle(layer,fc.features[1]).fillColor,'#147d72');
+ assert.deepEqual(pointMarker(L,layer,[0,0],{},fc.features[2]).icon.iconSize,[48,48]);
+ assert.equal(featureAppearance(layer,fc.features[3]).metadata.style.pointSize,12);
+ assert.deepEqual(attributeEvaluator({mode:'expression',expressions:{color:"'<script>'",symbol:"'invalid'",pointSize:'1 / 0'}},[])({}),{});
+ const factory=new IDBFactory(),db=createLocalWorkspace(factory);
+ const project=(await db.from('maps').insert({name:'Classification'}).select().single()).data;
+ const saved=await db.rpc('import_vector',{p_layer:{name:layer.name,kind:'vector',map_id:project.id,metadata:layer.metadata},p_features:fc.features});
+ const reopened=(await createLocalWorkspace(factory).from('layers').select('*').eq('id',saved.data).single()).data;
+ assert.deepEqual(reopened.metadata.style.rules,rules);assert.equal(attributeEvaluator(reopened.metadata.style.rules,['Status','Depth'])({Status:'Complete',Depth:20}).symbol,'triangle');
+});
+test('dialog classifies, edits, validates formulas, applies and cancels without mutating original layer',async()=>{
+ const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
+ const layer={name:'CSV <holes>',color:'#123456',fc,metadata:{}};let applied;
+ const dialog=openAttributeStyle(layer,rules=>{applied=rules;});const form=dialog.querySelector('form'),get=n=>form.elements.namedItem(n);
+ get('mode').value='categorized';get('mode').dispatchEvent(new dom.window.Event('change'));get('field').value='Status';
+ dialog.querySelector('[data-classify-button]').click();assert.equal(dialog.querySelectorAll('tbody tr').length,2);
+ const size=dialog.querySelector('[data-key=pointSize]');size.value='24';size.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+ form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));await Promise.resolve();assert.equal(applied.classes[0].pointSize,24);assert.equal(layer.metadata.style,undefined);
+ const again=openAttributeStyle({...layer,metadata:{style:{rules:applied}}},rules=>{applied=rules;});
+ const mode=again.querySelector('[name=mode]');mode.value='expression';mode.dispatchEvent(new dom.window.Event('change'));
+ again.querySelector('[name=colorExpression]').value='unknown([Status])';again.querySelector('[data-preview-button]').click();assert.match(again.querySelector('[data-message]').textContent,/Unknown function/);
+ again.querySelector('[data-close]').click();assert.equal(applied.mode,'categorized');dom.window.close();delete globalThis.document;
+});

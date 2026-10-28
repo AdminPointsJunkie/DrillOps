@@ -115,3 +115,11 @@ Use **+ Group** to create a group. Drop layers on its heading or drop area, or s
 Select a CSV field under **Style layer → Point labels**. Up to 500 visible labels per layer are rendered; zoom in for dense datasets. The right-hand **i** tool opens an attribute panel for clicked points, lines and polygons. Attribute text is escaped through DOM text nodes.
 
 CSV previews no longer prebuild every feature's popup DOM. Confirming a preview reuses its conversion only when all CRS, coordinate-column and advanced settings match. EPSG:4326 CSV points bypass GDAL unless advanced transformations are requested; projected CSVs still use GDAL. The 20,000-point limit is checked before conversion. Browser QA covered preview/import/save of 5,000 CSV points.
+
+### Styling CSV points by value
+
+Open the layer style icon, then **Style by value**. Categorized classes use unique column values (up to 100); graduated classes split numeric values into 2–12 equal ranges. Click **Classify**, edit each class colour/symbol/size, then **Apply style**. Missing or unmatched values use the base layer style.
+
+Formula mode independently controls colour, symbol and size. Use `[Column]` references, quoted text and `if`, `min`, `max`, `abs`, `round`, `sqrt`, or `coalesce`. For example: `if([Status] = 'Complete', '#147d72', '#ce6359')`, `if([Depth] > 100, 'triangle', 'circle')`, and `min(30, 6 + [Depth] / 10)`. This is a restricted expression language, not JavaScript or full QGIS syntax. Invalid result values fall back to the base style; sizes clamp to 4–48px. Preview validates syntax and reports feature coverage before applying.
+
+Rules persist in `metadata.style.rules`, including in SYNC manifests. Clients displaying releases must evaluate those rules to reproduce the styling. Select **Single style** to remove the rules. Source CSV attributes are unchanged.
