@@ -5,3 +5,27 @@
 #auth,#company-onboarding{max-height:90dvh;overflow:auto}#registration-fields[hidden]{display:none}
 #registration-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}#auth .dialog-heading{margin-bottom:12px}#auth-intro{margin:12px 0 18px}#auth #resend-confirmation{font-size:11px;margin-top:10px;padding:6px 0;border:0;background:none;text-decoration:underline}#auth .registration-switch{margin-top:12px}
 @media(max-width:480px){#registration-fields{grid-template-columns:1fr;gap:0}#auth{padding:20px}}
+/* Company hierarchy: navigation stays separate from the current editing panel. */
+#workspace-settings{width:min(960px,96vw)}
+.workspace-shell{display:grid;grid-template-columns:180px minmax(0,1fr);min-height:320px}
+#workspace-settings .workspace-settings-tabs{display:flex;flex-direction:column;gap:3px;padding:12px 8px;border-bottom:0;border-right:1px solid #e4eae6;background:#f7f9f7;overflow:visible}
+#workspace-settings .workspace-settings-tabs button{display:flex;align-items:center;justify-content:space-between;text-align:left;padding:10px;font-size:11px}
+.workspace-settings-tabs button>span{font-size:10px;color:#839488;font-variant-numeric:tabular-nums}
+.workspace-panel{min-width:0;max-height:70dvh;overflow:auto}
+.workspace-panel>[data-message]{padding:10px 18px;font-size:12px;color:#906240}
+.workspace-panel>[data-message]:empty{display:none}
+.settings-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 12px}
+.settings-section-title h3{font-size:15px;margin:0}.settings-section-title small{font-size:10px;color:#839287}
+.workspace-overview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;border-bottom:1px solid #e6ece7;padding-bottom:12px}
+.workspace-overview-stats button{display:grid;gap:4px;text-align:left;background:none;border:0;padding:6px 0}
+.workspace-overview-stats strong{font-size:23px;font-weight:600}.workspace-overview-stats span{font-size:10px;color:#829087}
+.overview-usage{padding:16px 0}.overview-usage>small{display:block;margin-top:8px;font-size:10px;color:#829087}
+.overview-projects>button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 0;background:none;border:0;border-bottom:1px solid #e6ece7;font-size:12px;text-align:left}
+.company-details{margin-top:14px;font-size:11px}.company-details summary{padding:8px 0;cursor:pointer}
+.company-details form,.platform-create-company{display:flex;align-items:end;gap:10px;margin:8px 0}.company-details label,.platform-create-company label{flex:1;font-size:11px;margin:0}.company-details input{padding:8px;margin-top:5px}
+.settings-person-row,.settings-project-row{border-bottom:1px solid #e4ebe5}.settings-person-row>summary,.settings-project-row>summary{display:flex;align-items:center;gap:12px;padding:11px 0;cursor:pointer;list-style:none;font-size:12px}
+.settings-person-row>summary>span:first-child,.settings-project-row>summary>strong{flex:1;min-width:0}.settings-person-row>summary small{display:block;font-size:10px;color:#839287;margin-top:3px}.settings-project-row>summary small{font-size:10px;color:#839287}
+.settings-person-row>summary:after,.settings-project-row>summary:after{content:'⌄';color:#819287}.settings-person-row[open]>summary:after,.settings-project-row[open]>summary:after{transform:rotate(180deg)}
+.settings-person-row>.workspace-person,.settings-project-row>.workspace-person{margin:0 0 10px;border:0;background:#f7f9f7;padding:12px}
+.settings-person-row[hidden],.platform-create-company[hidden]{display:none!important}
+@media(max-width:650px){.workspace-shell{grid-template-columns:1fr;min-height:0}#workspace-settings .workspace-settings-tabs{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid #e4eae6;padding:6px}#workspace-settings .workspace-settings-tabs button{gap:8px;padding:8px}.workspace-panel{max-height:65dvh}.settings-section-title{flex-wrap:wrap}.settings-person-row>summary{gap:8px}.company-details form{flex-wrap:wrap}}

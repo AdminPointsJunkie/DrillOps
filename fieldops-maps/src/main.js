@@ -380,7 +380,7 @@ async function listMaps(){
  if(result.error)throw result.error;const data=!LOCAL_TESTING&&workspaceContext?(result.data||[]).filter(m=>m.workspace_id===currentWorkspace?.id):result.data||[];
  $('#map-select').innerHTML='<option value="">Unsaved project</option>'+data.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');if(activeMap)$('#map-select').value=activeMap.id;return data;
 }
-const accountUI=installAccounts(db,()=>user,document,{getWorkspace:()=>currentWorkspace,getContext:()=>workspaceContext||{},onChanged:refreshWorkspaces,canOpen:()=>{if(workspacePending()){toast('Finish pending edits and saves before changing workspace access.');return false;}return true;}});
+const accountUI=installAccounts(db,()=>user,document,{getWorkspace:()=>currentWorkspace,getContext:()=>workspaceContext||{},onChanged:refreshWorkspaces,canOpen:()=>{if(!isAdmin())return false;if(workspacePending()){toast('Finish pending edits and saves before changing workspace access.');return false;}return true;}});
 const storageUsage=installStorageUsage(db,{getWorkspace:()=>currentWorkspace});
 $('#storage-usage-button').onclick=()=>storageUsage.open();
 let platformRouteOpened=false;
@@ -391,7 +391,7 @@ let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;
 let editingProject=false;
 function syncProject(){
  refreshSaveStatus();
- $('#project-settings').disabled=!activeMap;
+ $('#project-settings').disabled=!activeMap||!isAdmin();$('#project-settings').hidden=!isAdmin();
  $('#map-name').textContent=activeMap?.name||'Untitled project';
  $('#project-default').textContent=activeMap?.default_crs?`Default CRS: ${activeMap.default_crs_label||activeMap.default_crs}`:'No default CRS set';
 }
@@ -402,7 +402,7 @@ function renderProjectCRS(){
 }
 $('#project-crs').oninput=renderProjectCRS;
 function openProject(edit=false,fromImport=false){
- if(isReadOnly())return;
+ if(isReadOnly()||(edit&&!isAdmin()))return;
  if(geometryEditor?.pending||fieldTools?.pending||(busy&&!fromImport)||layoutPending||styleSaves.size||saves.state().failed||layers.some(l=>l.saving))return toast('Wait for the current import or save to finish.');
  if(!user){$('#auth').showModal();return;}
  if(!edit&&activeMap&&(layers.some(l=>!l.saved)||queue.length))return toast('Finish queued imports and save or remove unsaved layers before creating another project.');
@@ -415,7 +415,7 @@ function openProject(edit=false,fromImport=false){
 $('#new-map').onclick=()=>openProject();
 $('#project-settings').onclick=()=>openProject(true);
 $('#name-form').onsubmit=async e=>{
- e.preventDefault();const button=$('#save-project');if(button.disabled)return;
+ e.preventDefault();if(editingProject&&!isAdmin())return;const button=$('#save-project');if(button.disabled)return;
  $('#project-error').textContent='';button.disabled=true;
  try{
   const name=$('#new-name').value.trim();if(!name)throw Error('Enter a project name.');
@@ -443,7 +443,7 @@ $('#map-select').onchange=e=>loadMap(e.target.value);$('#refresh').onclick=async
 renderLayers();
 window.addEventListener('beforeunload',e=>{if(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||queue.length||styleSaves.size||saves.state().failed||layers.some(l=>!l.saved||l.saving)){e.preventDefault();e.returnValue='';}});
 
-function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();}
+function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();}
 async function saveStylePart(l,key,value){if(!canEditLayer(l))throw Error('This layer is read only.');const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)throw Error('Layer is no longer open.');await changeLayerStyle({target:{closest:()=>card,dataset:{action:key},value}});renderLayers();if(saves.state().failed)throw Error('Changed here, but cloud saving failed. Use Retry before SYNC.');toast(l.saved?'Settings saved. SYNC to publish these defaults.':'Settings applied. Save the layer to keep them.');}
 function openAnnotationSettings(l){if(!isAdmin())return;editAnnotation(l,{canAnnotate:isAdmin,save:async(layer,values)=>{const next={...layer,name:values.name,fc:structuredClone(layer.fc)};next.fc.features[0].properties.note=values.note;next.metadata={...layer.metadata,annotation:{...layer.metadata.annotation}};await replaceLayer(layer,next);await changeLayerStyle({target:{closest:()=>[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===layer.id),dataset:{action:'color'},value:values.color}});renderLayers();},remove:async layer=>{if(layer.saved){const {error}=await db.from('layers').delete().eq('id',layer.id);if(error)throw error;}map.removeLayer(rendered.get(layer.id));rendered.delete(layer.id);layers=layers.filter(l=>l!==layer);removeNode(layerTree,layer.id);await saveLayout();renderLayers();updateEmpty();syncDirty=true;refreshSaveStatus();}});}
 explorer=installMapExplorer({L,map,getLayers:()=>layers,isVisible,canEdit:canEditLayer,redraw:redrawLayer,saveStyle:saveStylePart,showInfo:(title,content)=>{identifyActive=true;$('#identify').setAttribute('aria-pressed','true');$('#feature-info').hidden=false;$('#feature-info-title').textContent=title;$('#feature-info-content').replaceChildren(content);}});

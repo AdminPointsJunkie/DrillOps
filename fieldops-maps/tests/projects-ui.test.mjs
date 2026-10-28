@@ -27,7 +27,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor;
- const db={rpc:async(name)=>name==='workspace_context'?{data:{platform_admin:false,workspaces:[{id:'workspace',name:'Company',role:'editor',status:'active'}],invitations:[]}}:{data:null},auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
+ const db={rpc:async(name)=>name==='workspace_context'?{data:{platform_admin:false,workspaces:[{id:'workspace',name:'Company',role:'admin',status:'active'}],invitations:[]}}:{data:null},auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
    eq(key,value){filter=value;return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},
@@ -45,7 +45,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
   convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
  const code=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
- w.eval(code);
+ w.eval(code+";window.testSetEditor=()=>{currentWorkspace.role='editor';updateAccess();};window.testOpenProject=()=>openProject(true);");
  const $=s=>w.document.querySelector(s), tick=()=>new Promise(r=>setTimeout(r,20));
  const input=(id,value)=>{$(id).value=value;$(id).dispatchEvent(new w.Event('input',{bubbles:true}));};
  const submit=id=>$(id).dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
@@ -101,5 +101,6 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   $('#queue [data-index]').click();$('#preview-layer').click();await tick();
   finishRaster.resolve({bounds:[150,-28,151,-27]});await tick();
   assert.match($('#import-job').textContent,/Preview ready/);assert.equal($('#import-job progress'),null);
+  w.testSetEditor();assert.equal($('#people').hidden,true);assert.equal($('#project-settings').hidden,true);$('#name-dialog').close();w.testOpenProject();assert.equal($('#name-dialog').open,false);
  }finally{w.close();delete globalThis.document;}
 });
