@@ -12,7 +12,7 @@
 </script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<meta name="description" content="DrillOps is field operations intelligence software for exploration drilling teams, with borehole planning, EOS report imports, contractor management, invoice reconciliation, budget tracking, and drilling analytics."/>
+<meta name="description" content="Explore the DrillOps ecosystem: Activities for daily drilling reports, FieldOps for field capture and navigation, and FieldMaps for project mapping."/>
 <meta name="keywords" content="DrillOps, drilling operations software, borehole planning, exploration drilling, mining field operations, drilling invoice reconciliation, EOS reports, contractor management, Australian mining software"/>
 <meta name="author" content="DrillOps"/>
 <meta name="robots" content="index,follow,max-image-preview:large"/>
@@ -20,17 +20,17 @@
 <link rel="canonical" href="https://drillops.com.au/"/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="DrillOps"/>
-<meta property="og:title" content="DrillOps — Field Operations Intelligence"/>
-<meta property="og:description" content="Plan boreholes, import daily drilling reports, manage contractors, reconcile invoices, and track budgets for Australian exploration drilling programs."/>
+<meta property="og:title" content="DrillOps — Activities, FieldOps &amp; FieldMaps"/>
+<meta property="og:description" content="Daily reporting, field capture and project mapping. Explore DrillOps Activities, FieldOps and FieldMaps."/>
 <meta property="og:url" content="https://drillops.com.au/"/>
 <meta property="og:locale" content="en_AU"/>
 <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="DrillOps — Field Operations Intelligence"/>
-<meta name="twitter:description" content="A professional operations dashboard for exploration drilling: planning, reporting, invoices, budgets, and analytics."/>
+<meta name="twitter:title" content="DrillOps — Activities, FieldOps &amp; FieldMaps"/>
+<meta name="twitter:description" content="Explore DrillOps Activities, FieldOps and FieldMaps: tools for the work on the ground."/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
-<title>DrillOps — Field Operations</title>
+<title>DrillOps — Activities, FieldOps &amp; FieldMaps</title>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -1885,6 +1885,8 @@ tbody td[contenteditable=true]:focus {
 }
 </style>
 <link rel="stylesheet" href="./drillops-theme.css"/>
+<link rel="stylesheet" href="./ecosystem.css"/>
+<script defer src="./ecosystem.js"></script>
 </head>
 <body class="workspace-locked">
 
@@ -1892,235 +1894,52 @@ tbody td[contenteditable=true]:focus {
 <div id="login-screen">
   <div style="min-height:100vh;display:flex;flex-direction:column;">
 
-    <!-- Hero -->
-    <div class="legacy-landing" style="flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#19201d 0%,#315d49 40%,#315d49 100%);position:relative;overflow:hidden;">
-      <!-- Decorative grid -->
-      <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,0.05) 1px,transparent 1px);background-size:32px 32px;"></div>
-      <div style="position:absolute;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:rgba(49,93,73,0.15);filter:blur(80px);"></div>
-      <div style="position:absolute;bottom:-150px;left:-150px;width:500px;height:500px;border-radius:50%;background:rgba(49,93,73,0.1);filter:blur(60px);"></div>
-
-      <div style="display:flex;align-items:center;gap:80px;max-width:1100px;padding:40px;position:relative;z-index:2;">
-        <!-- Left: copy -->
-        <div style="flex:1;color:#fff;">
-          <div style="font-size:42px;font-weight:800;letter-spacing:-1px;line-height:1.15;margin-bottom:16px;">
-            Drill<span style="color:#60a5fa;">Ops</span>
-          </div>
-          <div style="font-size:18px;font-weight:300;color:rgba(255,255,255,0.85);line-height:1.6;margin-bottom:28px;max-width:480px;">
-            Field Operations Intelligence for exploration drilling programs. Plan boreholes, track daily operations, manage contractors, reconcile invoices &mdash; all in one place.
-          </div>
-          <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:32px;">
-            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.8);">
-              <span style="width:28px;height:28px;border-radius:6px;background:rgba(96,165,250,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">&#x1F5FA;</span>
-              Interactive borehole planning with MGA&rarr;WGS84 mapping &amp; KML export
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.8);">
-              <span style="width:28px;height:28px;border-radius:6px;background:rgba(96,165,250,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">&#x1F4CA;</span>
-              Daily EOS report parsing with automated cost analysis &amp; anomaly detection
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.8);">
-              <span style="width:28px;height:28px;border-radius:6px;background:rgba(96,165,250,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">&#x2696;</span>
-              Invoice reconciliation &mdash; compare contractor invoices against field data
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.8);">
-              <span style="width:28px;height:28px;border-radius:6px;background:rgba(96,165,250,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">&#x1F4B0;</span>
-              Budget vs actual tracking with schedule of rates &amp; purchase order management
-            </div>
-          </div>
-          <div class="landing-actions">
-            <a class="landing-cta" href="#product-walkthrough">See the workflow</a>
-            <a class="landing-cta secondary" href="https://apps.apple.com/au/app/id6796881116">Get the iPhone &amp; iPad app</a>
-          </div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:0.5px;">BUILT FOR AUSTRALIAN MINING &amp; EXPLORATION</div>
-        </div>
-
-        <!-- Right: login card -->
-        <div style="width:360px;flex-shrink:0;">
-          <div style="background:#fff;padding:40px 36px;border-radius:16px;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
-            <div style="font-size:22px;font-weight:700;color:#111827;margin-bottom:4px;">Sign in</div>
-            <div style="font-size:13px;color:#6b7280;margin-bottom:24px;">Access your drilling operations dashboard</div>
-            <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Email</label>
-            <input id="legacy-login-email" type="email" placeholder="name@company.com" autocomplete="username"
-              style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:14px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
-              onfocus="this.style.borderColor='#315d49';this.style.background='#fff'"
-              onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
-            <label style="display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:6px;">Password</label>
-            <input id="legacy-login-password" type="password" placeholder="Enter password" autocomplete="current-password"
-              style="width:100%;padding:11px 14px;border:1.5px solid #e2e5ea;border-radius:8px;font-size:14px;outline:none;margin-bottom:16px;font-family:var(--font);transition:border-color 0.15s;background:#f9fafb;color:#111827;"
-              onfocus="this.style.borderColor='#315d49';this.style.background='#fff'"
-              onblur="this.style.borderColor='#e2e5ea';this.style.background='#f9fafb'"/>
-            <button id="legacy-login-button" onclick="doLogin()" style="width:100%;padding:12px;background:#315d49;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;"
-              onmouseover="this.style.background='#254b3a'" onmouseout="this.style.background='#315d49'">
-              Sign in securely
-            </button>
-            <div id="legacy-login-error" style="color:#dc2626;font-size:12px;margin-top:10px;text-align:center;min-height:16px;"></div>
-            <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e5ea;text-align:center;">
-              <div style="font-size:11px;color:#9ca3af;">Protected by Supabase Auth</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <section id="product-walkthrough" class="product-walkthrough" aria-labelledby="walkthrough-title">
-      <div class="walkthrough-inner">
-        <div class="walkthrough-kicker">One connected drilling workflow</div>
-        <h2 id="walkthrough-title" class="walkthrough-title">From the rig to approval, without losing the day’s detail.</h2>
-        <p class="walkthrough-lead">DrillOps connects drill contractors, mining clients and project managers through one client-and-project workspace. Field data is captured once, reviewed quickly and carried into the broader project dashboard.</p>
-
-        <div class="workflow-steps" aria-label="DrillOps workflow">
-          <article class="workflow-step"><div class="workflow-step-number">1</div><h3>Select the right workspace</h3><p>Choose the mining client and drill project before any operational information is shown.</p></article>
-          <article class="workflow-step"><div class="workflow-step-number">2</div><h3>Capture and submit the DAR</h3><p>Contractor crews record the shift, drilling activity, people, conditions and metres from iPhone or iPad.</p></article>
-          <article class="workflow-step"><div class="workflow-step-number">3</div><h3>Review, approve and track</h3><p>Clients receive the submission, approve, query or reject it, and the result flows into project reporting.</p></article>
-        </div>
-
-        <div class="surface-section">
-          <div class="surface-copy">
-            <div class="surface-label">Web portal</div>
-            <h3>Manage the whole drill program.</h3>
-            <p>The browser-based portal gives project teams the broader operating picture, with controlled workspaces for each client and project.</p>
-            <div class="feature-list">
-              <span>Monitor project activity, metres, costs and budget position</span>
-              <span>Review contractor reports and maintain a clear approval trail</span>
-              <span>Plan boreholes, manage contractors and reconcile invoices</span>
-            </div>
-          </div>
-          <div class="surface-visual portal-preview" aria-label="Illustration of the DrillOps web portal">
-            <div class="portal-window">
-              <div class="portal-bar"><span>DrillOps</span><span class="portal-context">Argo · Ironbark</span></div>
-              <div class="portal-body">
-                <div class="portal-nav"><span class="active">Overview</span><span>Daily reports</span><span>Boreholes</span><span>Contractors</span><span>Invoices</span></div>
-                <div class="portal-main">
-                  <h4>Project overview</h4>
-                  <div class="portal-kpis"><div class="portal-kpi"><strong>1,248 m</strong><small>Drilled</small></div><div class="portal-kpi"><strong>18</strong><small>DARs</small></div><div class="portal-kpi"><strong>92%</strong><small>Approved</small></div></div>
-                  <div class="portal-approval"><div><strong>Daily Activity Report · IBK-014</strong><p>Night shift · 68.4 m · submitted by contractor</p></div><span class="approval-chip">Awaiting review</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="device-gallery">
-          <article class="device-card ipad"><div class="surface-label">iPad</div><h3>Field oversight with room to work.</h3><p>Review the project dashboard and complete detailed DARs in a layout designed for supervisors and project teams.</p><img class="device-shot" src="./assets/app/ipad-overview.png" alt="DrillOps project overview on iPad" loading="lazy"/></article>
-          <article class="device-card"><div class="surface-label">iPhone</div><h3>The shift report in your pocket.</h3><p>Create DARs, monitor notifications and keep the client approval workflow moving from anywhere on site.</p><img class="device-shot" src="./assets/app/iphone-new-dar.png" alt="New Daily Activity Report form in the DrillOps iPhone app" loading="lazy"/></article>
-        </div>
-
-        <div class="download-panel">
-          <div>
-            <div class="surface-label">DrillOps for iOS and iPadOS</div>
-            <h3>Take the connected drill program into the field.</h3>
-            <p>Scan the QR code or open the App Store link on your Apple device. App download availability begins after Apple completes its review.</p>
-            <a class="download-link" href="https://apps.apple.com/au/app/id6796881116" aria-label="Open DrillOps on the App Store">Open on the App Store <span aria-hidden="true">→</span></a>
-          </div>
-          <a class="qr-wrap" href="https://apps.apple.com/au/app/id6796881116" aria-label="Open the DrillOps App Store listing">
-            <img src="./assets/app/drillops-app-store-qr.png" alt="QR code linking to DrillOps on the App Store"/>
-            <small>Scan to download</small>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <nav class="marketing-nav" aria-label="Main navigation">
-      <a class="marketing-logo" href="#top">Drill<span>Ops</span></a>
-      <a class="marketing-nav-link" href="#platform">Platform</a>
-      <a class="marketing-nav-link" href="#workflow">Workflow</a>
-      <a class="marketing-nav-link" href="#mobile-apps">Mobile apps</a>
-      <a class="marketing-nav-link" href="./fieldops.html">FieldOps</a>
-      <a class="marketing-nav-link" href="#portal-login">Sign in</a>
-      <a class="marketing-mobile-fieldops" href="./fieldops.html">FieldOps</a>
-      <a class="marketing-button" href="https://apps.apple.com/au/app/id6796881116">Get the app</a>
+    <nav class="eco-nav" aria-label="Main navigation">
+      <a class="eco-brand" href="#top" aria-label="DrillOps home">Drill<span>Ops</span><i></i></a>
+      <div class="eco-nav-links"><a href="#ecosystem">The ecosystem</a><a href="#workflow">How it works</a><a href="./support.html">Support</a></div>
+      <a class="eco-nav-login" href="#portal-login">Sign in <span aria-hidden="true">↗</span></a>
+      <details class="eco-menu"><summary>Menu</summary><div><a href="#ecosystem">The ecosystem</a><a href="#activities">Activities</a><a href="./fieldops.html">FieldOps</a><a href="#fieldmaps">FieldMaps</a><a href="./support.html">Support</a></div></details>
     </nav>
-
-    <section class="marketing-hero" id="top">
-      <div class="marketing-hero-content">
-        <div class="marketing-eyebrow">Drilling operations, connected</div>
-        <h1>Run every drilling day from one workspace.</h1>
-        <p class="marketing-hero-copy">Bring mining clients, drill contractors and project managers together—from the first field entry to approval, cost control and reporting.</p>
-        <div class="marketing-actions">
-          <a class="marketing-button" href="#platform">Explore the platform</a>
-          <a class="marketing-button ghost" href="#portal-login">Sign in to DrillOps</a>
-        </div>
-      </div>
-      <div class="product-stage" aria-label="DrillOps on iPad and iPhone">
-        <div class="stage-ipad"><img src="./assets/app/drillops-ipad-overview-2026.png" alt="Latest DrillOps field overview on iPad"/></div>
-        <div class="stage-phone"><img src="./assets/app/drillops-iphone-new-dar-2026.png" alt="Latest DrillOps Daily Activity Report workflow on iPhone"/></div>
-      </div>
-    </section>
-
-    <div class="marketing-strip" aria-label="Teams supported by DrillOps">
-      <span>Mining clients</span><span>Drill contractors</span><span>Project managers</span><span>Field crews</span>
-    </div>
-
-    <section class="marketing-section soft" id="platform">
-      <div class="marketing-inner marketing-center">
-        <div class="marketing-eyebrow">One drilling management platform</div>
-        <h2>Clients and contractors, finally aligned.</h2>
-        <p class="marketing-lead">The operational tools your teams need to deliver better drilling programs—without passing spreadsheets, PDFs and approval emails back and forth.</p>
-        <div class="capability-grid">
-          <article class="capability"><div class="capability-icon">⌁</div><h3>Field activities</h3><p>Capture shift activity, metres, delays, crew and conditions at the source.</p></article>
-          <article class="capability"><div class="capability-icon">◎</div><h3>Client portal</h3><p>Give client and project teams live visibility without exposing unrelated projects.</p></article>
-          <article class="capability"><div class="capability-icon">✓</div><h3>DAR approvals</h3><p>Submit, query, reject and approve daily reports with a complete audit trail.</p></article>
-          <article class="capability"><div class="capability-icon">↗</div><h3>Program reporting</h3><p>Turn approved field data into operational dashboards and management reporting.</p></article>
-          <article class="capability"><div class="capability-icon">⌖</div><h3>Borehole planning</h3><p>Plan and monitor the drilling program alongside its live operational results.</p></article>
-          <article class="capability"><div class="capability-icon">$</div><h3>Cost control</h3><p>Connect reports, schedules of rates, purchase orders and invoice reconciliation.</p></article>
-        </div>
+    <section class="eco-hero" id="top">
+      <div class="eco-kicker"><span></span> THE DRILLOPS ECOSYSTEM</div>
+      <h1>Every shift. Every site.<br><em>The whole picture.</em></h1>
+      <p>Record the work. Capture the field. Put it on the map.<br> Purpose-built tools for the people behind a drilling program.</p>
+      <a class="eco-button" href="#ecosystem">Find your field tools <span aria-hidden="true">↗</span></a>
+      <div class="eco-scene" aria-label="Illustrative drilling project showing the three DrillOps products">
+        <img class="eco-terrain" src="./assets/ecosystem-map.svg" alt="Illustrated project map with drilling pads, an access road, a creek and a field route" width="1200" height="650" fetchpriority="high"/>
+        <div class="eco-scene-title"><span class="eco-live-dot"></span> A day in the field <small>Illustrative project</small></div>
+        <div class="eco-map-label label-one">PAD 01 <span>Activities recorded</span></div>
+        <div class="eco-map-label label-two">PAD 02 <span>Field capture</span></div>
+        <div class="eco-map-label label-three">PAD 03 <span>Project mapping</span></div>
+        <div class="eco-scene-card" id="ecosystem-preview"><div class="eco-preview-icon" aria-hidden="true">↗</div><small id="eco-preview-product">DRILLOPS ACTIVITIES</small><h3 id="eco-preview-title">Make every shift count.</h3><p id="eco-preview-copy">Capture daily activity, metres and delays. Give the office a clear report to review.</p><a id="eco-preview-link" href="#activities">Explore Activities <span aria-hidden="true">→</span></a></div>
+        <div class="eco-scene-tabs" role="group" aria-label="Explore the ecosystem"><button type="button" data-product="activities" aria-pressed="true">01 <span>Activities</span></button><button type="button" data-product="fieldops" aria-pressed="false">02 <span>FieldOps</span></button><button type="button" data-product="fieldmaps" aria-pressed="false">03 <span>FieldMaps</span></button></div>
       </div>
     </section>
-
-    <section class="marketing-section">
-      <div class="marketing-inner showcase">
-        <div class="showcase-copy">
-          <div class="marketing-eyebrow">Web portal</div>
-          <h2>Full program control, not just drilling data.</h2>
-          <p>Start with the client and project, then manage the entire drilling picture from a secure browser workspace.</p>
-          <div class="check-list"><span>Track metres, reports, costs and budget position</span><span>Review contractor submissions and approval history</span><span>Manage boreholes, contractors and project deliverables</span></div>
-        </div>
-        <img class="portal-shot" src="./assets/portal-borehole-planning.png" alt="Current DrillOps web portal showing borehole planning" loading="lazy"/>
-      </div>
-      <div class="marketing-inner portal-gallery" aria-label="Current DrillOps web portal screens">
-        <article><img src="./assets/portal-borehole-planning.png" alt="DrillOps borehole planning portal" loading="lazy"/><div class="portal-gallery-copy"><strong>Borehole planning</strong><span>Map planned, active and completed holes beside live program metres, status and budget position.</span></div></article>
-        <article><img src="./assets/portal-dar-approvals.png" alt="DrillOps daily activity report approvals portal" loading="lazy"/><div class="portal-gallery-copy"><strong>DAR review + approvals</strong><span>Review shift details, query issues and approve contractor reports with a clear audit trail.</span></div></article>
-        <article><img src="./assets/portal-production.png" alt="DrillOps production analytics portal" loading="lazy"/><div class="portal-gallery-copy"><strong>Production analytics</strong><span>Compare metres, utilisation, cost per metre and program performance across recent shifts.</span></div></article>
+    <div class="eco-audience"><span>BUILT AROUND YOUR WORK</span><p>Drilling contractors</p><i>✳</i><p>Exploration teams</p><i>✳</i><p>Field crews</p><i>✳</i><p>Project managers</p></div>
+    <section class="eco-section" id="ecosystem">
+      <div class="eco-section-top"><div><div class="eco-kicker">THREE TOOLS. ONE ECOSYSTEM.</div><h2>From the shift report<br>to the site map.</h2></div><p>Start with the tool you need. Bring daily reporting, field observations and project mapping into the way your team works.</p></div>
+      <div class="eco-products">
+        <a class="eco-product" href="#activities"><div class="eco-product-symbol activities-symbol" aria-hidden="true">≡</div><small>RECORD &amp; REVIEW</small><h3>DrillOps Activities</h3><p>The daily activity reporting app. Capture the shift and keep reviews moving.</p><span>Explore Activities ↗</span></a>
+        <a class="eco-product" href="./fieldops.html"><div class="eco-product-symbol fieldops-symbol" aria-hidden="true">⌖</div><small>CAPTURE &amp; NAVIGATE</small><h3>FieldOps</h3><p>Your field toolkit for photos, tracks, waypoints and drawings on the ground.</p><span>Explore FieldOps ↗</span></a>
+        <a class="eco-product" href="#fieldmaps"><div class="eco-product-symbol maps-symbol" aria-hidden="true">◇</div><small>MAP &amp; SHARE</small><h3>DrillOps FieldMaps</h3><p>Your spatial workspace. Bring project layers together and share a clear view.</p><span>Explore FieldMaps ↗</span></a>
       </div>
     </section>
-
-    <section class="marketing-section soft" id="workflow">
-      <div class="marketing-inner marketing-center">
-        <div class="marketing-eyebrow">A clear operational handover</div>
-        <h2>From rig activity to an approved record.</h2>
-        <p class="marketing-lead">Every person works in the same client-and-project context, while permissions keep each responsibility clear.</p>
-        <div class="workflow-row">
-          <article class="workflow-item"><div class="workflow-number">01 · SELECT</div><h3>Choose client and project</h3><p>No operational data is shown until the correct workspace is selected.</p></article>
-          <article class="workflow-item"><div class="workflow-number">02 · SUBMIT</div><h3>Complete the daily report</h3><p>The contractor records the shift and submits the DAR from iPhone, iPad or web.</p></article>
-          <article class="workflow-item"><div class="workflow-number">03 · APPROVE</div><h3>Review and act</h3><p>The client approves, queries or rejects the report with in-app and email notifications.</p></article>
-        </div>
-      </div>
+    <section class="eco-feature eco-activities" id="activities">
+      <div class="eco-feature-copy"><div class="eco-kicker">01 / DRILLOPS ACTIVITIES</div><h2>The shift is done.<br>The story is clear.</h2><p>Daily Activity Reports built around drilling. Record what happened on site, submit the DAR and give clients and supervisors the detail they need to review it.</p><ul><li>Shift activity, metres, delays and crew</li><li>Report submission and client approvals</li><li>Program oversight from the web portal</li></ul><div class="eco-feature-actions"><a class="eco-button" href="https://apps.apple.com/au/app/id6796881116">View the DAR app ↗</a><a class="eco-text-link" href="#portal-login">Open the web portal →</a></div></div>
+      <div class="eco-feature-visual eco-activity-visual"><div class="eco-visual-caption">DRILLOPS ACTIVITIES <span>iPhone + iPad</span></div><img class="eco-tablet" src="./assets/app/drillops-ipad-overview-2026.png" alt="DrillOps Activities project overview on iPad" loading="lazy"/><img class="eco-phone" src="./assets/app/drillops-iphone-new-dar-2026.png" alt="Daily Activity Report entry in DrillOps Activities" loading="lazy"/></div>
     </section>
-
-    <section class="marketing-section" id="mobile-apps">
-      <div class="marketing-inner mobile-showcase">
-        <div class="mobile-visual"><img class="mobile-ipad" src="./assets/app/drillops-ipad-new-dar-2026.png" alt="Latest DrillOps DAR capture workflow on iPad" loading="lazy"/><img class="mobile-phone" src="./assets/app/drillops-iphone-field-survey-2026.png" alt="DrillOps Field Survey on iPhone" loading="lazy"/></div>
-        <div class="showcase-copy"><div class="marketing-eyebrow">iPhone + iPad</div><h2>The field workflow, wherever the work happens.</h2><p>Give supervisors and crews a purpose-built mobile experience while project teams keep the broader view.</p><div class="check-list"><span>Fast DAR entry designed for the field</span><span>Responsive iPad oversight and review</span><span>Shared notifications and approval status</span></div></div>
-      </div>
-      <div class="marketing-inner">
-        <div class="screenshot-gallery" aria-label="Latest DrillOps app screenshots">
-          <article class="screenshot-card"><img src="./assets/app/drillops-ipad-field-survey-2026.png" alt="DrillOps Field Survey instrument on iPad" loading="lazy"/><div class="screenshot-card-copy"><strong>Field Survey</strong><span>Capture orientation, location and field evidence without leaving the project workspace.</span></div></article>
-          <article class="screenshot-card"><img src="./assets/app/drillops-iphone-overview-2026.png" alt="DrillOps field overview on iPhone" loading="lazy"/><div class="screenshot-card-copy"><strong>Live field overview</strong><span>Keep the day’s reports, metres and program status close at hand.</span></div></article>
-          <article class="screenshot-card"><img src="./assets/app/drillops-iphone-new-dar-2026.png" alt="DrillOps new DAR workflow on iPhone" loading="lazy"/><div class="screenshot-card-copy"><strong>Guided DAR capture</strong><span>Move from shift setup to submission through a clear, field-ready workflow.</span></div></article>
-        </div>
-        <aside class="fieldops-callout"><img class="fieldops-callout-thumb" src="./assets/fieldops/iphone-instrument.jpg" alt="FieldOps camera and measurement screen" loading="lazy"/><div><h3>Meet FieldOps by DrillOps</h3><p>Now available for iPhone and iPad. Capture field photos, record tracks, navigate to waypoints and bring drawings onto the map. <a href="./fieldops.html">Explore FieldOps features</a>.</p></div><a class="marketing-button" href="https://apps.apple.com/au/app/fieldops-by-drillops/id6797079076">Get FieldOps on the App Store</a></aside>
-      </div>
+    <section class="eco-feature eco-fieldops" id="fieldops">
+      <div class="eco-feature-visual eco-field-visual"><img src="./assets/fieldops/ipad-camera.jpg" alt="FieldOps field camera with location and measurement information" loading="lazy"/><div class="eco-photo-caption"><span>⌖</span><div>More than a photo.<small>Location. Direction. Field context.</small></div></div></div>
+      <div class="eco-feature-copy"><div class="eco-kicker">02 / FIELDOPS</div><h2>Know where you are.<br>Record what matters.</h2><p>Put practical field tools in your pocket. Capture geotagged photos, follow waypoints and take survey drawings with you on site.</p><ul><li>Field photos with position and orientation</li><li>GPS tracks and waypoint navigation</li><li>DXF drawings and terrain tools</li></ul><div class="eco-feature-actions"><a class="eco-button" href="./fieldops.html">Discover FieldOps ↗</a><a class="eco-text-link" href="https://apps.apple.com/au/app/fieldops-by-drillops/id6797079076">View on the App Store →</a></div></div>
     </section>
-
-    <section class="marketing-section soft">
-      <div class="marketing-inner download-band">
-        <div><div class="marketing-eyebrow">DrillOps for iOS and iPadOS</div><h2>Take the connected drill program into the field.</h2><p>Scan the QR code or open the App Store listing on your Apple device. Download availability begins after Apple completes its review.</p><a class="marketing-button" href="https://apps.apple.com/au/app/id6796881116">Open on the App Store</a></div>
-        <a class="qr-wrap" href="https://apps.apple.com/au/app/id6796881116" aria-label="Open DrillOps on the App Store"><img src="./assets/app/drillops-app-store-qr.png" alt="QR code for the DrillOps App Store listing"/><small>Scan to download</small></a>
-      </div>
+    <section class="eco-feature eco-maps" id="fieldmaps">
+      <div class="eco-feature-copy"><div class="eco-kicker">03 / DRILLOPS FIELDMAPS <span class="eco-preview-badge">WEB PREVIEW</span></div><h2>Your project.<br>Layer by layer.</h2><p>Turn separate drawings, point files and boundaries into a map your team can understand. Import, organise and style your layers in the browser, then publish a read-only SYNC version for operators.</p><ul><li>DXF, CSV, KML/KMZ and GIS layers</li><li>Project coordinate systems and layer styling</li><li>Company workspaces and controlled project access</li></ul><p class="eco-availability">FieldMaps is being developed with working field teams. Public launch and paid plans are coming later.</p></div>
+      <div class="eco-feature-visual eco-map-visual"><div class="eco-browser-bar"><i></i><i></i><i></i><span>DrillOps FieldMaps</span></div><div class="eco-map-window"><div class="eco-map-sidebar"><small>EXAMPLE PROJECT</small><strong>East Ridge</strong><span>Layers</span><p><b class="eco-layer-dot"></b> Drill locations</p><p><b class="eco-layer-line"></b> Access route</p><p><b class="eco-layer-area"></b> Project boundary</p><small>Illustrative workspace</small></div><div class="eco-mini-map"><img src="./assets/ecosystem-map.svg" alt="Illustration of project map layers in FieldMaps" loading="lazy"/><span class="eco-map-chip">Three layers. One clear view.</span></div></div></div>
     </section>
-
+    <section class="eco-workflow" id="workflow"><div class="eco-kicker">BUILT FOR THE FIELD. USEFUL IN THE OFFICE.</div><h2>Different jobs.<br>A shared purpose.</h2><div class="eco-steps"><article><small>01 / RECORD</small><h3>A reliable daily record.</h3><p>Use Activities to turn the work of a shift into a report that can be reviewed and approved.</p></article><article><small>02 / CAPTURE</small><h3>Keep the field context.</h3><p>Use FieldOps to document observations and navigate the places where the work happens.</p></article><article><small>03 / MAP</small><h3>See the project clearly.</h3><p>Use FieldMaps to organise spatial data and put the right project view in front of your team.</p></article></div></section>
     <section class="login-section" id="portal-login">
       <div class="login-shell">
-        <div class="login-copy"><div class="marketing-eyebrow">Secure portal access</div><h2>Your drilling workspace is ready.</h2><p>Sign in with the account issued by your DrillOps organisation. Client and project access is controlled by role.</p></div>
+        <div class="login-copy"><div class="eco-kicker">DRILLOPS ACTIVITIES / WEB PORTAL</div><h2>Back at the desk?<br>Pick up the program.</h2><p>Sign in to review daily reports and manage your drilling program. Use the account provided by your organisation.</p></div>
         <div class="login-card">
           <div id="login-panel">
             <h3>Sign in</h3>
@@ -2150,13 +1969,7 @@ tbody td[contenteditable=true]:focus {
       </div>
     </section>
 
-    <footer class="marketing-footer"><span>DrillOps · Field Operations Intelligence</span><span><a href="./fieldops.html" style="color:inherit">FieldOps</a> · <a href="./support.html" style="color:inherit">Support</a> · &copy; 2026 DrillOps Pty</span></footer>
-
-    <!-- Footer -->
-    <div class="legacy-footer" style="background:#19201d;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-size:11px;color:rgba(255,255,255,0.3);">DrillOps v3.0 &mdash; Field Operations Intelligence</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.3);">&copy; 2026 DrillOps</div>
-    </div>
+    <footer class="eco-footer"><div><a class="eco-brand" href="#top">Drill<span>Ops</span><i></i></a><p>Tools for the work on the ground.</p></div><div><a href="#activities">Activities</a><a href="./fieldops.html">FieldOps</a><a href="#fieldmaps">FieldMaps</a><a href="./support.html">Support</a></div><small>© 2026 DrillOps</small></footer>
 
   </div>
 </div>
