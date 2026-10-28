@@ -18,3 +18,15 @@ Additional FieldOps feature captures (unaltered originals):
 - `fieldops-waypoints.png`: `Guides/Assets/03-waypoints.png`; sample destination.
 
 Feature descriptions checked against the FieldOps Build67 source in-app guide, `FieldCamTracker/Features/Settings/FieldOpsUserGuideView.swift`. Experimental and device-dependent features are labelled on the page; screenshots are earlier actual captures and may differ from the current version.
+
+## Current App Store artwork — 28 October 2026
+
+`fieldops-store-*.png` are unchanged App Store marketing screenshots retrieved from the Australian FieldOps 1.1 listing, app ID 6797079076, at the user’s request. They include the listing’s existing framing, titles and backgrounds; they are not newly generated artwork. These replace earlier captures on the FieldOps product page. CarPlay, Watch and road-to-field descriptions were checked against the same current listing.
+
+- `fieldops-store-evidence.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/04/79/cd/0479cdbd-a80c-5d08-386b-4b61d1318808/01-field-evidence.png/1320x2868bb.png
+- `fieldops-store-map.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/8b/48/af/8b48afe7-e30e-cc04-be4b-98ff1c9f46e4/02-gis-terrain.png/1320x2868bb.png
+- `fieldops-store-waypoints.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/3c/d1/94/3cd1945b-bfec-e703-30d9-4f536927c601/03-waypoint-groups.png/1320x2868bb.png
+- `fieldops-store-navigation.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/a4/ca/ab/a4caab9d-16f0-8d26-59b7-f6e17d3ac5b4/04-road-to-field.png/1320x2868bb.png
+- `fieldops-store-carplay.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/b0/16/23/b0162320-a8f4-a334-024d-88214b472ec5/05-carplay.png/1320x2868bb.png
+- `fieldops-store-watch.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/7a/50/62/7a5062a0-59b7-f9c6-bcf1-1c25fe6a966b/06-apple-watch.png/1320x2868bb.png
+- `fieldops-store-terrain.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/4a/bf/10/4abf1063-6bde-ee92-eafa-eb43aff1b838/07-3d-terrain.png/1320x2868bb.png
