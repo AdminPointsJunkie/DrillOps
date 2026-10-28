@@ -1,0 +1,12 @@
+import {billingPeriod,meterNote} from './usage-labels.js';
+export const escapeHTML=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function storageSize(n){n=Math.max(0,Number(n)||0);if(n<1024)return `${n} B`;const i=Math.min(3,Math.floor(Math.log(n)/Math.log(1024)));return `${(n/1024**i).toFixed(1)} ${['B','KiB','MiB','GiB'][i]}`;}
+export function usageBar(value,total,tone='uploads',label=''){
+ const amount=Math.max(0,Number(value)||0),max=Math.max(0,Number(total)||0),percent=max?Math.min(100,amount/max*100):0;
+ return `<div class="usage-track ${tone==='stored'?'stored':'uploads'}" role="img" aria-label="${escapeHTML(label)}: ${storageSize(amount)}${max?` of ${storageSize(max)}`:''}"><span style="width:${percent}%"></span></div>`;
+}
+export function usageOverview(data){
+ const max=Math.max(Number(data.file_bytes)||0,Number(data.upload_bytes)||0,1);
+ return `<section class="usage-overview"><div class="usage-period"><span>${billingPeriod(data)}</span><span class="usage-pill ${data.partial_month?'amber':''}" title="${escapeHTML(meterNote(data))}">${data.partial_month?'Partial month':'Monthly usage'}</span></div><div class="usage-metric"><div><span class="usage-dot uploads"></span><h3>Monthly uploads</h3><small>Billing measure</small></div><strong>${data.upload_bytes==null?'Not yet metered':storageSize(data.upload_bytes)}</strong>${usageBar(data.upload_bytes,max,'uploads','Monthly uploads')}<span class="usage-caption">Cumulative · deletions don’t reduce this</span></div><div class="usage-metric"><div><span class="usage-dot stored"></span><h3>Stored now</h3><small>${Number(data.file_count)||0} files</small></div><strong>${storageSize(data.file_bytes)}</strong>${usageBar(data.file_bytes,max,'stored','Stored now')}<span class="usage-caption">Files currently occupying storage</span></div><div class="usage-scale-note">Bars compare volumes · no plan limit set</div></section>`;
+}
+export function usageDefinitions(data){return `<details class="usage-help"><summary>How usage is counted</summary><div><p>Monthly uploads include originals and browser-uploaded previews. Re-uploading counts again; deleting files never reduces the monthly total. Downloads and internal SYNC copies are excluded.</p><p>Stored now includes originals, previews and SYNC copies. Vector data is an estimate excluding indexes and database overhead.</p><p>${escapeHTML(meterNote(data))} Payments and allowances are not active.</p></div></details>`;}
