@@ -26,7 +26,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor;
- const db={auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
+ const db={rpc:async(name)=>name==='workspace_context'?{data:{platform_admin:false,workspaces:[{id:'workspace',name:'Company',role:'editor',status:'active'}],invitations:[]}}:{data:null},auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
    eq(key,value){filter=value;return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},

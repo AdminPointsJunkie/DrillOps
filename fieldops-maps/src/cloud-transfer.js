@@ -2,7 +2,7 @@ export const CLOUD_FILE_LIMIT=50*1024*1024;
 const checked=async request=>{const result=await request;if(result.error)throw result.error;return result.data;};
 
 // The local copy and stable destination IDs survive a failed or interrupted transfer.
-export async function transferProject(local,cloud,project,userId,progress=()=>{}){
+export async function transferProject(local,cloud,project,userId,progress=()=>{},workspaceId=null){
  const layers=await checked(local.from('layers').select('*').eq('map_id',project.id).order('created_at'));
  const originals=l=>l.metadata?.source_names?.length
   ?(l.original_paths||[]).slice(0,l.metadata.source_names.length)
@@ -14,13 +14,14 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
   }
  }
  const exports={...project.cloud_exports};
- const destination=exports[userId]||{id:crypto.randomUUID(),layers:{}};
+ const destinationKey=workspaceId?`${userId}:${workspaceId}`:userId;
+ const destination=exports[destinationKey]||{id:crypto.randomUUID(),layers:{}};
  for(const layer of layers)destination.layers[layer.id]??=crypto.randomUUID();
- exports[userId]=destination;
+ exports[destinationKey]=destination;
  await checked(local.from('maps').update({cloud_exports:exports}).eq('id',project.id));
  project.cloud_exports=exports;
  const existing=await checked(cloud.from('maps').select('*').eq('id',destination.id));
- if(!existing.length)await checked(cloud.from('maps').insert({id:destination.id,name:project.name,default_crs:project.default_crs||null,default_crs_label:project.default_crs_label||null}));
+ if(!existing.length)await checked(cloud.from('maps').insert({id:destination.id,...(workspaceId?{workspace_id:workspaceId}:{}),name:project.name,default_crs:project.default_crs||null,default_crs_label:project.default_crs_label||null}));
  let count=0;
  for(const layer of layers){
   const id=destination.layers[layer.id];progress(`Saving layer ${++count} of ${layers.length}: ${layer.name}`);
