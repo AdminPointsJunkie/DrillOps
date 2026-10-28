@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {readFile} from 'node:fs/promises';
+import {installSetupPage} from '../src/setup-page.js';
+const html=await readFile(new URL('../setup.html',import.meta.url),'utf8');
+async function fixture(hash){const win=new JSDOM(html,{url:'https://example.test/maps/setup.html'+hash}).window;
+ const state={verified:0,updated:0,current:{id:'previous-admin',email:'admin@example.test'},failure:null,updateFailure:null};
+ const db={auth:{verifyOtp:async()=>{state.verified++;if(state.failure)return {error:{message:state.failure}};state.current={id:'invitee',email:'person@example.test'};return {data:{user:state.current,session:{user:state.current}}};},getUser:async()=>({data:{user:state.current}}),updateUser:async()=>{state.updated++;return {error:state.updateFailure?{message:state.updateFailure}:null};},setSession:async()=>({error:{message:'Invalid session'}})},rpc:async()=>({data:false})};
+ await installSetupPage(db,win);const $=s=>win.document.querySelector(s);const submit=async()=>{$('#setup-password').value='long-test-password';$('#setup-confirm').value='long-test-password';await $('#setup-form').onsubmit({preventDefault(){}});};return {win,state,$,submit};}
+test('invitation opens password fields immediately without consuming token; submit targets invited account',async()=>{
+ const {$,state,submit,win}=await fixture('#token_hash=fake&type=invite');assert.equal($('#setup-form').hidden,false);assert.equal(state.verified,0);await submit();assert.equal(state.verified,1);assert.equal(state.current.id,'invitee');assert.equal(state.updated,1);assert.equal($('#setup-form').hidden,true);assert.equal($('#setup-continue').hidden,false);assert.equal(win.location.hash,'');
+});
+test('failed invitation never changes existing admin password',async()=>{const {$,state,submit}=await fixture('#token_hash=fake&type=invite');state.failure='Token expired';await submit();assert.equal(state.updated,0);assert.equal(state.current.id,'previous-admin');assert.equal($('#setup-help').hidden,false);});
+test('password save can be retried after token redemption without redeeming token twice',async()=>{const {state,submit}=await fixture('#token_hash=fake&type=invite');state.updateFailure='Network error';await submit();state.updateFailure=null;await submit();assert.equal(state.verified,1);assert.equal(state.updated,2);});
+test('old expired link and missing link cannot offer password change for unrelated signed-in account',async()=>{for(const hash of ['#error_code=otp_expired','','#type=invite&access_token=bad&refresh_token=bad']){const {$,state}=await fixture(hash);assert.equal($('#setup-form').hidden,true);assert.equal(state.updated,0);}});
