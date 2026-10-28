@@ -43,3 +43,13 @@ aside{width:285px;padding:17px 14px 0}.map-picker{margin:9px 0}.map-picker selec
 
 .sync-controls{display:flex;align-items:center;gap:6px;margin:0 0 12px}.sync-controls>div{flex:1;min-width:0}.sync-controls span{font-size:11px;font-weight:600}.sync-controls small{display:block;font-size:9px;color:#78857e;margin-top:3px}.sync-controls .primary{padding:9px 12px;font-size:11px}
 #people-dialog{width:min(720px,94vw)}.people-invite{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}.people-list{display:grid;gap:14px;margin-top:14px}.person-card{padding:16px;border:1px solid #d9e4dd;border-radius:8px;display:grid;gap:8px}.person-card small{display:block;color:#718277}.person-card fieldset{border:1px solid #d9e4dd;border-radius:6px}.person-card fieldset label{display:flex;align-items:center;gap:8px}.person-card input[type=checkbox]{width:auto}#people-message{margin:10px 0}#people-search{width:100%}@media(max-width:600px){.people-invite{grid-template-columns:1fr}}
+.layer-card{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 6px;padding:6px;margin-bottom:5px}
+.layer-card>.layer-top,.layer-card>[data-layer-panel],.layer-card>.crs-tag{grid-column:1/-1}
+.layer-card>.layer-top small{margin-top:2px}
+.layer-card>.layer-option-buttons{grid-column:1;grid-row:2;margin-top:0;gap:4px}
+.layer-card>.layer-option-buttons button{width:27px;height:26px}
+.layer-card>.layer-bottom{grid-column:2;grid-row:2;margin-top:0;gap:4px;min-width:0}
+.layer-card>.layer-bottom .raster-opacity{display:flex;align-items:center;gap:5px;min-width:0}
+.layer-card>.layer-bottom .raster-opacity input{margin-top:0}
+.layer-card>[data-layer-panel]{margin-top:0;padding-top:5px}
+.layer-card>.crs-tag{margin-top:0;line-height:1.3}
