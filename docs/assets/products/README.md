@@ -30,3 +30,5 @@ Feature descriptions checked against the FieldOps Build67 source in-app guide, `
 - `fieldops-store-carplay.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/b0/16/23/b0162320-a8f4-a334-024d-88214b472ec5/05-carplay.png/1320x2868bb.png
 - `fieldops-store-watch.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/7a/50/62/7a5062a0-59b7-f9c6-bcf1-1c25fe6a966b/06-apple-watch.png/1320x2868bb.png
 - `fieldops-store-terrain.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/4a/bf/10/4abf1063-6bde-ee92-eafa-eb43aff1b838/07-3d-terrain.png/1320x2868bb.png
+
+- `fieldops-store-tin.png`: https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/e2/c0/4e/e2c04ed7-0e8c-b3e2-88fa-694ea0f45635/10-gis-formats.png/1320x2868bb.png; current App Store point-cloud-to-terrain image, used in the hero to avoid repeating the map image.
