@@ -1,3 +1,7 @@
+import {installMapExplorer} from '../src/map-explorer.js';
+import {featureInfo} from '../src/explore-data.js';
+import {installFieldTools,annotationLayer,editAnnotation} from '../src/field-tools.js';
+import {publishedProjects,publishedLayers} from '../src/published-projects.js';
 import {createSaveStatus} from '../src/save-status.js';
 import {syncProjectRelease} from '../src/operator-sync.js';
 import {transferProject,CLOUD_FILE_LIMIT} from '../src/cloud-transfer.js';
@@ -21,7 +25,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor;
- const db={auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner'}});}},from(table){
+ const db={auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
    eq(key,value){filter=value;return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},
@@ -30,10 +34,11 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  }};
  const layer=()=>({addTo(){return this;},getBounds(){return {};},bindPopup(){return this;}});
  const panes={};const map={invalidateSize(){},closePopup(){},getBounds:()=>({pad:()=>({contains:()=>true})}),getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(){return this;},on(){},removeLayer(){},fitBounds(){}};
- const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:(fc,options)=>{for(const f of fc.features)options.onEachFeature(f,{on:(name,handler)=>featureHandlers.push(handler)});return layer();},imageOverlay:layer,circleMarker:layer,
+ const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:(fc,options)=>{for(const f of fc.features||[fc])options.onEachFeature?.(f,{on:(name,handler)=>featureHandlers.push(handler)});return layer();},imageOverlay:layer,circleMarker:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>true})};
  const fc={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]};
- Object.assign(w,{openAttributeStyle:(layer,onApply)=>{attributeEditor={layer,onApply};},readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
+ globalThis.document=w.document;
+ Object.assign(w,{installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,openAttributeStyle:(layer,onApply)=>{attributeEditor={layer,onApply};},readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
   errorText:e=>e.message,fetch:async()=>({json:async()=>catalogue}),
   inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
   convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
@@ -55,7 +60,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   assert.match($('#crs-search').value,/7856/);assert.equal($('#use-embedded').hidden,false);
   $('#use-embedded').click();assert.equal($('#crs-search').value,'Embedded coordinate system');
   $('#preview-layer').click();await tick();assert.equal(conversions[0],'EPSG:4326');
-  $('#identify').click();featureHandlers[0]();assert.equal($('#feature-info').hidden,false);assert.match($('#feature-info-title').textContent,/Survey/);assert.match($('#feature-info-content').textContent,/Feature details/);$('#close-info').click();assert.equal($('#identify').getAttribute('aria-pressed'),'false');
+  $('#identify').click();featureHandlers[0]();assert.equal($('#feature-info').hidden,false);assert.match($('#feature-info-title').textContent,/Survey/);assert.ok($('#feature-info-content table'));$('#close-info').click();assert.equal($('#identify').getAttribute('aria-pressed'),'false');
   $('#queue [data-index]').click();assert.equal($('#crs-search').value,'Embedded coordinate system');assert.equal(projects[0].default_crs,'EPSG:7856');
   $('#review').close();change('#map-select','2');await tick();assert.equal($('#map-select').value,'1','pending imports prevent switching projects');
   $('#queue [data-discard]').click();change('#map-select','2');await tick();assert.match($('#project-default').textContent,/4326/);
@@ -94,5 +99,5 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   $('#queue [data-index]').click();$('#preview-layer').click();await tick();
   finishRaster.resolve({bounds:[150,-28,151,-27]});await tick();
   assert.match($('#import-job').textContent,/Preview ready/);assert.equal($('#import-job progress'),null);
- }finally{w.close();}
+ }finally{w.close();delete globalThis.document;}
 });

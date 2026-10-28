@@ -123,3 +123,17 @@ Open the layer style icon, then **Style by value**. Categorized classes use uniq
 Formula mode independently controls colour, symbol and size. Use `[Column]` references, quoted text and `if`, `min`, `max`, `abs`, `round`, `sqrt`, or `coalesce`. For example: `if([Status] = 'Complete', '#147d72', '#ce6359')`, `if([Depth] > 100, 'triangle', 'circle')`, and `min(30, 6 + [Depth] / 10)`. This is a restricted expression language, not JavaScript or full QGIS syntax. Invalid result values fall back to the base style; sizes clamp to 4–48px. Preview validates syntax and reports feature coverage before applying.
 
 Rules persist in `metadata.style.rules`, including in SYNC manifests. Clients displaying releases must evaluate those rules to reproduce the styling. Select **Single style** to remove the rules. Source CSV attributes are unchanged.
+
+### Map exploration and annotations
+
+The right-hand toolbar opens the attribute table (▦), feature search (⌕), filters (⏷), measurements (↔), and admin annotations (✎).
+
+- The table sorts columns, searches values, pages through 100 rows at a time, and optionally limits rows to the current extent. Selecting a row highlights and zooms to the feature; selecting a map feature selects its table row. Search and filter conditions affect both table and map; source attributes stay unchanged.
+- Expand a layer's Legend to toggle classification categories/ranges. Counts respect active filters. Search finds matching attributes in visible, filtered layers.
+- View changes are personal until an editor chooses **Save default**. Defaults persist in metadata.style.view and travel in SYNC. **Reset** restores those saved defaults. Operators cannot save defaults.
+- Table **Fields** configures popup title, field order, friendly display labels and hidden fields. This affects presentation, not data permissions: underlying published feature attributes remain readable.
+- Measurements are temporary, approximate horizontal distance/area in metres, kilometres and hectares; terrain, RL and survey-grade grid corrections are not included.
+- Admins can draw notes, access arrows and exclusion polygons on the map. Click positions, use Undo point, then Save annotation. The layer cog edits its name/text/colour or deletes it. Annotations save as vector layers; original uploads are untouched. Changes reach operators only after SYNC.
+- Database triggers protect annotation metadata and geometry using the live account role. Published manifests now retain annotation metadata. Operator accounts load assigned published releases through the browser, never draft layers. Viewer filters, legend toggles, layer order and visibility do not write to the database.
+
+Verification: exploration unit/UI tests, existing regression suite, and transaction-only exploration-access.sql against Postgres cover filters, styles, linked selection, geography measurements, saved annotations, live-role restrictions and assigned release access. Security advisor retains the pre-existing leaked-password-protection warning; see https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .

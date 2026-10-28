@@ -1,3 +1,7 @@
+import {installMapExplorer} from '../src/map-explorer.js';
+import {featureInfo} from '../src/explore-data.js';
+import {installFieldTools,annotationLayer,editAnnotation} from '../src/field-tools.js';
+import {publishedProjects,publishedLayers} from '../src/published-projects.js';
 import {createSaveStatus} from '../src/save-status.js';
 import {syncProjectRelease} from '../src/operator-sync.js';
 import {transferProject,CLOUD_FILE_LIMIT} from '../src/cloud-transfer.js';
@@ -41,7 +45,8 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   getBounds:()=>({pad:()=>({contains:()=>true}),getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
- Object.assign(w,{readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ globalThis.document=w.document;
+ Object.assign(w,{installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);
@@ -86,5 +91,5 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   assert.equal($('.group-contents').hidden,true);assert.equal($('[data-group-action=visibility]').getAttribute('aria-pressed'),'false');
   $('[data-group-action=collapse]').click();await tick();$('[data-group-action=remove]').click();await tick();
   assert.equal($('.layer-group'),null);assert.equal($('#layers').querySelectorAll('.layer-card').length,2);
- }finally{w.close();}
+ }finally{w.close();delete globalThis.document;}
 });

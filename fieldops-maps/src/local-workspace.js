@@ -23,10 +23,11 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
   const execute=()=>result(async()=>{
    if(action==='insert'){const row={id:crypto.randomUUID(),created_at:new Date().toISOString(),...payload};await put(table,row);return [row];}
    const rows=(await all(table)).filter(r=>!filter||r[filter[0]]===filter[1]);
+   if(action==='delete'){for(const row of rows)await operation(table,'readwrite',s=>s.delete(row.id));}
    if(action==='update'){for(const row of rows){Object.assign(row,payload);await put(table,row);}}
    return rows;
   });
-  const query={select(){return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},
+  const query={delete(){action='delete';return query;},select(){return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},
    eq(key,value){filter=[key,value];return query;},order(){return execute();},then(ok,bad){return execute().then(ok,bad);},
    async single(){const response=await execute();if(response.error)return response;if(response.data.length!==1)return {data:null,error:Error('Project no longer exists. Refresh and try again.')};return {data:response.data[0],error:null};}};
   return query;

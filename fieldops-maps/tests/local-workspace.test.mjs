@@ -27,4 +27,7 @@ test('no-login workspace persists projects, CRS, vectors, raster blobs and style
  assert.equal((await reopened.from('maps').select('*').eq('id',a.id).single()).data.default_crs,'EPSG:7856');
  await reopened.storage.from('gis-files').remove(['preview.png']);
  assert.ok((await reopened.storage.from('gis-files').download('preview.png')).error);
+ await reopened.from('layers').delete().eq('id',saved.data);
+ assert.equal((await reopened.from('layers').select('*').eq('map_id',a.id).order()).data.length,0);
+ assert.equal((await reopened.from('layers').select('*').eq('map_id',b.id).order()).data.length,1);
 });

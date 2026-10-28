@@ -1,0 +1,26 @@
+import {attributeFields,filterOperators} from './explore-data.js';
+export const escapeHTML=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function toolDialog(title,body){
+ const dialog=document.createElement('dialog');dialog.className='explore-dialog';dialog.innerHTML=`<form><div class="dialog-heading"><h2>${escapeHTML(title)}</h2><button type="button" data-dismiss aria-label="Close">×</button></div>${body}<p class="error" role="alert"></p><div class="dialog-actions"><button type="button" data-dismiss>Cancel</button><button type="submit" class="primary">Apply</button></div></form>`;
+ document.body.append(dialog);dialog.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();return dialog;
+}
+export function filterDialog(layer,view,onApply){
+ const fields=attributeFields(layer.fc),conditions=structuredClone(view.filter?.conditions||[]);
+ const d=toolDialog(`Filter · ${layer.name}`,`<p>Filters change the view, not the source data. The table and map use the same conditions.</p><label>Match<select name="match"><option value="all">All conditions</option><option value="any">Any condition</option></select></label><div class="filter-rows"></div><div><button type="button" data-add>＋ Condition</button><button type="button" data-clear>Clear filters</button></div>`),q=s=>d.querySelector(s);
+ q('[name=match]').value=view.filter?.match||'all';
+ const draw=()=>{q('.filter-rows').innerHTML=conditions.map((c,i)=>`<div data-condition="${i}"><select data-key="field" aria-label="Column ${i+1}">${fields.map(f=>`<option value="${escapeHTML(f)}" ${f===c.field?'selected':''}>${escapeHTML(f)}</option>`).join('')}</select><select data-key="op" aria-label="Condition ${i+1}">${Object.entries(filterOperators).map(([k,v])=>`<option value="${k}" ${c.op===k?'selected':''}>${v}</option>`).join('')}</select><input data-key="value" aria-label="Value ${i+1}" value="${escapeHTML(c.value)}" ${['empty','notempty'].includes(c.op)?'disabled':''}><button type="button" data-remove="${i}" aria-label="Remove condition ${i+1}">×</button></div>`).join('');};
+ q('[data-add]').onclick=()=>{if(conditions.length>=20)return;conditions.push({field:fields[0],op:'eq',value:''});draw();};q('[data-clear]').onclick=()=>{conditions.length=0;draw();};
+ q('.filter-rows').onchange=e=>{const row=e.target.closest('[data-condition]');if(!row||!e.target.dataset.key)return;conditions[Number(row.dataset.condition)][e.target.dataset.key]=e.target.value;if(e.target.dataset.key==='op')draw();};
+ q('.filter-rows').onclick=e=>{const b=e.target.closest('[data-remove]');if(b){conditions.splice(Number(b.dataset.remove),1);draw();}};
+ q('form').onsubmit=async e=>{e.preventDefault();try{for(const c of conditions)if(['gt','gte','lt','lte'].includes(c.op)&&(c.value.trim()===''||!Number.isFinite(Number(c.value))))throw Error('Enter a number for numeric comparisons.');await onApply({match:q('[name=match]').value,conditions});d.close();}catch(error){q('.error').textContent=error.message;}};draw();return d;
+}
+export function popupDialog(layer,onApply){
+ const fields=attributeFields(layer.fc),saved=layer.metadata?.style?.popup;
+ const rows=[...(saved?.fields||[]).filter(c=>fields.includes(c.field)).map(c=>({...c})),...fields.filter(f=>!saved?.fields?.some(c=>c.field===f)).map(field=>({field,label:field,visible:true}))];
+ const d=toolDialog(`Information fields · ${layer.name}`,`<p>Choose the title, field names, visibility and order shown when someone selects a feature.</p><label>Feature title<select name="title"><option value="">Automatic</option>${fields.map(f=>`<option value="${escapeHTML(f)}">${escapeHTML(f)}</option>`).join('')}</select></label><div class="popup-fields"></div>`),q=s=>d.querySelector(s);
+ q('[name=title]').value=saved?.titleField||'';
+ function draw(){q('.popup-fields').innerHTML=rows.map((r,i)=>`<div data-field="${i}"><input type="checkbox" data-key="visible" ${r.visible!==false?'checked':''} aria-label="Show ${escapeHTML(r.field)}"><span>${escapeHTML(r.field)}</span><input data-key="label" value="${escapeHTML(r.label)}" maxlength="120" aria-label="Display name for ${escapeHTML(r.field)}"><button type="button" data-up="${i}" ${i===0?'disabled':''} aria-label="Move ${escapeHTML(r.field)} up">↑</button><button type="button" data-down="${i}" ${i===rows.length-1?'disabled':''} aria-label="Move ${escapeHTML(r.field)} down">↓</button></div>`).join('');}
+ q('.popup-fields').oninput=e=>{const row=e.target.closest('[data-field]');if(row&&e.target.dataset.key)rows[Number(row.dataset.field)][e.target.dataset.key]=e.target.type==='checkbox'?e.target.checked:e.target.value;};
+ q('.popup-fields').onclick=e=>{const b=e.target.closest('[data-up],[data-down]');if(!b)return;const i=Number(b.dataset.up??b.dataset.down),j=i+(b.dataset.up===undefined?1:-1);[rows[i],rows[j]]=[rows[j],rows[i]];draw();};
+ q('form').onsubmit=async e=>{e.preventDefault();q('[type=submit]').disabled=true;try{await onApply({titleField:q('[name=title]').value,fields:rows});d.close();}catch(error){q('.error').textContent=error.message;}finally{q('[type=submit]').disabled=false;}};draw();return d;
+}
