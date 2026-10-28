@@ -49,3 +49,6 @@
  #workspace-settings .workspace-settings-content{padding:8px 12px 12px}
  #platform-dashboard .platform-stats{row-gap:14px}
 }
+
+.combined-usage{min-width:0;width:100%}.combined-values{display:flex;justify-content:space-between;gap:10px;font-size:10px;color:#7c8d81}.combined-values>span{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.combined-values strong{font-size:12px;font-weight:500;color:#314b3a;font-variant-numeric:tabular-nums}.combined-values .usage-dot{width:5px;height:5px}.combined-track{position:relative;height:7px;background:#edf0ed;border-radius:8px;margin:7px 3px 2px}.combined-track>span{display:block;height:100%;border-radius:inherit;background:#577b5c}.combined-track>i{position:absolute;top:50%;width:5px;height:13px;border-radius:3px;background:#668baf;border:1px solid white;transform:translate(-50%,-50%);box-sizing:border-box}.member-columns{grid-template-columns:minmax(150px,1fr) 2fr}.member-usage-row>summary{grid-template-columns:minmax(150px,1fr) 2fr 12px}
+@media(max-width:600px){.member-usage-row>summary{grid-template-columns:1fr 12px;gap:8px}.member-identity{grid-column:1}.member-expand{grid-column:2;grid-row:1}.member-usage-row .combined-usage{grid-column:1/-1}.combined-values{gap:6px}}
