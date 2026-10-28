@@ -20,6 +20,7 @@
   "dependencies": {
     "@supabase/supabase-js": "2.95.3",
     "gdal3.js": "2.8.1",
+    "jsts": "2.12.1",
     "leaflet": "1.9.4",
     "papaparse": "5.5.3"
   },
