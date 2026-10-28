@@ -47,3 +47,10 @@ do $$ begin assert (public.workspace_usage('eeb0cc03-b303-4a01-a101-000000000010
 select set_config('request.jwt.claims','{"sub":"c636e8ab-01d4-458e-a455-6f329dae6bf1"}',true);
 do $$ declare c jsonb;begin select value into c from jsonb_array_elements(public.platform_overview()->'companies') where value->>'id'='eeb0cc03-b303-4a01-a101-000000000010';assert (c->>'upload_bytes')::numeric=200;end $$;
 reset role;
+
+-- Editing another company must not let an operator write this company's orphan files.
+insert into maps_private.file_accounts values('eeb0cc03-b303-4a01-a101-000000000003/old-orphan.csv','eeb0cc03-b303-4a01-a101-000000000010','eeb0cc03-b303-4a01-a101-000000000003');
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"eeb0cc03-b303-4a01-a101-000000000003"}',true);
+do $$ begin assert not maps_private.ws_file('eeb0cc03-b303-4a01-a101-000000000003/old-orphan.csv',true);end $$;
+reset role;
