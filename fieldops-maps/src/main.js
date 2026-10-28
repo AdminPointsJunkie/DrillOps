@@ -1,3 +1,4 @@
+import {readAuthLink,installPasswordSetup} from './password-setup.js';
 import {installAccounts} from './accounts.js';
 import {createSaveStatus} from './save-status.js';
 import {syncProjectRelease} from './operator-sync.js';
@@ -19,7 +20,7 @@ import {errorText} from './geo.js';
 import {importCRS,projectCRS} from './project.js';
 import {installBasemaps} from './basemaps.js';
 import {vectorStyle,pointMarker,styleControls,visibilityIcon} from './layer-style.js';
-const inviteType=new URLSearchParams(location.hash.slice(1)).get('type');let inviteHandled=false;
+const authLink=readAuthLink(location.href);
 const db=LOCAL_TESTING?createLocalWorkspace():createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -323,14 +324,6 @@ let locationMarker;$('#locate').onclick=()=>{if(!navigator.geolocation)return to
 $('#account').onclick=async()=>{if(user&&(busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>!l.saved||l.saving)))return toast('Finish pending imports and saves before signing out.');if(user){const {error}=await db.auth.signOut();if(error)return toast(errorText(error));clearMap();activeMap=null;$('#map-select').innerHTML='<option value="">Unsaved project</option>';syncProject();queue=[];renderQueue();toast('Signed out.')}else $('#auth').showModal();};
 async function auth(signup=false){$('#auth-error').textContent='';const email=$('#email').value,password=$('#password').value;if(!$('#auth-form').reportValidity())return;const result=signup?await db.auth.signUp({email,password,options:{emailRedirectTo:'https://www.drillops.com.au/maps/'}}):await db.auth.signInWithPassword({email,password});if(result.error){$('#auth-error').textContent=result.error.message;return;}if(signup&&!result.data.session){$('#auth-error').textContent='Account created. Confirm your email, then return here and sign in.';return;}$('#auth').close();toast('Signed in. Your maps will be available on any device.');}
 $('#auth-form').onsubmit=e=>{e.preventDefault();auth().catch(e=>$('#auth-error').textContent=errorText(e));};$('#signup').onclick=()=>auth(true).catch(e=>$('#auth-error').textContent=errorText(e));
-$('#set-password').onclick=()=>{$('#password-form').reset();$('#password-error').textContent='';$('#password-dialog').showModal();};
-$('#password-form').onsubmit=async e=>{
- e.preventDefault();if(!user||!$('#password-form').reportValidity())return;
- if($('#new-password').value!==$('#confirm-password').value){$('#password-error').textContent='Passwords do not match.';return;}
- const button=$('#save-password');if(button.disabled)return;button.disabled=true;$('#password-error').textContent='';
- try{const {error}=await db.auth.updateUser({password:$('#new-password').value});if(error)throw error;$('#password-form').reset();$('#password-dialog').close();toast('Password saved. Use your email and password to sign in next time.');}
- catch(e){$('#password-error').textContent=errorText(e);}finally{button.disabled=false;}
-};
 $('#email-link').onclick=async()=>{
  if(!$('#email').reportValidity())return;
  const b=$('#email-link');b.disabled=true;$('#auth-error').textContent='';
@@ -358,7 +351,8 @@ $('#browser-import-form').onsubmit=async e=>{
 };
 async function listMaps(){const {data,error}=await db.from('maps').select('*').order('created_at');if(error)throw error;$('#map-select').innerHTML='<option value="">Unsaved project</option>'+data.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');if(activeMap)$('#map-select').value=activeMap.id;return data;}
 const accountUI=installAccounts(db,()=>user);
-let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;$('#people').hidden=LOCAL_TESTING||user?.app_metadata?.maps_role!=='admin';if(!user)accountUI.close();if(previousUser&&previousUser.id!==user?.id){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}$('#set-password').hidden=true;if(user&&!inviteHandled&&(inviteType==='invite'||inviteType==='recovery'||event==='PASSWORD_RECOVERY')){inviteHandled=true;$('#password-dialog').showModal();}$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(user.app_metadata?.maps_role==='admin'?'Main admin · Cloud workspace':'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{maps=await listMaps();if(!activeMap&&!layers.length&&maps.length)await loadMap(maps[0].id);}catch(e){toast(errorText(e));}},0);});
+const passwordSetup=installPasswordSetup(db,authLink,()=>user,toast);
+let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;$('#people').hidden=LOCAL_TESTING||user?.app_metadata?.maps_role!=='admin';if(!user)accountUI.close();if(previousUser&&previousUser.id!==user?.id){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(user.app_metadata?.maps_role==='admin'?'Main admin · Cloud workspace':'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{maps=await listMaps();if(!activeMap&&!layers.length&&maps.length)await loadMap(maps[0].id);}catch(e){toast(errorText(e));}},0);});
 let editingProject=false;
 function syncProject(){
  refreshSaveStatus();

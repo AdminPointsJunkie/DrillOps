@@ -2,6 +2,8 @@
 
 ## People and access
 
+Invited accounts without a password automatically open Create your password after sign-in, including after refresh or email-link sign-in. Closing it leaves Finish account setup available. Expired/used links show an actionable dialog; admins can Resend invitation on unverified accounts without changing their roles or assignments. The hosted invite template is tracked at `supabase/templates/invite.html` (subject: Create your DrillOps Maps password). Existing expired emails require a new invitation.
+
 Admins open **People & access** in the header to invite people, edit names, assign Admin / Editor / Operator roles, suspend access and select operator projects. Editors manage their own projects; admins manage all projects. New signups and invitations are pending with no GIS access until approved. Invitations use the configured Supabase email provider and its limits. No emails are sent automatically during deployment.
 
 Permissions read current server-managed roles, so revoked privileges do not survive in stale JWTs. Suspended accounts may still authenticate but cannot access GIS data. Account changes are atomic, and admins cannot alter their own account here. The invitation Edge Function validates the signed-in user and current admin status before using its server-only service key; gateway JWT verification is disabled because the function performs authentication itself.
