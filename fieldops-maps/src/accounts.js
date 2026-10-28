@@ -44,9 +44,10 @@ export function installAccounts(db,getUser,doc=document,options={}){
  }
  dialog.addEventListener('cancel',e=>{if(working)e.preventDefault();});
  doc.querySelector('#people').textContent='Workspace settings';
- doc.querySelector('#people').onclick=async()=>{if(!canOpen())return;workspace=getWorkspace()?.id||null;dialog.innerHTML='<p>Loading workspace settings…</p>';dialog.showModal();try{await load();}catch(e){dialog.innerHTML=`<p>${esc(e.message)}</p><button data-close>Close</button>`;dialog.querySelector('button').onclick=()=>dialog.close();}};
+ async function openWorkspace(id=getWorkspace()?.id){if(!canOpen())return;workspace=id||null;tab='people';dialog.innerHTML='<p>Loading workspace settings…</p>';if(!dialog.open)dialog.showModal();try{await load();}catch(e){dialog.innerHTML=`<p>${esc(e.message)}</p><button data-close>Close</button>`;dialog.querySelector('button').onclick=()=>dialog.close();}}
+ doc.querySelector('#people').onclick=()=>openWorkspace();
  async function openInvitations(invites){
   dialog.innerHTML=`<div class="workspace-settings-heading"><h2>Your invitations</h2><button data-close aria-label="Close invitations">×</button></div><div data-message role="status"></div>${invites.map(i=>`<div class="workspace-invitation"><div><strong>${esc(i.workspace)}</strong><small>${roles[i.role]} · Expires ${esc(new Date(i.expires_at).toLocaleDateString())}</small></div><button class="primary" data-accept="${i.id}">Accept invitation</button></div>`).join('')}`;dialog.querySelector('[data-close]').onclick=()=>{if(!working)dialog.close();};dialog.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{if(working||!canOpen())return;working=true;b.disabled=true;try{const result=await mutate('accept',{id:b.dataset.accept},null);await onChanged(result.id);dialog.close();}catch(e){message(e.message);}finally{working=false;b.disabled=false;}});dialog.showModal();
  }
- return {openInvitations,close(){dialog.close();state=null;dialog.innerHTML='';}};
+ return {openWorkspace,openInvitations,close(){dialog.close();state=null;dialog.innerHTML='';}};
 }
