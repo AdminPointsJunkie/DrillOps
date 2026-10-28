@@ -7,3 +7,10 @@ test('company usage requests only the selected workspace, displays current stora
  const ui=installStorageUsage({rpc:async(n,p)=>{calls.push([n,p]);return fail?{error:{message:'Unavailable'}}:{data:{file_bytes:2048,file_count:2,vector_bytes:100}};}},{doc,getWorkspace:()=>company});
  await ui.open();assert.deepEqual(calls[0],['workspace_usage',{p_workspace:'a'}]);assert.match(doc.body.textContent,/2.0 KiB/);assert.match(doc.body.textContent,/Not yet metered/);fail=true;await ui.open();assert.match(doc.body.textContent,/Unavailable/);ui.close();assert.equal(doc.querySelector('#storage-usage').textContent,'');company=null;await ui.open();assert.equal(calls.length,2);
 });
+
+test('monthly billing uploads remain distinct from current file storage and show tracking start',async()=>{
+ const dom=new JSDOM(''),doc=dom.window.document;dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ const data={file_bytes:1024,file_count:1,vector_bytes:50,upload_bytes:4096,month_start:'2026-09-30T14:00:00Z',meter_started_at:'2026-10-28T20:00:00Z',partial_month:true};
+ const ui=installStorageUsage({rpc:async()=>({data})},{doc,getWorkspace:()=>({id:'a',name:'Company'})});await ui.open();
+ assert.match(doc.body.textContent,/October 2026/);assert.match(doc.body.textContent,/4.0 KiB/);assert.match(doc.body.textContent,/1.0 KiB/);assert.match(doc.body.textContent,/Partial month/);assert.match(doc.body.textContent,/deleting files never reduces/);dom.window.close();
+});

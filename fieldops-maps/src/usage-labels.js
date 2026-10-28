@@ -1,0 +1,2 @@
+export const billingPeriod=data=>data.month_start?new Date(data.month_start).toLocaleDateString('en-AU',{month:'long',year:'numeric',timeZone:'Australia/Brisbane'}):'this month';
+export const meterNote=data=>!data.meter_started_at?'Monthly upload metering is unavailable.':data.partial_month?`Partial month: tracking started ${new Date(data.meter_started_at).toLocaleString('en-AU',{timeZone:'Australia/Brisbane'})} Brisbane time. Earlier uploads are not included.`:'Calendar month in Brisbane time.';

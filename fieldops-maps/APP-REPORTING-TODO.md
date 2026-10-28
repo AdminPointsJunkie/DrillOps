@@ -41,6 +41,11 @@ Admins read `workspace_member_report(p_workspace)`; the server restricts this to
 - Last seen: server receipt of a device check-in in this company. It is not continuous online status.
 - Device version: last client-reported successful download, compared with latest published version. Draft changes are excluded.
 - Viewed: a complete web load, not persistent/offline storage.
-- Storage: current company-linked files attributed by uploader path, deduplicated. Unattributed/removed-member files remain shown separately. Monthly cumulative uploads, storage allowances and billing enforcement are still a separate pending implementation. Deleting a file must not refund that future monthly upload ledger.
+- Storage: current company-linked files attributed by uploader path, deduplicated. Unattributed/removed-member files remain shown separately. Monthly cumulative upload metering is now active from 29 October 2026, using Brisbane calendar months. October is partial. Deleting files does not refund uploads; re-uploads count again. Internal SYNC copies and downloads are excluded. Storage allowances and payment collection are still pending.
 
 Historical app downloads cannot be reconstructed. After upgrading, the app may report an existing cached release only if it validates that the complete release is still available and has its true recorded completion time; otherwise leave its history unknown.
+
+
+## Future app uploads (operators remain read-only)
+
+If an editor upload feature is ever added, call `register_file_upload(p_map, p_path)` before every storage upload or SYNC copy. The path must start with the authenticated user UUID and belong to an editable project. This binds the file to its company before bytes are sent. Do not submit byte counts: the database meters completed Storage metadata. Read-only apps need no change for billing; their downloads are not uploads.

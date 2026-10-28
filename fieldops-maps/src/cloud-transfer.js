@@ -1,3 +1,4 @@
+import {registerUpload} from './upload-meter.js';
 export const CLOUD_FILE_LIMIT=50*1024*1024;
 const checked=async request=>{const result=await request;if(result.error)throw result.error;return result.data;};
 
@@ -31,6 +32,7 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
    const blob=await checked(local.storage.from('gis-files').download(path));
    const filename=layer.metadata?.source_names?.[i]||path.split('/').at(-1);
    const target=`${userId}/${id}/${i}_${filename.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+   await registerUpload(cloud,destination.id,target);
    await checked(cloud.storage.from('gis-files').upload(target,blob,{upsert:true,contentType:blob.type||'application/octet-stream'}));paths.push(target);
   }
   const payload={id,map_id:destination.id,name:layer.name,kind:layer.kind,source_crs:layer.source_crs,
@@ -43,6 +45,7 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
    if(!layer.metadata?.xyz){
     const blob=await checked(local.storage.from('gis-files').download(layer.raster_path));
     payload.raster_path=`${userId}/${id}/display.png`;
+    await registerUpload(cloud,destination.id,payload.raster_path);
     await checked(cloud.storage.from('gis-files').upload(payload.raster_path,blob,{upsert:true,contentType:'image/png'}));
    }
    await checked(cloud.from('layers').insert(payload));

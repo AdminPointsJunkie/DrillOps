@@ -14,7 +14,7 @@ test('cloud transfer preserves source files, features, XYZ, styles and groups; r
  project.layer_layout=[{id:'group-1',name:'Survey',visible:false,collapsed:true,children:[vector]},xyz];
  await local.from('maps').update({layer_layout:project.layer_layout}).eq('id',project.id);
  const rpc=cloud.rpc;let fail=true;
- cloud.rpc=(name,args)=>fail?(fail=false,Promise.resolve({error:Error('Network interrupted')})):rpc(name,args);
+ cloud.rpc=(name,args)=>name==='register_file_upload'?Promise.resolve({data:null}):fail?(fail=false,Promise.resolve({error:Error('Network interrupted')})):rpc(name,args);
  await assert.rejects(transferProject(local,cloud,project,'owner-1'),/Network interrupted/);
  const id=await transferProject(local,cloud,project,'owner-1');
  const copied=(await cloud.from('layers').select('*').eq('map_id',id).order()).data;

@@ -1,3 +1,4 @@
+import {registerUpload} from './upload-meter.js';
 import {reportWebDevice} from './device-reporting.js';
 import './explore.css';
 import {installMapExplorer} from './map-explorer.js';
@@ -274,7 +275,7 @@ async function replaceLayer(old,next){
  if(old.saved){
   await styleSaves.get(old.id);
   if(next.kind==='vector'&&LOCAL_TESTING){payload.fc=next.fc;payload.feature_count=next.fc.features.length;}
-  else if(next.kind==='raster'){rasterPath=`${user.id}/${crypto.randomUUID()}/display.png`;const {error}=await db.storage.from('gis-files').upload(rasterPath,next.blob);if(error)throw error;payload.raster_path=rasterPath;}
+  else if(next.kind==='raster'){rasterPath=`${user.id}/${crypto.randomUUID()}/display.png`;if(!LOCAL_TESTING)await registerUpload(db,activeMap.id,rasterPath);const {error}=await db.storage.from('gis-files').upload(rasterPath,next.blob);if(error)throw error;payload.raster_path=rasterPath;}
   const {error}=next.kind==='vector'&&!LOCAL_TESTING?await db.rpc('replace_vector',{p_layer_id:old.id,p_layer:payload,p_features:next.fc.features}):await db.from('layers').update(payload).eq('id',old.id).select('id').single();
   if(error){if(rasterPath)await db.storage.from('gis-files').remove([rasterPath]);throw error;}
  }
@@ -430,9 +431,9 @@ async function ensureMap(){if(activeMap)return;if(!user){$('#auth').showModal();
 async function saveLayer(l,progress=()=>{}){if(!canEditLayer(l))throw Error('This account cannot save changes to this layer.');if(l.saving)return;await ensureMap();if(l.saved)return;l.saving=true;l.saveError=null;refreshSaveStatus();const paths=[];try{
  if(!LOCAL_TESTING&&(l.files||[]).some(f=>f.size>CLOUD_FILE_LIMIT))throw Error('Cloud storage currently accepts files up to 50 MB each.');
  toast(LOCAL_TESTING?'Saving original files and layer in this browser…':'Saving original files and layer to Supabase…');const prefix=`${user.id}/${crypto.randomUUID()}`;
- let fileNumber=0;for(const file of l.files||[]){progress(`${LOCAL_TESTING?'Saving':'Uploading'} original file ${++fileNumber} of ${l.files.length}: ${file.name}`);const path=`${prefix}/${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('gis-files').upload(path,file,{contentType:file.type||'application/octet-stream'});if(error)throw error;paths.push(path);}
+ let fileNumber=0;for(const file of l.files||[]){progress(`${LOCAL_TESTING?'Saving':'Uploading'} original file ${++fileNumber} of ${l.files.length}: ${file.name}`);const path=`${prefix}/${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;if(!LOCAL_TESTING)await registerUpload(db,activeMap.id,path);const{error}=await db.storage.from('gis-files').upload(path,file,{contentType:file.type||'application/octet-stream'});if(error)throw error;paths.push(path);}
  progress('Saving layer details and display preview…');const payload={map_id:activeMap.id,name:l.name,kind:l.kind,source_crs:l.source_crs,vertical_datum:l.vertical_datum,metadata:{...l.metadata,crs_label:l.crsLabel},color:l.color,opacity:l.opacity??.85,visible:l.visible!==false,bounds:l.bounds,original_paths:paths};let newID;
- if(l.metadata?.xyz){const{data,error}=await db.from('layers').insert(payload).select().single();if(error)throw error;newID=data.id;}else if(l.kind==='vector'){const{data,error}=await db.rpc('import_vector',{p_layer:payload,p_features:l.fc.features});if(error)throw error;newID=data;}else{const path=`${prefix}/display.png`;const {error:uploadError}=await db.storage.from('gis-files').upload(path,l.blob,{contentType:'image/png'});if(uploadError)throw uploadError;paths.push(path);const{data,error}=await db.from('layers').insert({...payload,raster_path:path}).select().single();if(error)throw error;newID=data.id;}
+ if(l.metadata?.xyz){const{data,error}=await db.from('layers').insert(payload).select().single();if(error)throw error;newID=data.id;}else if(l.kind==='vector'){const{data,error}=await db.rpc('import_vector',{p_layer:payload,p_features:l.fc.features});if(error)throw error;newID=data;}else{const path=`${prefix}/display.png`;if(!LOCAL_TESTING)await registerUpload(db,activeMap.id,path);const {error:uploadError}=await db.storage.from('gis-files').upload(path,l.blob,{contentType:'image/png'});if(uploadError)throw uploadError;paths.push(path);const{data,error}=await db.from('layers').insert({...payload,raster_path:path}).select().single();if(error)throw error;newID=data.id;}
  if(l.kind==='raster'&&!l.metadata?.xyz)l.raster_path=paths.at(-1);
  const oldID=l.id;replaceTreeId(oldID,newID);explorer?.rekey(oldID,newID);l.id=newID;l.saved=true;l.original_paths=paths;rendered.set(l.id,rendered.get(oldID));rendered.delete(oldID);await saveLayout();renderLayers();updateEmpty();toast(LOCAL_TESTING?'Saved in this browser.':'Saved to Supabase. Open this map on your phone to see it.');
  }catch(e){l.saveError=e;if(paths.length)await db.storage.from('gis-files').remove(paths);throw e;}finally{l.saving=false;refreshSaveStatus();}}

@@ -1,3 +1,4 @@
+import {registerUpload} from './upload-meter.js';
 import {flattenTree} from './layer-tree.js';
 const checked=async request=>{const r=await request;if(r.error)throw r.error;return r.data;};
 export async function syncProjectRelease(db,mapId,userId,progress=()=>{}){
@@ -10,6 +11,7 @@ export async function syncProjectRelease(db,mapId,userId,progress=()=>{}){
   for(const layer of layers.filter(l=>included.has(l.id)&&l.kind==='raster'&&!l.metadata?.xyz)){
    progress(`Preparing imagery: ${layer.name}`);
    const target=`${userId}/sync/${id}/${layer.id}.png`;
+   await registerUpload(db,mapId,target);
    await checked(db.storage.from('gis-files').copy(layer.raster_path,target));rasters[layer.id]=target;
   }
  }
