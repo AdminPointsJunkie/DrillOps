@@ -1,10 +1,14 @@
+import {installToolMenus} from './tool-menus.js';
+import {openAnalysis} from './analysis-ui.js';
+import {installMapComponents} from './map-components.js';
+import {openURLUpload} from './upload-url.js';
 import {joinRows} from './table-join.js';
 import {splitDXFSections} from './dxf-sections.js';
 import {registerUpload} from './upload-meter.js';
 import {reportWebDevice} from './device-reporting.js';
 import './explore.css';
 import {installMapExplorer} from './map-explorer.js';
-import {featureInfo} from './explore-data.js';
+import {featureInfo,featureBounds} from './explore-data.js';
 import {installFieldTools,annotationLayer,editAnnotation} from './field-tools.js';
 import {publishedProjects,publishedLayers} from './published-projects.js';
 import {openAttributeStyle} from './attribute-style-dialog.js';
@@ -27,6 +31,8 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import './workspace.css';
 import './workspaces.css';
+import './workspace-settings-page.css';
+import './tool-menus.css';
 import {installWorkspaceLayout} from './workspace-layout.js';
 import {createClient} from '@supabase/supabase-js';
 import {SUPABASE_URL,SUPABASE_KEY,LOCAL_TESTING} from './config.js';
@@ -44,7 +50,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const icon=(name)=>({layers:'▱',plus:'＋',upload:'↑',close:'×',refresh:'↻',locate:'◎',fit:'⤢',cloud:'☁',arrow:'→',check:'✓'}[name]||name);
 let user=null,activeMap=null,layers=[],queue=[],crsList=[],busy=false,reviewIndex=null,preview=null;
 let layerTree=[],layoutPending=0,layoutSave=Promise.resolve();
-let workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
+let toolMenus=null,mapComponents=null,workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
 let explorer=null,fieldTools=null,geometryEditor=null,geometryEditingId=null;
 const isReadOnly=()=>!LOCAL_TESTING&&!!user&&(!workspaceContext||!currentWorkspace||!['owner','admin','editor'].includes(currentWorkspace.role));
 const isAdmin=()=>LOCAL_TESTING||!!user&&!!workspaceContext&&(workspaceContext.platform_admin||['owner','admin'].includes(currentWorkspace?.role));
@@ -144,7 +150,7 @@ function organiseControls(l){return `<div class="organise-controls" data-layer-p
 function renderLayers(){
  const card=id=>{const l=layers.find(l=>l.id===id);return l?layerCard(l):'';};
  $('#layers').innerHTML='<p class="order-hint">Top of list draws on top · drag ⠿ to arrange</p>'+layerTree.map(n=>typeof n==='string'?card(n):`<section class="layer-group" data-group="${n.id}"><div class="group-heading" data-group-drop="${n.id}" data-node="${n.id}"><button class="drag-handle" draggable="true" data-drag="${n.id}" aria-label="Drag group ${esc(n.name)}">⠿</button><button class="group-collapse" data-group-action="collapse" aria-expanded="${!n.collapsed}">${n.collapsed?'▸':'▾'} ${esc(n.name)} <small>${n.children.filter(id=>layers.some(l=>l.id===id)).length}</small></button><button class="layer-visibility" data-group-action="visibility" aria-label="Toggle group ${esc(n.name)}" aria-pressed="${n.visible!==false}">${visibilityIcon(n.visible!==false)}</button><button data-group-action="rename" title="Rename group" aria-label="Rename group ${esc(n.name)}">✎</button></div><div class="group-contents" ${n.collapsed?'hidden':''}>${n.children.map(card).join('')}<div class="group-drop-zone" data-group-drop="${n.id}">Drop layers into this group</div><div class="group-actions"><button data-move="${n.id}" data-direction="-1" aria-label="Move group ${esc(n.name)} up">↑</button><button data-move="${n.id}" data-direction="1" aria-label="Move group ${esc(n.name)} down">↓</button><button data-group-action="remove">Ungroup</button></div></div></section>`).join('')+'<div class="root-drop-zone" data-root-drop="true">Drop here to move outside groups</div>';
- syncStack();workspaceLayout?.refresh();
+ syncStack();workspaceLayout?.refresh();mapComponents?.refresh();
 }
 function arrangementChanged(){renderLayers();saveLayout();}
 let editingGroup=null;
@@ -378,7 +384,7 @@ $('#xyz-form').onsubmit=async e=>{
 let identifyActive=false;
 function identify(value){identifyActive=value;$('#identify').setAttribute('aria-pressed',String(value));$('#feature-info').hidden=!value;$('#map').classList.toggle('identifying',value);if(value){map.closePopup();$('#feature-info-title').textContent='Feature information';$('#feature-info-content').textContent='Click a point, line or shape on the map to inspect its attributes.';}}
 $('#identify').onclick=()=>identify(!identifyActive);$('#close-info').onclick=()=>identify(false);
-$('#fit').onclick=fit;$('#help').onclick=()=>$('#help-dialog').showModal();$('#mobile-layers').onclick=()=>$('#sidebar').classList.toggle('mobile-open');
+$('#fit').onclick=fit;$('#help').onclick=()=>$('#help-dialog').showModal();$('#mobile-layers').onclick=()=>{if(innerWidth<=760)$('#sidebar').classList.toggle('mobile-open');else document.body.classList.toggle('layers-collapsed');map.invalidateSize();};
 let locationMarker;$('#locate').onclick=()=>{if(!navigator.geolocation)return toast('Location is unavailable in this browser.');navigator.geolocation.getCurrentPosition(p=>{if(locationMarker)map.removeLayer(locationMarker);locationMarker=L.circle([p.coords.latitude,p.coords.longitude],{radius:p.coords.accuracy,color:'#3087ba',fillOpacity:.15}).addTo(map).bindPopup(`GPS accuracy: approximately ${Math.round(p.coords.accuracy)} m`);map.setView(locationMarker.getLatLng(),16)},e=>toast(e.message),{enableHighAccuracy:true,timeout:15000});};
 $('#account').onclick=async()=>{if(user&&(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>!l.saved||l.saving)))return toast('Finish pending imports and saves before signing out.');if(user){const {error}=await db.auth.signOut();if(error)return toast(errorText(error));clearMap();activeMap=null;$('#map-select').innerHTML='<option value="">Unsaved project</option>';syncProject();queue=[];renderQueue();toast('Signed out.')}else registration.open(false);};
 const registration=installRegistration(db);
@@ -463,7 +469,7 @@ async function saveLayer(l,progress=()=>{}){if(!canEditLayer(l))throw Error('Thi
  progress('Saving layer details and display preview…');const payload={map_id:activeMap.id,name:l.name,kind:l.kind,source_crs:l.source_crs,vertical_datum:l.vertical_datum,metadata:{...l.metadata,crs_label:l.crsLabel},color:l.color,opacity:l.opacity??.85,visible:l.visible!==false,bounds:l.bounds,original_paths:paths};let newID;
  if(l.metadata?.xyz){const{data,error}=await db.from('layers').insert(payload).select().single();if(error)throw error;newID=data.id;}else if(l.kind==='vector'){const{data,error}=await db.rpc('import_vector',{p_layer:payload,p_features:l.fc.features});if(error)throw error;newID=data;}else{const path=`${prefix}/display.png`;if(!LOCAL_TESTING)await registerUpload(db,activeMap.id,path);const {error:uploadError}=await db.storage.from('gis-files').upload(path,l.blob,{contentType:'image/png'});if(uploadError)throw uploadError;paths.push(path);uploaded.push(path);const{data,error}=await db.from('layers').insert({...payload,raster_path:path}).select().single();if(error)throw error;newID=data.id;}
  if(l.kind==='raster'&&!l.metadata?.xyz)l.raster_path=paths.at(-1);
- const oldID=l.id;replaceTreeId(oldID,newID);explorer?.rekey(oldID,newID);l.id=newID;l.saved=true;l.original_paths=paths;if(l.sourceUpload)l.sourceUpload.paths=[...paths];rendered.set(l.id,rendered.get(oldID));rendered.delete(oldID);await saveLayout();renderLayers();updateEmpty();toast(LOCAL_TESTING?'Saved in this browser.':'Saved to Supabase. Open this map on your phone to see it.');
+ const oldID=l.id;replaceTreeId(oldID,newID);explorer?.rekey(oldID,newID);l.id=newID;l.saved=true;l.original_paths=paths;if(l.sourceUpload)l.sourceUpload.paths=[...paths];rendered.set(l.id,rendered.get(oldID));rendered.delete(oldID);mapComponents?.rekey(oldID,newID);await saveLayout();renderLayers();updateEmpty();toast(LOCAL_TESTING?'Saved in this browser.':'Saved to Supabase. Open this map on your phone to see it.');
  }catch(e){l.saveError=e;if(!l.saved&&uploaded.length)await db.storage.from('gis-files').remove(uploaded);throw e;}finally{l.saving=false;refreshSaveStatus();}}
 function clearMap(){explorer?.reset();fieldTools?.reset();geometryEditor?.reset();saves.clear();syncDirty=false;syncError=false;layerTree=[];for(const l of rendered.values())map.removeLayer(l);rendered.clear();for(const l of layers)if(l.url?.startsWith('blob:'))URL.revokeObjectURL(l.url);layers=[];if(preview){map.removeLayer(preview);preview=null;}renderLayers();updateEmpty();}
 async function loadMap(id){if(!id){$('#map-select').value=activeMap?.id||'';return;}if(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||layers.some(l=>l.saving)){$('#map-select').value=activeMap?.id||'';return;}if(layers.some(l=>!l.saved)||queue.length){toast('Finish queued imports and save or remove unsaved layers before switching or refreshing projects.');$('#map-select').value=activeMap?.id||'';return;}setBusy(true,'Refreshing saved layers…');try{if(isReadOnly()){const project=maps.find(p=>p.id===id);if(!project)throw Error('Choose an assigned published project.');const result=await publishedLayers(db,project);clearMap();activeMap=result.project;layerTree=normaliseTree(readLayout(),result.layers.map(l=>l.id));result.layers.forEach(addLayer);syncProject();$('#map-select').value=id;fit();void reportWebDevice(db,currentWorkspace?.id,project.release_id);return;}const{data,error}=await db.from('layers').select('*').eq('map_id',id).order('created_at');if(error)throw error;const loaded=[];for(const l of data){if(l.kind==='vector'){const result=await db.rpc('layer_geojson',{p_layer_id:l.id});if(result.error)throw result.error;l.fc=result.data;}else if(!l.metadata?.xyz){const result=await db.storage.from('gis-files').download(l.raster_path);if(result.error)throw result.error;l.url=URL.createObjectURL(result.data);}l.saved=true;l.crsLabel=l.metadata?.crs_label;loaded.push(l);}clearMap();activeMap=maps.find(m=>m.id===id);layerTree=normaliseTree(readLayout(),loaded.map(l=>l.id));loaded.forEach(addLayer);syncProject();$('#map-select').value=id;fit();toast(LOCAL_TESTING?'Project refreshed from this browser.':'Map refreshed from Supabase.');}catch(e){toast(errorText(e));}finally{setBusy(false);}}
@@ -471,7 +477,7 @@ $('#map-select').onchange=e=>loadMap(e.target.value);$('#refresh').onclick=async
 renderLayers();
 window.addEventListener('beforeunload',e=>{if(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||queue.length||styleSaves.size||saves.state().failed||layers.some(l=>!l.saved||l.saving)){e.preventDefault();e.returnValue='';}});
 
-function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();}
+function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();toolMenus?.refresh();}
 async function saveStylePart(l,key,value){if(!canEditLayer(l))throw Error('This layer is read only.');const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)throw Error('Layer is no longer open.');await changeLayerStyle({target:{closest:()=>card,dataset:{action:key},value}});renderLayers();if(saves.state().failed)throw Error('Changed here, but cloud saving failed. Use Retry before SYNC.');toast(l.saved?'Settings saved. SYNC to publish these defaults.':'Settings applied. Save the layer to keep them.');}
 function openAnnotationSettings(l){if(!isAdmin())return;editAnnotation(l,{canAnnotate:isAdmin,save:async(layer,values)=>{const next={...layer,name:values.name,fc:structuredClone(layer.fc)};next.fc.features[0].properties.note=values.note;next.metadata={...layer.metadata,annotation:{...layer.metadata.annotation}};await replaceLayer(layer,next);await changeLayerStyle({target:{closest:()=>[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===layer.id),dataset:{action:'color'},value:values.color}});renderLayers();},remove:async layer=>{if(layer.saved){const {error}=await db.from('layers').delete().eq('id',layer.id);if(error)throw error;}map.removeLayer(rendered.get(layer.id));rendered.delete(layer.id);layers=layers.filter(l=>l!==layer);removeNode(layerTree,layer.id);await saveLayout();renderLayers();updateEmpty();syncDirty=true;refreshSaveStatus();}});}
 explorer=installMapExplorer({L,map,getLayers:()=>layers,isVisible,canEdit:canEditLayer,redraw:redrawLayer,saveStyle:saveStylePart,showInfo:(title,content)=>{identifyActive=true;$('#identify').setAttribute('aria-pressed','true');$('#feature-info').hidden=false;$('#feature-info-title').textContent=title;$('#feature-info-content').replaceChildren(content);}});
@@ -496,6 +502,19 @@ async function openDrawing(target){
 $('#open-drawing').onclick=()=>openDrawing().catch(e=>toast(errorText(e)));
 
 workspaceLayout=installWorkspaceLayout();
+const canCreate=()=>!!(LOCAL_TESTING||user)&&!isReadOnly()&&!busy&&!syncing;
+const analysisScope=()=>`${user?.id||'local'}:${currentWorkspace?.id||''}:${activeMap?.id||''}`;
+async function addAnalysisResult(fc,name){
+ if(!canCreate())throw Error('This project is read only or busy.');
+ if(geometryEditor?.pending||fieldTools?.pending)throw Error('Finish the current drawing first.');
+ const bounds=[Infinity,Infinity,-Infinity,-Infinity];for(const f of fc.features){const b=featureBounds(f);if(b){bounds[0]=Math.min(bounds[0],b[0]);bounds[1]=Math.min(bounds[1],b[1]);bounds[2]=Math.max(bounds[2],b[2]);bounds[3]=Math.max(bounds[3],b[3]);}}
+ if(!bounds.every(Number.isFinite))throw Error('The result has no usable coordinates.');
+ addLayer({id:crypto.randomUUID(),name:name||'Analysis result',kind:'vector',fc,bounds,source_crs:'EPSG:4326',crsLabel:'WGS 84 · analysis',vertical_datum:'RL',metadata:{manual:true,style:{}},color:'#315d49',opacity:.9,visible:true,saved:false,files:[]});
+ toast('Result added. Use Save on the new layer to keep it.');
+}
+mapComponents=installMapComponents({getLayers:()=>layers,getScope:analysisScope,explorer});
+toolMenus=installToolMenus({canCreate,analyse:operation=>{const scope=analysisScope();openAnalysis(operation,{getLayers:()=>layers,canCreate:()=>canCreate()&&scope===analysisScope(),onResult:addAnalysisResult});},component:type=>type==='show'?mapComponents.show():mapComponents.open(type),draw:async mode=>{await openDrawing();geometryEditor?.setMode(mode);},uploadURL:()=>openURLUpload(handleFiles,canCreate)});
+toolMenus.refresh();
 
 function workspacePending(){return geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>!l.saved||l.saving);}
 function renderWorkspaces(){
@@ -534,5 +553,5 @@ async function openPrint(quick=false){
   await openPrintEditor({userId:user.id,projectId:activeMap?.id,title:activeMap?.name||'DrillOps FieldMaps',description:activeMap?.description||'',center:[center.lat,center.lng],zoom:map.getZoom(),viewSize:[size.x,size.y],basemap:$('#basemap').value,layers:flattenTree(layerTree).map(id=>layers.find(l=>l.id===id)).filter(l=>l&&isVisible(l)).map(l=>l.kind==='vector'?{...l,fc:{...l.fc,features:l.fc.features.filter(f=>!explorer||explorer.acceptFeature(l,f))}}:l),onClose:()=>{printEditorOpen=false;}},{quick});
  }catch(error){printEditorOpen=false;toast('Could not open export: '+errorText(error));}
 }
-for(const [label,quick] of [['Print layout',false],['Export image',true]]){const button=document.createElement('button');button.className='subtle';button.textContent=label;button.onclick=()=>openPrint(quick);document.querySelector('header').append(button);}
+for(const [label,quick] of [['Print layout',false],['Export image',true]]){const button=document.createElement('button');button.className='subtle';button.textContent=label;button.onclick=()=>openPrint(quick);toolMenus.addExport(button);}
 document.addEventListener('keydown',e=>{if(printEditorOpen)return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();openPrint(false);}if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key.toLowerCase()==='e'){e.preventDefault();openPrint(true);}});

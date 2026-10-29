@@ -1,3 +1,5 @@
+import {installToolMenus} from '../src/tool-menus.js';
+import {installMapComponents} from '../src/map-components.js';
 import {installRegistration} from '../src/registration.js';
 import {installWorkspaceLayout} from '../src/workspace-layout.js';
 import {installMapExplorer} from '../src/map-explorer.js';
@@ -48,7 +50,7 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
  globalThis.document=w.document;
- Object.assign(w,{registerUpload:async()=>{},reportWebDevice:async()=>true,installStorageUsage:()=>({open(){},close(){}}),installPlatformAdmin:()=>({open(){},close(){}}),installRegistration:(db,options)=>installRegistration(db,{...options,doc:w.document}),installWorkspaceLayout,installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{installToolMenus,installMapComponents,openAnalysis(){},openURLUpload(){},registerUpload:async()=>{},reportWebDevice:async()=>true,installStorageUsage:()=>({open(){},close(){}}),installPlatformAdmin:()=>({open(){},close(){}}),installRegistration:(db,options)=>installRegistration(db,{...options,doc:w.document}),installWorkspaceLayout,installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);
