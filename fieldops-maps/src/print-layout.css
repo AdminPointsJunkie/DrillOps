@@ -2,3 +2,4 @@
 
 .quick-export .print-body{grid-template-columns:minmax(200px,1fr) 260px}
 .print-editor [hidden]{display:none!important}
+.print-map-frame{position:absolute;inset:0;overflow:hidden;background:#eef1ee}.print-map{position:absolute;transform-origin:center}.print-north span{display:block;transform-origin:center}.print-zoom{position:absolute;top:8px;left:8px;z-index:1200;display:none}.print-item.editing .print-zoom,.quick-export .print-zoom{display:flex}.print-zoom button{padding:3px 9px!important}.print-item[data-overflow]{outline:2px dashed #bb5a19}.print-exporting .print-zoom{display:none!important}.print-content>.leaflet-control-container{position:absolute;inset:0;pointer-events:none;z-index:1000}

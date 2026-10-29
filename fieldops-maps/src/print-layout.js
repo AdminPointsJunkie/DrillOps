@@ -6,6 +6,8 @@ import {readPrintLayout,writePrintLayout} from './print-storage.js';
 import {vectorStyle,pointMarker} from './layer-style.js';
 import {annotationLayer} from './field-tools.js';
 import {pointLabels} from './point-labels.js';
+import {bearing,rotatePoint,frameLatLng,footprint,legendSVG,legendEntries} from './print-cartography.js';
+import {pageSVG,vectorPDF,downloadBlob} from './print-vector.js';
 import {readImages} from './image-import.js';
 const px=96/25.4,esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -13,7 +15,7 @@ export async function openPrintEditor(context,{quick=false}={}){
  const key=`${quick?'export':'pages'}:${context.userId||'guest'}:${context.projectId||'unsaved'}`,templateKey=`templates:${context.userId||'guest'}`;
  let pages=quick?[standardPage(context)]:await readPrintLayout(key)||[standardPage(context)],page=pages[0],selected=null,maps=new Map(),saving=Promise.resolve(),saveTimer,closed=false,editing=null,exporting=false;
  if(quick){const [width,height]=context.viewSize||[1000,700];page.width=Math.max(96,Math.min(9600,width))/px;page.height=Math.max(96,Math.min(9600,height))/px;page.format='PNG';page.resolution=2;page.quality=.92;page.title=true;page.description=false;
-  const m=page.items.find(i=>i.type==='map'),legend=page.items.find(i=>i.type==='legend');Object.assign(m,{x:0,y:0,w:page.width,h:page.height,north:false});Object.assign(legend,{x:Math.max(0,page.width-65),y:8,w:Math.min(60,page.width),h:Math.min(Math.max(25,18+context.layers.length*7),page.height-16)});page.items=[m,legend];}
+  const m=page.items.find(i=>i.type==='map'),legend=page.items.find(i=>i.type==='legend');Object.assign(m,{x:0,y:0,w:page.width,h:page.height,north:false});Object.assign(legend,{x:Math.max(0,page.width-65),y:8,w:Math.min(60,page.width),h:Math.min(Math.max(25,18+context.layers.length*7),page.height-16)});page.items=[m,legend];legend.h=Math.min(page.height-legend.y,legendSVG(context.layers,legend,legend.w*px,100000,{title:context.title}).height/px);}
  const root=document.createElement('section');root.className='print-editor';root.setAttribute('aria-label','Print layout editor');
  root.innerHTML=`<div class="print-toolbar"><strong>Print layouts</strong>${['Map','Locator','Legend','Text','Image','Section'].map(t=>`<button data-add="${t.toLowerCase()}">${t}</button>`).join('')}<button data-command="save-template">Save layout</button><button data-command="templates">Use layout</button><button data-command="close">Close</button></div><div class="print-body"><aside class="print-pages"></aside><div class="print-stage"><div class="print-sheet"></div></div><aside class="print-settings"></aside></div><input class="print-image-input" type="file" accept="image/*,.heic,.heif" hidden>`;
  if(quick){root.classList.add('quick-export');root.querySelector('.print-toolbar strong').textContent='Export as image';for(const el of root.querySelectorAll('[data-add],[data-command=save-template],[data-command=templates]'))el.hidden=true;}
@@ -25,84 +27,105 @@ export async function openPrintEditor(context,{quick=false}={}){
  function stopEditing(){editing=null;for(const [id,m]of maps){m.dragging.disable();m.scrollWheelZoom.disable();root.querySelector(`[data-item="${id}"]`)?.classList.remove('editing');}}
  function cleanupMaps(){for(const m of maps.values())m.remove();maps.clear();}
  function select(id){page.items=page.items.filter(i=>i.id===id||i.type!=='text'||i.text.trim());selected=id;stopEditing();for(const el of sheet.querySelectorAll('.print-item'))el.classList.toggle('selected',el.dataset.item===id);renderSettings();}
- function renderPages(){if(quick){sidebar.hidden=true;return;}sidebar.innerHTML=pages.map(p=>`<button data-page="${p.id}" ${p===page?'aria-current="page"':''}>${esc(p.name)}</button>`).join('')+'<button data-page-add>＋ Add page</button><p class="print-help">Pages save on this device for this project. Export each page separately.</p>';}
+ function renderPages(){if(quick){sidebar.hidden=true;return;}sidebar.innerHTML=pages.map(p=>`<button data-page="${p.id}" ${p===page?'aria-current="page"':''}>${esc(p.name)}</button>`).join('')+'<button data-page-add>＋ Add page</button><p class="print-help">Pages save on this device for this project. Export a page or combine all pages into one PDF.</p>';}
  function renderSheet(){
   cleanupMaps();sheet.style.width=page.width*px+'px';sheet.style.height=page.height*px+'px';sheet.replaceChildren();
   for(const item of [...page.items].sort((a,b)=>Number(b.type==='section')-Number(a.type==='section'))){
-   if(item.hidden)continue;const el=document.createElement('div');el.className='print-item'+(item.id===selected?' selected':'');el.dataset.item=item.id;el.style.cssText=`left:${item.x*px}px;top:${item.y*px}px;width:${item.w*px}px;height:${item.h*px}px;`;
+   if(item.hidden)continue;const el=document.createElement('div');el.className='print-item'+(item.id===selected?' selected':'');el.dataset.item=item.id;el.setAttribute('role','group');el.setAttribute('aria-label',item.type+' item');el.style.cssText=`left:${item.x*px}px;top:${item.y*px}px;width:${item.w*px}px;height:${item.h*px}px;`;
    const content=document.createElement('div');content.className='print-content';el.append(content);const resize=document.createElement('span');resize.className='resize';resize.setAttribute('aria-label','Resize item');el.append(resize);sheet.append(el);
    if(item.type==='text'){const text=document.createElement('div');text.className='print-text';text.style.fontSize=(item.fontSize||14)+'px';text.textContent=tokens(item.text,context);content.append(text);}
    else if(item.type==='section'){content.style.background=item.color||'#e8eee9';}
    else if(item.type==='image'){const image=document.createElement('img');image.className='print-logo';image.src=item.src;image.alt='Layout image';content.append(image);}
-   else if(item.type==='legend'){const target=targetFor(item),shown=context.layers.filter(l=>(target?.layers||[]).includes(l.id)&&!(item.hiddenLayers||[]).includes(l.id));content.innerHTML=`<div class="print-legend"><strong>${quick&&page.title?esc(context.title):'Legend'}</strong>${quick&&page.description?`<p>${esc(context.description||'')}</p>`:''}${shown.map(l=>`<div class="print-legend-row"><i style="background:${/^#[\da-f]{3,8}$/i.test(l.color)?l.color:'#38624a'}"></i><span>${esc(l.name)}</span></div>`).join('')}</div>`;}
+   else if(item.type==='legend'){const target=targetFor(item),shown=context.layers.filter(l=>(target?.layers||[]).includes(l.id)),legend=legendSVG(shown,item,item.w*px,item.h*px,{title:quick&&page.title?context.title:'Legend',description:quick&&page.description?context.description:''});content.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${item.w*px} ${item.h*px}">${legend.markup}</svg>`;if(legend.overflow){el.dataset.overflow='true';el.title='Legend contents exceed this box. Enlarge the legend before exporting.';}}
    else if(item.type==='map'||item.type==='locator')renderMap(item,content);
   }
+  updateLocators();
  }
+ function updateLocators(){for(const item of page.items.filter(i=>i.type==='locator')){const m=maps.get(item.id),target=maps.get(targetFor(item)?.id);if(!m||!target)continue;m.setView(target.getCenter(),Math.max(0,target.getZoom()-4));m._footprint?.remove();m._footprint=L.polygon(footprint(target),{color:'#c33',weight:2,fillOpacity:.08}).addTo(m);}}
  function renderMap(item,content){
   const target=item.type==='locator'?targetFor(item):item;if(!target){content.textContent='Add a map view first.';return;}
-  const container=document.createElement('div');container.className='print-map';content.append(container);
-  const m=L.map(container,{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,zoomAnimation:false,fadeAnimation:false,markerZoomAnimation:false});maps.set(item.id,m);
+  const frame=document.createElement('div');frame.className='print-map-frame';content.append(frame);
+  const container=document.createElement('div');container.className='print-map';frame.append(container);
+  const width=content.clientWidth,height=content.clientHeight,angle=item.type==='map'?bearing(item.bearing):0,side=angle?Math.ceil(Math.hypot(width,height)):0;
+  if(angle)container.style.cssText=`width:${side}px;height:${side}px;left:${(width-side)/2}px;top:${(height-side)/2}px;transform:rotate(${angle}deg)`;
+  const m=L.map(container,{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,zoomAnimation:false,fadeAnimation:false,markerZoomAnimation:false});maps.set(item.id,m);m._printFrame={width,height,bearing:angle};content.append(m.getContainer().querySelector('.leaflet-control-container'));
   m.setView(target.center||context.center,Math.max(0,(target.zoom??context.zoom)-(item.type==='locator'?4:0)));
-  const type=item.basemap||context.basemap||'street';const url=type==='street'?'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png':'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-  L.tileLayer(url,{crossOrigin:'anonymous',maxNativeZoom:type==='street'?19:17,maxZoom:22,attribution:type==='street'?'© OpenStreetMap contributors':'Imagery © Esri, Maxar, Earthstar Geographics and the GIS User Community'}).addTo(m);
+  const type=target.basemap||context.basemap||'street';const url=type==='street'?'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png':'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  if(type!=='none')L.tileLayer(url,{crossOrigin:'anonymous',maxNativeZoom:type==='street'?19:17,maxZoom:22,attribution:type==='street'?'© OpenStreetMap contributors':'Imagery © Esri, Maxar, Earthstar Geographics and the GIS User Community'}).addTo(m);
   if(type==='hybrid')L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{crossOrigin:'anonymous',maxNativeZoom:17,maxZoom:22,attribution:'Labels © Esri, HERE, Garmin, OpenStreetMap contributors'}).addTo(m);
   if(item.type==='map'){
    for(const l of context.layers.filter(l=>(item.layers||[]).includes(l.id)).slice().reverse()){
-    let ml;const pane='print-'+l.id;m.createPane(pane).style.zIndex=400+context.layers.length-context.layers.indexOf(l);
+    let ml;const pane='print-'+l.id;const layerPane=m.createPane(pane);layerPane.style.zIndex=400+context.layers.length-context.layers.indexOf(l);layerPane.dataset.printLayer=l.id;
     if(l.metadata?.xyz)ml=L.tileLayer(l.metadata.xyz.url,{pane,crossOrigin:'anonymous',opacity:l.opacity??1,maxNativeZoom:l.metadata.xyz.maxZoom,maxZoom:22,attribution:esc(l.metadata.xyz.attribution)});
     else if(l.kind==='raster')ml=L.imageOverlay(l.url,[[l.bounds[1],l.bounds[0]],[l.bounds[3],l.bounds[2]]],{pane,opacity:l.opacity??.8,crossOrigin:'anonymous'});
     else if(l.metadata?.annotation)ml=annotationLayer(L,l,{pane});
     else ml=L.geoJSON(l.fc,{pane,style:f=>vectorStyle(l,f),pointToLayer:(f,ll)=>pointMarker(L,l,ll,{pane},f)});
-    ml.addTo(m);if(l.kind==='vector'&&!l.metadata?.annotation)pointLabels(ml,l,m.getBounds(),document);
+    ml.addTo(m);if(l.kind==='vector'&&!l.metadata?.annotation)pointLabels(ml,{...l,_pane:pane},m.getBounds(),document);
    }
    if(item.scale)L.control.scale({position:'bottomleft',metric:item.measurement!=='us',imperial:item.measurement==='us'}).addTo(m);
-   if(item.north){const arrow=document.createElement('div');arrow.className='print-north';arrow.textContent='N\n▲';content.append(arrow);}
-   m.on('moveend',()=>{if(!quick&&editing!==item.id)return;item.center=[m.getCenter().lat,m.getCenter().lng];item.zoom=m.getZoom();persist();});
-  }else{
-   const targetMap=maps.get(target.id);if(targetMap)L.rectangle(targetMap.getBounds(),{color:'#c33',weight:2,fillOpacity:.08}).addTo(m);
+   if(item.north){const arrow=document.createElement('div');arrow.className='print-north';arrow.innerHTML='<span>N<br>▲</span>';arrow.firstChild.style.transform=`rotate(${angle}deg)`;content.append(arrow);}
+   m.on('moveend',()=>{if(!quick&&editing!==item.id)return;item.center=[m.getCenter().lat,m.getCenter().lng];item.zoom=m.getZoom();persist();updateLocators();});
   }
-  const cover=document.createElement('div');cover.className='print-map-edit';content.append(cover);if(quick&&item.type==='map'){cover.style.display='none';m.dragging.enable();m.scrollWheelZoom.enable();L.control.zoom({position:'topright'}).addTo(m);}
+  const cover=document.createElement('div');cover.className='print-map-edit';content.append(cover);
+  const interactive=()=>!exporting&&(quick||editing===item.id);
+  // Rotate pointer movement into the map's unrotated coordinate space.
+  let pan;
+  frame.addEventListener('pointerdown',e=>{if(!angle||!interactive()||e.button!==0)return;pan=[e.clientX,e.clientY];frame.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();});
+  frame.addEventListener('pointermove',e=>{if(!pan)return;const [dx,dy]=rotatePoint(pan[0]-e.clientX,pan[1]-e.clientY,-angle);pan=[e.clientX,e.clientY];m.panBy([dx,dy],{animate:false});});
+  const end=()=>{pan=null;};frame.addEventListener('pointerup',end);frame.addEventListener('pointercancel',end);
+  frame.addEventListener('wheel',e=>{if(!angle||!interactive())return;e.preventDefault();const r=frame.getBoundingClientRect(),ll=frameLatLng(m,e.clientX-r.left,e.clientY-r.top);m.setZoomAround(ll,m.getZoom()+(e.deltaY<0?1:-1));},{passive:false});
+  m._enablePrintEditing=()=>{if(!angle){m.dragging.enable();m.scrollWheelZoom.enable();}};
+  if(quick&&item.type==='map'){cover.style.display='none';m._enablePrintEditing();}
+  if(item.type==='map'){const zoom=document.createElement('div');zoom.className='print-zoom';zoom.innerHTML='<button type="button" aria-label="Zoom map in">+</button><button type="button" aria-label="Zoom map out">−</button>';const buttons=zoom.querySelectorAll('button');buttons[0].onclick=()=>m.zoomIn();buttons[1].onclick=()=>m.zoomOut();zoom.onpointerdown=e=>e.stopPropagation();content.append(zoom);}
+
  }
  function field(label,html){return `<label>${label}${html}</label>`;}
  function number(label,name,value,min=0,max=2540){return field(label,`<input type="number" data-field="${name}" value="${value}" min="${min}" max="${max}" step="any">`);}
  function renderSettings(){
   const item=quick?null:page.items.find(i=>i.id===selected);let body='';
-  if(quick){const m=activeMaps()[0],legend=page.items.find(i=>i.type==='legend');body='<h3>Export image</h3>'+field('Width (px)',`<input type="number" data-quick="width" min="96" max="9600" value="${Math.round(page.width*px)}">`)+field('Height (px)',`<input type="number" data-quick="height" min="96" max="9600" value="${Math.round(page.height*px)}">`)+field('Resolution',`<select data-page-field="resolution">${[1,2,3,4].map(v=>`<option value="${v}" ${page.resolution===v?'selected':''}>${v}×</option>`).join('')}</select>`)+field('Format',`<select data-page-field="format">${['PNG','JPG','PDF'].map(v=>`<option ${page.format===v?'selected':''}>${v}</option>`).join('')}</select>`);
+  if(quick){const m=activeMaps()[0],legend=page.items.find(i=>i.type==='legend');body='<h3>Export image</h3>'+field('Width (px)',`<input type="number" data-quick="width" min="96" max="9600" value="${Math.round(page.width*px)}">`)+field('Height (px)',`<input type="number" data-quick="height" min="96" max="9600" value="${Math.round(page.height*px)}">`)+field('Resolution',`<select data-page-field="resolution">${[1,2,3,4].map(v=>`<option value="${v}" ${page.resolution===v?'selected':''}>${v}×</option>`).join('')}</select>`)+field('Format',`<select data-page-field="format">${['PNG','JPG','PDF','Vector PDF','SVG'].map(v=>`<option ${page.format===v?'selected':''}>${v}</option>`).join('')}</select>`);
    if(page.format==='JPG')body+=field('JPG quality',`<input type="range" min="0.1" max="1" step="0.05" data-page-field="quality" value="${page.quality}">`);
    for(const [name,label,checked]of [['legend','Legend',!legend.hidden],['scale','Scale bar',m.scale],['title','Map title',page.title],['description','Description',page.description]])body+=`<label><input type="checkbox" data-quick="${name}" ${checked?'checked':''}>${label}</label>`;
+   body+=field('Map rotation (° clockwise)',`<input type="number" data-quick="bearing" value="${bearing(m.bearing)}" min="0" max="360">`)+ '<button data-command="north">Point north</button><button data-command="fit-legend">Fit legend height</button>';
    body+=field('Scale units',`<select data-quick="measurement"><option value="metric">Metric</option><option value="us" ${m.measurement==='us'?'selected':''}>US</option></select>`)+'<p class="print-help">Drag or scroll inside the preview to pan and zoom. Drag the legend or its corner to move or resize it.</p>';
   }else if(item){body=`<h3>${esc(item.type[0].toUpperCase()+item.type.slice(1))}</h3>`+number('X (mm)','x',item.x)+number('Y (mm)','y',item.y)+number('Width (mm)','w',item.w,5)+number('Height (mm)','h',item.h,5);
    if(item.type==='text')body+=field('Text and tokens',`<textarea data-field="text" rows="4">${esc(item.text)}</textarea>`)+number('Text size (px)','fontSize',item.fontSize||14,6,200)+'<p class="print-help">Tokens: {{ map.title }}, {{ map.description }}, {{ current.date }}</p>';
    if(item.type==='section')body+=field('Background',`<input type="color" data-field="color" value="${item.color||'#e8eee9'}">`);
-   if(item.type==='map'){body+='<p class="print-help">Double-click the map to pan and zoom. Press Esc when finished.</p>'+field('Basemap',`<select data-field="basemap">${['street','satellite','hybrid'].map(v=>`<option value="${v}" ${(item.basemap||context.basemap)===v?'selected':''}>${v}</option>`).join('')}</select>`);
+   if(item.type==='map'){body+='<p class="print-help">Double-click the map to pan and zoom. Press Esc when finished.</p>'+field('Basemap',`<select data-field="basemap">${['street','satellite','hybrid','none'].map(v=>`<option value="${v}" ${(item.basemap||context.basemap)===v?'selected':''}>${v}</option>`).join('')}</select>`);
+    body+=number('Map rotation (° clockwise)','bearing',bearing(item.bearing),0,360)+'<button data-command="north">Point north</button>';
     for(const [name,label] of [['north','North arrow'],['scale','Scale bar']])body+=`<label><input type="checkbox" data-field="${name}" ${item[name]?'checked':''}>${label}</label>`;
     body+=field('Scale units',`<select data-field="measurement"><option value="metric">Metric</option><option value="us" ${item.measurement==='us'?'selected':''}>US</option></select>`)+`<div class="print-layer-list"><strong>Layers</strong>${context.layers.map(l=>`<label><input type="checkbox" data-layer="${l.id}" ${(item.layers||[]).includes(l.id)?'checked':''}>${esc(l.name)}</label>`).join('')}</div>`;
    }
    if(['legend','locator'].includes(item.type))body+=field('Target map',`<select data-field="target">${activeMaps().map((m,i)=>`<option value="${m.id}" ${targetFor(item)?.id===m.id?'selected':''}>Map ${i+1}</option>`).join('')}</select>`);
-   if(item.type==='legend')body+=`<div class="print-layer-list"><strong>Include in legend</strong>${context.layers.filter(l=>(targetFor(item)?.layers||[]).includes(l.id)).map(l=>`<label><input type="checkbox" data-legend="${l.id}" ${!(item.hiddenLayers||[]).includes(l.id)?'checked':''}>${esc(l.name)}</label>`).join('')}</div>`;
+   if(item.type==='legend'){body+=number('Legend text size','fontSize',item.fontSize||12,6,40)+`<label><input type="checkbox" data-field="showCounts" ${item.showCounts?'checked':''}>Show feature counts</label><div class="print-layer-list"><strong>Legend entries</strong>${context.layers.filter(l=>(targetFor(item)?.layers||[]).includes(l.id)).map(l=>`<label><input type="checkbox" data-legend="${esc(l.id)}" ${!(item.hiddenLayers||[]).includes(l.id)?'checked':''}><b>${esc(l.name)}</b></label>${legendEntries(l).map(entry=>`<label><input type="checkbox" data-entry="${esc(entry.key)}" ${!item.hiddenEntries?.includes(entry.key)?'checked':''}>${esc(entry.label)}<input aria-label="Legend label ${esc(entry.label)}" data-entry-label="${esc(entry.key)}" value="${esc(item.entryLabels?.[entry.key]??entry.label)}"></label>`).join('')}`).join('')}</div><button data-command="fit-legend">Fit legend height</button>`;}
+
    body+='<button data-command="duplicate">Duplicate</button><button data-command="delete">Delete item</button><button data-command="page-settings">Page settings</button>';
   }else{
    body='<h3>Page settings</h3>'+field('Page name',`<input data-page-field="name" value="${esc(page.name)}">`)+field('Page size',`<select data-size><option value="custom">Custom</option>${Object.keys(sizes).map(v=>`<option value="${v}">${v==='Tabloid'?'11 × 17':v}</option>`).join('')}</select>`)+field('Display units',`<select data-page-field="units">${['mm','cm','in','px'].map(v=>`<option ${page.units===v?'selected':''}>${v}</option>`).join('')}</select>`);
    const unit=page.units||'mm',factor={mm:1,cm:10,in:25.4,px:25.4/96}[unit];body+=field(`Width (${unit})`,`<input type="number" data-dimension="width" value="${+(page.width/factor).toFixed(3)}" min="${25.4/factor}" max="${2540/factor}" step="any">`)+field(`Height (${unit})`,`<input type="number" data-dimension="height" value="${+(page.height/factor).toFixed(3)}" min="${25.4/factor}" max="${2540/factor}" step="any">`)+'<button data-command="orientation">Swap orientation</button>';
-   body+=field('Format',`<select data-page-field="format">${['PDF','PNG','JPG'].map(v=>`<option ${page.format===v?'selected':''}>${v}</option>`).join('')}</select>`)+field('DPI',`<select data-page-field="dpi">${[150,300,600].map(v=>`<option ${page.dpi===v?'selected':''}>${v}</option>`).join('')}</select>`)+'<button data-command="delete-page">Delete page</button>';
+   body+=field('Format',`<select data-page-field="format">${['PDF','Vector PDF','SVG','PNG','JPG'].map(v=>`<option ${page.format===v?'selected':''}>${v}</option>`).join('')}</select>`)+field('DPI',`<select data-page-field="dpi">${[150,300,600].map(v=>`<option ${page.dpi===v?'selected':''}>${v}</option>`).join('')}</select>`)+'<button data-command="delete-page">Delete page</button>';
   }
-  const dimensions=quick?imageExportSize(Math.round(page.width*px),Math.round(page.height*px),page.resolution):exportSize(page.width,page.height,page.dpi);body+=`<p class="print-status" role="status">${dimensions.width} × ${dimensions.height} px${dimensions.reduced?` · Reduced to ${dimensions.dpi} DPI to stay within this browser’s 32-megapixel / 16,384-pixel limit.`:''}</p><button class="print-export" data-command="export">Export ${page.format}</button><p class="print-help">Basemap and data credits are retained. PDFs contain a raster page. Layouts and reusable templates save on this device, not to the workspace.</p>`;settings.innerHTML=body;
+  const dimensions=quick?imageExportSize(Math.round(page.width*px),Math.round(page.height*px),page.resolution):exportSize(page.width,page.height,page.dpi);body+=`<p class="print-status" role="status">${dimensions.width} × ${dimensions.height} px${dimensions.reduced?` · Reduced to ${dimensions.dpi} DPI to stay within this browser’s 32-megapixel / 16,384-pixel limit.`:''}</p><button class="print-export" data-command="export">Export ${page.format}</button>${!quick?'<button class="print-export" data-command="export-all">Export all pages as PDF</button><label>Combined PDF content<select data-page-field="pdfContent"><option value="vector" '+(page.pdfContent!=='raster'?'selected':'')+'>Editable vectors</option><option value="raster" '+(page.pdfContent==='raster'?'selected':'')+'>Raster images</option></select></label>':''}<p class="print-help">SVG and Vector PDF keep geometry and text editable; imagery remains raster. PDF uses a raster page. Credits are retained. Layouts save on this device.</p>`;settings.innerHTML=body;
  }
  function render(){renderPages();renderSheet();renderSettings();}
  function add(type){if(type==='image'){root.querySelector('.print-image-input').click();return;}const item={id:crypto.randomUUID(),type,x:15,y:30,w:type==='map'?150:70,h:type==='map'?100:40};if(type==='map')Object.assign(item,{center:context.center,zoom:context.zoom,layers:context.layers.map(l=>l.id),north:true,scale:true,measurement:'metric'});if(type==='text')Object.assign(item,{text:'Title {{ map.title }}',fontSize:20,h:15});if(type==='section')item.color='#e8eee9';if(['legend','locator'].includes(type))item.target=activeMaps()[0]?.id;page.items.push(item);selected=item.id;render();persist();}
  root.querySelector('.print-image-input').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const [image]=await readImages(file);const reader=new FileReader();const src=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(image.image.blob);});const item={id:crypto.randomUUID(),type:'image',x:15,y:15,w:50,h:50*image.image.height/image.image.width,src};page.items.push(item);selected=item.id;render();persist();}catch(error){status(error.message);}finally{e.target.value='';}};
  root.addEventListener('input',e=>{
+  if(e.target.dataset.quick==='bearing'||e.target.dataset.field==='bearing'){const item=quick?activeMaps()[0]:page.items.find(i=>i.id===selected);if(item){item.bearing=bearing(e.target.value);renderSheet();persist();}}
   if(e.target.dataset.pageField==='name'){page.name=e.target.value;const button=sidebar.querySelector(`[data-page="${page.id}"]`);if(button)button.textContent=page.name;persist();}
   if(e.target.dataset.field==='text'){const item=page.items.find(i=>i.id===selected);if(item){item.text=e.target.value;const text=sheet.querySelector(`[data-item="${item.id}"] .print-text`);if(text)text.textContent=tokens(item.text,context);persist();}}
+  if(e.target.dataset.entryLabel){const item=page.items.find(i=>i.id===selected);if(item){item.entryLabels={...item.entryLabels,[e.target.dataset.entryLabel]:e.target.value};renderSheet();persist();}}
   if(e.target.dataset.pageField==='quality'){page.quality=Number(e.target.value);persist();}
  });
  root.addEventListener('change',e=>{try{
   const item=page.items.find(i=>i.id===selected),field=e.target.dataset.field;
   if(field&&item){item[field]=e.target.type==='checkbox'?e.target.checked:e.target.type==='number'?Number(e.target.value):e.target.value;if(['x','y','w','h'].includes(field)){if(!Number.isFinite(item[field]))throw Error('Enter a valid dimension.');item.w=Math.min(Math.max(5,item.w),page.width);item.h=Math.min(Math.max(5,item.h),page.height);moveItem(item,0,0,page);}}
   if(e.target.dataset.layer&&item){item.layers=e.target.checked?[...new Set([...item.layers,e.target.dataset.layer])]:item.layers.filter(id=>id!==e.target.dataset.layer);}
+  if(e.target.dataset.entry&&item){item.hiddenEntries=e.target.checked?(item.hiddenEntries||[]).filter(k=>k!==e.target.dataset.entry):[...(item.hiddenEntries||[]),e.target.dataset.entry];}
+  if(e.target.dataset.entryLabel&&item){item.entryLabels={...item.entryLabels,[e.target.dataset.entryLabel]:e.target.value};}
   if(e.target.dataset.legend&&item){item.hiddenLayers=e.target.checked?(item.hiddenLayers||[]).filter(id=>id!==e.target.dataset.legend):[...(item.hiddenLayers||[]),e.target.dataset.legend];}
   if(e.target.dataset.pageField){const field=e.target.dataset.pageField;page[field]=['dpi','resolution','quality'].includes(field)?Number(e.target.value):e.target.value;}
-  if(e.target.dataset.quick){const field=e.target.dataset.quick,m=activeMaps()[0],legend=page.items.find(i=>i.type==='legend');if(['width','height'].includes(field)){const value=Number(e.target.value);if(value<96||value>9600||!Number.isFinite(value))throw Error('Choose 96–9,600 pixels.');page[field]=value/px;m.w=page.width;m.h=page.height;moveItem(legend,0,0,page);}else if(field==='legend')legend.hidden=!e.target.checked;else if(field==='scale')m.scale=e.target.checked;else if(field==='measurement')m.measurement=e.target.value;else page[field]=e.target.checked;}
+  if(e.target.dataset.quick){const field=e.target.dataset.quick,m=activeMaps()[0],legend=page.items.find(i=>i.type==='legend');if(['width','height'].includes(field)){const value=Number(e.target.value);if(value<96||value>9600||!Number.isFinite(value))throw Error('Choose 96–9,600 pixels.');page[field]=value/px;m.w=page.width;m.h=page.height;moveItem(legend,0,0,page);}else if(field==='legend')legend.hidden=!e.target.checked;else if(field==='scale')m.scale=e.target.checked;else if(field==='measurement')m.measurement=e.target.value;else if(field==='bearing')m.bearing=bearing(e.target.value);else page[field]=e.target.checked;}
   if(e.target.dataset.dimension){const factor={mm:1,cm:10,in:25.4,px:25.4/96}[page.units||'mm'],value=Number(e.target.value)*factor;if(!Number.isFinite(value)||value<25.4||value>2540)throw Error('Page dimensions must be between 1 and 100 inches.');resizePage(page,e.target.dataset.dimension==='width'?value:page.width,e.target.dataset.dimension==='height'?value:page.height);}
   if(e.target.hasAttribute('data-size')&&sizes[e.target.value])resizePage(page,...sizes[e.target.value]);
   render();persist();
@@ -111,29 +134,45 @@ export async function openPrintEditor(context,{quick=false}={}){
  sheet.addEventListener('pointerdown',e=>{if(exporting||e.button!==0||editing)return;const el=e.target.closest('.print-item');if(quick&&el?.dataset.item===activeMaps()[0]?.id){select(null);return;}if(!el){select(null);return;}const item=page.items.find(i=>i.id===el.dataset.item);select(item.id);drag={item,startX:e.clientX,startY:e.clientY,start:structuredClone(item),resize:e.target.classList.contains('resize')};sheet.setPointerCapture(e.pointerId);e.preventDefault();});
  sheet.addEventListener('pointermove',e=>{if(!drag)return;Object.assign(drag.item,{x:drag.start.x,y:drag.start.y,w:drag.start.w,h:drag.start.h});moveItem(drag.item,(e.clientX-drag.startX)/px,(e.clientY-drag.startY)/px,page,drag.resize);const el=sheet.querySelector(`[data-item="${drag.item.id}"]`);Object.assign(el.style,{left:drag.item.x*px+'px',top:drag.item.y*px+'px',width:drag.item.w*px+'px',height:drag.item.h*px+'px'});});
  const finishDrag=()=>{if(!drag)return;drag=null;renderSheet();renderSettings();persist();};sheet.addEventListener('pointerup',finishDrag);sheet.addEventListener('pointercancel',finishDrag);
- sheet.addEventListener('dblclick',e=>{const item=page.items.find(i=>i.id===e.target.closest('.print-item')?.dataset.item);if(item?.type!=='map')return;select(item.id);editing=item.id;const m=maps.get(item.id);m.dragging.enable();m.scrollWheelZoom.enable();root.querySelector(`[data-item="${item.id}"]`).classList.add('editing');status('Pan or zoom this map. Press Esc when finished.');});
- async function exportPage(){
-  if(exporting)return;exporting=true;stopEditing();root.classList.add('print-exporting');for(const b of root.querySelectorAll('button,input,select,textarea'))b.disabled=true;status('Preparing export. Keep this tab visible…');
+ sheet.addEventListener('dblclick',e=>{const item=page.items.find(i=>i.id===e.target.closest('.print-item')?.dataset.item);if(item?.type!=='map')return;select(item.id);editing=item.id;const m=maps.get(item.id);m._enablePrintEditing();root.querySelector(`[data-item="${item.id}"]`).classList.add('editing');status('Pan or zoom this map. Press Esc when finished.');});
+ async function waitForMaps(){
+  await document.fonts.ready;for(const m of maps.values())m.invalidateSize();
+  const start=Date.now();while([...maps.values()].some(m=>{let loading=false;m.eachLayer(l=>{if(l.isLoading?.())loading=true;});return loading;})){if(Date.now()-start>20000)throw Error('Some map tiles are still loading. Wait or choose another basemap, then retry.');await sleep(100);}
+  await Promise.all([...sheet.querySelectorAll('img')].map(img=>img.decode?.().catch(()=>{})));
+  if([...sheet.querySelectorAll('img')].some(i=>!i.complete||!i.naturalWidth))throw Error('Some map images could not load. Choose another basemap or remove the unavailable layer.');
+  if(sheet.querySelector('[data-overflow]'))throw Error('A legend is clipped. Select it and use Fit legend height, enlarge it, or hide entries before exporting.');
+ }
+ async function exportPage(all=false){
+  if(exporting)return;exporting=true;stopEditing();selected=null;const original=page,selection=all?[...pages]:[page],vector=all?page.pdfContent!=='raster':page.format==='Vector PDF';
+  root.classList.add('print-exporting');const busy=()=>{for(const b of root.querySelectorAll('button,input,select,textarea'))b.disabled=true;};busy();
   try{
-   await document.fonts.ready;for(const m of maps.values())m.invalidateSize();
-   const start=Date.now();while([...maps.values()].some(m=>{let loading=false;m.eachLayer(l=>{if(l.isLoading?.())loading=true;});return loading;})){if(Date.now()-start>15000)throw Error('Some map tiles are still loading. Wait or choose another basemap, then retry.');await sleep(100);}
-   const broken=[...sheet.querySelectorAll('img')].some(i=>!i.complete||!i.naturalWidth);if(broken)throw Error('Some map images could not load. Choose another basemap or remove the unavailable layer before exporting.');
-   const {toCanvas}=await import('html-to-image');const dimensions=quick?imageExportSize(Math.round(page.width*px),Math.round(page.height*px),page.resolution):exportSize(page.width,page.height,page.dpi);
-   const canvas=await toCanvas(sheet,{backgroundColor:'#ffffff',pixelRatio:dimensions.width/(page.width*px),skipAutoScale:true,filter:node=>!node.classList?.contains('resize')&&!node.classList?.contains('print-map-edit')&&!node.classList?.contains('leaflet-control-zoom'),fontEmbedCSS:''});
-   const filename=(context.title+(quick?'':' — '+page.name)).replace(/[^\p{L}\p{N} ._-]/gu,'_');
-   if(page.format==='PDF'){const {jsPDF}=await import('jspdf');const pdf=new jsPDF({orientation:page.width>page.height?'landscape':'portrait',unit:'mm',format:[page.width,page.height],compress:true});pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,page.width,page.height);pdf.save(filename+'.pdf');}
-   else{const type=page.format==='JPG'?'image/jpeg':'image/png',blob=await new Promise(r=>canvas.toBlob(r,type,page.quality??.95));if(!blob)throw Error('This browser could not encode the page. Choose a lower DPI.');const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=filename+(page.format==='JPG'?'.jpg':'.png');a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-   status(`Exported ${page.name} at ${dimensions.dpi} DPI.`);
-  }catch(error){status('Export failed: '+error.message+' A tile provider may block image export.');}
+   let pdf;const pdfOutput=all||page.format.includes('PDF');
+   for(let index=0;index<selection.length;index++){
+    page=selection[index];render();busy();status(`Preparing page ${index+1} of ${selection.length}. Keep this tab visible…`);await waitForMaps();
+    const dimensions=quick?imageExportSize(Math.round(page.width*px),Math.round(page.height*px),page.resolution):exportSize(page.width,page.height,page.dpi),ratio=dimensions.width/(page.width*px);
+    if(pdfOutput){if(!pdf){const {jsPDF}=await import('jspdf');pdf=new jsPDF({orientation:page.width>page.height?'landscape':'portrait',unit:'mm',format:[page.width,page.height],compress:true});}else pdf.addPage([page.width,page.height],page.width>page.height?'landscape':'portrait');}
+    if(vector||(!all&&page.format==='SVG')){const svg=await pageSVG(page,context,maps,{quick,pixelRatio:ratio});if(pdfOutput)await vectorPDF(pdf,svg,page.width,page.height);else downloadBlob(new Blob([svg],{type:'image/svg+xml'}),filename(page)+'.svg');}
+    else{const {toCanvas}=await import('html-to-image');const canvas=await toCanvas(sheet,{backgroundColor:'#ffffff',pixelRatio:ratio,skipAutoScale:true,filter:node=>!['resize','print-map-edit','print-zoom','leaflet-control-zoom'].some(c=>node.classList?.contains(c)),fontEmbedCSS:''});
+     if(pdfOutput)pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,page.width,page.height);
+     else{const blob=await new Promise(r=>canvas.toBlob(r,page.format==='JPG'?'image/jpeg':'image/png',page.quality??.95));if(!blob)throw Error('This browser could not encode the page. Choose a lower DPI.');downloadBlob(blob,filename(page)+(page.format==='JPG'?'.jpg':'.png'));}
+    }
+   }
+   if(pdf)pdf.save((all?filename(null)+' — All pages':filename(page))+'.pdf');
+   page=original;render();status(all?`Exported ${selection.length} pages in one PDF.`:'Export complete.');
+  }catch(error){page=original;render();status('Export failed: '+error.message);}
   finally{exporting=false;root.classList.remove('print-exporting');for(const b of root.querySelectorAll('button,input,select,textarea'))b.disabled=false;}
  }
+ function filename(p){return (context.title+(!quick&&p?' — '+p.name:'')).replace(/[^\p{L}\p{N} ._-]/gu,'_');}
+
  function duplicate(){const item=page.items.find(i=>i.id===selected);if(!item)return;const copy=structuredClone(item);copy.id=crypto.randomUUID();moveItem(copy,5,5,page);page.items.push(copy);selected=copy.id;render();persist();}
  async function close(){if(exporting)return;closed=true;clearTimeout(saveTimer);await saving;try{await writePrintLayout(key,pages);}catch{}cleanupMaps();document.removeEventListener('keydown',keyboard);root.remove();if(app)app.inert=false;previousFocus?.focus();context.onClose?.();}
- function keyboard(e){if(closed)return;if(e.key==='Escape'){e.preventDefault();if(editing){stopEditing();renderSheet();persist();}else select(null);}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='d'){e.preventDefault();duplicate();}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();void exportPage();}}
+ function keyboard(e){if(closed)return;if(exporting){if(e.key==='Escape'||((e.metaKey||e.ctrlKey)&&['p','d'].includes(e.key.toLowerCase())))e.preventDefault();return;}if(e.key==='Escape'){e.preventDefault();if(editing){stopEditing();renderSheet();persist();}else select(null);}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='d'){e.preventDefault();duplicate();}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();void exportPage();}}
  document.addEventListener('keydown',keyboard);
  root.addEventListener('click',async e=>{const addType=e.target.closest('[data-add]')?.dataset.add;if(addType){add(addType);return;}const pageId=e.target.closest('[data-page]')?.dataset.page;if(pageId){stopEditing();page=pages.find(p=>p.id===pageId);selected=null;render();return;}if(e.target.closest('[data-page-add]')){page=standardPage(context);page.name='Page '+(pages.length+1);pages.push(page);selected=null;render();persist();return;}
   const command=e.target.closest('[data-command]')?.dataset.command;if(!command)return;
-  if(command==='close')return close();if(command==='export')return exportPage();if(command==='duplicate')return duplicate();
+  if(command==='close')return close();if(command==='export')return exportPage();if(command==='export-all')return exportPage(true);if(command==='duplicate')return duplicate();
+  if(command==='north'){const m=quick?activeMaps()[0]:page.items.find(i=>i.id===selected);if(m)m.bearing=0;}
+  if(command==='fit-legend'){const item=quick?page.items.find(i=>i.type==='legend'):page.items.find(i=>i.id===selected);if(item?.type==='legend'){const result=legendSVG(context.layers.filter(l=>targetFor(item)?.layers.includes(l.id)),item,item.w*px,item.h*px,{title:quick&&page.title?context.title:'Legend',description:quick&&page.description?context.description:''});item.h=Math.min(page.height-item.y,result.height/px);}}
   if(command==='page-settings'){select(null);return;}if(command==='delete'){page.items=page.items.filter(i=>i.id!==selected);selected=null;}
   if(command==='orientation')resizePage(page,page.height,page.width);
   if(command==='delete-page'){if(pages.length===1){status('Keep at least one page.');return;}pages=pages.filter(p=>p!==page);page=pages[0];selected=null;}

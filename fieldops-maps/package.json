@@ -34,6 +34,7 @@
     "libarchive.js": "2.0.2",
     "papaparse": "5.5.3",
     "pdfjs-dist": "6.4.299",
+    "svg2pdf.js": "2.9.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
