@@ -1,3 +1,4 @@
+import {installProjectHome} from '../src/project-home.js';
 import {bindLineDistance} from '../src/line-distance.js';
 import {installToolMenus} from '../src/tool-menus.js';
 import {installMapComponents} from '../src/map-components.js';
@@ -51,14 +52,14 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>false})};
  globalThis.document=w.document;
- Object.assign(w,{bindLineDistance,installToolMenus,installMapComponents,openAnalysis(){},openURLUpload(){},registerUpload:async()=>{},reportWebDevice:async()=>true,installStorageUsage:()=>({open(){},close(){}}),installPlatformAdmin:()=>({open(){},close(){}}),installRegistration:(db,options)=>installRegistration(db,{...options,doc:w.document}),installWorkspaceLayout,installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
+ Object.assign(w,{installProjectHome,bindLineDistance,installToolMenus,installMapComponents,openAnalysis(){},openURLUpload(){},registerUpload:async()=>{},reportWebDevice:async()=>true,installStorageUsage:()=>({open(){},close(){}}),installPlatformAdmin:()=>({open(){},close(){}}),installRegistration:(db,options)=>installRegistration(db,{...options,doc:w.document}),installWorkspaceLayout,installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers,readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,LOCAL_TESTING:true,createLocalWorkspace:()=>db,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,
   vectorStyle,pointMarker,styleControls,visibilityIcon,errorText:e=>e.message,fetch:async()=>({json:async()=>[]})});
  const source=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(source);
  const $=s=>w.document.querySelector(s),tick=()=>new Promise(r=>setTimeout(r,30));
  const submit=()=>$('#xyz-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  try{
-  await tick();$('#add-xyz').click();$('#xyz-name').value='Site imagery';$('#xyz-url').value='https://tiles.example.com/{z}/{x}/{y}.png';submit();await tick();
+  await tick();$('.home-project').click();await tick();$('#add-xyz').click();$('#xyz-name').value='Site imagery';$('#xyz-url').value='https://tiles.example.com/{z}/{x}/{y}.png';submit();await tick();
   assert.equal($('#xyz-dialog').open,false);assert.match($('#layers').textContent,/XYZ tiles/);
   let saved=(await db.from('layers').select().eq('map_id',project.id).order()).data[0];
   assert.equal(saved.metadata.xyz.url,'https://tiles.example.com/{z}/{x}/{y}.png');assert.equal(saved.opacity,1);

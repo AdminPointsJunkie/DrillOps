@@ -11,6 +11,6 @@ test('platform dashboard refuses non-admins, shows usage and people, filters and
  doc.querySelector('[data-detail]').click();doc.querySelector('[data-manage]').click();assert.deepEqual(managed,['company-a']);assert.match(doc.body.textContent,/person@example.invalid/);
  fail=true;doc.querySelector('[data-access]').click();await tick();assert.match(doc.querySelector('[data-status]').textContent,/failed/);assert.equal(company.status,'active');
  fail=false;doc.querySelector('[data-access]').click();await tick();assert.equal(company.status,'suspended');assert.deepEqual(calls.filter(c=>c[0]==='workspace_mutate').at(-1)[1],{p_workspace:'company-a',p_action:'status',p_payload:{status:'suspended'}});
- const search=doc.querySelector('[data-search]');search.value='no match';search.dispatchEvent(new dom.window.Event('input'));assert.match(doc.body.textContent,/No matching companies/);ui.close();assert.equal(doc.querySelector('#platform-dashboard').textContent,'');
+ const search=doc.querySelector('[data-search]');search.value='no match';search.dispatchEvent(new dom.window.Event('input'));assert.match(doc.body.textContent,/No matching workspaces/);ui.close();assert.equal(doc.querySelector('#platform-dashboard').textContent,'');
  assert.equal(storageSize(1024**3),'1.0 GiB');
 });
