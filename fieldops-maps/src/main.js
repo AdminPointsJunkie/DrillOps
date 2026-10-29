@@ -30,7 +30,7 @@ import {createClient} from '@supabase/supabase-js';
 import {SUPABASE_URL,SUPABASE_KEY,LOCAL_TESTING} from './config.js';
 import {xyzSettings,xyzLayer} from './xyz.js';
 import {createLocalWorkspace} from './local-workspace.js';
-import {inspect,convert} from './importer.js';
+import {inspect,convert,repairDXFLayer} from './importer.js';
 import {errorText} from './geo.js';
 import {importCRS,projectCRS} from './project.js';
 import {installBasemaps} from './basemaps.js';
@@ -429,6 +429,7 @@ $('#name-form').onsubmit=async e=>{
 };
 async function ensureMap(){if(activeMap)return;if(!user){$('#auth').showModal();throw Error('Sign in, then select Save on the layer.');}openProject(false,true);throw Error('Create a project, then select Save on the layer.');}
 async function saveLayer(l,progress=()=>{}){if(!canEditLayer(l))throw Error('This account cannot save changes to this layer.');if(l.saving)return;await ensureMap();if(l.saved)return;l.saving=true;l.saveError=null;refreshSaveStatus();const paths=[];try{
+ if(l.kind==='vector'&&l.metadata?.format==='DXF'){const repaired=await repairDXFLayer(l.fc);if(repaired){const previous=rendered.get(l.id);if(previous)map.removeLayer(previous);rendered.set(l.id,makeLayer(l));syncStack();progress(`Repaired ${repaired} CAD hatch ${repaired===1?'boundary':'boundaries'}; preserving all features…`);}}
  if(!LOCAL_TESTING&&(l.files||[]).some(f=>f.size>CLOUD_FILE_LIMIT))throw Error('Cloud storage currently accepts files up to 50 MB each.');
  toast(LOCAL_TESTING?'Saving original files and layer in this browser…':'Saving original files and layer to Supabase…');const prefix=`${user.id}/${crypto.randomUUID()}`;
  let fileNumber=0;for(const file of l.files||[]){progress(`${LOCAL_TESTING?'Saving':'Uploading'} original file ${++fileNumber} of ${l.files.length}: ${file.name}`);const path=`${prefix}/${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;if(!LOCAL_TESTING)await registerUpload(db,activeMap.id,path);const{error}=await db.storage.from('gis-files').upload(path,file,{contentType:file.type||'application/octet-stream'});if(error)throw error;paths.push(path);}

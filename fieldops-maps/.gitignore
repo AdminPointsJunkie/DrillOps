@@ -9,3 +9,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 *.tar.gz
+
+# Local verification may contain user-provided drawings.
+verification/

@@ -1,3 +1,4 @@
+import {repairDXFHatches} from './dxf-hatches.js';
 import initGdalJs from 'gdal3.js';
 const workerUrl=import.meta.env.BASE_URL+'gdal-worker.js';
 import dataUrl from 'gdal3.js/dist/package/gdal3WebAssembly.data?url';
@@ -64,7 +65,7 @@ export async function convert(item,settings,progress=()=>{}){
  progress('Transforming vector coordinates…');
  const out=await G.ogr2ogr(ds,options,`vector_${id()}`);
  const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));
- if(item.format==='DXF')preserveCollapsedDXFLines(fc);
+ if(item.format==='DXF')await repairDXFLayer(fc);
  const bounds=validateCollection(fc);if(csv)await G.close(ds);return {fc,bounds};
  }
  // Reproject the raster to the map's actual projection before making a bounded display image.
@@ -83,4 +84,16 @@ export async function convert(item,settings,progress=()=>{}){
  const png=await G.gdal_translate(wds,pngOptions,`preview_${id()}`);
  const blob=new Blob([await G.getFileBytes(png)],{type:'image/png'});await G.close(wds);
  return {blob,bounds};
+}
+
+export async function repairDXFLayer(fc){
+ preserveCollapsedDXFLines(fc);
+ return repairDXFHatches(fc,async input=>{
+  const G=await gdal(),opened=await G.open(new File([JSON.stringify(input)],`hatches_${id()}.geojson`));
+  const dataset=opened.datasets?.[0];if(!dataset)throw Error('Could not read CAD hatch boundaries for repair.');
+  try{
+   const out=await G.ogr2ogr(dataset,['-f','GeoJSON','-makevalid'],`hatches_valid_${id()}`);
+   return JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));
+  }finally{await G.close(dataset);}
+ });
 }
