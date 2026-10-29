@@ -2,56 +2,76 @@ import {repairDXFHatches} from './dxf-hatches.js';
 import initGdalJs from 'gdal3.js';
 const workerUrl=import.meta.env.BASE_URL+'gdal-worker.js';
 import dataUrl from 'gdal3.js/dist/package/gdal3WebAssembly.data?url';
-import Papa from 'papaparse';
+import {prepareVRT} from './vrt-import.js';
+import {imagePattern,readImages,convertImage} from './image-import.js';
+import {readSpecial} from './file-readers.js';
+import {archivePattern,unpackArchive} from './archive-files.js';
+import {groupFiles,unsupportedReason} from './import-formats.js';
 import {csvGeoJSON,validateCollection,errorText,preserveCollapsedDXFLines} from './geo.js';
 import {fileLayerName} from './layer-name.js';
 let engine;
 export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
 const id=()=>crypto.randomUUID().replaceAll('-','');
-export async function inspect(files,progress){
- const all=[...files];if(all.some(f=>f.size>(/\.tiff?$/i.test(f.name)?250:50)*1024*1024))throw Error('GeoTIFF files must be 250 MB or smaller; other files must be 50 MB or smaller.');
+export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive}={}){
+ const all=[...files];if(all.length>25)throw Error('Select up to 25 files at a time.');
+ if(all.some(f=>f.size>(/\.tiff?$/i.test(f.name)?250:50)*1024*1024))throw Error('GeoTIFF files must be 250 MB or smaller; other files must be 50 MB or smaller.');
  if(all.reduce((s,f)=>s+f.size,0)>300*1024*1024)throw Error('Import up to 300 MB per batch.');
- if(new Set(all.map(f=>f.name)).size!==all.length)throw Error('Files in one batch must have unique names.');
- const items=[]; const errors=[];
- const ordinary=all.filter(f=>! /\.(csv|zip|kml|kmz)$/i.test(f.name));
- const groups=[...all.filter(f=>/\.csv$/i.test(f.name)).map(f=>[f]),...all.filter(f=>/\.(zip|kml|kmz)$/i.test(f.name)).map(f=>[f])];
- if(ordinary.length)groups.push(ordinary);
- for(const group of groups){
- try{
- progress(`Reading ${group[0].name}…`);
- if(group.length===1&&/\.csv$/i.test(group[0].name)){
- const parsed=Papa.parse(await group[0].text(),{header:true,skipEmptyLines:'greedy'});
- if(parsed.errors.length)throw Error(parsed.errors[0].message);
- if(parsed.data.length>20000)throw Error('CSV supports up to 20,000 points per layer. Split this file before importing.');
- if(!parsed.data.length)throw Error('The CSV contains no point rows.');
- items.push({name:group[0].name.replace(/\.csv$/i,''),kind:'vector',format:'CSV',files:group,rows:parsed.data,fields:parsed.meta.fields,source:'',count:parsed.data.length});continue;
+ const items=[],errors=[],archiveBudget={remaining:300*1024*1024};
+ async function readBatch(batch,originals=null,depth=0){
+  for(const group of groupFiles(batch)){
+   const primary=group[0],sourceFiles=originals||group;
+   try{
+    progress(`Reading ${primary.name}…`);
+    const reason=unsupportedReason(primary.name);if(reason)throw Error(reason);
+    if(archivePattern.test(primary.name)&&! /\.gdb\.zip$/i.test(primary.name)){
+     if(depth>=2)throw Error('Nested archives deeper than two levels must be unpacked first.');
+     await readBatch(await unpack(primary,archiveBudget),originals||[primary],depth+1);continue;
+    }
+    if(imagePattern.test(primary.name)&&group.length===1){items.push(...await readImages(primary,sourceFiles));continue;}
+    const special=await readSpecial(primary,sourceFiles);if(special){items.push(...special);continue;}
+    const G=await engine();
+    // Preserve sidecar names within each dataset, without archive directory prefixes.
+    const inputs=/\.vrt$/i.test(primary.name)?await prepareVRT(primary,batch):group;
+    const mounted=inputs.map(f=>f.name.includes('/')?new File([f],f.name.split('/').at(-1)):f);
+    const result=await G.open(mounted,[],/\.(zip|kmz)$/i.test(primary.name)?['vsizip']:[]);
+    let count=0;
+    for(const ds of result.datasets){
+     if(/\.vrt$/i.test(primary.name)&&! /\.vrt$/i.test(ds.path))continue;
+     const info=ds.info||await G.getInfo(ds);
+     if(ds.type==='raster'){
+      const details=await G.getInfo(ds);const transform=info.geoTransform||details.coordinateTransform;
+      const hasTransform=!!transform&&transform.join(',')!=='0,1,0,0,0,1';
+      items.push({name:fileLayerName(group,ds.path),kind:'raster',format:info.driverShortName||details.driverName,files:sourceFiles,ds,info,source:info.coordinateSystem?.wkt||details.projectionWkt||'',count:0,hasTransform});count++;
+     }else{
+      const detail=await G.ogrinfo(ds,['-al','-so']);
+      for(const layer of detail.layers||[]){
+       if(layer.featureCount===0)continue;
+       if(detail.driverShortName==='OSM'){
+        const out=await G.ogr2ogr(ds,['-f','GeoJSON','-limit','20001',layer.name],`osm_${id()}`);
+        const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));if(!fc.features.length)continue;
+        if(fc.features.length>20000)throw Error('This OSM layer exceeds 20,000 features. Upload a smaller extract.');
+        items.push({name:fileLayerName(group,ds.path,layer.name,true),layerName:layer.name,kind:'vector',format:'OSM',files:sourceFiles,fc,source:'EPSG:4326',count:fc.features.length});count++;continue;
+       }
+       const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
+       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',format:/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
+      }
+     }
+    }
+    if(!count)throw Error('No supported spatial dataset was found in this file.');
+   }catch(e){errors.push(`${primary.name}: ${errorText(e)}`);}
+  }
  }
- const G=await gdal();const result=await G.open(group,[],/\.(zip|kmz)$/i.test(group[0].name)?['vsizip']:[]);
- for(const ds of result.datasets){
- const info=ds.info||await G.getInfo(ds);
- if(ds.type==='raster'){
- const details=await G.getInfo(ds);
- const hasTransform=info.geoTransform && !(info.geoTransform.join(',')==='0,1,0,0,0,1');
- items.push({name:fileLayerName(group,ds.path),kind:'raster',format:info.driverShortName||details.driverName,files:group,ds,info,source:info.coordinateSystem?.wkt||details.projectionWkt||'',count:0,hasTransform});
- }else{
- const info2=await G.ogrinfo(ds,['-al','-so']);
- for(const layer of info2.layers||[]){
- if(info2.driverShortName==='KML'&&layer.featureCount===0)continue;
- const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
- items.push({name:fileLayerName(group,ds.path,layer.name,info2.layers.length>1),layerName:layer.name,kind:'vector',format:/\.kmz$/i.test(group[0].name)?'KMZ':info2.driverShortName||'Vector',files:group,ds,info:layer,source,count:layer.featureCount||0});
- }
- }
- }
- if(!result.datasets.length)throw Error('No supported GIS dataset was found.');
- if(/\.km[lz]$/i.test(group[0].name)&&!items.some(item=>item.files===group&&item.count>0))throw Error('No KML/KMZ points, lines or polygons were found. Image overlays and network links are not imported.');
- }catch(e){errors.push(`${group.map(f=>f.name).join(', ')}: ${errorText(e)}`);}
- }
+ await readBatch(all);
+ // A stable batch group lets multi-table files and workbooks stay together in the legend.
+ const counts=new Map();for(const item of items){const key=item.files.map(f=>f.name).join('|');counts.set(key,(counts.get(key)||0)+1);}
+ const ids=new Map();for(const item of items){const key=item.files.map(f=>f.name).join('|');if(counts.get(key)>1){if(!ids.has(key))ids.set(key,crypto.randomUUID());item.importGroup={id:ids.get(key),name:item.files[0].name.replace(/\.[^.]+$/,'')};}}
  return {items,errors};
 }
 export async function convert(item,settings,progress=()=>{}){
+ if(item.image)return convertImage(item,settings);
  const source=settings.crs.trim();if(!source)throw Error('Choose the source coordinate system before importing.');
  if(item.kind==='raster'&&!item.hasTransform)throw Error('This raster has no georeferencing. Supply a georeferenced raster or its world file.');
- const csv=item.rows?csvGeoJSON(item.rows,settings.x,settings.y):null;
+ const csv=item.fc||(item.rows?csvGeoJSON(item.rows,settings.x,settings.y):null);
  if(csv&&/^EPSG:4326$/i.test(source)&&!settings.epoch&&!settings.pipeline&&!settings.gcps)return {fc:csv,bounds:validateCollection(csv)};
  progress('Loading coordinate transformation engine…');
  const G=await gdal();let ds=item.ds;

@@ -12,3 +12,5 @@ __pycache__/
 
 # Local verification may contain user-provided drawings.
 verification/
+
+public/archive/
