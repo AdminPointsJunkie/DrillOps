@@ -137,3 +137,9 @@ The right-hand toolbar opens the attribute table (▦), feature search (⌕), fi
 - Database triggers protect annotation metadata and geometry using the live account role. Published manifests now retain annotation metadata. Operator accounts load assigned published releases through the browser, never draft layers. Viewer filters, legend toggles, layer order and visibility do not write to the database.
 
 Verification: exploration unit/UI tests, existing regression suite, and transaction-only exploration-access.sql against Postgres cover filters, styles, linked selection, geography measurements, saved annotations, live-role restrictions and assigned release access. Security advisor retains the pre-existing leaked-password-protection warning; see https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
+
+## DXF geometry sections
+
+New DXF imports create a drawing group with separate Points, Lines and Shapes layers, omitting empty sections. Each has independent geometry editing, visibility, opacity and symbology: point symbols/sizes/labels, line colours/widths/dashes, and shape outline/fill settings. Original CAD attributes and heights are retained. Mixed geometry collections are expanded into their constituent features. Non-DXF imports and existing saved mixed layers are unchanged.
+
+Split sections share one uploaded original DXF, while saving their feature data independently. A failed section remains available for Save/Retry without deleting the source referenced by successful sections. Rebuilding source settings for a section filters the original back to that section only. Geometry editing keeps new features within the section’s geometry type. SYNC publishes the independent layers and their styles through the existing release mechanism.

@@ -1,3 +1,4 @@
+import {geometrySection} from './dxf-sections.js';
 import {drawGeometry,editOperation,vertices,moveVertex,snapCoordinate,validateGeometry} from './geometry-edit.js';
 import {escapeHTML as esc} from './explore-dialogs.js';
 import {featureBounds} from './explore-data.js';
@@ -16,7 +17,7 @@ export function installGeometryEditor({L,map,getLayers,isVisible,canEdit,save,no
  function render(){
   group.clearLayers();q('[data-error]').textContent='';q('[data-hint]').textContent=hints[mode];q('[data-count]').textContent=`${fc.features.length} features · ${selected.size} selected${dirty?' · Unsaved edits':''}`;
   q('[data-undo]').disabled=!history.length;q('[data-redo]').disabled=!future.length;
-  panel.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
+  panel.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.mode===mode));const section={point:'point',line:'line',polygon:'shape',circle:'shape'}[b.dataset.mode];b.disabled=!!(section&&layer?.metadata?.dxf_geometry&&section!==layer.metadata.dxf_geometry);});
   fc.features.forEach((f,index)=>{const color=selected.has(index)?'#eaa51d':'#19899a';L.geoJSON(f,{pane:'geometry-edit-preview',style:{color,weight:4,fillOpacity:.15},pointToLayer:(_,ll)=>L.circleMarker(ll,{pane:'geometry-edit-preview',radius:7,color,fillOpacity:.8}),onEachFeature:(_,shape)=>shape.on('click',e=>{if(!allowed()||!['select','vertices'].includes(mode))return;stop(e);selected.has(index)?selected.delete(index):selected.add(index);render();})}).addTo(group);
    if(mode==='vertices'&&selected.has(index))for(const v of vertices(f.geometry)){
     const marker=L.marker([v.coordinate[1],v.coordinate[0]],{pane:'geometry-edit-handles',draggable:true,icon:L.divIcon({className:'geometry-vertex',iconSize:[12,12]})}).addTo(group);
@@ -25,13 +26,13 @@ export function installGeometryEditor({L,map,getLayers,isVisible,canEdit,save,no
   });
   if(points.length){L.polyline(points.map(c=>[c[1],c[0]]),{pane:'geometry-edit-preview',color:'#eaa51d',dashArray:'5 5',interactive:false}).addTo(group);for(const c of points)L.circleMarker([c[1],c[0]],{pane:'geometry-edit-preview',radius:4,color:'#eaa51d',interactive:false}).addTo(group);}
  }
- function commitFeatures(features){if(features.length>20000)throw Error('A layer can contain up to 20,000 features.');snapshot();fc.features=features;selected.clear();points=[];rebuildCandidates();render();}
+ function commitFeatures(features){if(layer?.metadata?.dxf_geometry&&features.some(f=>geometrySection(f.geometry)!==layer.metadata.dxf_geometry))throw Error('Keep this DXF section to its own geometry type. Choose another layer to add a different type.');if(features.length>20000)throw Error('A layer can contain up to 20,000 features.');snapshot();fc.features=features;selected.clear();points=[];rebuildCandidates();render();}
  function finish(){if(!allowed())return;try{
   if(['cut','inside','outside'].includes(mode)){const ids=[...selected],source=ids.map(i=>fc.features[i]),tool=drawGeometry(mode==='cut'?'line':'polygon',points),result=editOperation(mode,source,tool);commitFeatures([...fc.features.filter((_,i)=>!selected.has(i)),...result]);}
   else{const geometry=drawGeometry(mode,points);commitFeatures([...fc.features,{type:'Feature',properties:{name:''},geometry}]);}
  }catch(e){error(e);}}
  map.on('click',e=>{if(panel.hidden||!allowed()||['select','vertices'].includes(mode))return;points.push(snap(e.latlng));render();if(mode==='point'||mode==='circle'&&points.length===2)finish();});
- panel.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-close')){close();return;}if(!allowed())return;
+ panel.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-close')){close();return;}if(!allowed()||b.disabled)return;
   try{
    if(b.dataset.mode){if(points.length)throw Error('Finish or clear the current sketch first.');mode=b.dataset.mode;render();}
    if(b.hasAttribute('data-finish')){if(['select','vertices'].includes(mode))throw Error('Choose a drawing or trimming tool first.');finish();}
