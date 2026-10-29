@@ -1,9 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {legendEntries,legendSVG,geometrySVG,rotatePoint,framePoint,frameLatLng,bearing} from '../src/print-cartography.js';
+import {layerSVG,legendEntries,legendSVG,geometrySVG,rotatePoint,framePoint,frameLatLng,bearing} from '../src/print-cartography.js';
 const layer={id:'holes',name:'Holes',color:'#123456',opacity:1,metadata:{style:{rules:{mode:'categorized',field:'status',classes:[{key:'string:done',label:'Complete',color:'#00ff00',symbol:'square',pointSize:18},{key:'string:todo',label:'Planned',color:'#ff0000',symbol:'triangle',pointSize:10}]}}},fc:{features:[{properties:{status:'done'},geometry:{type:'Point',coordinates:[1,2]}},{properties:{status:null},geometry:{type:'Point',coordinates:[2,3]}}]}};
 test('classified legends retain symbols, sizes, zero-count classes and fallback',()=>{const rows=legendEntries(layer);assert.deepEqual(rows.map(r=>[r.label,r.count,r.symbol]),[['Complete',1,'square'],['Planned',0,'triangle'],['Other / missing',1,'circle']]);assert.equal(rows[0].pointSize,18);});
 test('numeric ranges include final upper boundary and missing data',()=>{const l=structuredClone(layer);l.metadata.style.rules={mode:'graduated',field:'n',classes:[{min:0,max:10},{min:10,max:20}]};l.fc.features=[0,10,20,null].map(n=>({properties:{n}}));assert.deepEqual(legendEntries(l).map(r=>r.count),[1,2,1]);});
 test('legend escapes labels, hides individual entries and reports overflow',()=>{const output=legendSVG([layer],{showCounts:true,entryLabels:{'holes:0':'<script>'},hiddenEntries:['holes:1']},180,25);assert.match(output.markup,/&lt;script&gt;/);assert.doesNotMatch(output.markup,/Planned/);assert.equal(output.overflow,true);});
 test('polygon holes stay compound vector paths with even-odd fill',()=>{const svg=geometrySVG({type:'Polygon',coordinates:[[[0,0],[10,0],[10,10],[0,0]],[[2,2],[3,2],[2,3],[2,2]]]},c=>c,{color:'#000000'});assert.match(svg,/fill-rule="evenodd"/);assert.equal((svg.match(/Z/g)||[]).length,2);assert.doesNotMatch(svg,/<image/);});
 test('rotation and inverse map footprint agree at 90 degrees',()=>{assert.equal(bearing(-90),270);const map={_printFrame:{width:200,height:100,bearing:90},getSize:()=>({x:300,y:300}),latLngToContainerPoint:p=>({x:p[0],y:p[1]}),containerPointToLatLng:p=>p};const p=framePoint(map,[170,150]);assert.ok(Math.abs(p[0]-100)<1e-8);assert.ok(Math.abs(p[1]-70)<1e-8);assert.deepEqual(frameLatLng(map,...p),[170,150]);assert.ok(Math.abs(rotatePoint(1,0,90)[1]-1)<1e-8);});
+
+test('vector exports preserve highlighter width and text labels without a point symbol',()=>{
+ const map={_printFrame:{width:200,height:100,bearing:0},getSize:()=>({x:200,y:100}),latLngToContainerPoint:p=>({x:p[1],y:p[0]})};
+ const base={color:'#e4b73c',opacity:1,metadata:{annotation:{type:'highlighter'}},fc:{features:[{properties:{note:'Highlight'},geometry:{type:'LineString',coordinates:[[10,10],[50,50]]}}]}};
+ const svg=layerSVG(base,map);assert.match(svg,/stroke-width="12"/);assert.match(svg,/stroke-opacity="0.35"/);
+ base.metadata.annotation.type='text';base.fc.features[0].geometry={type:'Point',coordinates:[10,10]};base.fc.features[0].properties.note='Site <label>';
+ const text=layerSVG(base,map);assert.match(text,/font-size="20"/);assert.match(text,/Site &lt;label&gt;/);assert.doesNotMatch(text,/<circle/);
+});

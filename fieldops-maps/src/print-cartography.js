@@ -53,12 +53,12 @@ export function geometrySVG(geometry,project,style){
 }
 export function layerSVG(layer,map){let result='',labels=0;const project=c=>framePoint(map,[c[1],c[0]]),f=map._printFrame;
  for(const feature of layer.fc?.features||[]){const appearance=featureAppearance(layer,feature),s=layerStyle(appearance),v=vectorStyle(layer,feature),annotation=layer.metadata?.annotation;
-  result+=geometrySVG(feature.geometry,project,{...s,...v,color:appearance.color,bearing:f.bearing});
+  if(annotation?.type!=='text')result+=geometrySVG(feature.geometry,project,{...s,...v,...(annotation?.type==='highlighter'?{weight:12,opacity:.35*(layer.opacity??.85)}:annotation?.type==='marker'?{weight:3}:{}),color:appearance.color,bearing:f.bearing});
   const g=feature.geometry;let points=g?.type==='Point'?[g.coordinates]:g?.type==='MultiPoint'?g.coordinates:[];
   if(annotation&&g?.type==='LineString')points=[g.coordinates.at(-1)];
   if(annotation&&g?.type==='Polygon')points=[g.coordinates[0][0]];
-  const value=annotation?(feature.properties?.note||layer.name):feature.properties?.[layer.metadata?.style?.labelField];
-  if(value!=null&&String(value)!=='')for(const c of points){const [x,y]=project(c);if(x<0||y<0||x>f.width||y>f.height||labels>=500)continue;labels++;result+=`<g transform="translate(${x} ${y}) rotate(${f.bearing||0})">${textSVG(typeof value==='object'?JSON.stringify(value):String(value),8,-5,300,11)}</g>`;}
+  const value=annotation?(annotation.type==='highlighter'?null:feature.properties?.note||layer.name):feature.properties?.[layer.metadata?.style?.labelField];
+  if(value!=null&&String(value)!=='')for(const c of points){const [x,y]=project(c);if(x<0||y<0||x>f.width||y>f.height||labels>=500)continue;labels++;result+=`<g transform="translate(${x} ${y}) rotate(${f.bearing||0})">${textSVG(typeof value==='object'?JSON.stringify(value):String(value),8,-5,300,annotation?.type==='text'?20:11)}</g>`;}
   if(annotation?.type==='arrow'&&g?.type==='LineString'&&g.coordinates.length>1){const a=project(g.coordinates.at(-2)),b=project(g.coordinates.at(-1)),angle=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;result+=`<path d="M0 0L-14 -6L-14 6Z" transform="translate(${b[0]} ${b[1]}) rotate(${angle})" fill="${xml(layer.color)}"/>`;}
  }return result;
 }
