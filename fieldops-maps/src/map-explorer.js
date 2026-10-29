@@ -1,6 +1,6 @@
 import {attributeFields,matchesView,legendItems,tableRows,textValue,featureTitle,featureInfo,featureBounds} from './explore-data.js';
 import {escapeHTML as esc,filterDialog,popupDialog} from './explore-dialogs.js';
-export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,saveStyle,showInfo}){
+export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,saveStyle,showInfo,renderInfo=(l,f)=>featureInfo(l,f,document)}){
  const views=new Map();let current='',sortField='',direction=1,page=0,selected=null,selection=null,searchTimer,tableTimer;
  const root=document.querySelector('.map-area');
  root.insertAdjacentHTML('beforeend',`<section class="attribute-table" hidden aria-label="Attribute table"><div class="table-toolbar"><strong>Table</strong><select data-table-layer aria-label="Table layer"></select><input data-table-search type="search" placeholder="Find in this layer…" aria-label="Filter table and map"><button data-filter title="Filter layer">⏷ Filters</button><button data-reset title="Reset this view">Reset</button><button data-save-view title="Save filters and legend choices as the project default">Save default</button><button data-info-settings title="Configure feature information">⚙ Fields</button><button data-close-table aria-label="Close table">×</button></div><div class="table-summary"><span data-table-count></span><label><input type="checkbox" data-extent> Table: current map extent only</label><span data-view-note></span></div><div class="table-scroll"><table><thead></thead><tbody></tbody></table></div><div class="table-pagination"><button data-page="-1">Previous</button><span data-page-label></span><button data-page="1">Next</button></div></section><section class="feature-search" hidden aria-label="Search features"><div class="info-heading"><strong>Find a hole or asset</strong><button data-close-search aria-label="Close search">×</button></div><input type="search" data-global-search placeholder="Search visible layers…" aria-label="Search visible features"><p class="field-note">Searches features matching your current filters and legend choices.</p><div class="feature-results" role="status"></div></section>`);
@@ -14,7 +14,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
   const feature=l.fc?.features[index];if(!feature)return;clearSelection();selected={id:l.id,index};
   selection=L.geoJSON(feature,{style:{color:'#f5b700',weight:5,fillOpacity:.15},pointToLayer:(_f,ll)=>L.circleMarker(ll,{radius:12,color:'#f5b700',weight:3,fillOpacity:.1,interactive:false}),interactive:false});selection.addTo(map);
   const b=featureBounds(feature);if(zoom&&b)map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[60,60],maxZoom:19});
-  showInfo(featureTitle(l,feature,index),featureInfo(l,feature,document));current=l.id;search.hidden=true;
+  showInfo(featureTitle(l,feature,index),renderInfo(l,feature));current=l.id;search.hidden=true;
   if(!table.hidden){const rows=currentRows(),position=rows.findIndex(r=>r.index===index);if(position>=0)page=Math.floor(position/100);renderTable();}
  }
  function currentRows(){const l=layer();if(!l)return [];let bounds=null;if(q('[data-extent]').checked){const b=map.getBounds();bounds=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];}return tableRows(l,view(l),{field:sortField,direction,bounds});}

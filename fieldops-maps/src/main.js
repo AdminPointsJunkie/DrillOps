@@ -3,6 +3,7 @@ import {reportWebDevice} from './device-reporting.js';
 import './explore.css';
 import {installMapExplorer} from './map-explorer.js';
 import {featureInfo} from './explore-data.js';
+import {locationFilesPanel,addLocationFiles,removeLocationFile} from './location-files.js';
 import {installFieldTools,annotationLayer,editAnnotation} from './field-tools.js';
 import {publishedProjects,publishedLayers} from './published-projects.js';
 import {openAttributeStyle} from './attribute-style-dialog.js';
@@ -66,7 +67,22 @@ map.on('mousemove',e=>$('#coordinates').textContent=`${Math.abs(e.latlng.lat).to
 fetch(import.meta.env.BASE_URL+'crs.json').then(r=>r.json()).then(r=>{crsList=r;renderProjectCRS();}).catch(()=>toast('The EPSG catalogue could not load. Reload the page.'));
 let toastTimer;function toast(msg){clearTimeout(toastTimer);$('#toast').textContent=msg;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
 function setBusy(value,message){busy=value;refreshSaveStatus();$('#cloud-state').textContent=message||(LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects');$('#files').disabled=value;}
-function popup(feature,item){return item?featureInfo(item,feature,document):document.createElement('div');}
+function popup(feature,item){
+ if(!item)return document.createElement('div');
+ const content=featureInfo(item,feature,document);
+ const change=async action=>{
+  if(!canEditLayer(item)||!layers.includes(item))throw Error('This location is no longer editable.');
+  if(busy||syncing||geometryEditor?.active)throw Error('Finish the current operation before changing attachments.');
+  if(!item.saved||!activeMap||!user)throw Error('Save this layer to a project before attaching files.');
+  setBusy(true,'Saving location attachments…');
+  try{const index=await action(next=>replaceLayer(item,next));explorer.select(item,index,false);toast('Attachments saved. SYNC to publish changes.');}finally{setBusy(false);}
+ };
+ content.append(locationFilesPanel({document,layer:item,feature,canEdit:canEditLayer,
+  upload:(files,progress)=>change(save=>addLocationFiles({db,layer:item,feature,files,userId:user.id,mapId:activeMap.id,local:LOCAL_TESTING,save,progress})),
+  remove:file=>change(save=>removeLocationFile({layer:item,feature,path:file.path,save})),
+  download:async file=>{const {data,error}=await db.storage.from('gis-files').download(file.path);if(error)throw error;const url=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'})),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+ }));return content;
+}
 function featureClicked(item,f){if(fieldTools?.drawing||geometryEditor?.active)return;const index=item.fc.features.indexOf(f);if(explorer){explorer.select(item,index,false);return;}$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f,item));}
 function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});const fc={...item.fc,features:item.fc.features.filter(f=>!explorer||explorer.acceptFeature(item,f))};if(item.metadata?.annotation)return annotationLayer(L,{...item,fc},{pane,onClick:f=>featureClicked(item,f)});return L.geoJSON(fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>l.on('click',()=>featureClicked(item,f))});}
 function redrawLayer(l){const old=rendered.get(l.id);if(old)map.removeLayer(old);const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();}
@@ -270,7 +286,7 @@ async function openLayerSettings(layer){
 }
 async function replaceLayer(old,next){
  const metadata={...old.metadata,...next.metadata,style:old.metadata?.style,crs_label:next.crsLabel};
- const payload={name:next.name,source_crs:next.source_crs,vertical_datum:next.vertical_datum,metadata,bounds:next.bounds};
+ const payload={name:next.name,source_crs:next.source_crs,vertical_datum:next.vertical_datum,metadata,bounds:next.bounds,original_paths:next.original_paths||old.original_paths||[]};
  let rasterPath;
  if(old.saved){
   await styleSaves.get(old.id);
@@ -446,7 +462,7 @@ window.addEventListener('beforeunload',e=>{if(geometryEditor?.pending||fieldTool
 function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();}
 async function saveStylePart(l,key,value){if(!canEditLayer(l))throw Error('This layer is read only.');const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)throw Error('Layer is no longer open.');await changeLayerStyle({target:{closest:()=>card,dataset:{action:key},value}});renderLayers();if(saves.state().failed)throw Error('Changed here, but cloud saving failed. Use Retry before SYNC.');toast(l.saved?'Settings saved. SYNC to publish these defaults.':'Settings applied. Save the layer to keep them.');}
 function openAnnotationSettings(l){if(!isAdmin())return;editAnnotation(l,{canAnnotate:isAdmin,save:async(layer,values)=>{const next={...layer,name:values.name,fc:structuredClone(layer.fc)};next.fc.features[0].properties.note=values.note;next.metadata={...layer.metadata,annotation:{...layer.metadata.annotation}};await replaceLayer(layer,next);await changeLayerStyle({target:{closest:()=>[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===layer.id),dataset:{action:'color'},value:values.color}});renderLayers();},remove:async layer=>{if(layer.saved){const {error}=await db.from('layers').delete().eq('id',layer.id);if(error)throw error;}map.removeLayer(rendered.get(layer.id));rendered.delete(layer.id);layers=layers.filter(l=>l!==layer);removeNode(layerTree,layer.id);await saveLayout();renderLayers();updateEmpty();syncDirty=true;refreshSaveStatus();}});}
-explorer=installMapExplorer({L,map,getLayers:()=>layers,isVisible,canEdit:canEditLayer,redraw:redrawLayer,saveStyle:saveStylePart,showInfo:(title,content)=>{identifyActive=true;$('#identify').setAttribute('aria-pressed','true');$('#feature-info').hidden=false;$('#feature-info-title').textContent=title;$('#feature-info-content').replaceChildren(content);}});
+explorer=installMapExplorer({L,map,getLayers:()=>layers,isVisible,canEdit:canEditLayer,redraw:redrawLayer,saveStyle:saveStylePart,renderInfo:(l,f)=>popup(f,l),showInfo:(title,content)=>{identifyActive=true;$('#identify').setAttribute('aria-pressed','true');$('#feature-info').hidden=false;$('#feature-info-title').textContent=title;$('#feature-info-content').replaceChildren(content);}});
 fieldTools=installFieldTools({L,map,canAnnotate:isAdmin,hasProject:()=>!!activeMap,onAnnotation:async({name,color,type,feature,bounds})=>{if(!isAdmin())throw Error('Only admins can add annotations.');const l={id:crypto.randomUUID(),name,color,kind:'vector',source_crs:'EPSG:4326',crsLabel:'WGS 84 · annotation',vertical_datum:'Not applicable',metadata:{annotation:{type},style:{}},opacity:.9,visible:true,saved:false,files:[],bounds,fc:{type:'FeatureCollection',features:[feature]}};addLayer(l);try{await saveLayer(l);}catch(error){toast('Annotation added; use Save or Retry: '+errorText(error));}},notify:toast});
 $('#open-table').onclick=()=>explorer.openTable();$('#open-search').onclick=()=>explorer.openSearch();$('#open-filter').onclick=()=>explorer.openFilter();$('#open-measure').onclick=()=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('measure');};$('#open-annotation').onclick=()=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('annotation');};
 updateAccess();explorer.refresh();

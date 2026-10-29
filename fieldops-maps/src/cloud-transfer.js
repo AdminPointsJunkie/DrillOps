@@ -1,15 +1,19 @@
 import {registerUpload} from './upload-meter.js';
+import {FILES_PROPERTY,locationFiles} from './location-files.js';
 export const CLOUD_FILE_LIMIT=50*1024*1024;
 const checked=async request=>{const result=await request;if(result.error)throw result.error;return result.data;};
 
 // The local copy and stable destination IDs survive a failed or interrupted transfer.
 export async function transferProject(local,cloud,project,userId,progress=()=>{},workspaceId=null){
  const layers=await checked(local.from('layers').select('*').eq('map_id',project.id).order('created_at'));
+ const vectors=new Map();
+ for(const layer of layers)if(layer.kind==='vector')vectors.set(layer.id,await checked(local.rpc('layer_geojson',{p_layer_id:layer.id})));
+ const attachments=l=>[...new Map((vectors.get(l.id)?.features||[]).flatMap(locationFiles).map(f=>[f.path,f])).values()];
  const originals=l=>l.metadata?.source_names?.length
   ?(l.original_paths||[]).slice(0,l.metadata.source_names.length)
-  :(l.original_paths||[]).filter(p=>p!==l.raster_path&&!p.endsWith('/display.png'));
+  :(l.original_paths||[]).filter(p=>p!==l.raster_path&&!p.endsWith('/display.png')&&!p.includes('/attachments/'));
  for(const layer of layers){
-  for(const path of [...originals(layer),...(layer.raster_path?[layer.raster_path]:[])]){
+  for(const path of [...originals(layer),...attachments(layer).map(f=>f.path),...(layer.raster_path?[layer.raster_path]:[])]){
    const blob=await checked(local.storage.from('gis-files').download(path));
    if(blob.size>CLOUD_FILE_LIMIT)throw Error(`${layer.name}: ${path.split('/').at(-1)} exceeds the current 50 MB cloud file limit. This project remains safely in browser storage.`);
   }
@@ -39,7 +43,15 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
    vertical_datum:layer.vertical_datum||'Unknown',metadata:{...layer.metadata,source_names:layer.metadata?.source_names||originals(layer).map(p=>p.split('/').at(-1))},
    color:layer.color,opacity:layer.opacity??.85,visible:layer.visible!==false,bounds:layer.bounds,original_paths:paths};
   if(layer.kind==='vector'){
-   const fc=await checked(local.rpc('layer_geojson',{p_layer_id:layer.id}));
+   const fc=structuredClone(vectors.get(layer.id)),remapped=new Map();
+   for(const [i,file] of attachments(layer).entries()){
+    const blob=await checked(local.storage.from('gis-files').download(file.path));
+    const target=`${userId}/${id}/attachments/${i}/${file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-160)||'file'}`;
+    await registerUpload(cloud,destination.id,target);
+    await checked(cloud.storage.from('gis-files').upload(target,blob,{upsert:true,contentType:file.type||'application/octet-stream'}));
+    remapped.set(file.path,target);paths.push(target);
+   }
+   for(const feature of fc.features)if(locationFiles(feature).length)feature.properties[FILES_PROPERTY]=locationFiles(feature).map(file=>({...file,path:remapped.get(file.path)}));
    await checked(cloud.rpc('import_vector',{p_layer:payload,p_features:fc.features}));
   }else{
    if(!layer.metadata?.xyz){

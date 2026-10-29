@@ -1,6 +1,6 @@
 import {compileExpression} from './style-expression.js';
 export const attributeSymbols=['circle','square','triangle','diamond','cross'];
-export const attributeFields=fc=>[...new Set((fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))];
+export const attributeFields=fc=>[...new Set((fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))].filter(key=>key!=='_fieldmaps_files');
 const palette=['#147d72','#c17d28','#6c61aa','#ce6359','#3087ba','#ad397d','#638c30','#805443'];
 const numeric=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&Number.isFinite(Number(v));
 export const categoryKey=v=>v===null||v===undefined?'null':`${typeof v}:${String(v)}`;

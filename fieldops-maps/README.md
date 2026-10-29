@@ -1,5 +1,13 @@
 # DrillOps Maps
 
+## Location attachments
+
+Select a saved point, line or area on the map (or through Search/Table) and use **Attachments → Attach files**. For a new location, draw a point and save the layer first. Editors can upload multiple files, download them or remove their link from the location. Limits are 50 MB per file, 20 files and 300 MB per selection. Operators can download attachments in their assigned published projects after **SYNC**.
+
+Attachment descriptors are stored with feature properties in the reserved `_fieldmaps_files` field; it is hidden from ordinary attribute controls. Storage paths are also retained in `layers.original_paths` for workspace access and usage accounting. Browser-to-cloud transfer copies the files and rewrites references. Files are downloaded through authenticated private storage as downloads, without rendering uploaded HTML in the application.
+
+SYNC validates each referenced file and records it in the release's existing `raster_paths` storage-access list (which now includes attachments). Published files become immutable under the existing storage policies. Removing an attachment unlinks it from the draft; retained bytes still count toward stored usage and keep previous releases readable. Failed uploads/saves may leave unreferenced bytes; do not delete them automatically after an uncertain response. The migration is `20261029035110_location_attachments.sql`. Regression coverage includes `tests/location-files.test.mjs` and the transaction-only `tests/location-files-access.sql` using the workspace fixture setup.
+
 ## People and access
 
 New invitations open `/maps/setup.html` directly with the token hash in the URL fragment. The password form appears immediately and redeems the invitation only when submitted, avoiding map startup dependencies and passive email-scanner consumption. Legacy invite/recovery callbacks are forwarded to the same dedicated page before the map client starts. Invited accounts without a password also automatically open Create your password after ordinary sign-in, including after refresh or email-link sign-in. Closing it leaves Finish account setup available. Expired/used links show an actionable dialog; admins can Resend invitation on unverified accounts without changing their roles or assignments. The hosted invite template is tracked at `supabase/templates/invite.html` (subject: Create your DrillOps Maps password). Existing expired emails require a new invitation.

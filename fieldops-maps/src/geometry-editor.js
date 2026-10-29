@@ -42,7 +42,7 @@ export function installGeometryEditor({L,map,getLayers,isVisible,canEdit,save,no
    if(b.hasAttribute('data-delete')){if(!selected.size)throw Error('Select features to delete.');commitFeatures(fc.features.filter((_,i)=>!selected.has(i)));}
    if(b.hasAttribute('data-attributes')){
     if(selected.size!==1)throw Error('Select one feature to edit its attributes.');const f=fc.features[[...selected][0]];
-    const text=prompt('Feature attributes (JSON object; existing field names are retained unless removed here)',JSON.stringify(f.properties||{},null,2));if(text===null)return;const props=JSON.parse(text);if(!props||Array.isArray(props)||typeof props!=='object')throw Error('Enter a JSON object.');snapshot();f.properties=props;render();
+    const text=prompt('Feature attributes (JSON object; existing field names are retained unless removed here)',JSON.stringify(Object.fromEntries(Object.entries(f.properties||{}).filter(([key])=>key!=='_fieldmaps_files')),null,2));if(text===null)return;const props=JSON.parse(text);if(!props||Array.isArray(props)||typeof props!=='object')throw Error('Enter a JSON object.');snapshot();delete props._fieldmaps_files;if(f.properties?._fieldmaps_files)props._fieldmaps_files=f.properties._fieldmaps_files;f.properties=props;render();
    }
    if(b.hasAttribute('data-save')){
     if(points.length)throw Error('Finish or clear the current sketch before saving.');const name=q('[data-name]').value.trim();if(!name)throw Error('Enter a layer name.');
