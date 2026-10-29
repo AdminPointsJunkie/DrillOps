@@ -1,3 +1,4 @@
+import {bindLineDistance} from './line-distance.js';
 import {installToolMenus} from './tool-menus.js';
 import {openAnalysis} from './analysis-ui.js';
 import {installMapComponents} from './map-components.js';
@@ -76,7 +77,7 @@ let toastTimer;function toast(msg){clearTimeout(toastTimer);$('#toast').textCont
 function setBusy(value,message){busy=value;refreshSaveStatus();$('#cloud-state').textContent=message||(LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects');$('#files').disabled=value;}
 function popup(feature,item){return item?featureInfo(item,feature,document):document.createElement('div');}
 function featureClicked(item,f){if(fieldTools?.drawing||geometryEditor?.active)return;const index=item.fc.features.indexOf(f);if(explorer){explorer.select(item,index,false);return;}$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f,item));}
-function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});const fc={...item.fc,features:item.fc.features.filter(f=>!explorer||explorer.acceptFeature(item,f))};if(item.metadata?.annotation)return annotationLayer(L,{...item,fc},{pane,onClick:f=>featureClicked(item,f)});return L.geoJSON(fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>l.on('click',()=>featureClicked(item,f))});}
+function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});const fc={...item.fc,features:item.fc.features.filter(f=>!explorer||explorer.acceptFeature(item,f))};if(item.metadata?.annotation)return annotationLayer(L,{...item,fc},{pane,onClick:f=>featureClicked(item,f)});return L.geoJSON(fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>{bindLineDistance(l,f,item.metadata?.style?.distanceLabels);l.on('click',()=>featureClicked(item,f));}});}
 function redrawLayer(l){const old=rendered.get(l.id);if(old)map.removeLayer(old);const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();}
 function updateEmpty(){refreshSaveStatus();$('#empty-map').hidden=layers.length>0||!!preview;$('#layer-count').textContent=layers.length;$('#map-subtitle').textContent=layers.length?`${layers.length} layer${layers.length===1?'':'s'} · ${layers.filter(l=>l.saved).length} saved ${LOCAL_TESTING?'in this browser':'to your account'}`:'A clear view of all your spatial data.';}
 function addLayer(item){layers.push(item);if(!flattenTree(layerTree).includes(item.id))layerTree.unshift(item.id);const ml=makeLayer(item);rendered.set(item.id,ml);if(isVisible(item))ml.addTo(map);renderLayers();updateEmpty();}
@@ -295,8 +296,8 @@ async function openLayerSettings(layer){
   queue.push(q);renderQueue();setBusy(false);openReview(queue.length-1);
  }catch(e){toast(errorText(e));}finally{setBusy(false);}
 }
-async function replaceLayer(old,next){
- const metadata={...old.metadata,...next.metadata,style:old.metadata?.style,crs_label:next.crsLabel};
+async function replaceLayer(old,next,replaceStyle=false){
+ const metadata={...old.metadata,...next.metadata,style:replaceStyle?next.metadata?.style:old.metadata?.style,crs_label:next.crsLabel};
  const payload={name:next.name,source_crs:next.source_crs,vertical_datum:next.vertical_datum,metadata,bounds:next.bounds};
  let rasterPath;
  if(old.saved){
@@ -493,8 +494,8 @@ async function openDrawing(target){
  if(!geometryEditor){const {installGeometryEditor}=await import('./geometry-editor.js');geometryEditor=installGeometryEditor({L,map,getLayers:()=>layers,isVisible,canEdit:l=>canEditLayer(l)&&!busy&&!syncing,notify:toast,onPreviewLayer:l=>{geometryEditingId=l?.id||null;syncStack();},save:async(old,values)=>{
   if(!canEditLayer(old))throw Error('Your account cannot edit this layer.');
   setBusy(true,'Saving drawing…');
-  try{if(old){await replaceLayer(old,{...old,...values});old.feature_count=values.fc.features.length;if(!old.saved)await saveLayer(old);}
-  else{const l={id:crypto.randomUUID(),...values,kind:'vector',source_crs:'EPSG:4326',crsLabel:'WGS 84 · drawn on map',vertical_datum:'RL',metadata:{manual:true,style:{}},color:'#147d72',opacity:.9,visible:true,saved:false,files:[]};addLayer(l);try{await saveLayer(l);}catch(e){if(l.saved){toast('Geometry saved; retry pending project layout saves.');return;}map.removeLayer(rendered.get(l.id));rendered.delete(l.id);layers=layers.filter(x=>x!==l);removeNode(layerTree,l.id);renderLayers();updateEmpty();throw e;}}
+  try{if(old){await replaceLayer(old,{...old,...values},true);if(old.color!==values.color)await saveStylePart(old,'color',values.color);if(old.opacity!==values.opacity)await saveStylePart(old,'opacity',values.opacity);old.feature_count=values.fc.features.length;if(!old.saved)await saveLayer(old);}
+  else{const l={id:crypto.randomUUID(),...values,kind:'vector',source_crs:'EPSG:4326',crsLabel:'WGS 84 · drawn on map',vertical_datum:'RL',metadata:{...values.metadata,manual:true},color:values.color,opacity:values.opacity,visible:true,saved:false,files:[]};addLayer(l);try{await saveLayer(l);}catch(e){if(l.saved){toast('Geometry saved; retry pending project layout saves.');return;}map.removeLayer(rendered.get(l.id));rendered.delete(l.id);layers=layers.filter(x=>x!==l);removeNode(layerTree,l.id);renderLayers();updateEmpty();throw e;}}
   renderLayers();refreshSaveStatus();}finally{setBusy(false);}
  }});}
  geometryEditor.open(target);

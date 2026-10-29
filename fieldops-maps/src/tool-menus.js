@@ -1,3 +1,4 @@
+import {installAppMenu} from './app-menu.js';
 import {workspaceIcon} from './workspace-layout.js';
 import {analysisTools} from './analysis-ui.js';
 import {componentTools} from './map-components.js';
@@ -10,9 +11,10 @@ export function installToolMenus({analyse,component,draw,uploadURL,canCreate}){
  menu('Components','table',[{label:'Show components',action:()=>component('show')},...Object.entries(componentTools).map(([id,label])=>({label,action:()=>component(id)}))]);
  for(const id of ['open-search','open-filter','open-table']){const b=document.getElementById(id);b.title=b.textContent.trim();b.setAttribute('aria-label',b.title);tools.append(b);}
  const exports=menu('Export and print','download',[]);
- menu('Workspace and account','settings',['people','platform-admin','workspace-invitations','storage-usage-button','set-password','account'].map(id=>({id})));
+ const accountContent=menu('Workspace and account','settings',['people','platform-admin','workspace-invitations','storage-usage-button','set-password','account'].map(id=>({id})));
+ const appMenu=installAppMenu({accountContent,canCreate});
  // Account controls remain the original buttons and retain their access checks.
  document.addEventListener('click',e=>{if(!e.target.closest('.tool-menu'))document.querySelectorAll('.tool-menu').forEach(d=>d.open=false);});
  tools.addEventListener('keydown',e=>{if(e.key==='Escape'){const d=e.target.closest('.tool-menu');if(d){d.open=false;d.querySelector('summary').focus();}}});
- return {addExport(button){exports.append(button);},refresh(){tools.querySelectorAll('[data-edit-tool]').forEach(b=>b.hidden=!canCreate());}};
+ return {addExport(button){exports.append(button);appMenu.addExport(button);},refresh(){appMenu.refresh();tools.querySelectorAll('[data-edit-tool]').forEach(b=>b.hidden=!canCreate());}};
 }
