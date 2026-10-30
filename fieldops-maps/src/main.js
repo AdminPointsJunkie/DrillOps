@@ -5,6 +5,8 @@ import {bindLineDistance} from './line-distance.js';
 import {installToolMenus} from './tool-menus.js';
 import {openAnalysis} from './analysis-ui.js';
 import {installMapComponents} from './map-components.js';
+import {openRoute} from './route-ui.js';
+import {openCloudImport} from './cloud-import.js';
 import {openURLUpload} from './upload-url.js';
 import {joinRows} from './table-join.js';
 import {mapCoordinates} from './map-coordinates.js';
@@ -555,7 +557,7 @@ async function addAnalysisResult(fc,name){
  toast('Result added. Use Save on the new layer to keep it.');
 }
 mapComponents=installMapComponents({getLayers:()=>layers,getScope:analysisScope,explorer});
-toolMenus=installToolMenus({home:()=>homeUI?.open(),annotate:type=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('annotation',type);},canAnnotate:isAdmin,canCreate,analyse:operation=>{const scope=analysisScope();openAnalysis(operation,{getLayers:()=>layers,canCreate:()=>canCreate()&&scope===analysisScope(),onResult:addAnalysisResult});},component:type=>type==='show'?mapComponents.show():mapComponents.open(type),draw:async mode=>{await openDrawing();geometryEditor?.setMode(mode);},uploadURL:()=>openURLUpload(handleFiles,canCreate)});
+toolMenus=installToolMenus({cloud:()=>openCloudImport({handleFiles,canCreate,getScope:analysisScope}),route:()=>{if(geometryEditor?.active||fieldTools?.pending)return toast('Finish the current drawing first.');mapComparison?.close();identify(false);const scope=analysisScope();openRoute({map,getLayers:()=>layers,canCreate:()=>canCreate()&&scope===analysisScope(),onResult:addAnalysisResult});},home:()=>homeUI?.open(),annotate:type=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('annotation',type);},canAnnotate:isAdmin,canCreate,analyse:operation=>{const scope=analysisScope();openAnalysis(operation,{getLayers:()=>layers,canCreate:()=>canCreate()&&scope===analysisScope(),onResult:addAnalysisResult});},component:type=>type==='show'?mapComponents.show():mapComponents.open(type),draw:async mode=>{await openDrawing();geometryEditor?.setMode(mode);},uploadURL:()=>openURLUpload(handleFiles,canCreate)});
 toolMenus.refresh();
 
 const quickActions=[];

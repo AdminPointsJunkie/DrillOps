@@ -1,8 +1,8 @@
 import {attributeFields,filterOperators} from './explore-data.js';
 export const escapeHTML=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function toolDialog(title,body){
+export function toolDialog(title,body,{modal=true}={}){
  const dialog=document.createElement('dialog');dialog.className='explore-dialog';dialog.innerHTML=`<form><div class="dialog-heading"><h2>${escapeHTML(title)}</h2><button type="button" data-dismiss aria-label="Close">×</button></div>${body}<p class="error" role="alert"></p><div class="dialog-actions"><button type="button" data-dismiss>Cancel</button><button type="submit" class="primary">Apply</button></div></form>`;
- document.body.append(dialog);dialog.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();return dialog;
+ document.body.append(dialog);dialog.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>dialog.remove(),{once:true});modal?dialog.showModal():dialog.show();return dialog;
 }
 export function filterDialog(layer,view,onApply){
  const fields=attributeFields(layer.fc),conditions=structuredClone(view.filter?.conditions||[]);
