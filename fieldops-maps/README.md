@@ -1,5 +1,12 @@
 # DrillOps Maps
 
+## Data efficiency and local imagery
+
+GeoTIFF/COG and VRT raster overlays stay on the device (the current session in cloud mode), with no original or preview cloud upload. Original import archives also stay local; their parsed vectors can still be shared. Location attachments reject TIFFs and archives. JPEG photo attachments are optimised with on-demand thumbnails. The published web viewer caches unchanged exact layers, checks live access on every open, and defers hidden raster files. Publishing retains the latest three releases and reuses unchanged raster snapshots. Existing files are not purged.
+
+See [the native app checklist and API contract](APP-DATA-EFFICIENCY-CHECKLIST.md) for changed-layer sync, on-demand vectors, optional display simplification, attribute selection and device-cache requirements. The legacy native download format remains supported until the app adopts these APIs.
+
+
 ## Location attachments
 
 Select a saved point, line or area on the map (or through Search/Table) and use **Attachments → Attach files**. For a new location, draw a point and save the layer first. Editors can upload multiple files, download them or remove their link from the location. Limits are 50 MB per file, 20 files and 300 MB per selection. Operators can download attachments in their assigned published projects after **SYNC**.
@@ -42,7 +49,7 @@ Supabase project: `dzthwvxrltkltfvubvld` (Shared Map, Sydney).
 
 The **Import browser projects** button appears after sign-in. It copies a selected IndexedDB project, original files, vectors, raster previews, XYZ links, styles, labels and group/order settings into that account. Local data is retained. Stable destination IDs allow interrupted copies to resume without duplicate layers. Completed copies do not overwrite subsequent cloud edits. Run this from the same browser/profile that holds the testing data.
 
-The current free-plan bucket allows **50 MB per file**. Transfers preflight every source and preview before creating a destination project. A project containing a larger file remains local and displays an error; there is no automatic plan upgrade, server raster processing or silent loss of original files.
+The current free-plan bucket allows **50 MB per file**. Transfers preflight every source and preview before creating a destination project. A project containing a larger file remains local and displays an error; there is no automatic plan upgrade or server raster processing; original archives and GeoTIFFs remain local.
 
 Cloud layer edits use an atomic PostGIS replacement function; validation errors roll back to the previous geometry. Layout/group settings now live on `maps.layer_layout`. Apply schema.sql plus every migration for a new installation. The cloud workspace migration was applied remotely as `20261027212459`.
 
@@ -90,8 +97,8 @@ Preview stays in browser memory. Import attempts to save to the selected project
 
 ## Current limits
 
-- 50 MB per file in cloud mode (local testing supports GeoTIFFs up to 250 MB), 300 MB per batch, 20,000 features per vector layer.
-- Raster previews are reduced to 1,536 pixels on the longer source dimension. Full originals are retained; this is not a tiled full-resolution raster service.
+- 50 MB per file in cloud mode (GeoTIFFs up to 250 MB are local-only), 300 MB per batch, 20,000 features per vector layer.
+- Raster previews are reduced to 1,536 pixels on the longer source dimension. Permitted non-archive originals are retained; GeoTIFFs and their previews stay local. This is not a tiled full-resolution raster service.
 - Browser memory and the bundled driver determine format support. DWG is not promised. GeoTIFF/world-file georeferencing is required for raster positioning.
 - Source coordinate systems are never inferred from coordinate magnitudes. CSV requires confirmation; missing CRS requires a choice.
 - PROJ requests best available operations without downloading grids. Missing resources may cause import to fail. No survey accuracy is certified. Height reference is recorded, not vertically transformed. Expert pipelines and first-order local-grid control points are vector-only.

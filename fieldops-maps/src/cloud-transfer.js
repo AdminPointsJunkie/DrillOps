@@ -1,3 +1,4 @@
+import {isArchiveFile,isLocalGeoTIFF,assertCloudFile} from './data-policy.js';
 import {registerUpload} from './upload-meter.js';
 import {FILES_PROPERTY,locationFiles} from './location-files.js';
 export const CLOUD_FILE_LIMIT=50*1024*1024;
@@ -6,15 +7,17 @@ const checked=async request=>{const result=await request;if(result.error)throw r
 // The local copy and stable destination IDs survive a failed or interrupted transfer.
 export async function transferProject(local,cloud,project,userId,progress=()=>{},workspaceId=null){
  const layers=await checked(local.from('layers').select('*').eq('map_id',project.id).order('created_at'));
+ if(layers.some(isLocalGeoTIFF))throw Error('This project contains local-only GeoTIFFs. Remove those layers from the transfer copy; the originals stay on this device.');
  const vectors=new Map();
  for(const layer of layers)if(layer.kind==='vector')vectors.set(layer.id,await checked(local.rpc('layer_geojson',{p_layer_id:layer.id})));
- const attachments=l=>[...new Map((vectors.get(l.id)?.features||[]).flatMap(locationFiles).map(f=>[f.path,f])).values()];
- const originals=l=>l.metadata?.source_names?.length
+ const attachments=l=>[...new Map((vectors.get(l.id)?.features||[]).flatMap(locationFiles).flatMap(f=>[f,...(f.thumbnail_path?[{path:f.thumbnail_path,name:'thumbnail.jpg',type:'image/jpeg'}]:[])]).map(f=>[f.path,f])).values()];
+ const originals=l=>(l.metadata?.source_names?.length
   ?(l.original_paths||[]).slice(0,l.metadata.source_names.length)
-  :(l.original_paths||[]).filter(p=>p!==l.raster_path&&!p.endsWith('/display.png')&&!p.includes('/attachments/'));
+  :(l.original_paths||[]).filter(p=>p!==l.raster_path&&!p.endsWith('/display.png')&&!p.includes('/attachments/'))).filter(name=>!isArchiveFile({name}));
  for(const layer of layers){
   for(const path of [...originals(layer),...attachments(layer).map(f=>f.path),...(layer.raster_path?[layer.raster_path]:[])]){
    const blob=await checked(local.storage.from('gis-files').download(path));
+   await assertCloudFile({name:path,...(blob.type?{type:blob.type}:{}),...(blob.slice?{slice:blob.slice.bind(blob)}:{})});
    if(blob.size>CLOUD_FILE_LIMIT)throw Error(`${layer.name}: ${path.split('/').at(-1)} exceeds the current 50 MB cloud file limit. This project remains safely in browser storage.`);
   }
  }
@@ -51,7 +54,7 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
     await checked(cloud.storage.from('gis-files').upload(target,blob,{upsert:true,contentType:file.type||'application/octet-stream'}));
     remapped.set(file.path,target);paths.push(target);
    }
-   for(const feature of fc.features)if(locationFiles(feature).length)feature.properties[FILES_PROPERTY]=locationFiles(feature).map(file=>({...file,path:remapped.get(file.path)}));
+   for(const feature of fc.features)if(locationFiles(feature).length)feature.properties[FILES_PROPERTY]=locationFiles(feature).map(file=>({...file,path:remapped.get(file.path),...(file.thumbnail_path?{thumbnail_path:remapped.get(file.thumbnail_path)}:{})}));
    await checked(cloud.rpc('import_vector',{p_layer:payload,p_features:fc.features}));
   }else{
    if(!layer.metadata?.xyz){

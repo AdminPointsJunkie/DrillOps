@@ -41,7 +41,8 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
      if(ds.type==='raster'){
       const details=await G.getInfo(ds);const transform=info.geoTransform||details.coordinateTransform;
       const hasTransform=!!transform&&transform.join(',')!=='0,1,0,0,0,1';
-      items.push({name:fileLayerName(group,ds.path),kind:'raster',format:info.driverShortName||details.driverName,files:sourceFiles,ds,info,source:info.coordinateSystem?.wkt||details.projectionWkt||'',count:0,hasTransform});count++;
+      const localOnly=/^(GTiff|COG|VRT)$/i.test(info.driverShortName||details.driverName||'')||/\.tiff?$/i.test(primary.name);if(localOnly)for(const file of sourceFiles)if(archivePattern.test(file.name))file.localOnlyArchive=true;
+      items.push({localOnly,name:fileLayerName(group,ds.path),kind:'raster',format:info.driverShortName||details.driverName,files:sourceFiles,ds,info,source:info.coordinateSystem?.wkt||details.projectionWkt||'',count:0,hasTransform});count++;
      }else{
       const detail=await G.ogrinfo(ds,['-al','-so']);
       for(const layer of detail.layers||[]){

@@ -35,7 +35,7 @@ test('cloud transfer preserves source files, features, XYZ, styles and groups; r
 test('oversized originals stop transfer before creating any cloud project',async()=>{
  const local=createLocalWorkspace(new IDBFactory()),cloud=createLocalWorkspace(new IDBFactory());
  const project=(await local.from('maps').insert({name:'Large imagery'}).single()).data;
- await local.from('layers').insert({map_id:project.id,name:'Aerial',kind:'raster',original_paths:['big.tif']});
+ await local.from('layers').insert({map_id:project.id,name:'Aerial',kind:'raster',original_paths:['big.png']});
  local.storage.from=()=>({download:async()=>({data:{size:CLOUD_FILE_LIMIT+1},error:null})});
  await assert.rejects(transferProject(local,cloud,project,'owner-1'),/50 MB/);
  assert.equal((await cloud.from('maps').select('*').order()).data.length,0);

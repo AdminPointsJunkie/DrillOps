@@ -1,3 +1,4 @@
+import {isArchiveFile,isLocalGeoTIFF,assertCloudFile} from '../src/data-policy.js';
 import {attachmentPaths} from '../src/location-files.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ const makeLayer=()=>({id:'raw',name:'Survey',kind:'vector',metadata:{format:'DXF
 ]}});
 function harness({failLine=false}={}){
  const elements=new Map(),uploaded=[],removed=[],saved=[],notices=[],layouts=[];
- const context={attachmentPaths,console,structuredClone,crypto:{randomUUID},splitDXFSections,CLOUD_FILE_LIMIT:50000000,LOCAL_TESTING:false,busy:false,queue:[{kind:'vector'}],reviewIndex:0,preview:null,user:{id:'user'},activeMap:{id:'project'},layerTree:[],layers:[],rendered:new Map(),
+ const context={isArchiveFile,isLocalGeoTIFF,assertCloudFile,attachmentPaths,console,structuredClone,crypto:{randomUUID},splitDXFSections,CLOUD_FILE_LIMIT:50000000,LOCAL_TESTING:false,busy:false,queue:[{kind:'vector'}],reviewIndex:0,preview:null,user:{id:'user'},activeMap:{id:'project'},layerTree:[],layers:[],rendered:new Map(),
   $:selector=>{if(!elements.has(selector))elements.set(selector,{close(){},textContent:'',disabled:false});return elements.get(selector);},
   settings:()=>({crs:'EPSG:4326'}),convertCurrent:async()=>makeLayer(),setBusy:()=>{},renderQueue:()=>{},fit:()=>{},renderLayers:()=>{},updateEmpty:()=>{},refreshSaveStatus:()=>{},ensureMap:async()=>{},canEditLayer:()=>true,repairDXFLayer:async()=>0,
   toast:message=>notices.push(message),errorText:e=>e.message,registerUpload:async()=>{},explorer:{rekey(){}},mapComponents:{rekey(){}},

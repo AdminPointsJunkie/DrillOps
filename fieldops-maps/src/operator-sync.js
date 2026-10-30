@@ -1,3 +1,4 @@
+import {isLocalGeoTIFF} from './data-policy.js';
 import {registerUpload} from './upload-meter.js';
 import {flattenTree} from './layer-tree.js';
 const checked=async request=>{const r=await request;if(r.error)throw r.error;return r.data;};
@@ -5,10 +6,12 @@ export async function syncProjectRelease(db,mapId,userId,progress=()=>{}){
  const project=await checked(db.from('maps').select('*').eq('id',mapId).single());
  const layers=await checked(db.from('layers').select('*').eq('map_id',mapId).order('created_at'));
  const id=crypto.randomUUID(),rasters={};
+ const reuse=await checked(db.rpc('maps_raster_reuse',{p_map_id:mapId}))||{};
  // Separate copies keep the operator version stable when draft previews are replaced.
  if(project.last_synced_revision!==project.draft_revision){
   const included=new Set(flattenTree(project.layer_layout||[]));
-  for(const layer of layers.filter(l=>included.has(l.id)&&l.kind==='raster'&&!l.metadata?.xyz)){
+  for(const layer of layers.filter(l=>included.has(l.id)&&l.kind==='raster'&&!l.metadata?.xyz&&!isLocalGeoTIFF(l))){
+   if(reuse[layer.id]?.source===layer.raster_path){rasters[layer.id]=reuse[layer.id].path;continue;}
    progress(`Preparing imagery: ${layer.name}`);
    const target=`${userId}/sync/${id}/${layer.id}.png`;
    await registerUpload(db,mapId,target);
