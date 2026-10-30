@@ -146,6 +146,14 @@ Split sections share one uploaded original DXF, while saving their feature data 
 
 ## Map right-click actions
 
-Right-click a location to copy coordinates, add a saved comment, start distance/area measurement there, compare basemaps or vector/raster layers with a swipe slider, open the position in Google Maps/Street View/OpenStreetMap, or paste GeoJSON/text. Select a feature and use Cmd/Ctrl+C, then right-click elsewhere and Paste here (or Cmd/Ctrl+V). GeoJSON geometry moves to the chosen location, retaining relative positions, attributes and heights. Plain text opens a comment draft. Comments use the existing saved annotation layers and publishing flow; this does not add threaded discussions or notifications. Editing actions retain the existing admin/project permissions. Measurements, external links and comparisons also work for viewers.
+Right-click a location to copy coordinates, add a saved comment, start distance/area measurement there, compare vector/raster/XYZ layers with a draggable divider, open the position in Google Maps/Street View/OpenStreetMap, or paste GeoJSON/text. Select a feature and use Cmd/Ctrl+C, then right-click elsewhere and Paste here (or Cmd/Ctrl+V). GeoJSON geometry moves to the chosen location, retaining relative positions, attributes and heights. Plain text opens a comment draft. Comments use the existing saved annotation layers and publishing flow; this does not add threaded discussions or notifications. Editing actions retain the existing admin/project permissions. Measurements, external links and comparisons also work for viewers.
 
 The cursor and right-click coordinates use the project's Default CRS, transformed by the existing GDAL engine. Geographic systems show latitude, longitude in decimal degrees; other systems show X, Y in their recorded units. With no default, the display uses EPSG:4326. Errors do not silently relabel WGS84 coordinates as projected values. External links always receive WGS84 coordinates. Catalogue geographic/unit metadata was generated from the EPSG definitions supplied by pyproj/PROJ. Comparison is temporary and restores the original layer visibility when closed or when switching projects.
+
+
+
+## Compare layers
+
+Choose **Compare layers** (◧) in the map toolbar. Tick Left and Right independently for each vector, raster or XYZ layer, then drag the pink divider. A layer can appear on either side, both sides or neither. The basemap is shared. Arrow keys move the focused divider; Home/End move it to an edge; Escape or Close returns to the normal map.
+
+Compare is a temporary viewing tool available to editors and operators. It keeps existing styles, labels and filters and does not save selections or change layer visibility settings. Reset restores the initial selection and centred divider. Opening drawing, annotation or measurement tools closes Compare.
