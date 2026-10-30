@@ -1,3 +1,4 @@
+import {installSidebarToggle} from './sidebar-toggle.js';
 import './invite-dialog.css';
 import {installProjectHome} from './project-home.js';
 import {bindLineDistance} from './line-distance.js';
@@ -388,7 +389,7 @@ $('#xyz-form').onsubmit=async e=>{
 let identifyActive=false;
 function identify(value){identifyActive=value;$('#identify').setAttribute('aria-pressed',String(value));$('#feature-info').hidden=!value;$('#map').classList.toggle('identifying',value);if(value){map.closePopup();$('#feature-info-title').textContent='Feature information';$('#feature-info-content').textContent='Click a point, line or shape on the map to inspect its attributes.';}}
 $('#identify').onclick=()=>identify(!identifyActive);$('#close-info').onclick=()=>identify(false);
-$('#fit').onclick=fit;$('#help').onclick=()=>$('#help-dialog').showModal();$('#mobile-layers').onclick=()=>{if(innerWidth<=760)$('#sidebar').classList.toggle('mobile-open');else document.body.classList.toggle('layers-collapsed');map.invalidateSize();};
+$('#fit').onclick=fit;$('#help').onclick=()=>$('#help-dialog').showModal();
 let locationMarker;$('#locate').onclick=()=>{if(!navigator.geolocation)return toast('Location is unavailable in this browser.');navigator.geolocation.getCurrentPosition(p=>{if(locationMarker)map.removeLayer(locationMarker);locationMarker=L.circle([p.coords.latitude,p.coords.longitude],{radius:p.coords.accuracy,color:'#3087ba',fillOpacity:.15}).addTo(map).bindPopup(`GPS accuracy: approximately ${Math.round(p.coords.accuracy)} m`);map.setView(locationMarker.getLatLng(),16)},e=>toast(e.message),{enableHighAccuracy:true,timeout:15000});};
 $('#account').onclick=async()=>{if(user&&(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>!l.saved||l.saving)))return toast('Finish pending imports and saves before signing out.');if(user){const {error}=await db.auth.signOut();if(error)return toast(errorText(error));clearMap();activeMap=null;$('#map-select').innerHTML='<option value="">Unsaved project</option>';syncProject();queue=[];renderQueue();toast('Signed out.')}else registration.open(false);};
 const registration=installRegistration(db);
@@ -506,6 +507,7 @@ async function openDrawing(target){
 $('#open-drawing').onclick=()=>openDrawing().catch(e=>toast(errorText(e)));
 
 workspaceLayout=installWorkspaceLayout();
+installSidebarToggle({sidebar:$('#sidebar'),toggle:$('#mobile-layers'),collapse:$('#collapse-layers'),reopen:$('#reopen-layers'),onResize:()=>map.invalidateSize({pan:false})});
 const canCreate=()=>!!(LOCAL_TESTING||user)&&!isReadOnly()&&!busy&&!syncing;
 const analysisScope=()=>`${user?.id||'local'}:${currentWorkspace?.id||''}:${activeMap?.id||''}`;
 async function addAnalysisResult(fc,name){
