@@ -19,7 +19,7 @@ export function installToolMenus({analyse,component,draw,uploadURL,canCreate,hom
  const uploadMenu=menu('Upload','upload',[{label:'Upload files',action:()=>document.getElementById('files').click(),edit:true},{label:'From URL',action:uploadURL,edit:true},{label:'Add tile service',action:()=>document.getElementById('add-xyz').click(),edit:true},{label:'Supported file types',action:()=>window.open('./file-types.html','_blank','noopener')}]);
  for(const id of ['dropzone','add-xyz','files'])uploadMenu.append(document.getElementById(id));
  menu('Analysis','layers',[...Object.entries(analysisTools).map(([id,label])=>({label,action:()=>analyse(id),edit:true})),{label:'Tool guide and limits',action:()=>window.open('./tools.html','_blank','noopener')}]);
- menu('Components','table',[{label:'Show components',action:()=>component('show')},...Object.entries(componentTools).map(([id,label])=>({label,action:()=>component(id)}))]);
+ menu('Components','dashboard',[{label:'Show components',action:()=>component('show')},...Object.entries(componentTools).map(([id,label])=>({label,action:()=>component(id)}))]);
  for(const id of ['open-search','open-filter','open-table']){const b=document.getElementById(id);b.title=b.textContent.trim();b.setAttribute('aria-label',b.title);tools.append(b);}
  const exports=menu('Export and print','download',[]);
  const accountContent=menu('Workspace and account','settings',['people','platform-admin','workspace-invitations','storage-usage-button','set-password','account'].map(id=>({id})));
