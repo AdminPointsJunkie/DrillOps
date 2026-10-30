@@ -16,7 +16,8 @@ export function installToolMenus({analyse,component,draw,uploadURL,canCreate,hom
  }
  drawMenu.append(more);
  document.addEventListener('keydown',e=>{if(!e.shiftKey||e.metaKey||e.ctrlKey||e.altKey||e.repeat||!canAnnotate()||document.querySelector('dialog[open]')||document.body.classList.contains('project-home-open')||e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;const type={M:'marker',H:'highlighter',T:'text',N:'note'}[e.key.toUpperCase()];if(type){e.preventDefault();annotate?.(type);}});
- menu('Upload','upload',[{label:'Upload files',action:()=>document.getElementById('files').click(),edit:true},{label:'From URL',action:uploadURL,edit:true},{label:'Add tile service',action:()=>document.getElementById('add-xyz').click(),edit:true},{label:'Supported file types',action:()=>window.open('./file-types.html','_blank','noopener')}]);
+ const uploadMenu=menu('Upload','upload',[{label:'Upload files',action:()=>document.getElementById('files').click(),edit:true},{label:'From URL',action:uploadURL,edit:true},{label:'Add tile service',action:()=>document.getElementById('add-xyz').click(),edit:true},{label:'Supported file types',action:()=>window.open('./file-types.html','_blank','noopener')}]);
+ for(const id of ['dropzone','add-xyz','files'])uploadMenu.append(document.getElementById(id));
  menu('Analysis','layers',[...Object.entries(analysisTools).map(([id,label])=>({label,action:()=>analyse(id),edit:true})),{label:'Tool guide and limits',action:()=>window.open('./tools.html','_blank','noopener')}]);
  menu('Components','table',[{label:'Show components',action:()=>component('show')},...Object.entries(componentTools).map(([id,label])=>({label,action:()=>component(id)}))]);
  for(const id of ['open-search','open-filter','open-table']){const b=document.getElementById(id);b.title=b.textContent.trim();b.setAttribute('aria-label',b.title);tools.append(b);}

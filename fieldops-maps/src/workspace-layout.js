@@ -31,6 +31,13 @@ export function installWorkspaceLayout(doc=document){
  $('#add-xyz').innerHTML=workspaceIcon('layers')+'<span>Add tile layer</span>';
  $('.workspace-label').textContent='PROJECT';$('.sidebar-bottom').innerHTML='<span class="workspace-footer-dot"></span><span>DrillOps FieldMaps</span><button type="button" class="workspace-help" aria-label="Open help">Help</button>';
  $('.workspace-help').onclick=()=>$('#help').click();
+
+ // Keep the layer rail dedicated to layers; move project and import controls out.
+ const picker=$('.map-picker');picker.classList.add('header-project');header.insertBefore(picker,header.children[1]);
+ $('.workspace-label').remove();$('.sidebar-bottom').remove();
+ $('#project-crs').closest('form').append($('#project-default'));
+ const imports=doc.createElement('section');imports.className='map-import-status';imports.setAttribute('aria-label','Import queue');imports.append($('#import-job'),$('#queue'));$('.map-area').append(imports);
+ const collapse=doc.createElement('button');collapse.type='button';collapse.id='collapse-layers';collapse.title='Collapse layers';collapse.setAttribute('aria-label','Collapse layers');collapse.innerHTML='‹';collapse.onclick=()=>$('#mobile-layers').click();$('#sidebar .tabs').append(collapse);
  $('.map-title').setAttribute('aria-live','polite');
  function refresh(){
   for(const card of doc.querySelectorAll('.layer-card')){
