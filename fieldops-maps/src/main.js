@@ -62,6 +62,7 @@ let user=null,activeMap=null,layers=[],queue=[],crsList=[],busy=false,reviewInde
 let layerTree=[],layoutPending=0,layoutSave=Promise.resolve();
 let homeUI=null,toolMenus=null,mapComponents=null,workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
 let mapContext=null,mapComparison=null;
+let authReady=false;
 let explorer=null,fieldTools=null,geometryEditor=null,geometryEditingId=null;
 const isReadOnly=()=>!LOCAL_TESTING&&!!user&&(!workspaceContext||!currentWorkspace||!['owner','admin','editor'].includes(currentWorkspace.role));
 const isAdmin=()=>LOCAL_TESTING||!!user&&!!workspaceContext&&(workspaceContext.platform_admin||['owner','admin'].includes(currentWorkspace?.role));
@@ -440,7 +441,7 @@ let platformRouteOpened=false;
 const platformAdmin=installPlatformAdmin(db,{isPlatform:()=>!!workspaceContext?.platform_admin,canOpen:()=>{if(workspacePending()){toast('Finish pending edits and saves before opening platform administration.');return false;}return true;},manageCompany:(id,section)=>accountUI.openWorkspace(id,section),onChanged:refreshWorkspaces});
 $('#platform-admin').onclick=()=>platformAdmin.open();
 const passwordSetup=installPasswordSetup(db,authLink,()=>user,toast);
-let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
+let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;authReady=true;registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
 let editingProject=false;
 function syncProject(){
  homeUI?.refresh();
@@ -613,7 +614,7 @@ $('#company-select').onchange=async e=>{
 };
 $('#workspace-invitations').onclick=()=>accountUI.openInvitations(workspaceContext?.invitations||[]);
 
-if(!LOCAL_TESTING&&new URLSearchParams(location.search).get('signin')==='1')registration.open();
+
 
 let printEditorOpen=false;
 async function openPrint(quick=false){
@@ -628,7 +629,7 @@ async function openPrint(quick=false){
 for(const [label,quick] of [['Print layout',false],['Export image',true]]){const button=document.createElement('button');button.className='subtle';button.textContent=label;button.onclick=()=>openPrint(quick);toolMenus.addExport(button);}
 document.addEventListener('keydown',e=>{if(printEditorOpen||homeUI?.active)return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();openPrint(false);}if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key.toLowerCase()==='e'){e.preventDefault();openPrint(true);}});
 
-homeUI=installProjectHome({getState:()=>({user,workspace:currentWorkspace,workspaces:workspaceContext?.workspaces||[],projects:!user?[]:LOCAL_TESTING?maps:maps.filter(p=>p.workspace_id===currentWorkspace?.id),active:activeMap,admin:isAdmin(),platformAdmin:!!workspaceContext?.platform_admin,invitationCount:workspaceContext?.invitations?.length||0,canCreate:canCreate()}),
+homeUI=installProjectHome({getState:()=>({user,authReady,workspace:currentWorkspace,workspaces:workspaceContext?.workspaces||[],projects:!user?[]:LOCAL_TESTING?maps:maps.filter(p=>p.workspace_id===currentWorkspace?.id),active:activeMap,admin:isAdmin(),platformAdmin:!!workspaceContext?.platform_admin,invitationCount:workspaceContext?.invitations?.length||0,canCreate:canCreate()}),
  onOpen:async id=>{if(activeMap?.id===id)return;if(workspacePending())throw Error('Return to the current map and finish pending edits or saves before switching projects.');await loadMap(id);if(activeMap?.id!==id)throw Error('Could not open this project. Refresh the project list and try again.');},
  onNew:()=>{if(workspacePending())throw Error('Return to the current map and save or discard pending work before creating another project.');openProject();},
  onWorkspace:async id=>{if(workspacePending())throw Error('Return to the current map and finish pending work before switching workspace.');await $('#company-select').onchange({target:{value:id}});},
