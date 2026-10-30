@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>Advanced print verification</title><button id="layout">Open advanced print test</button><button id="quick">Open rotated image export</button><pre id="result"></pre><script type="module">
+import {openPrintEditor} from '../src/print-layout.js';
+import {standardPage} from '../src/print-model.js';
+import {writePrintLayout} from '../src/print-storage.js';
+const fc=features=>({type:'FeatureCollection',features});
+const point=(x,y,status)=>({type:'Feature',properties:{status,name:status==='done'?'Collar α':'Planned β'},geometry:{type:'Point',coordinates:[x,y]}});
+const context={userId:'advanced-test',projectId:'fixture-map',title:'FieldMaps vector verification',description:'Synthetic export fixtures',center:[-27,153],zoom:14,viewSize:[800,600],basemap:'none',layers:[
+{id:'points',name:'Drill status',kind:'vector',color:'#147d72',opacity:1,metadata:{style:{labelField:'name',rules:{mode:'categorized',field:'status',classes:[{key:'string:done',label:'Complete',color:'#14864b',symbol:'square',pointSize:20},{key:'string:planned',label:'Planned',color:'#cc5433',symbol:'triangle',pointSize:16}]}}},fc:fc([point(153,-27,'done'),point(153.006,-26.995,'planned')])},
+{id:'boundary',name:'Boundary with hole',kind:'vector',color:'#435fcc',opacity:1,metadata:{style:{fillColor:'#435fcc',fillOpacity:.2,lineWidth:3,lineStyle:'dashed'}},fc:fc([{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[152.99,-27.01],[153.01,-27.01],[153.01,-26.99],[152.99,-26.99],[152.99,-27.01]],[[152.996,-27.004],[153.004,-27.004],[153.004,-26.996],[152.996,-26.996],[152.996,-27.004]]]}}])}
+]};
+const raster=document.createElement('canvas');raster.width=32;raster.height=32;const brush=raster.getContext('2d');brush.fillStyle='#dd44aa';brush.fillRect(0,0,32,32);
+context.layers.push({id:'image',name:'Raster test patch',kind:'raster',color:'#dd44aa',opacity:.5,url:raster.toDataURL(),bounds:[153.012,-27.005,153.018,-26.999],metadata:{}});
+document.querySelector('#layout').onclick=async()=>{const page=standardPage(context);page.items.find(i=>i.type==='map').bearing=35;page.format='Vector PDF';page.items.find(i=>i.type==='legend').showCounts=true;const second=standardPage(context);second.id=crypto.randomUUID();second.name='Second landscape';second.width=210;second.height=148;second.items=second.items.filter(i=>i.type==='text').map((i,index)=>({...i,x:10,y:10+index*25,w:185,h:20,text:index?'Second page Unicode α β':'Second page — editable text'}));await writePrintLayout('pages:advanced-test:fixture-map',[page,second]);await openPrintEditor(context);};
+document.querySelector('#quick').onclick=()=>openPrintEditor({...context,basemap:'street'},{quick:true});
+</script>

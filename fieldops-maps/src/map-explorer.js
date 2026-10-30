@@ -1,14 +1,14 @@
 import {attributeFields,matchesView,legendItems,tableRows,textValue,featureTitle,featureInfo,featureBounds} from './explore-data.js';
 import {escapeHTML as esc,filterDialog,popupDialog} from './explore-dialogs.js';
 export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,saveStyle,showInfo,renderInfo=(l,f)=>featureInfo(l,f,document)}){
- const views=new Map();let current='',sortField='',direction=1,page=0,selected=null,selection=null,searchTimer,tableTimer;
+ let componentFilter=()=>true;const views=new Map();let current='',sortField='',direction=1,page=0,selected=null,selection=null,searchTimer,tableTimer;
  const root=document.querySelector('.map-area');
  root.insertAdjacentHTML('beforeend',`<section class="attribute-table" hidden aria-label="Attribute table"><div class="table-toolbar"><strong>Table</strong><select data-table-layer aria-label="Table layer"></select><input data-table-search type="search" placeholder="Find in this layer…" aria-label="Filter table and map"><button data-filter title="Filter layer">⏷ Filters</button><button data-reset title="Reset this view">Reset</button><button data-save-view title="Save filters and legend choices as the project default">Save default</button><button data-info-settings title="Configure feature information">⚙ Fields</button><button data-close-table aria-label="Close table">×</button></div><div class="table-summary"><span data-table-count></span><label><input type="checkbox" data-extent> Table: current map extent only</label><span data-view-note></span></div><div class="table-scroll"><table><thead></thead><tbody></tbody></table></div><div class="table-pagination"><button data-page="-1">Previous</button><span data-page-label></span><button data-page="1">Next</button></div></section><section class="feature-search" hidden aria-label="Search features"><div class="info-heading"><strong>Find a hole or asset</strong><button data-close-search aria-label="Close search">×</button></div><input type="search" data-global-search placeholder="Search visible layers…" aria-label="Search visible features"><p class="field-note">Searches features matching your current filters and legend choices.</p><div class="feature-results" role="status"></div></section>`);
  const table=root.querySelector('.attribute-table'),search=root.querySelector('.feature-search'),q=s=>table.querySelector(s);
  const vectors=()=>getLayers().filter(l=>l.kind==='vector');
  const layer=()=>vectors().find(l=>l.id===current);
  const view=l=>{if(!views.has(l.id))views.set(l.id,structuredClone(l.metadata?.style?.view||{}));return views.get(l.id);};
- function acceptFeature(l,f){return matchesView(l,f,view(l));}
+ function acceptFeature(l,f){return matchesView(l,f,view(l))&&componentFilter(l,f);}
  function clearSelection(){if(selection){map.removeLayer(selection);selection=null;}selected=null;}
  function select(l,index,zoom=true){
   const feature=l.fc?.features[index];if(!feature)return;clearSelection();selected={id:l.id,index};
@@ -17,7 +17,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
   showInfo(featureTitle(l,feature,index),renderInfo(l,feature));current=l.id;search.hidden=true;
   if(!table.hidden){const rows=currentRows(),position=rows.findIndex(r=>r.index===index);if(position>=0)page=Math.floor(position/100);renderTable();}
  }
- function currentRows(){const l=layer();if(!l)return [];let bounds=null;if(q('[data-extent]').checked){const b=map.getBounds();bounds=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];}return tableRows(l,view(l),{field:sortField,direction,bounds});}
+ function currentRows(){const l=layer();if(!l)return [];let bounds=null;if(q('[data-extent]').checked){const b=map.getBounds();bounds=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];}return tableRows(l,view(l),{field:sortField,direction,bounds}).filter(r=>componentFilter(l,r.feature));}
  function renderTable(){
   if(table.hidden)return;
   const list=vectors();if(!list.some(l=>l.id===current)){current=list[0]?.id||'';sortField='';page=0;}
@@ -36,7 +36,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
   for(const l of vectors()){
    const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)continue;
    let legend=card.querySelector('.layer-legend');if(!legend){legend=document.createElement('details');legend.className='layer-legend';legend.open=Boolean(l.metadata?.style?.rules);card.append(legend);}
-   const entries=legendItems(l,view(l));legend.innerHTML=`<summary>Legend <small>${(view(l).filter?.conditions?.length||view(l).search)?'· filtered':''}</small></summary>${entries.map(c=>`<label><input type="checkbox" data-legend-key="${esc(c.key)}" ${c.visible?'checked':''}><span class="legend-swatch" style="color:${/^#[\da-f]{6}$/i.test(c.color)?c.color:'#147d72'}">${({circle:'●',square:'■',triangle:'▲',diamond:'◆',cross:'✚'})[c.symbol]||'●'}</span><span>${esc(c.label)}</span><small>${c.count}</small></label>`).join('')}<div class="legend-actions"><button type="button" data-open-table>▦ Table</button><button type="button" data-open-filter>⏷ Filter</button>${canEdit(l)?'<button type="button" data-save-default>Save default</button>':''}</div>`;
+   const entries=legendItems({...l,fc:{...l.fc,features:l.fc.features.filter(f=>componentFilter(l,f))}},view(l));legend.innerHTML=`<summary>Legend <small>${(view(l).filter?.conditions?.length||view(l).search)?'· filtered':''}</small></summary>${entries.map(c=>`<label><input type="checkbox" data-legend-key="${esc(c.key)}" ${c.visible?'checked':''}><span class="legend-swatch" style="color:${/^#[\da-f]{6}$/i.test(c.color)?c.color:'#147d72'}">${({circle:'●',square:'■',triangle:'▲',diamond:'◆',cross:'✚'})[c.symbol]||'●'}</span><span>${esc(c.label)}</span><small>${c.count}</small></label>`).join('')}<div class="legend-actions"><button type="button" data-open-table>▦ Table</button><button type="button" data-open-filter>⏷ Filter</button>${canEdit(l)?'<button type="button" data-save-default>Save default</button>':''}</div>`;
   }
  }
  function refreshSearch(){
@@ -45,7 +45,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
   search.querySelector('.feature-results').innerHTML=(text?`<small>${count} matches${count>50?' · first 50 shown; refine your search':''}</small>`:'')+results.map(({l,index,f})=>`<button data-result-layer="${esc(l.id)}" data-result-index="${index}"><strong>${esc(featureTitle(l,f,index))}</strong><small>${esc(l.name)}</small></button>`).join('');
  }
  function refresh(){renderLegends();renderTable();refreshSearch();if(selected){const l=getLayers().find(l=>l.id===selected.id),f=l?.fc?.features[selected.index];if(!l||!f||!isVisible(l)||!acceptFeature(l,f))clearSelection();}}
- function changed(l){clearSelection();redraw(l);page=0;refresh();}
+ function changed(l){clearSelection();redraw(l);page=0;refresh();document.dispatchEvent(new document.defaultView.Event('fieldmaps-view-change'));}
  function openTable(id){current=id||current;table.hidden=false;root.classList.add('table-open');renderTable();}
  function openFilter(l){if(!l)return;filterDialog(l,view(l),filter=>{view(l).filter=filter;changed(l);});}
  async function saveDefault(l){if(!l||!canEdit(l))return;await saveStyle(l,'view',structuredClone(view(l)));}
@@ -66,5 +66,5 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
  search.querySelector('[data-close-search]').onclick=()=>search.hidden=true;
  search.onclick=e=>{const b=e.target.closest('[data-result-layer]');if(b){const l=getLayers().find(l=>l.id===b.dataset.resultLayer);if(l)select(l,Number(b.dataset.resultIndex));}};
  map.on('moveend',()=>{if(q('[data-extent]').checked)renderTable();});
- return {acceptFeature,refresh,select,openTable,rekey(oldID,newID){if(views.has(oldID)){views.set(newID,views.get(oldID));views.delete(oldID);}if(current===oldID)current=newID;},openFilter:()=>{openTable();openFilter(layer());},openSearch(){search.hidden=!search.hidden;if(!search.hidden){refreshSearch();search.querySelector('input').focus();}},reset(){views.clear();current='';page=0;clearSelection();clearTimeout(tableTimer);clearTimeout(searchTimer);search.querySelector('input').value='';search.hidden=true;table.hidden=true;root.classList.remove('table-open');}};
+ return {selectedFeature(){const l=getLayers().find(l=>l.id===selected?.id);return l?.fc?.features[selected?.index]||null;},acceptFeature,refresh,select,openTable,setComponentFilter(predicate){componentFilter=predicate;for(const l of vectors())redraw(l);refresh();},rekey(oldID,newID){if(views.has(oldID)){views.set(newID,views.get(oldID));views.delete(oldID);}if(current===oldID)current=newID;},openFilter:()=>{openTable();openFilter(layer());},openSearch(){search.hidden=!search.hidden;if(!search.hidden){refreshSearch();search.querySelector('input').focus();}},reset(){views.clear();current='';page=0;clearSelection();clearTimeout(tableTimer);clearTimeout(searchTimer);search.querySelector('input').value='';search.hidden=true;table.hidden=true;root.classList.remove('table-open');}};
 }

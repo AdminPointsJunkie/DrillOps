@@ -1,0 +1,3 @@
+import {measureDistance} from './explore-data.js';
+export function lineDistanceText(geometry){const lines=geometry?.type==='LineString'?[geometry.coordinates]:geometry?.type==='MultiLineString'?geometry.coordinates:[];if(!lines.length)return '';const metres=lines.reduce((sum,points)=>sum+measureDistance(points),0);return metres>=1000?(metres/1000).toFixed(2)+' km':metres.toFixed(1)+' m';}
+export function bindLineDistance(shape,feature,enabled){const text=enabled?lineDistanceText(feature.geometry):'';if(text)shape.bindTooltip?.(text,{permanent:true,direction:'center',className:'drawing-distance-label',opacity:1});}

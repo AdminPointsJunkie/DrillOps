@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<gpx version="1.1" creator="GDAL 3.8.4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ogr="http://osgeo.org/gdal" xmlns="http://www.topografix.com/GPX/1/1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+<bounds minlat="-27.469799999999999" minlon="153.025100000000009" maxlat="-27.469799999999999" maxlon="153.025100000000009"/>                                   
+</metadata>
+<wpt lat="-27.4698" lon="153.0251">
+  <name>Brisbane reference</name>
+  <extensions>
+    <ogr:purpose>Test fixture</ogr:purpose>
+  </extensions>
+</wpt>
+</gpx>

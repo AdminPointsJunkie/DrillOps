@@ -21,7 +21,7 @@ export function circleGeometry(center,edge){
  const ring=Array.from({length:96},(_,i)=>{const b=i*2*Math.PI/96,p=Math.asin(Math.sin(lat)*Math.cos(r)+Math.cos(lat)*Math.sin(r)*Math.cos(b)),l=lon+Math.atan2(Math.sin(b)*Math.sin(r)*Math.cos(lat),Math.cos(r)-Math.sin(lat)*Math.sin(p));return [l*180/Math.PI,p*180/Math.PI];});ring.push([...ring[0]]);return validateGeometry({type:'Polygon',coordinates:[ring]});
 }
 export function drawGeometry(type,points){
- const p=clone(points);if(type==='circle'){if(p.length!==2)throw Error('Click a centre, then a point on the circle.');return circleGeometry(...p);}
+ const p=clone(points);if(type==='rectangle'){if(p.length!==2)throw Error('Click two opposite corners.');const [a,b]=p;return validateGeometry({type:'Polygon',coordinates:[[a,[b[0],a[1]],b,[a[0],b[1]],a]]});}if(type==='circle'){if(p.length!==2)throw Error('Click a centre, then a point on the circle.');return circleGeometry(...p);}
  if(p.length<(type==='point'?1:type==='line'?2:3))throw Error('Add more positions before finishing.');
  return validateGeometry(type==='point'?{type:'Point',coordinates:p[0]}:type==='line'?{type:'LineString',coordinates:p}:{type:'Polygon',coordinates:[[...p,[...p[0]]]]});
 }

@@ -145,3 +145,49 @@ The right-hand toolbar opens the attribute table (▦), feature search (⌕), fi
 - Database triggers protect annotation metadata and geometry using the live account role. Published manifests now retain annotation metadata. Operator accounts load assigned published releases through the browser, never draft layers. Viewer filters, legend toggles, layer order and visibility do not write to the database.
 
 Verification: exploration unit/UI tests, existing regression suite, and transaction-only exploration-access.sql against Postgres cover filters, styles, linked selection, geography measurements, saved annotations, live-role restrictions and assigned release access. Security advisor retains the pre-existing leaked-password-protection warning; see https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
+
+## DXF geometry sections
+
+New DXF imports create a drawing group with separate Points, Lines and Shapes layers, omitting empty sections. Each has independent geometry editing, visibility, opacity and symbology: point symbols/sizes/labels, line colours/widths/dashes, and shape outline/fill settings. Original CAD attributes and heights are retained. Mixed geometry collections are expanded into their constituent features. Non-DXF imports and existing saved mixed layers are unchanged.
+
+Split sections share one uploaded original DXF, while saving their feature data independently. A failed section remains available for Save/Retry without deleting the source referenced by successful sections. Rebuilding source settings for a section filters the original back to that section only. Geometry editing keeps new features within the section’s geometry type. SYNC publishes the independent layers and their styles through the existing release mechanism.
+
+## Map right-click actions
+
+Right-click a location to copy coordinates, add a saved comment, start distance/area measurement there, compare vector/raster/XYZ layers with a draggable divider, open the position in Google Maps/Street View/OpenStreetMap, or paste GeoJSON/text. Select a feature and use Cmd/Ctrl+C, then right-click elsewhere and Paste here (or Cmd/Ctrl+V). GeoJSON geometry moves to the chosen location, retaining relative positions, attributes and heights. Plain text opens a comment draft. Comments use the existing saved annotation layers and publishing flow; this does not add threaded discussions or notifications. Editing actions retain the existing admin/project permissions. Measurements, external links and comparisons also work for viewers.
+
+The cursor and right-click coordinates use the project's Default CRS, transformed by the existing GDAL engine. Geographic systems show latitude, longitude in decimal degrees; other systems show X, Y in their recorded units. With no default, the display uses EPSG:4326. Errors do not silently relabel WGS84 coordinates as projected values. External links always receive WGS84 coordinates. Catalogue geographic/unit metadata was generated from the EPSG definitions supplied by pyproj/PROJ. Comparison is temporary and restores the original layer visibility when closed or when switching projects.
+
+
+
+## Compare layers
+
+Choose **Compare layers** (◧) in the map toolbar. Tick Left and Right independently for each vector, raster or XYZ layer, then drag the pink divider. A layer can appear on either side, both sides or neither. The basemap is shared. Arrow keys move the focused divider; Home/End move it to an edge; Escape or Close returns to the normal map.
+
+Compare is a temporary viewing tool available to editors and operators. It keeps existing styles, labels and filters and does not save selections or change layer visibility settings. Reset restores the initial selection and centred divider. Opening drawing, annotation or measurement tools closes Compare.
+
+## Annotation menu, Route and Extract
+
+The Annotations menu contains Pin, Line, Route, Polygon, Rectangle, Circle, More, Extract and Create layer. More contains Marker, Highlighter, Text, Note, Link, Image and Video. Measure remains a separate toolbar button. Travel time is omitted.
+
+Route computes the shortest distance through an imported line network, in a worker, with up to 5,000 vertices. Enter WGS 84 coordinates or pick start/destination on the map. Each snaps to the nearest vertex within 250 metres; offsets and route length are recorded in attributes. Shared coordinate vertices form junctions; geometric crossings without a shared vertex do not connect. All roads are treated as two-way. Turn restrictions, gates, traffic and accessibility are not inferred. Results are new editable layers; Save and SYNC use the normal flow.
+
+Extract takes a source layer and polygon boundary layer. It copies whole features that touch the boundary, preserving geometry and attributes. It does not trim crossing features. Draw and save a polygon first if you need a new extraction boundary. Sources are unchanged.
+
+## Cloud file connections — setup required
+
+Upload → Cloud services supports the device file chooser, including iCloud Drive and other cloud providers installed/enabled in the operating system. This is a selected-file import, not persistent account linking or background synchronisation. iCloud is handled through the device chooser.
+
+Direct Google Drive, OneDrive and Dropbox connectors are implemented but disabled until the following provider registrations are configured. They must not be presented as connected before real-account verification. The cloud panel explains the unavailable state and offers the device chooser. Direct imports accept up to 20 files, 50 MB each and 100 MB total, then use the existing import review. Source files are not modified. Provider tokens and temporary download links are not saved into project data.
+
+Set these **public browser configuration values** in `fieldops-maps/.env.local`, then rebuild. Never put client secrets, service credentials or access tokens in `VITE_` settings.
+
+- `VITE_GOOGLE_CLIENT_ID`: Google OAuth web client ID. Register `https://www.drillops.com.au` as an authorised JavaScript origin. Enable Google Drive API and Google Picker API in the same project. Configure the OAuth consent screen and permitted testers/publication as appropriate. The connector requests `drive.file`, allowing selection through Picker rather than access to the entire drive.
+- `VITE_GOOGLE_APP_ID`: Google Cloud project number, from that same project.
+- `VITE_GOOGLE_API_KEY`: browser key restricted to the Google Drive/Picker APIs and approved website referrers, including `https://www.drillops.com.au/*` and `https://docs.google.com/*` as required by Picker. Google Sheets export as XLSX; Docs/Slides export as PDF. Other native Google file types require export first.
+- `VITE_MICROSOFT_CLIENT_ID`: Microsoft Entra application client ID. Configure a single-page application with redirect URI exactly `https://www.drillops.com.au/maps/cloud-redirect.html`. Support organisational and personal Microsoft accounts if both are required. Add delegated `Files.Read`; no application permission or secret is used. This imports from the user's OneDrive, not all SharePoint sites. MSAL v5 uses a dedicated redirect bridge, which must not be served with Cross-Origin-Opener-Policy. The authentication cache is memory-only.
+- `VITE_DROPBOX_APP_KEY`: Dropbox Chooser app key. Register the Chooser domain `www.drillops.com.au`. The Chooser returns temporary direct download links for selected files; no Dropbox secret is used.
+
+After configuration, verify with real accounts: consent/cancel, folder navigation, normal files, expired login, denied access, import review and saving. Verify Google Sheets export and OneDrive personal/work accounts separately. Mock tests cover download limits and token destination restrictions; they do not establish that provider registrations or live consent work.
+
+Provider instructions: [Google Picker setup](https://developers.google.com/workspace/drive/picker/guides/web-picker-sample), [Microsoft app registration](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/initialization), [Microsoft redirect bridge](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/redirect-bridge), [Dropbox Chooser setup](https://docs.dropboxapi.com/dropbox-api/docs/pre-built-components/chooser).

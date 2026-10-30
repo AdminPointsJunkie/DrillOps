@@ -1,0 +1,4 @@
+let database;
+async function db(){return database??=new Promise((resolve,reject)=>{const request=indexedDB.open('drillops-print-layouts',1);request.onupgradeneeded=()=>request.result.createObjectStore('layouts');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+export async function readPrintLayout(key){const database=await db();return new Promise((resolve,reject)=>{const request=database.transaction('layouts').objectStore('layouts').get(key);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+export async function writePrintLayout(key,value){const database=await db();return new Promise((resolve,reject)=>{const transaction=database.transaction('layouts','readwrite');transaction.objectStore('layouts').put(value,key);transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);transaction.onabort=()=>reject(transaction.error);});}

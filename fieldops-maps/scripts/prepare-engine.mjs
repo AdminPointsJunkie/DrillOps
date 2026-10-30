@@ -8,3 +8,6 @@ const worker=await readFile('node_modules/gdal3.js/dist/package/gdal3.js','utf8'
 const needle='u||"http"===t.substring(0,4)||"/"===t[0]';
 if(!worker.includes(needle))throw Error('GDAL worker changed: review blob URL patch.');
 await writeFile('public/gdal-worker.js',worker.replace(needle,'u||"http"===t.substring(0,4)||"blob:"===t.substring(0,5)||"/"===t[0]'));
+// Archive workers are same-origin and loaded only when an archive is imported.
+await mkdir('public/archive',{recursive:true});
+for(const file of ['worker-bundle.js','libarchive.wasm'])await writeFile('public/archive/'+file,await readFile('node_modules/libarchive.js/dist/'+file));

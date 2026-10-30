@@ -3,9 +3,21 @@ import assert from 'node:assert/strict';
 import {IDBFactory} from 'fake-indexeddb';
 import {JSDOM} from 'jsdom';
 import {createLocalWorkspace} from '../src/local-workspace.js';
-import {addLocationFiles,removeLocationFile,locationFiles,locationFilesPanel,validateFiles,FILE_LIMIT} from '../src/location-files.js';
+import {addLocationFiles,removeLocationFile,locationFiles,locationFilesPanel,validateFiles,FILE_LIMIT,attachmentPaths} from '../src/location-files.js';
+import {pastedFeatures} from '../src/map-paste.js';
+import {analyse} from '../src/analysis-engine.js';
 import {transferProject} from '../src/cloud-transfer.js';
 import {attributeFields} from '../src/attribute-style.js';
+
+test('copy/paste and extraction retain attachment ownership paths for saving and publishing',()=>{
+ const file={path:'owner/layer/attachments/id/plan.pdf',name:'Plan.pdf',size:12};
+ const feature={type:'Feature',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Hole',_fieldmaps_files:[file]}};
+ const pasted=pastedFeatures(JSON.stringify(feature),{lng:154,lat:-28});
+ assert.deepEqual(locationFiles(pasted.fc.features[0]),[file]);
+ assert.deepEqual(attachmentPaths(pasted.fc,[file.path]),[file.path]);
+ const extracted=analyse({operation:'extract',source:{type:'FeatureCollection',features:[feature]},target:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[152,-28],[154,-28],[154,-26],[152,-26],[152,-28]]]}}]}});
+ assert.deepEqual(attachmentPaths(extracted,['source.csv']),['source.csv',file.path]);
+});
 
 test('files stay with their feature through reload, geometry edits and cloud transfer; removal retains published bytes',async()=>{
  const db=createLocalWorkspace(new IDBFactory()),cloud=createLocalWorkspace(new IDBFactory());

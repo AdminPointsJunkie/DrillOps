@@ -6,6 +6,9 @@ export function locationFiles(feature){
  const files=feature?.properties?.[FILES_PROPERTY];
  return Array.isArray(files)?files.filter(f=>f&&typeof f.path==='string'&&typeof f.name==='string'):[];
 }
+export function attachmentPaths(fc,paths=[]){
+ return [...new Set([...paths,...(fc?.features||[]).flatMap(locationFiles).map(file=>file.path)])];
+}
 export function validateFiles(files){
  if(!files.length)throw Error('Choose at least one file.');
  if(files.length>20)throw Error('Choose up to 20 files at a time.');

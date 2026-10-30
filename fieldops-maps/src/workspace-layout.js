@@ -1,6 +1,7 @@
 const paths={
  layers:'M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5',
  draw:'M14 4l6 6-10 10H4v-6zM12 6l6 6M16 2l6 6',
+ dashboard:'M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z',
  table:'M3 4h18v16H3zM3 9h18M9 9v11M15 9v11',
  search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14M15 15l6 6',
  filter:'M3 4h18l-7 8v7l-4 2v-9z',
@@ -31,6 +32,14 @@ export function installWorkspaceLayout(doc=document){
  $('#add-xyz').innerHTML=workspaceIcon('layers')+'<span>Add tile layer</span>';
  $('.workspace-label').textContent='PROJECT';$('.sidebar-bottom').innerHTML='<span class="workspace-footer-dot"></span><span>DrillOps FieldMaps</span><button type="button" class="workspace-help" aria-label="Open help">Help</button>';
  $('.workspace-help').onclick=()=>$('#help').click();
+
+ // Keep the layer rail dedicated to layers; move project and import controls out.
+ const picker=$('.map-picker');picker.classList.add('header-project');header.insertBefore(picker,header.children[1]);
+ $('.workspace-label').remove();$('.sidebar-bottom').remove();
+ $('#project-crs').closest('form').append($('#project-default'));
+ const imports=doc.createElement('section');imports.className='map-import-status';imports.setAttribute('aria-label','Import queue');imports.append($('#import-job'),$('#queue'));$('.map-area').append(imports);
+ const collapse=doc.createElement('button');collapse.type='button';collapse.id='collapse-layers';collapse.title='Collapse layers';collapse.setAttribute('aria-label','Collapse layers');collapse.innerHTML='‹';$('#sidebar .tabs').append(collapse);
+ const reopen=doc.createElement('button');reopen.type='button';reopen.id='reopen-layers';reopen.hidden=true;reopen.innerHTML='<svg viewBox="0 0 16 24" width="12" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6"/></svg>';reopen.title='Show layers';reopen.setAttribute('aria-label','Show layers');$('.map-area').append(reopen);
  $('.map-title').setAttribute('aria-live','polite');
  function refresh(){
   for(const card of doc.querySelectorAll('.layer-card')){
