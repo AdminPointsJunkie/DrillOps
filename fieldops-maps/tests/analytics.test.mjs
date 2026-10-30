@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {createAnalyticsMeter} from '../src/analytics-meter.js';
-import {analyticsMarkup} from '../src/owner-analytics.js';
+import {analyticsMarkup,quotaMarkup,FREE_LIMITS} from '../src/owner-analytics.js';
 import {installPlatformAdmin} from '../src/platform-admin.js';
 test('meter keeps request behaviour, strips sensitive paths and excludes auth, external traffic and itself',async()=>{
  let who={userId:'a',workspaceId:'w'},clock=0;const sent=[];
@@ -26,3 +26,11 @@ test('analytics only loads when server returns exact owner access, and clears on
  let access=false;const calls=[];const db={rpc:async(n)=>{calls.push(n);return {data:n==='owner_analytics_access'?access:n==='owner_analytics'?{days:7,started_at:new Date().toISOString(),summary:{}}:{companies:[],generated_at:new Date().toISOString()}};}};
  const ui=installPlatformAdmin(db,{doc:dom.window.document,isPlatform:()=>true});await ui.open();assert.ok(!calls.includes('owner_analytics'));access=true;await ui.open();assert.match(dom.window.document.body.textContent,/Your platform analytics/);ui.close();assert.ok(!dom.window.document.body.textContent.includes('Your platform analytics'));
 });
+
+ test('Free quota bars cap visually, warn near limits and distinguish unknown usage from zero',()=>{
+ const full=quotaMarkup('Database',FREE_LIMITS.database*1.1,FREE_LIMITS.database,'Current');
+ assert.match(full,/110.0%/);assert.match(full,/width:100%/);assert.match(full,/At or above allowance/);
+ const unknown=quotaMarkup('Downloads',null,FREE_LIMITS.egress,'Unmeasured');assert.match(unknown,/Not measured/);assert.ok(!unknown.includes('role="progressbar"'));
+ const zero=quotaMarkup('Files',0,FREE_LIMITS.storage,'Current');assert.match(zero,/0.0%/);assert.match(zero,/role="progressbar"/);
+ const html=analyticsMarkup({days:7,started_at:new Date().toISOString(),summary:{requests:0}});assert.match(html,/Awaiting activity/);assert.ok(!html.includes('100.0%'));assert.match(html,/Separate 5 GB/);
+ });

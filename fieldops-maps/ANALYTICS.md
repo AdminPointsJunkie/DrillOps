@@ -17,3 +17,7 @@ The report includes current database and object storage, map/layer/feature count
 ## Verification
 
 Run `node --test tests/*.test.mjs` and the Vite production build. Tests cover request behaviour, sensitive-data exclusion, account changes, failed requests, empty reports and owner-only UI rendering. Live transaction-only checks verified that even another platform admin cannot read analytics, raw table access fails, and known samples aggregate correctly; those samples were rolled back. The security advisor reports intentional deny-all RLS tables and the pre-existing leaked-password-protection setting.
+
+## Free-plan graphics
+
+The owner dashboard displays daily request/response-byte charts, a request outcome ring, service latency bars, and current database/file storage against Free-plan benchmarks. Limits were checked against https://supabase.com/pricing on 31 October 2026 and configured for the owner's stated Free plan; there is no automatic subscription lookup. Cached and uncached egress retain separate 5 GB allowances and unknown consumption. Current FieldMaps file bytes are only one project's contribution, not organisation-wide billing-period average storage. The 80%/95% colours are planning indicators, not provider enforcement rules. Missing measurements remain unknown rather than zero. Detailed accessible tables remain available below the charts.
