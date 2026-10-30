@@ -1,3 +1,4 @@
+import './invite-dialog.css';
 import {installProjectHome} from './project-home.js';
 import {bindLineDistance} from './line-distance.js';
 import {installToolMenus} from './tool-menus.js';
@@ -78,8 +79,8 @@ fetch(import.meta.env.BASE_URL+'crs.json').then(r=>r.json()).then(r=>{crsList=r;
 let toastTimer;function toast(msg){clearTimeout(toastTimer);$('#toast').textContent=msg;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
 function setBusy(value,message){busy=value;refreshSaveStatus();$('#cloud-state').textContent=message||(LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects');$('#files').disabled=value;}
 function popup(feature,item){return item?featureInfo(item,feature,document):document.createElement('div');}
-function featureClicked(item,f){if(fieldTools?.drawing||geometryEditor?.active)return;const index=item.fc.features.indexOf(f);if(explorer){explorer.select(item,index,false);return;}$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f,item));}
-function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});const fc={...item.fc,features:item.fc.features.filter(f=>!explorer||explorer.acceptFeature(item,f))};if(item.metadata?.annotation)return annotationLayer(L,{...item,fc},{pane,onClick:f=>featureClicked(item,f)});return L.geoJSON(fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>{bindLineDistance(l,f,item.metadata?.style?.distanceLabels);l.on('click',()=>featureClicked(item,f));}});}
+function featureClicked(item,f,event){const drawing=fieldTools?.drawing||geometryEditor?.active;const selecting=event?.originalEvent?.shiftKey||fieldTools?.selecting||geometryEditor?.selecting;if(drawing&&!selecting)return;if(drawing&&event?.originalEvent)L.DomEvent.stopPropagation(event.originalEvent);const index=item.fc.features.indexOf(f);if(explorer){explorer.select(item,index,false);return;}$('#feature-info-title').textContent=item.name;$('#feature-info-content').replaceChildren(popup(f,item));}
+function makeLayer(item){const pane=layerPane(item);if(item.metadata?.xyz)return xyzLayer(L,item,toast,{pane});if(item.kind==='raster')return L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{pane,opacity:item.opacity??0.8});const fc={...item.fc,features:item.fc.features.filter(f=>!explorer||explorer.acceptFeature(item,f))};if(item.metadata?.annotation)return annotationLayer(L,{...item,fc},{pane,onClick:(f,e)=>featureClicked(item,f,e)});return L.geoJSON(fc,{pane,style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{pane},f),onEachFeature:(f,l)=>{bindLineDistance(l,f,item.metadata?.style?.distanceLabels);l.on('click',e=>featureClicked(item,f,e));}});}
 function redrawLayer(l){const old=rendered.get(l.id);if(old)map.removeLayer(old);const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();}
 function updateEmpty(){refreshSaveStatus();$('#empty-map').hidden=layers.length>0||!!preview;$('#layer-count').textContent=layers.length;$('#map-subtitle').textContent=layers.length?`${layers.length} layer${layers.length===1?'':'s'} · ${layers.filter(l=>l.saved).length} saved ${LOCAL_TESTING?'in this browser':'to your account'}`:'A clear view of all your spatial data.';}
 function addLayer(item){layers.push(item);if(!flattenTree(layerTree).includes(item.id))layerTree.unshift(item.id);const ml=makeLayer(item);rendered.set(item.id,ml);if(isVisible(item))ml.addTo(map);renderLayers();updateEmpty();}
@@ -519,6 +520,37 @@ mapComponents=installMapComponents({getLayers:()=>layers,getScope:analysisScope,
 toolMenus=installToolMenus({home:()=>homeUI?.open(),annotate:type=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('annotation',type);},canAnnotate:isAdmin,canCreate,analyse:operation=>{const scope=analysisScope();openAnalysis(operation,{getLayers:()=>layers,canCreate:()=>canCreate()&&scope===analysisScope(),onResult:addAnalysisResult});},component:type=>type==='show'?mapComponents.show():mapComponents.open(type),draw:async mode=>{await openDrawing();geometryEditor?.setMode(mode);},uploadURL:()=>openURLUpload(handleFiles,canCreate)});
 toolMenus.refresh();
 
+const quickActions=[];
+function quickAction(label,run,key,enabled=()=>!homeUI?.active){toolMenus.addAction(label,run,enabled);if(key)quickActions.push({key,run,enabled});}
+const chooseBasemap=value=>{const select=$('#basemap');select.value=value;select.dispatchEvent(new Event('change'));};
+const measure=type=>{if(geometryEditor?.active)return toast('Close drawing tools first.');identify(false);fieldTools.open('measure');const select=document.querySelector('[data-tool-type]');select.value=type;select.dispatchEvent(new Event('change'));};
+quickAction('Open table · T',()=>explorer.openTable(),'t');
+quickAction('Measure line · M',()=>measure('distance'),'m');
+quickAction('Measure polygon',()=>measure('area'));
+quickAction('Measure route (manual)',()=>measure('distance'));
+quickAction('Edit map · Shift+E',()=>openDrawing(),'shift+e',()=>canCreate()&&!homeUI?.active);
+quickAction('Zoom in · +',()=>map.zoomIn(),'+');
+quickAction('Zoom out · −',()=>map.zoomOut(),'-');
+quickAction('Reset view · 0',()=>$('#fit').click(),'0');
+quickAction('Jump to zoom · ⌘/Ctrl+J',()=>{const value=prompt('Zoom level (0–22)',String(map.getZoom()));if(value===null)return;const n=Number(value);if(!value.trim()||!Number.isFinite(n)||n<0||n>22)return toast('Enter a zoom level from 0 to 22.');map.setZoom(n);},'mod+j');
+quickAction('Search · /',()=>explorer.openSearch(),'/');
+quickAction('Switch basemap to Standard',()=>chooseBasemap('street'));
+quickAction('Switch basemap to Satellite',()=>chooseBasemap('satellite'));
+quickAction('Toggle satellite',()=>chooseBasemap($('#basemap').value==='satellite'?'street':'satellite'));
+quickAction('Rename map…',()=>$('#project-settings').click(),null,()=>canCreate()&&!!activeMap&&isAdmin());
+quickAction('New map',()=>$('#new-map').click(),null,()=>canCreate());
+quickAction('Go to home · Shift+⌘/Ctrl+H',()=>homeUI?.open(),'mod+shift+h');
+quickAction('Print…',()=>openPrint(false));
+quickAction('Export as image…',()=>openPrint(true));
+quickAction('Open in OpenStreetMap',()=>{const c=map.getCenter();window.open(`https://www.openstreetmap.org/#map=${Math.round(map.getZoom())}/${c.lat}/${c.lng}`,'_blank','noopener');});
+quickAction('Open in Google Maps',()=>{const c=map.getCenter();window.open(`https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}`,'_blank','noopener');});
+quickAction('Open in Street View',()=>{const c=map.getCenter();window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${c.lat},${c.lng}`,'_blank','noopener');});
+quickAction('Export annotations to GeoJSON',()=>{const fc={type:'FeatureCollection',features:layers.filter(l=>l.metadata?.annotation).flatMap(l=>l.fc?.features||[])};if(!fc.features.length)return toast('No annotations in this project.');const url=URL.createObjectURL(new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'}));const a=document.createElement('a');a.href=url;a.download='fieldmaps-annotations.geojson';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+quickAction('Hide UI · ⌘/Ctrl+.',()=>{document.body.classList.toggle('map-ui-hidden');map.invalidateSize();},'mod+.');
+quickAction('Disable / enable snap to vertices',()=>{const input=document.querySelector('.geometry-editor [data-snap]');if(!input||!geometryEditor?.active)return toast('Open Draw and edit first to change snapping.');input.checked=!input.checked;input.dispatchEvent(new Event('change'));});
+quickAction('Keyboard shortcuts · Shift+?',()=>alert('Quick actions: ⌘/Ctrl+K\nTable: T\nMeasure: M\nSearch: /\nZoom: + / −\nReset view: 0\nJump to zoom: ⌘/Ctrl+J\nEdit map: Shift+E\nHome: Shift+⌘/Ctrl+H\nHide UI: ⌘/Ctrl+. (Escape restores it)\nHold Shift while drawing to select a feature.'),'?');
+document.addEventListener('keydown',e=>{if(e.repeat||e.altKey||e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(e.key==='Escape'&&document.body.classList.contains('map-ui-hidden')){document.body.classList.remove('map-ui-hidden');map.invalidateSize();return;}if(document.querySelector('dialog[open],.print-editor'))return;const key=(e.metaKey||e.ctrlKey?'mod+':'')+(e.shiftKey&&!['+','?'].includes(e.key)?'shift+':'')+e.key.toLowerCase();if(key==='mod+k'){e.preventDefault();toolMenus.openQuick();return;}const action=quickActions.find(a=>a.key===key);if(action?.enabled()){e.preventDefault();action.run();}});
+
 function workspacePending(){return geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>!l.saved||l.saving);}
 function renderWorkspaces(){
  $('.company-switcher').hidden=LOCAL_TESTING||!user;$('#company-select').innerHTML=(workspaceContext?.workspaces||[]).map(w=>`<option value="${esc(w.id)}">${esc(w.name)}${w.status==='suspended'?' · Suspended':''}</option>`).join('')||'<option value="">No workspace access</option>';
@@ -553,7 +585,7 @@ async function openPrint(quick=false){
  if(busy)return toast('Wait for the current import to finish.');
  printEditorOpen=true;
  try{const {openPrintEditor}=await import('./print-layout.js');const center=map.getCenter(),size=map.getSize();
-  await openPrintEditor({userId:user.id,projectId:activeMap?.id,title:activeMap?.name||'DrillOps FieldMaps',description:activeMap?.description||'',center:[center.lat,center.lng],zoom:map.getZoom(),viewSize:[size.x,size.y],basemap:$('#basemap').value,layers:flattenTree(layerTree).map(id=>layers.find(l=>l.id===id)).filter(l=>l&&isVisible(l)).map(l=>l.kind==='vector'?{...l,fc:{...l.fc,features:l.fc.features.filter(f=>!explorer||explorer.acceptFeature(l,f))}}:l),onClose:()=>{printEditorOpen=false;}},{quick});
+  await openPrintEditor({workspaceId:currentWorkspace?.id,userId:user.id,projectId:activeMap?.id,title:activeMap?.name||'DrillOps FieldMaps',description:activeMap?.description||'',center:[center.lat,center.lng],zoom:map.getZoom(),viewSize:[size.x,size.y],basemap:$('#basemap').value,layers:flattenTree(layerTree).map(id=>layers.find(l=>l.id===id)).filter(l=>l&&isVisible(l)).map(l=>l.kind==='vector'?{...l,fc:{...l.fc,features:l.fc.features.filter(f=>!explorer||explorer.acceptFeature(l,f))}}:l),onClose:()=>{printEditorOpen=false;}},{quick});
  }catch(error){printEditorOpen=false;toast('Could not open export: '+errorText(error));}
 }
 for(const [label,quick] of [['Print layout',false],['Export image',true]]){const button=document.createElement('button');button.className='subtle';button.textContent=label;button.onclick=()=>openPrint(quick);toolMenus.addExport(button);}

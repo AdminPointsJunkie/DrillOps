@@ -46,3 +46,9 @@ test('freehand stroke saves, restores map dragging and link validation does not 
   tools.open('annotation','marker');canvas.dispatchEvent(new dom.window.MouseEvent('pointerdown',{clientX:10,clientY:10,button:0}));tools.reset();assert.equal(dragging,true);
  }finally{dom.window.close();delete globalThis.document;}
 });
+
+test('Shift selects during annotation drawing, suppresses points and releases box zoom on close',()=>{
+ const dom=new JSDOM('<div class="map-area"><div id="map"></div></div>');globalThis.document=dom.window.document;
+ let box=true,saved;const handlers={},make=()=>({addTo(){return this;}});const map={on:(n,f)=>handlers[n]=f,getContainer:()=>document.querySelector('#map'),removeLayer(){},boxZoom:{enabled:()=>box,disable:()=>box=false,enable:()=>box=true}};
+ try{const tools=installFieldTools({L:{layerGroup:make,circleMarker:make,polyline:make},map,canAnnotate:()=>true,hasProject:()=>true,onAnnotation:async v=>saved=v,notify(){}});tools.open('annotation','arrow');assert.equal(box,false);handlers.click({latlng:{lng:1,lat:1}});document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Shift'}));assert.equal(tools.selecting,true);assert.equal(document.querySelector('.map-area').classList.contains('annotation-selecting'),true);handlers.click({latlng:{lng:5,lat:5}});document.dispatchEvent(new dom.window.KeyboardEvent('keyup',{key:'Shift'}));assert.equal(tools.selecting,false);handlers.click({latlng:{lng:2,lat:2}});document.querySelector('[data-annotation-name]').value='Arrow';document.querySelector('[data-annotation-note]').value='Route';document.querySelector('[data-tool-finish]').click();assert.deepEqual(saved.feature.geometry.coordinates,[[1,1],[2,2]]);tools.reset();assert.equal(box,true);}finally{dom.window.close();delete globalThis.document;}
+});

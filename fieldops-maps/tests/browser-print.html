@@ -1,5 +1,5 @@
 <!doctype html><meta charset="utf-8"><title>Print export verification</title><button id="layout">Open print layout</button><button id="quick">Open image export</button><script type="module">
 import {openPrintEditor} from '../src/print-layout.js';
-const context={userId:'synthetic-test',projectId:'synthetic-map',title:'FieldMaps export test',description:'Synthetic test data',center:[-27,153],zoom:12,viewSize:[800,600],basemap:'street',layers:[{id:'test-point',name:'Test collar',kind:'vector',color:'#305f40',opacity:1,metadata:{},fc:{type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Test collar'},geometry:{type:'Point',coordinates:[153,-27]}}]}}]};
+const context={workspaceId:'demo',userId:'one',projectId:'synthetic-map',title:'FieldMaps export test',description:'Synthetic test data',center:[-27,153],zoom:12,viewSize:[800,600],basemap:'street',layers:[{id:'test-point',name:'Test collar',kind:'vector',color:'#305f40',opacity:1,metadata:{},fc:{type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Test collar'},geometry:{type:'Point',coordinates:[153,-27]}}]}}]};
 document.querySelector('#layout').onclick=()=>openPrintEditor(context);document.querySelector('#quick').onclick=()=>openPrintEditor(context,{quick:true});
 </script>

@@ -26,5 +26,5 @@ export function installToolMenus({analyse,component,draw,uploadURL,canCreate,hom
  // Account controls remain the original buttons and retain their access checks.
  document.addEventListener('click',e=>{if(!e.target.closest('.tool-menu'))document.querySelectorAll('.tool-menu').forEach(d=>d.open=false);});
  tools.addEventListener('keydown',e=>{if(e.key==='Escape'){const d=e.target.closest('.tool-menu');if(d){d.open=false;d.querySelector('summary').focus();}}});
- return {addExport(button){exports.append(button);appMenu.addExport(button);},refresh(){appMenu.refresh();more.hidden=!canAnnotate();tools.querySelectorAll('[data-edit-tool]').forEach(b=>b.hidden=!canCreate());}};
+ return {openQuick:()=>appMenu.openQuick(),addAction:(...args)=>appMenu.addAction(...args),addExport(button){exports.append(button);appMenu.addExport(button);},refresh(){appMenu.refresh();more.hidden=!canAnnotate();tools.querySelectorAll('[data-edit-tool]').forEach(b=>b.hidden=!canCreate());}};
 }

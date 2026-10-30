@@ -17,5 +17,5 @@ export function installAppMenu({accountContent,canCreate,home}){
  function refresh(){for(const a of actions)if(a.button){a.button.hidden=(a.edit&&!canCreate())||!!a.source?.hidden;a.button.disabled=!a.enabled();}}
  root.addEventListener('toggle',()=>{if(root.open){refresh();document.querySelectorAll('.tool-menu').forEach(other=>{if(other!==root)other.open=false;});}});
  root.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();root.open=false;summary.focus();}});
- return {refresh,addExport(button){action(file,button.textContent,()=>button.click(),{source:button});}};
+ return {refresh,openQuick:()=>quick.click(),addAction(label,run,enabled=()=>true){actions.push({label,run,enabled});},addExport(button){action(file,button.textContent,()=>button.click(),{source:button});}};
 }

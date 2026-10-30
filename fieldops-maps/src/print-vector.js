@@ -36,6 +36,7 @@ export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
    if(credit){const lines=Math.ceil(credit.length*8*.56/Math.max(20,w-10));out+=`<rect x="0" y="${h-lines*10-4}" width="${w}" height="${lines*10+4}" fill="white" fill-opacity=".85"/>`+textSVG(credit,4,h-lines*10+4,w-8,8);}
    if(item.scale){const control=m.getContainer().parentElement.parentElement.querySelector('.leaflet-control-scale-line');if(control){const length=control.getBoundingClientRect().width,y=h-32;out+=`<rect x="8" y="${y-14}" width="${length+4}" height="19" fill="white" fill-opacity=".8"/><path d="M10 ${y-3}V${y+2}H${10+length}V${y-3}" fill="none" stroke="#333" stroke-width="1.5"/>`+textSVG(control.textContent,12,y-3,length,9);}}
   }
+  if(item.frame&&['map','locator'].includes(item.type))out+=`<rect x=".5" y=".5" width="${w-1}" height="${h-1}" fill="none" stroke="#555" stroke-width="1"/>`;
   out+='</g></g>';
  }return out+'</svg>';
 }
