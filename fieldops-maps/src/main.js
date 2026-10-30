@@ -1,3 +1,4 @@
+import {createAnalyticsMeter} from './analytics-meter.js';
 import {installSidebarToggle} from './sidebar-toggle.js';
 import './invite-dialog.css';
 import {installProjectHome} from './project-home.js';
@@ -57,7 +58,6 @@ import {importCRS,projectCRS} from './project.js';
 import {installBasemaps} from './basemaps.js';
 import {vectorStyle,pointMarker,styleControls,visibilityIcon} from './layer-style.js';
 const authLink=readAuthLink(location.href);
-const db=LOCAL_TESTING?createLocalWorkspace():createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(name)=>({layers:'▱',plus:'＋',upload:'↑',close:'×',refresh:'↻',locate:'◎',fit:'⤢',cloud:'☁',arrow:'→',check:'✓'}[name]||name);
@@ -66,6 +66,10 @@ let layerTree=[],layoutPending=0,layoutSave=Promise.resolve();
 let homeUI=null,toolMenus=null,mapComponents=null,workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
 let mapContext=null,mapComparison=null;
 let authReady=false;
+const analyticsMeter=LOCAL_TESTING?null:createAnalyticsMeter({origin:SUPABASE_URL,context:()=>({userId:user?.id,workspaceId:currentWorkspace?.id})});
+const db=LOCAL_TESTING?createLocalWorkspace():createClient(SUPABASE_URL,SUPABASE_KEY,{global:{fetch:analyticsMeter.fetch}});
+
+if(!LOCAL_TESTING){setInterval(()=>void analyticsMeter.flush(db),15000);document.addEventListener('visibilitychange',()=>{if(document.hidden)void analyticsMeter.flush(db);});}
 let explorer=null,fieldTools=null,geometryEditor=null,geometryEditingId=null;
 const isReadOnly=()=>!LOCAL_TESTING&&!!user&&(!workspaceContext||!currentWorkspace||!['owner','admin','editor'].includes(currentWorkspace.role));
 const isAdmin=()=>LOCAL_TESTING||!!user&&!!workspaceContext&&(workspaceContext.platform_admin||['owner','admin'].includes(currentWorkspace?.role));
@@ -459,7 +463,7 @@ let platformRouteOpened=false;
 const platformAdmin=installPlatformAdmin(db,{isPlatform:()=>!!workspaceContext?.platform_admin,canOpen:()=>{if(workspacePending()){toast('Finish pending edits and saves before opening platform administration.');return false;}return true;},manageCompany:(id,section)=>accountUI.openWorkspace(id,section),onChanged:refreshWorkspaces});
 $('#platform-admin').onclick=()=>platformAdmin.open();
 const passwordSetup=installPasswordSetup(db,authLink,()=>user,toast);
-let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;authReady=true;registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
+let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;if(previousUser?.id!==user?.id)analyticsMeter?.clear();authReady=true;registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
 let editingProject=false;
 function syncProject(){
  homeUI?.refresh();
