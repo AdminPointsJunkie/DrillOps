@@ -296,3 +296,9 @@ Coppabella, first leg Follow roads, second leg Straight line entered with Shift-
 The portal displayed a continuous 8.12 km result and enabled Add route. The preview
 was closed without saving or syncing it into the user's project. Screenshot retained
 locally in verification/felt-tools/live-mixed-route.png.
+
+### Further Felt tool behaviour — 31 October 2026
+
+Added selection by displayed colour, duplication retaining layer/annotation styles, clockwise rotation and geometric scaling with Undo, Ctrl/Cmd+G grouping and Ctrl/Cmd+D duplication, and persisted feature-group visibility. Added metric/imperial display units, single-click marker/highlighter dots, K for Link, and explicit-click YouTube playback using youtube-nocookie embeds. Rotation/resizing currently uses numeric controls; scaling changes geometry, not annotation font/card dimensions.
+
+Validation: 179 tests pass; production build passes. Local synthetic browser checks verified same-colour selection, duplication, rotation, and group hide/restore. Full tutorial parity remains unfinished: public place-search pins, curated library, zoom-dependent boundary extraction, saved-route endpoint rerouting, separate element/layer conversion, group legend icons, collaborative comments and direct drag transform handles. This release updates the web portal, not the native TestFlight build.

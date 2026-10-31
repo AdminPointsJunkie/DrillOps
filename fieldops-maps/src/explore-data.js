@@ -1,3 +1,4 @@
+import {formatDistance,formatArea} from './display-units.js';
 import {attributeFields as readFields,categoryKey} from './attribute-style.js';
 const fieldCache=new WeakMap(),categoryCache=new WeakMap(),collator=new Intl.Collator(undefined,{numeric:true});
 export function attributeFields(fc){if(!fc)return [];if(!fieldCache.has(fc))fieldCache.set(fc,readFields(fc));return fieldCache.get(fc);}
@@ -51,5 +52,5 @@ export function featureInfo(layer,feature,document){
 const radians=Math.PI/180,R=6371008.8;
 export function measureDistance(points){let sum=0;for(let i=1;i<points.length;i++){const [x,y]=points[i-1],[xx,yy]=points[i],a=Math.sin((yy-y)*radians/2)**2+Math.cos(y*radians)*Math.cos(yy*radians)*Math.sin((xx-x)*radians/2)**2;sum+=2*R*Math.atan2(Math.sqrt(Math.min(1,a)),Math.sqrt(Math.max(0,1-a)));}return sum;}
 export function measureArea(points){if(points.length<3)return 0;let sum=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];let dx=(b[0]-a[0])*radians;while(dx>Math.PI)dx-=2*Math.PI;while(dx< -Math.PI)dx+=2*Math.PI;sum+=dx*(2+Math.sin(a[1]*radians)+Math.sin(b[1]*radians));}const area=Math.abs(sum)*R*R/2;return Math.min(area,4*Math.PI*R*R-area);}
-export const distanceText=m=>m<1000?`${m.toFixed(1)} m`:`${(m/1000).toFixed(2)} km`;
-export const areaText=m=>`${(m/10000).toFixed(3)} ha · ${m.toFixed(0)} m²`;
+export const distanceText=formatDistance;
+export const areaText=formatArea;

@@ -1,0 +1,7 @@
+let units='metric';
+try{units=globalThis.localStorage?.getItem('fieldmaps-display-units')==='imperial'?'imperial':'metric';}catch{}
+export const displayUnits=()=>units;
+export function setDisplayUnits(value){units=value==='imperial'?'imperial':'metric';try{globalThis.localStorage?.setItem('fieldmaps-display-units',units);}catch{}return units;}
+export const formatDistance=m=>units==='imperial'?(m<1609.344?`${(m/0.3048).toFixed(1)} ft`:`${(m/1609.344).toFixed(2)} mi`):(m<1000?`${m.toFixed(1)} m`:`${(m/1000).toFixed(2)} km`);
+export const formatArea=m=>units==='imperial'?`${(m/4046.8564224).toFixed(3)} acres · ${(m/0.09290304).toFixed(0)} ft²`:`${(m/10000).toFixed(3)} ha · ${m.toFixed(0)} m²`;
+export function installDisplayUnits(){const basemap=document.querySelector('#basemap');if(!basemap)return;const label=document.createElement('label');label.textContent='Units ';const select=document.createElement('select');select.setAttribute('aria-label','Measurement units');select.innerHTML='<option value="metric">Metric</option><option value="imperial">Imperial</option>';select.value=units;select.onchange=()=>{setDisplayUnits(select.value);document.dispatchEvent(new document.defaultView.CustomEvent('fieldmaps-units-change',{detail:units}));};label.append(select);basemap.parentElement.append(label);document.dispatchEvent(new document.defaultView.CustomEvent('fieldmaps-units-change',{detail:units}));}

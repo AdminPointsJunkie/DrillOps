@@ -8,7 +8,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
  const vectors=()=>getLayers().filter(l=>l.kind==='vector');
  const layer=()=>vectors().find(l=>l.id===current);
  const view=l=>{if(!views.has(l.id))views.set(l.id,structuredClone(l.metadata?.style?.view||{}));return views.get(l.id);};
- function acceptFeature(l,f){return matchesView(l,f,view(l))&&componentFilter(l,f);}
+ function acceptFeature(l,f){return f.properties?._fieldmaps_group?.visible!==false&&matchesView(l,f,view(l))&&componentFilter(l,f);}
  function clearSelection(){if(selection){map.removeLayer(selection);selection=null;}selected=null;}
  function select(l,index,zoom=true){
   const feature=l.fc?.features[index];if(!feature)return;clearSelection();selected={id:l.id,index};

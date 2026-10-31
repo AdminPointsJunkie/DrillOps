@@ -29,6 +29,7 @@ export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute}){
   q('[data-distance]').textContent=result?lineDistanceText(result.features[0].geometry):'';
  }
  function changed(){cancel();result=null;q('.error').textContent='';redraw();if(points.length>=2&&q('[name=routing]').value!=='imported')timer=setTimeout(()=>q('[data-calculate]').click(),1800);}
+ document.addEventListener('fieldmaps-units-change',redraw);
  const click=e=>{
   if(closed||saving||!canCreate())return;
   const max=q('[name=routing]').value==='imported'?2:25;
@@ -62,5 +63,5 @@ export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute}){
   finally{if(!closed&&token===revision){worker?.terminate();worker=null;cancelWorker=null;calculating=false;q('[data-calculate]').disabled=false;redraw();}}
  };
  q('form').onsubmit=async e=>{e.preventDefault();if(!result||calculating||saving||!canCreate())return;saving=true;d.inert=true;try{await onResult(result,q('[name=name]').value.trim()||'Route',{color:q('[name=color]').value,opacity:Number(q('[name=opacity]').value),metadata:{style:style(),routing:{waypoints:structuredClone(points),segments:q('[name=routing]').value==='online'?[...legs]:points.slice(1).map(()=>q('[name=routing]').value),mode:q('[name=routing]').value==='online'?q('[name=mode]').value:q('[name=routing]').value}}});d.close();}catch(error){q('.error').textContent=error.message;}finally{saving=false;d.inert=false;}};
- d.addEventListener('close',()=>{closed=true;cache.clear();cancel();map.off('click',click);map.removeLayer(preview);map.removeLayer(markers);});return d;
+ d.addEventListener('close',()=>{closed=true;document.removeEventListener('fieldmaps-units-change',redraw);cache.clear();cancel();map.off('click',click);map.removeLayer(preview);map.removeLayer(markers);});return d;
 }
