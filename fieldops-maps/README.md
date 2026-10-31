@@ -217,8 +217,9 @@ Create a free account at https://account.heigit.org/ to obtain the key; never pu
 in frontend environment variables or committed files. The function checks the signed-in
 user's project access before calling ORS. Missing configuration, provider failures and
 quota errors are shown explicitly; they never substitute a straight line for a road route.
-The function was deployed to SharedMap, but live road calculation is **not enabled or
-verified until the server secret is configured**.
+The function was deployed to SharedMap and the existing free-account key was saved
+in its encrypted server settings with the owner’s approval. It uses the current
+`api.heigit.org/openrouteservice/v2/directions` endpoint.
 
 Validation: 164 automated tests passed, production build passed. Browser checks on
 synthetic local data covered click/box/Shift selection, bulk attribute editing,
@@ -227,3 +228,7 @@ saving. This update is not a claim of complete Felt parity: element-level groupi
 mixed road/straight route segments, route end caps, rich link cards and a complete
 mobile/tool-by-tool comparison remain to be addressed. TestFlight 2.0 (16) predates
 these web changes; it does not contain the new web rendering controls.
+
+Live verification: the signed-in portal calculated 4.07 km driving, cycling and walking routes
+between two public-road test stops near Coppabella. The preview was not saved to the project.
+The published JavaScript assets matched the local production build byte-for-byte.
