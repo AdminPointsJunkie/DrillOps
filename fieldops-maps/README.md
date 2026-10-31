@@ -224,7 +224,7 @@ in its encrypted server settings with the owner’s approval. It uses the curren
 Validation: 164 automated tests passed, production build passed. Browser checks on
 synthetic local data covered click/box/Shift selection, bulk attribute editing,
 rectangle creation and persistent area labels, Extract and automatic highlighter
-saving. This update is not a claim of complete Felt parity: rich link cards, moving/resizing a whole element group, and a complete
+saving. This update is not a claim of complete Felt parity: resizing a whole element group and a complete
 mobile/tool-by-tool comparison remain to be addressed. TestFlight 2.0 (16) predates
 these web changes; it does not contain the new web rendering controls.
 
@@ -254,3 +254,13 @@ Validation: 171 tests pass, including mixed-leg batching, snapped joins, failure
 stale-response handling, request reuse and saved route styles. Browser checks confirmed
 grouping two of twelve points, selecting that pair with one click, Alt-selecting one
 member, and ungrouping without changing the source layer's feature count.
+
+Selected features can now move together using Move selected and a map drag, with
+Undo move available while the selector remains open. Movement preserves polygon holes,
+altitude and other coordinate components. Undo restores geometry while retaining later
+attribute edits. Project changes during an in-flight layer save cannot redraw an old
+project's layer into the newly opened map. Link annotations render readable cards with
+a title, note and destination, without fetching third-party page content or previews.
+
+Validation expanded to 174 passing tests. Browser checks confirmed moving two features,
+undoing to their original positions, and saving a readable link card on the map.

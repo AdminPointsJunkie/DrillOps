@@ -34,3 +34,5 @@ header .header-project{display:flex;align-items:center;flex:0 1 250px;min-width:
 .annotation-note{background:transparent;border:0}.annotation-note-card{background:#fff4bd;border-left:4px solid #ce6359;padding:12px;min-height:50px;width:220px;max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 3px 12px #0002;font:13px/1.5 system-ui;color:#27352d;box-sizing:border-box}.leaflet-tooltip.annotation-text{width:max-content;max-width:420px}
 
 .selection-panel [data-groups]{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow:auto;margin-top:12px}.route-panel [data-legs]{max-height:160px;overflow:auto}
+
+.annotation-link{background:transparent;border:0}.annotation-link-card{width:240px;box-sizing:border-box;padding:12px;background:white;border-left:4px solid #315d49;border-radius:6px;box-shadow:0 3px 12px #0002;color:#27352d;display:flex;flex-direction:column;gap:6px;overflow-wrap:anywhere}.annotation-link-card span{max-height:70px;overflow:auto;white-space:pre-wrap}.annotation-link-card small{color:#576c60}
