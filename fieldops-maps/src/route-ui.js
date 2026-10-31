@@ -4,16 +4,16 @@ import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 import {lineDistanceText,bindLineDistance} from './line-distance.js';
 import {measureDistance} from './explore-data.js';
 
-export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute}){
+export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute,initial=null}){
  if(!canCreate())return;
  const layers=getLayers().filter(l=>l.fc?.features?.length&&l.fc.features.every(f=>['LineString','MultiLineString'].includes(f.geometry?.type)));
  const d=toolDialog('Route',`<p>Click the map to add your start, stops and destination. Drag a stop to move it. Hold Shift when adding a stop to draw that segment straight.</p><label>Routing<select name="routing"><option value="online">Online roads</option><option value="imported">Imported roads / tracks</option><option value="straight">Straight line</option></select></label><label data-online>Travel mode<select name="mode"><option value="driving">Driving</option><option value="cycling">Cycling</option><option value="walking">Walking</option></select></label><label data-imported hidden>Road / track layer<select name="source">${layers.map(l=>`<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></label><small data-imported hidden>Uses shared road vertices, within 250 m of your two stops. Roads are treated as two-way; restrictions are not checked.</small><label data-online>Next segment<select name="next-leg"><option value="road">Follow roads</option><option value="straight">Straight line</option></select></label><div data-legs></div><output data-stops>Click the start position</output><div class="drawing-actions"><button type="button" data-undo>Undo stop</button><button type="button" data-clear>Clear</button><button type="button" data-calculate>Calculate route</button></div><label>Name<input name="name" value="Route" maxlength="160"></label><label>Colour<input name="color" type="color" value="#315d49"></label><label>Width<input name="width" type="range" min="1" max="12" value="4"></label><label>Opacity<input name="opacity" type="range" min="0" max="1" step="0.05" value="0.9"></label><label>Line pattern<select name="pattern"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><label><input name="distance" type="checkbox" checked> Show distance</label><label><input name="endcaps" type="checkbox"> Show endpoints</label><output data-distance></output><small data-online>Online calculation sends only the chosen stops and travel mode to openrouteservice. Free-plan limits apply.</small><small data-online>© <a href="https://openrouteservice.org/" target="_blank" rel="noopener noreferrer">openrouteservice by HeiGIT</a> | © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · CC-BY-SA 4.0</small>`,{modal:false});
- d.classList.add('route-panel');const q=s=>d.querySelector(s);q('[type=submit]').textContent='Add route';q('[type=submit]').disabled=true;
+ d.classList.add('route-panel');const q=s=>d.querySelector(s);q('[type=submit]').textContent=initial?'Save route':'Add route';q('[type=submit]').disabled=true;
  let points=[],legs=[],result=null,revision=0,closed=false,worker=null,cancelWorker=null,calculating=false,saving=false,timer=null;
  const cache=new Map();
  const routeRequest=async values=>{const key=JSON.stringify(values);if(cache.has(key))return structuredClone(cache.get(key));const value=await onlineRoute(values);if(!closed){if(cache.size>=64)cache.delete(cache.keys().next().value);cache.set(key,structuredClone(value));}return value;};
  const style=()=>({lineWidth:Number(q('[name=width]').value),lineStyle:q('[name=pattern]').value,distanceLabels:q('[name=distance]').checked,endCaps:q('[name=endcaps]').checked});
- const pane='route-preview';if(map.createPane){const p=map.getPane?.(pane)||map.createPane(pane);p.style.zIndex='649';}
+ const pane='route-preview';if(map.createPane){const p=map.getPane?.(pane)||map.createPane(pane);p.style.zIndex='649';const stops=map.getPane?.('route-stops')||map.createPane('route-stops');stops.style.zIndex='651';}
  const preview=L.layerGroup().addTo(map),markers=L.layerGroup().addTo(map);
  function cancel(){clearTimeout(timer);revision++;worker?.terminate();worker=null;cancelWorker?.(Error('Route changed.'));cancelWorker=null;calculating=false;q('[data-calculate]').disabled=false;}
  function redraw(){
@@ -21,7 +21,7 @@ export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute}){
   q('[data-legs]').querySelectorAll('select').forEach(select=>select.onchange=()=>{legs[Number(select.dataset.leg)]=select.value;changed();});
   preview.clearLayers();markers.clearLayers();q('[data-stops]').textContent=points.length?`${points.length} stops · click to add another`:'Click the start position';
   for(const [i,c] of points.entries()){
-   const marker=L.marker([c[1],c[0]],{pane,draggable:!saving,icon:L.divIcon({className:'route-stop',html:String(i+1),iconSize:[24,24],iconAnchor:[12,12]})}).addTo(markers);
+   const marker=L.marker([c[1],c[0]],{pane:map.createPane?'route-stops':pane,draggable:!saving,icon:L.divIcon({className:'route-stop',html:String(i+1),iconSize:[24,24],iconAnchor:[12,12]})}).addTo(markers);
    marker.on('dragend',()=>{if(!canCreate()||saving||closed)return;const ll=marker.getLatLng();points[i]=[ll.lng,ll.lat];changed();});
   }
   if(result){L.geoJSON(result,{pane,interactive:false,onEachFeature:(f,l)=>bindLineDistance(l,f,style().distanceLabels),style:vectorStyle({color:q('[name=color]').value,opacity:Number(q('[name=opacity]').value),metadata:{style:style()}})}).addTo(preview);if(style().endCaps){const c=result.features[0].geometry.coordinates;for(const p of [c[0],c.at(-1)])L.circleMarker([p[1],p[0]],{pane,radius:5,color:q('[name=color]').value,weight:2,fillColor:'#fff',fillOpacity:Number(q('[name=opacity]').value),opacity:Number(q('[name=opacity]').value),interactive:false}).addTo(preview);}}
@@ -62,6 +62,15 @@ export function openRoute({getLayers,canCreate,onResult,map,L,onlineRoute}){
   }catch(e){if(!closed&&token===revision)q('.error').textContent=canCreate()?e.message:'Project access changed. Reopen Route in the correct project.';}
   finally{if(!closed&&token===revision){worker?.terminate();worker=null;cancelWorker=null;calculating=false;q('[data-calculate]').disabled=false;redraw();}}
  };
- q('form').onsubmit=async e=>{e.preventDefault();if(!result||calculating||saving||!canCreate())return;saving=true;d.inert=true;try{await onResult(result,q('[name=name]').value.trim()||'Route',{color:q('[name=color]').value,opacity:Number(q('[name=opacity]').value),metadata:{style:style(),routing:{waypoints:structuredClone(points),segments:q('[name=routing]').value==='online'?[...legs]:points.slice(1).map(()=>q('[name=routing]').value),mode:q('[name=routing]').value==='online'?q('[name=mode]').value:q('[name=routing]').value}}});d.close();}catch(error){q('.error').textContent=error.message;}finally{saving=false;d.inert=false;}};
+ q('form').onsubmit=async e=>{e.preventDefault();if(!result||calculating||saving||!canCreate())return;saving=true;d.inert=true;try{await onResult(result,q('[name=name]').value.trim()||'Route',{color:q('[name=color]').value,opacity:Number(q('[name=opacity]').value),metadata:{style:style(),routing:{waypoints:structuredClone(points),segments:q('[name=routing]').value==='online'?[...legs]:points.slice(1).map(()=>q('[name=routing]').value),source:q('[name=source]').value,mode:q('[name=routing]').value==='online'?q('[name=mode]').value:q('[name=routing]').value}}});d.close();}catch(error){q('.error').textContent=error.message;}finally{saving=false;d.inert=false;}};
+ if(initial){
+  const r=initial.metadata?.routing,st=initial.metadata?.style||{};
+  points=structuredClone(r.waypoints);legs=points.slice(1).map((_,i)=>r.segments?.[i]==='straight'?'straight':'road');result=structuredClone(initial.fc);
+  q('[name=routing]').value=['straight','imported'].includes(r.mode)?r.mode:'online';q('[name=mode]').value=['driving','cycling','walking'].includes(r.mode)?r.mode:'driving';
+  if(r.source)q('[name=source]').value=r.source;
+  for(const [name,value] of Object.entries({name:initial.name,color:initial.color||'#315d49',opacity:initial.opacity??.9,width:st.lineWidth??4,pattern:st.lineStyle||'solid'}))q('[name='+name+']').value=value;
+  q('[name=distance]').checked=st.distanceLabels!==false;q('[name=endcaps]').checked=!!st.endCaps;
+  d.querySelectorAll('[data-online]').forEach(e=>e.hidden=q('[name=routing]').value!=='online');d.querySelectorAll('[data-imported]').forEach(e=>e.hidden=q('[name=routing]').value!=='imported');redraw();
+ }
  d.addEventListener('close',()=>{closed=true;document.removeEventListener('fieldmaps-units-change',redraw);cache.clear();cancel();map.off('click',click);map.removeLayer(preview);map.removeLayer(markers);});return d;
 }

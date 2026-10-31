@@ -52,7 +52,7 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
  db.storage.from=()=>{throw Error('XYZ must not upload or download raster blobs');};
  const project=(await db.from('maps').insert({name:'XYZ project'}).single()).data;
  const calls=[],views=[];
- const layer=()=>({addTo(){return this;},clearLayers(){},on(){return this;},once(){return this;},getBounds(){return {};}});
+ const layer=()=>({addTo(){return this;},remove(){},clearLayers(){},on(){return this;},once(){return this;},getBounds(){return {};}});
  const panes={};const map={getContainer:()=>w.document.querySelector('#map'),invalidateSize(){},getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(center,zoom){views.push({center,zoom});return this;},on(){},removeLayer(){},fitBounds(){},getCenter:()=>({lat:-22,lng:148}),getZoom:()=>12,
   getBounds:()=>({pad:()=>({contains:()=>true}),getWest:()=>147,getSouth:()=>-23,getEast:()=>149,getNorth:()=>-21})};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:(url,options)=>{calls.push({url,options});return layer();},layerGroup:layer,

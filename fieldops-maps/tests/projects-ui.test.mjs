@@ -45,7 +45,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
    single(){let row;if(action==='insert'){row={id:String(projects.length+1),...payload};projects.push(row);}else{row=projects.find(p=>p.id===filter);Object.assign(row,payload);}return Promise.resolve({data:{...row},error:null});}};
   return query;
  }};
- const layer=()=>({addTo(){return this;},clearLayers(){},on(){return this;},getBounds(){return {};},bindPopup(){return this;}});
+ const layer=()=>({addTo(){return this;},remove(){},clearLayers(){},on(){return this;},getBounds(){return {};},bindPopup(){return this;}});
  const panes={};const map={getContainer:()=>w.document.querySelector('#map'),invalidateSize(){},closePopup(){},getBounds:()=>({pad:()=>({contains:()=>true})}),getPane:id=>panes[id],createPane:id=>panes[id]={style:{}},hasLayer:()=>false,setView(){return this;},on(){},removeLayer(){},fitBounds(){}};
  const L={GridLayer:{extend:()=>function(){return layer();}},map:()=>map,tileLayer:layer,layerGroup:layer,geoJSON:(fc,options)=>{for(const f of fc.features||[fc])options.onEachFeature?.(f,{on:(name,handler)=>featureHandlers.push(handler)});return layer();},imageOverlay:layer,circleMarker:layer,
   control:{zoom:layer,scale:layer},latLngBounds:()=>({extend(){},isValid:()=>true})};

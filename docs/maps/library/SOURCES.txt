@@ -1,0 +1,11 @@
+Natural Earth reference data, downloaded 1 November 2026.
+Public domain: https://www.naturalearthdata.com/about/terms-of-use/
+Source repository revision: ca96624a56bd078437bca8184e78163e5039ad19
+https://github.com/nvkelso/natural-earth-vector/tree/ca96624a56bd078437bca8184e78163e5039ad19/geojson
+countries.geojson: ne_110m_admin_0_countries.geojson
+states.geojson: ne_50m_admin_1_states_provinces.geojson
+rivers.geojson: ne_110m_rivers_lake_centerlines.geojson
+lakes.geojson: ne_110m_lakes.geojson
+Geometry unchanged. Attributes reduced to display name, country, source, dataset and licence.
+States cover Australia, Brazil, Canada, China, India, Indonesia, Russia, South Africa and the United States of America.
+Reference-scale geometry is generalised and is not a cadastral or survey boundary.
