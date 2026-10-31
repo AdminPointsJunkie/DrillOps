@@ -1,5 +1,5 @@
 import {featureAppearance} from './attribute-style.js';
-export const symbols=['circle','square','triangle','diamond','cross'];
+export const symbols=['circle','pin','square','triangle','diamond','cross'];
 export const lineStyles={solid:null,dashed:'8 6',dotted:'2 5'};
 export function visibilityIcon(visible){
  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>${visible?'':'<path d="M3 3l18 18"/>'}</svg>`;
@@ -27,6 +27,7 @@ export function vectorStyle(layer,feature){
 export function pointMarker(L,layer,ll,options={},feature){
  layer=featureAppearance(layer,feature);
  const s=layerStyle(layer),color=/^#[0-9a-f]{6}$/i.test(layer.color)?layer.color:'#147d72';
+ if(s.symbol==='pin'){const size=Math.max(24,s.pointSize);return L.marker(ll,{...options,opacity:s.opacity,icon:L.divIcon({className:'layer-point-symbol',iconSize:[size,size*1.4],iconAnchor:[size/2,size*1.4],html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 34" width="${size}" height="${size*1.4}"><path d="M12 33C9 27 1 19 1 12a11 11 0 0 1 22 0c0 7-8 15-11 21Z" fill="${color}" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="white"/></svg>`})});}
  if(s.symbol==='circle')return L.circleMarker(ll,{...options,radius:s.pointSize/2,color:'#fff',weight:1.5,opacity:s.opacity,fillColor:color,fillOpacity:s.opacity});
  const shapes={square:'<rect x="2" y="2" width="20" height="20"/>',triangle:'<path d="M12 2 L22 22 H2 Z"/>',diamond:'<path d="M12 1 L23 12 L12 23 L1 12 Z"/>',cross:'<path d="M8 2 H16 V8 H22 V16 H16 V22 H8 V16 H2 V8 H8 Z"/>'};
  return L.marker(ll,{...options,opacity:s.opacity,icon:L.divIcon({className:'layer-point-symbol',iconSize:[s.pointSize,s.pointSize],iconAnchor:[s.pointSize/2,s.pointSize/2],

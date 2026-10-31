@@ -2,7 +2,7 @@ import {installAppMenu} from './app-menu.js';
 import {workspaceIcon} from './workspace-layout.js';
 import {analysisTools} from './analysis-ui.js';
 import {componentTools} from './map-components.js';
-export function installToolMenus({analyse,component,draw,uploadURL,canCreate,home,annotate,route,cloud,canAnnotate=canCreate}){
+export function installToolMenus({analyse,component,draw,uploadURL,canCreate,home,annotate,route,cloud,canAnnotate=canCreate,extractFeature}){
  const header=document.querySelector('header'),tools=document.querySelector('.map-tools');header.append(tools);tools.classList.add('toolbar-menus');
  function menu(label,icon,items){const details=document.createElement('details');details.className='tool-menu';const summary=document.createElement('summary');summary.title=label;summary.setAttribute('aria-label',label);summary.innerHTML=workspaceIcon(icon);details.append(summary);const content=document.createElement('div');content.className='tool-menu-content';const title=document.createElement('small');title.textContent=label.toUpperCase();content.append(title);for(const item of items){if(item.id){const button=document.getElementById(item.id);if(button){button.classList.remove('square');content.append(button);button.addEventListener('click',()=>details.open=false);}}else{const b=document.createElement('button');b.type='button';b.textContent=item.label;b.setAttribute('aria-label',item.label);b.onclick=()=>{details.open=false;item.action();};if(item.edit)b.dataset.editTool='true';content.append(b);}}details.append(content);details.addEventListener('toggle',()=>{if(details.open)for(const other of document.querySelectorAll('.tool-menu'))if(other!==details)other.open=false;});tools.append(details);return content;}
  const drawMenu=menu('Annotations','draw',[...['point','line','route','polygon','rectangle','circle'].map(mode=>({label:({point:'Pin',line:'Line',route:'Route',polygon:'Polygon',rectangle:'Rectangle',circle:'Circle'})[mode],action:()=>mode==='route'?route():draw(mode),edit:true}))]);
@@ -15,7 +15,7 @@ export function installToolMenus({analyse,component,draw,uploadURL,canCreate,hom
   b.onclick=()=>{drawMenu.closest('.tool-menu').open=false;if(!canAnnotate())return;if(type==='image')document.getElementById('files').click();else annotate?.(type);};more.querySelector('div').append(b);
  }
  drawMenu.append(more);
- const extract=document.createElement('button');extract.textContent='✂ Extract';extract.setAttribute('aria-label','Extract');extract.dataset.editTool='true';extract.onclick=()=>{drawMenu.closest('.tool-menu').open=false;analyse('extract');};drawMenu.append(extract);
+ const extract=document.createElement('button');extract.textContent='✂ Extract';extract.setAttribute('aria-label','Extract');extract.dataset.editTool='true';extract.onclick=()=>{drawMenu.closest('.tool-menu').open=false;(extractFeature||(()=>analyse('extract')))();};drawMenu.append(extract);
  const heading=document.createElement('small');heading.textContent='LAYERS';drawMenu.append(heading);
  const create=document.createElement('button');create.textContent='＋ Create layer…';create.dataset.editTool='true';create.onclick=()=>{drawMenu.closest('.tool-menu').open=false;draw('select');};drawMenu.append(create);
  for(const id of ['open-drawing','open-annotation'])document.getElementById(id).hidden=true;

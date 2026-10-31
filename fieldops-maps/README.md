@@ -198,3 +198,32 @@ Set these **public browser configuration values** in `fieldops-maps/.env.local`,
 After configuration, verify with real accounts: consent/cancel, folder navigation, normal files, expired login, denied access, import review and saving. Verify Google Sheets export and OneDrive personal/work accounts separately. Mock tests cover download limits and token destination restrictions; they do not establish that provider registrations or live consent work.
 
 Provider instructions: [Google Picker setup](https://developers.google.com/workspace/drive/picker/guides/web-picker-sample), [Microsoft app registration](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/initialization), [Microsoft redirect bridge](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/redirect-bridge), [Dropbox Chooser setup](https://docs.dropboxapi.com/dropbox-api/docs/pre-built-components/chooser).
+
+### Drawing, selection and routing update — 31 October 2026
+
+Select features (V) supports click, Shift-click and drag-box selection across visible,
+filtered vector layers, plus bounded image layers. Selected geometry remains visible
+above data panes. Space temporarily pans; Escape exits. Selection offers geometry
+editing, bulk attributes, layer grouping, copying into a new layer and GeoJSON export.
+Extract copies an existing feature, preserving holes, altitude and attributes.
+Drawing supports double-click/Enter completion, closing polygons at their first
+vertex, dragged circles/rectangles and area labels. Marker/highlighter strokes save
+on release; text and sticky-note styling is available.
+
+Online roads is the default Route source, with driving, cycling and walking; imported
+tracks and explicit straight lines remain alternatives. Deploy `supabase/functions/maps-route`
+with JWT verification and set `ORS_API_KEY` in the project's Edge Function secrets.
+Create a free account at https://account.heigit.org/ to obtain the key; never put it
+in frontend environment variables or committed files. The function checks the signed-in
+user's project access before calling ORS. Missing configuration, provider failures and
+quota errors are shown explicitly; they never substitute a straight line for a road route.
+The function was deployed to SharedMap, but live road calculation is **not enabled or
+verified until the server secret is configured**.
+
+Validation: 164 automated tests passed, production build passed. Browser checks on
+synthetic local data covered click/box/Shift selection, bulk attribute editing,
+rectangle creation and persistent area labels, Extract and automatic highlighter
+saving. This update is not a claim of complete Felt parity: element-level grouping,
+mixed road/straight route segments, route end caps, rich link cards and a complete
+mobile/tool-by-tool comparison remain to be addressed. TestFlight 2.0 (16) predates
+these web changes; it does not contain the new web rendering controls.
