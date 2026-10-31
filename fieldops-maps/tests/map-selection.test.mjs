@@ -25,3 +25,12 @@ test('selection reset preserves other tools and refresh drops hidden features',a
   dragging=false;selection.reset();assert.equal(dragging,false,'inactive selector must not enable panning over another tool');
  }finally{globalThis.document=previous;dom.window.close();}
 });
+
+test('feature groups expand only their own visible members across layers',async()=>{
+ const {expandFeatureGroups}=await import('../src/map-selection.js');
+ const grouped=(name,id='group-a')=>f({type:'Point',coordinates:[1,1]},{name,_fieldmaps_group:{id,name:'Targets'}});
+ const a=layer('a',[grouped('one'),f({type:'Point',coordinates:[2,2]})]);const b=layer('b',[grouped('two'),grouped('other','group-b')]);const hidden=layer('hidden',[grouped('three')]);
+ assert.deepEqual(expandFeatureGroups([{layer:a,index:0}],[a,b,hidden],l=>l!==hidden).map(s=>[s.layer.id,s.index]),[['a',0],['b',0]]);
+ assert.deepEqual(expandFeatureGroups([{layer:a,index:0}],[a,b],()=>true,(_l,f)=>f.properties.name!=='two').map(s=>s.layer.id),['a']);
+ const copy=extractedFeature(a.fc.features[0]);assert.equal(copy.properties._fieldmaps_group,undefined);assert.ok(a.fc.features[0].properties._fieldmaps_group);
+});

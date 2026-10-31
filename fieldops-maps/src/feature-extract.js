@@ -3,7 +3,7 @@ import {escapeHTML} from './explore-dialogs.js';
 // Extract is a copy operation. Keep multipart geometry, holes and attributes intact.
 export function extractedFeature(feature){
  if(!feature?.geometry)throw Error('Select a point, line or shape on the map.');
- const copy=structuredClone(feature);delete copy.id;return copy;
+ const copy=structuredClone(feature);delete copy.id;if(copy.properties)delete copy.properties._fieldmaps_group;return copy;
 }
 export function installFeatureExtract({L,map,canCreate,onResult,notify}){
  const pane=map.createPane('feature-extract');pane.style.zIndex='649';pane.style.pointerEvents='none';

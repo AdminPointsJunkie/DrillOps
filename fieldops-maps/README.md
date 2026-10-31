@@ -224,11 +224,33 @@ in its encrypted server settings with the owner’s approval. It uses the curren
 Validation: 164 automated tests passed, production build passed. Browser checks on
 synthetic local data covered click/box/Shift selection, bulk attribute editing,
 rectangle creation and persistent area labels, Extract and automatic highlighter
-saving. This update is not a claim of complete Felt parity: element-level grouping,
-mixed road/straight route segments, route end caps, rich link cards and a complete
+saving. This update is not a claim of complete Felt parity: rich link cards, moving/resizing a whole element group, and a complete
 mobile/tool-by-tool comparison remain to be addressed. TestFlight 2.0 (16) predates
 these web changes; it does not contain the new web rendering controls.
 
 Live verification: the signed-in portal calculated 4.07 km driving, cycling and walking routes
 between two public-road test stops near Coppabella. The preview was not saved to the project.
 The published JavaScript assets matched the local production build byte-for-byte.
+
+### Individual feature groups and mixed routes
+
+The selector now groups only the selected vector features, including features from
+multiple layers. Group membership is stored in `_fieldmaps_group` feature properties,
+so existing save/SYNC/download flows preserve it without a schema migration. Clicking
+a member selects the visible group; Alt-click selects one member; Shift toggles the
+group; Ungroup removes membership. Hidden or filtered features are excluded from
+selection. Group buttons list the visible members. Existing layer folders are unchanged.
+Extract and Create layer from selection produce independent copies, not new group members.
+
+Route supports per-segment Road/Straight choices, a next-segment control and Shift-click
+for straight segments. Adjacent road legs share a provider request. Straight legs join
+snapped road endpoints and do not invoke the provider. Failed road legs cannot become
+implicit straight lines. Changing stops invalidates outstanding calculations. Successful
+road requests are cached for the open tool session to conserve the free allowance.
+Width, opacity, solid/dashed/dotted pattern, distance labels and endpoints persist on
+the resulting layer. Segment choices and waypoints persist in routing metadata.
+
+Validation: 171 tests pass, including mixed-leg batching, snapped joins, failure and
+stale-response handling, request reuse and saved route styles. Browser checks confirmed
+grouping two of twelve points, selecting that pair with one click, Alt-selecting one
+member, and ungrouping without changing the source layer's feature count.
