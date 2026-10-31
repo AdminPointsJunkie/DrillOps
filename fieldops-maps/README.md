@@ -264,3 +264,35 @@ a title, note and destination, without fetching third-party page content or prev
 
 Validation expanded to 174 passing tests. Browser checks confirmed moving two features,
 undoing to their original positions, and saving a readable link card on the map.
+
+### Felt tutorial audit — 31 October 2026
+
+Reference: https://www.youtube.com/watch?v=3gLvhVlX82Y (11:16). This audit uses
+its complete auto-generated transcript and the implementation, with browser evidence
+only where explicitly stated. It supersedes earlier short lists of remaining gaps.
+The portal is **not yet a complete behavioural match** to the tutorial.
+
+| Tutorial workflow | Current portal status | Remaining difference |
+| --- | --- | --- |
+| 0:25 Place search creates a labelled pin | Search finds existing layer features | Place geocoding, map navigation and creating a search-result pin |
+| 0:41 Built-in data library / graticules | Imports and basemaps available | Equivalent curated dataset library and editable graticules |
+| 1:20 Extract administrative boundaries/buildings by zoom | Extract copies a feature already on the map | Boundary/building data source, hover preview and zoom-dependent extraction |
+| 1:54 Shapes and area/distance | Drawing gestures tested; rectangle and persistent area label browser-tested | Full gesture-by-gesture checks for each shape; metric/imperial switching |
+| 2:57 Routes with road snapping and Shift straight segments | Driving/cycling/walking tested live; mixed road/straight preview tested live at 8.12 km | Continuous cursor preview, matching Escape completion and re-routing saved routes by dragging endpoints |
+| 4:07 Select by colour; Ctrl/Cmd+G grouping | Click/box/Shift selection, individual feature groups and Alt member selection browser-tested | Select same colour, grouping shortcut and context-menu actions |
+| 5:13 Group visibility and legend icons | Feature-group membership and selection implemented | Group visibility switch, group legend view and custom icons/emoji |
+| 6:06 Bulk attributes | Individual and bulk editing implemented and tested | Felt's attribute-coverage counts and add-existing-row-to-all interaction |
+| 7:20 Elements versus layers; conversion both ways | Create layer from selection makes an independent copy | Separate element lifecycle/topmost rendering, conversion rather than copy, reverse conversion |
+| 7:48 Categorical data styling | Existing attribute-based styles and layer legends | Exact tutorial workflow not fully browser-audited |
+| 8:20 Marker / highlighter / duplicate / rotate | Freehand strokes and styles; group movement with Undo browser-tested | Cmd/Ctrl+D styled duplication, rotation handles, highlighter dots from single clicks |
+| 9:13 Text | Text styling and movement implemented | Styled duplication and full direct-on-map editing parity |
+| 9:36 Notes and comments | Sticky notes implemented | Collaborative comments and full note interaction audit |
+| 9:50 Website / YouTube links | Readable website cards and safe links browser-tested; direct video-file player exists | YouTube embeds, K shortcut and fetched rich previews |
+| 10:20 Annotation groups / legend emoji | Annotation feature groups supported | Group legend and emoji controls |
+| 10:49 GeoJSON export | Layer/project/selection export actions exist | End-to-end exported-file comparison for all tutorial-created element types |
+
+Live mixed-route verification after unlocking the Mac: three public-map stops near
+Coppabella, first leg Follow roads, second leg Straight line entered with Shift-click.
+The portal displayed a continuous 8.12 km result and enabled Add route. The preview
+was closed without saving or syncing it into the user's project. Screenshot retained
+locally in verification/felt-tools/live-mixed-route.png.
