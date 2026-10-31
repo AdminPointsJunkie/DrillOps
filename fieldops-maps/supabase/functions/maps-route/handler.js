@@ -26,7 +26,7 @@ export function routeHandler(createClient,env,{fetcher=fetch,now=Date.now}={}){
    const calls=(recent.get(uid)||[]).filter(t=>t>time-60000);
    if(calls.length>=12)return reply(429,{error:'Please wait a minute before calculating more routes.'});
    recent.set(uid,[...calls,time]);
-   const response=await fetcher('https://api.openrouteservice.org/v2/directions/'+profiles[mode]+'/geojson',{method:'POST',headers:{Authorization:env.ORS_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({coordinates,instructions:false,elevation:false}),redirect:'error',signal:AbortSignal.timeout(20000)});
+   const response=await fetcher('https://api.heigit.org/openrouteservice/v2/directions/'+profiles[mode]+'/geojson',{method:'POST',headers:{Authorization:env.ORS_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({coordinates,instructions:false,elevation:false}),redirect:'error',signal:AbortSignal.timeout(20000)});
    if(!response.ok){
     if([403,429].includes(response.status))return reply(429,{error:'The free routing allowance is unavailable or exhausted. Try later or use imported tracks.'});
     return reply(502,{error:response.status===400||response.status===404?'No road route was found. Move the stops closer to connected roads.':'The routing service is unavailable. Try again later.'});
