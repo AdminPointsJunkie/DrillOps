@@ -6323,12 +6323,22 @@ async function loadPeriodSupportInvoices(){
     // same normalized project matching used everywhere else in the report.
     return fetch(API+'/invoices?contractor='+encodeURIComponent(c.name)+'&_='+stamp,{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});
   }));
-  return rows.flat().filter(function(r){
+  const originalInvoices=rows.flat().filter(function(r){
     return !activeProjectName||projectNamesMatch(r.project,activeProjectName);
   }).map(function(r){
     const c=contractorByName(r.contractor);
     return Object.assign({},r,{contractor_category:contractorCategory(c)});
   });
+  // The accounting register records posting status, unlike the normal
+  // invoice table whose Paid/Unpaid value describes settlement only.
+  if(!(activeProgram==='Exploration'&&projectNamesMatch(activeProjectName,'Ironbark')))return originalInvoices;
+  const ledgerResponse=await fetch(API+'/ironbark-posted-invoices?year='+encodeURIComponent(activeProjectYear())+'&_='+stamp,{cache:'no-store'});
+  if(!ledgerResponse.ok)throw new Error('Ironbark posted invoice ledger unavailable');
+  const postedLedger=await ledgerResponse.json();
+  if(!Array.isArray(postedLedger))throw new Error('Invalid Ironbark posted ledger response');
+  const overridden=new Set(postedLedger.map(function(row){return contractorSummaryKey(row.contractor);}));
+  return originalInvoices.filter(function(row){return !overridden.has(contractorSummaryKey(row.contractor));})
+    .concat(postedLedger);
 }
 
 function periodFilteredRows(){
@@ -6390,6 +6400,7 @@ function supportSectionForInvoice(inv){
   const cat=String(inv.contractor_category||'').toLowerCase();
   const text=[inv.contractor,inv.project,inv.notes,inv.source_file,inv.po_reference,inv.invoice_number].join(' ').toLowerCase();
   if(cat==='drilling')return 'Drilling';
+  if(contractorSummaryKey(inv.contractor)==='mccgroup')return 'Earthworks';
   if(cat==='earthworks'||text.match(/earth|civil|dozer|excavat|grader|pad|track|king|konstruct|chms/))return 'Earthworks';
   if(cat==='lab testing'||text.match(/geogas|sigra|gas|geochem|lab test|assay|stantec|stantect/))return 'Lab Testing';
   if(cat==='geological support'||text.match(/fortem|geophys|wireline|logging|geolog|weatherford/))return 'Geophysical / Geological Support';
@@ -6415,7 +6426,7 @@ function periodFilteredMccCharges(){
   });
 }
 
-function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec'].includes(contractorSummaryKey(name));}
+function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec','impactenvironmental'].includes(contractorSummaryKey(name));}
 function approvedInvoiceForReport(invoice){
   // Payment status is not a posting status. Require explicit posting evidence.
   return !isPostedOnlySupplier(invoice.contractor) || String(invoice.posting_status||invoice.postingStatus||'').trim().toLowerCase()==='posted';
@@ -7334,6 +7345,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     if(section==='Drilling')return;
     const item=ensureContractor(inv.contractor||section,section);
     item.spent+=numVal(inv.total_aud);
+    if(inv.posting_scope==='annual')item.annualPosted=true;
     item.invoices+=1;
     item.actualsRecorded=true;
     item.actualSources.add('invoices');
@@ -7402,8 +7414,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const recorded=!!item.actualsRecorded;
     const actualSource=Array.from(item.actualSources||[]).join(' + ');
     const value=recorded?(item.estimated?'Estimated total ':'')+cur(item.spent)+' / '+cur(item.budget):'Actual not loaded / '+cur(item.budget);
+    const annualPosted=item.annualPosted===true;
     const sub=recorded
-      ?(item.estimated?'Includes ':'Actual from ')+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
+      ?(annualPosted?'2026 annual posted invoices (individual posting dates not provided) | ':'')+(item.estimated?'Includes ':'Actual from ')+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
       :'No invoice or weekly activity recorded in the selected period | '+esc(sectionText);
     const varianceText=recorded?cur(Math.abs(variance))+' '+(variance>=0?'under':'over'):'Actuals unavailable';
     const card='<div class="period-support-card'+(recorded?'':' no-actual')+'">'
