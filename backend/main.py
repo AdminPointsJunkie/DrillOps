@@ -9620,10 +9620,28 @@ ACTIVITY_REPORT_DATE_AS_ISO_SQL = """
 """
 
 
+# Match the same operating ID despite harmless DAR separators and case.
+# This is exact normalized matching, never fuzzy matching between holes.
+IRONBARK_NORMALIZED_ACTIVITY_MATCH_SQL = """
+    b.project='Ironbark'
+    AND (a.project='Ironbark' OR COALESCE(BTRIM(a.project),'')='')
+    AND (
+        REGEXP_REPLACE(UPPER(COALESCE(a.hole_num,'')), '[^A-Z0-9]', '', 'g')
+            = REGEXP_REPLACE(UPPER(COALESCE(b.hole_id,'')), '[^A-Z0-9]', '', 'g')
+        OR (
+            COALESCE(BTRIM(b.site_id),'')<>''
+            AND REGEXP_REPLACE(UPPER(COALESCE(a.site_name,'')), '[^A-Z0-9]', '', 'g')
+                = REGEXP_REPLACE(UPPER(COALESCE(b.site_id,'')), '[^A-Z0-9]', '', 'g')
+        )
+    )
+    AND COALESCE(BTRIM(a.hole_num),'')<>''
+"""
+
 COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = f"""
     a.hole_num=b.hole_id
     OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
     OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
+    OR ({IRONBARK_NORMALIZED_ACTIVITY_MATCH_SQL})
     OR (
         COALESCE(b.site_id,'')<>''
         AND EXISTS (
@@ -9762,6 +9780,37 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                                     current[field] = row.get(field)
                     rows = dedupe_borehole_plan_rows(list(deduped.values()), fallback_fields)
                     rows = sorted(rows, key=lambda r: (r.get("drill_order") is None, r.get("drill_order") or 999999))
+                # The approved 2026 Ironbark plan must remain visible even if a
+                # legacy import or a contractor/Company merge drops a row.
+                # Match by site OR operating hole to avoid duplicate budgets.
+                if contractor == "Company":
+                    present_ids = {
+                        str(value or "").strip().upper()
+                        for item in rows
+                        for value in [item.get("hole_id"), item.get("site_id")]
+                        + list(item.get("activity_hole_ids") or [])
+                        if value
+                    }
+                    for planned in load_ironbark_budget_v5_4().get("boreholes", []):
+                        site = str(planned.get("site_id") or "").strip().upper()
+                        hole = str(planned.get("hole_id") or "").strip().upper()
+                        if site in present_ids or hole in present_ids:
+                            continue
+                        recovered = dict(planned)
+                        recovered.update(
+                            contractor="Company",
+                            program="Exploration",
+                            current_budget_scope=True,
+                            eos_cost=0,
+                            drilling_cost=0,
+                            drilling_metres=0,
+                            eos_metres=0,
+                            activity_complete=False,
+                            planning_source_fallback=True,
+                        )
+                        rows.append(recovered)
+                        present_ids.update([site, hole])
+                    rows.sort(key=lambda row: (row.get("drill_order") is None, row.get("drill_order") or 999999))
                 for row in rows:
                     if row.get("activity_complete") and str(row.get("status") or "Planned").lower() == "planned":
                         row["status"] = "Complete"
