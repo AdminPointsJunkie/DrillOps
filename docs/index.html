@@ -6417,8 +6417,13 @@ function periodMccChargeSummary(invoices){
   const weeklyTotal=weeklyRows.reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
   const mccInvoices=(invoices||[]).filter(function(invoice){return contractorSummaryKey(invoice.contractor)==='mccgroup';});
   const invoiceTotal=mccInvoices.reduce(function(sum,invoice){return sum+numVal(invoice.total_aud);},0);
-  const unbilled=Math.max(0,weeklyTotal-invoiceTotal);
-  return {weeklyTotal:weeklyTotal,invoiceTotal:invoiceTotal,unbilled:unbilled,actual:invoiceTotal+unbilled,rowCount:weeklyRows.length};
+  // Approved MCC invoices take precedence over EOS/weekly activity totals.
+  // Weekly reports are operational evidence, not additional cost whenever
+  // there are invoices in the period. A positive difference is NOT proof of
+  // unbilled work and must not be automatically added to actuals.
+  const invoicesOverride=mccInvoices.length>0;
+  const unbilled=invoicesOverride?0:weeklyTotal;
+  return {weeklyTotal:weeklyTotal,invoiceTotal:invoiceTotal,unbilled:unbilled,actual:invoicesOverride?invoiceTotal:weeklyTotal,rowCount:weeklyRows.length,invoicesOverride:invoicesOverride};
 }
 
 function periodFilteredBudgetRows(period){
@@ -7335,7 +7340,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     item.mccWeeklyTotal=numVal(mccChargeSummary.weeklyTotal);
     item.mccUnbilled=mccUnbilled;
     item.actualsRecorded=true;
-    item.actualSources.add('weekly charges');
+    item.actualSources.add(mccChargeSummary.invoicesOverride?'invoices (EOS reference only)':'weekly charges (provisional)');
     totals.Support=(totals.Support||0)+mccUnbilled;
   }
   if(fortem.settings.enabled){
@@ -7379,7 +7384,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const contractorCardHtml=contractorCards.map(function(item){
     const variance=item.budget-item.spent;
     const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
-    const mccDetail=item.mccWeeklyTotal!=null?' | '+cur(item.mccWeeklyTotal)+' MCC charges, '+cur(item.mccUnbilled)+' unbilled included':'';
+    const mccDetail=item.mccWeeklyTotal!=null?' | '+cur(item.mccWeeklyTotal)+' EOS/weekly reference, '+(mccChargeSummary.invoicesOverride?'invoices override EOS (no EOS added)':'no invoices: EOS provisional actual'):'';
     const recorded=!!item.actualsRecorded;
     const actualSource=Array.from(item.actualSources||[]).join(' + ');
     const value=recorded?(item.estimated?'Estimated total ':'')+cur(item.spent)+' / '+cur(item.budget):'Actual not loaded / '+cur(item.budget);
