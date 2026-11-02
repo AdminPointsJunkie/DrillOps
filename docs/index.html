@@ -6344,8 +6344,20 @@ async function loadPeriodSupportInvoices(){
   const postedLedger=await ledgerResponse.json();
   if(!Array.isArray(postedLedger))throw new Error('Invalid Ironbark posted ledger response');
   const overridden=new Set(postedLedger.map(function(row){return contractorSummaryKey(row.contractor);}));
-  return originalInvoices.filter(function(row){return !overridden.has(contractorSummaryKey(row.contractor));})
-    .concat(postedLedger);
+  // Logging invoice history is retained alongside the separately sourced
+  // Weatherford posted PO line. Remove only exact invoice/PO duplicates,
+  // not every Epiroc invoice merely because one Weatherford line exists.
+  const postedKeys=new Set(postedLedger.map(function(row){
+    return String(row.invoice_number||'').trim().toUpperCase()+'|'+String(row.po_reference||'').trim().toUpperCase();
+  }));
+  return originalInvoices.filter(function(row){
+    const key=contractorSummaryKey(row.contractor);
+    if(key==='epiroc'){
+      const id=String(row.invoice_number||'').trim().toUpperCase()+'|'+String(row.po_reference||'').trim().toUpperCase();
+      return !postedKeys.has(id);
+    }
+    return !overridden.has(key);
+  }).concat(postedLedger);
 }
 
 function periodFilteredRows(){
@@ -6439,7 +6451,9 @@ function periodFilteredMccCharges(){
 
 function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec','impactenvironmental','fortem'].includes(contractorSummaryKey(name));}
 function approvedInvoiceForReport(invoice){
-  // Payment status is not a posting status. Require explicit posting evidence.
+  // Payment status is not an expense approval status. The workbook-backed
+  // suppliers use explicit posting evidence; Epiroc legacy invoices remain
+  // recorded as invoiced amounts, without interpreting Paid/Unpaid.
   return !isPostedOnlySupplier(invoice.contractor) || String(invoice.posting_status||invoice.postingStatus||'').trim().toLowerCase()==='posted';
 }
 function reportPostedSupportInvoices(invoices){return (invoices||[]).filter(approvedInvoiceForReport);}
