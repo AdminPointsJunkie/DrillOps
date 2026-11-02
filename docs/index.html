@@ -6640,6 +6640,21 @@ function renderPeriodReconciliation(rows,reportHoles,metrics){
     +' <span>Across '+linkedHoles+' report hole'+(linkedHoles===1?'':'s')+'. '+esc(detail)+'</span></div>';
 }
 
+function ironbarkDepcoGasRiserCost(period){
+  // Include DEPCO's Ironbark Gas Riser costs in financials, but not
+  // Exploration drilling metre or hole-completion metrics.
+  if(!(activeProgram==='Exploration'&&projectNamesMatch(period.project,'Ironbark')))return {cost:0,rows:0};
+  const source=(periodReportActivitiesData&&periodReportActivitiesData.length)?periodReportActivitiesData:activitiesData;
+  const matches=(source||[]).filter(function(row){
+    if(contractorSummaryKey(row.contractor)!=='depcodrilling')return false;
+    if(!projectNamesMatch(row.project,'Ironbark'))return false;
+    if(String(row.program||'').trim().toLowerCase()!=='gas riser')return false;
+    const day=reportIso(row.date);
+    return !!day&&(!period.from||day>=period.from)&&(!period.to||day<=period.to);
+  });
+  return {cost:matches.reduce(function(sum,row){return sum+numVal(row.line_cost);},0),rows:matches.length};
+}
+
 function renderPeriodReport(){
   const shell=document.getElementById('period-report-meta');
   if(!shell)return;
@@ -6650,6 +6665,7 @@ function renderPeriodReport(){
   const consumables=periodFilteredConsumables();
   const supportInvoices=periodFilteredSupportInvoices();
   const mccChargeSummary=periodMccChargeSummary(supportInvoices);
+  const depcoGasRiser=ironbarkDepcoGasRiserCost(period);
   const activeIds=Array.from(new Set(rows.map(rowHole).filter(Boolean))).sort();
   const activeHoles=uniqueBoreholesById(activeIds.map(function(id){return holes.get(id);}).filter(Boolean));
   const projectHoles=periodPlannedBoreholes((bhData||[]).filter(function(b){return !period.project||projectNamesMatch(b.project,period.project);}));
@@ -6686,7 +6702,7 @@ function renderPeriodReport(){
   const supportInvoiceCost=reportPostedSupportInvoices(supportInvoices).reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const fortem=periodFortemEstimate(period,supportInvoices);
   const supportCost=supportInvoiceCost+mccChargeSummary.unbilled+fortem.unbilled;
-  const totalSpent=totalDrillingCost+supportCost;
+  const totalSpent=totalDrillingCost+supportCost+depcoGasRiser.cost;
   const drillingBudgetTotal=budgetTotals.drilling;
   const variance=budgetTotal-totalSpent;
   const penetration=drillHours>0?totalMetres/drillHours:0;
@@ -6744,7 +6760,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
-  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary,fortem,drillingByContractor);
+  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary,fortem,drillingByContractor,depcoGasRiser);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary);
 }
@@ -7177,6 +7193,9 @@ function contractorSummaryKey(value){
     weatherfordsepiroc:'epiroc',
     weatherford:'epiroc',
     weatherfords:'epiroc',
+    b3:'sponcomtesting',
+    sponcom:'sponcomtesting',
+    sponcomtesting:'sponcomtesting',
     environmentfscesc:'impactenvironmental',
     impactenvironmental:'impactenvironmental',
     impactenvironmentalptyltd:'impactenvironmental'
@@ -7306,7 +7325,8 @@ function renderPeriodDrillingProviders(period,rows,byContractor){
     +records+'<tr><td><b>Combined drilling</b></td><td class="num"><b>'+Array.from(reportCounts.values()).reduce(function(s,n){return s+n;},0)+'</b></td><td class="num"><b>'+cur(total)+'</b></td><td>Mitchells + Depco</td></tr></tbody></table>';
 }
 
-function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary,fortem,drillingByContractor){
+function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary,fortem,drillingByContractor,depcoGasRiser){
+  depcoGasRiser=depcoGasRiser||{cost:0,rows:0};
   fortem=fortem||periodFortemEstimate(selectedPeriod(),invoices);
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
@@ -7326,7 +7346,8 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const contractorMap=new Map();
   function ensureContractor(label,section){
     const original=String(label||section||'Unassigned').trim()||'Unassigned';
-    const display=contractorSummaryKey(original)==='impactenvironmental'?'Impact Environmental':original;
+    const canonicalKey=contractorSummaryKey(original);
+    const display=canonicalKey==='impactenvironmental'?'Impact Environmental':canonicalKey==='sponcomtesting'?'B3 / Spon Com Testing':original;
     const key=contractorSummaryKey(display);
     if(!contractorMap.has(key))contractorMap.set(key,{label:display,sections:new Set(),budget:0,spent:0,invoices:0,actualsRecorded:false,actualSources:new Set()});
     const item=contractorMap.get(key);
@@ -7350,9 +7371,10 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     }
     ['Mitchells Drilling','DEPCO Drilling'].forEach(function(provider){
       const item=ensureContractor(provider,'Drilling');
-      item.spent=numVal(drillingByContractor&&drillingByContractor.get(contractorSummaryKey(provider)));
+      item.spent=numVal(drillingByContractor&&drillingByContractor.get(contractorSummaryKey(provider)))+(provider==='DEPCO Drilling'?numVal(depcoGasRiser.cost):0);
       item.actualsRecorded=item.spent>0;
       if(item.actualsRecorded)item.actualSources.add('activity reports');
+      if(provider==='DEPCO Drilling'&&depcoGasRiser.cost>0)item.actualSources.add('Ironbark Gas Riser DARs (separate from Exploration)');
     });
   }else if(drillingBudgetRows.length){
     drillingBudgetRows.forEach(function(r){
@@ -7551,7 +7573,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
   const fortemRow=fortem.unbilled>0?'<tr><td>Geological Support & Project Management</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
-  const recordedSpend=numVal(drillingSpend)+invoiceTotal+mccUnbilled;
+  const recordedSpend=numVal(drillingSpend)+numVal(depcoGasRiser.cost)+invoiceTotal+mccUnbilled;
   const estimatedSpend=numVal(fortem.unbilled);
   const spendWithEstimate=recordedSpend+estimatedSpend;
   const auditedAnnualBudget=splitIronbarkDrilling&&Number(periodSourceBudgetData&&periodSourceBudgetData.total)>0?numVal(periodSourceBudgetData.total):0;
