@@ -7125,7 +7125,10 @@ function contractorSummaryKey(value){
     weatherfordepiroc:'epiroc',
     weatherfordsepiroc:'epiroc',
     weatherford:'epiroc',
-    weatherfords:'epiroc'
+    weatherfords:'epiroc',
+    environmentfscesc:'impactenvironmental',
+    impactenvironmental:'impactenvironmental',
+    impactenvironmentalptyltd:'impactenvironmental'
   };
   return aliases[raw]||raw||'unassigned';
 }
@@ -7271,7 +7274,8 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const contractorBudgetRows=(budgetTotals&&budgetTotals.rows)||[];
   const contractorMap=new Map();
   function ensureContractor(label,section){
-    const display=String(label||section||'Unassigned').trim()||'Unassigned';
+    const original=String(label||section||'Unassigned').trim()||'Unassigned';
+    const display=contractorSummaryKey(original)==='impactenvironmental'?'Impact Environmental':original;
     const key=contractorSummaryKey(display);
     if(!contractorMap.has(key))contractorMap.set(key,{label:display,sections:new Set(),budget:0,spent:0,invoices:0,actualsRecorded:false,actualSources:new Set()});
     const item=contractorMap.get(key);
@@ -7353,7 +7357,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   // independent of the report's selected date range and borehole subset.
   const annualSource=periodSourceBudgetData||{};
   const annualByContractor=new Map();
-  if(splitIronbarkDrilling&&Number(annualSource.year)===2026&&Array.isArray(annualSource.contractors)&&Array.isArray(annualSource.holes)){
+  if(splitIronbarkDrilling&&projectNamesMatch(annualSource.project,'Ironbark')&&Array.isArray(annualSource.contractors)&&Array.isArray(annualSource.holes)){
     annualSource.contractors.forEach(function(definition,index){
       const key=contractorSummaryKey(definition.name||definition.key);
       const amount=annualSource.holes.reduce(function(sum,hole){
