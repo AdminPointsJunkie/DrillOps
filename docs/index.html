@@ -7573,25 +7573,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
   const fortemRow=fortem.unbilled>0?'<tr><td>Geological Support & Project Management</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
-  const recordedSpend=numVal(drillingSpend)+numVal(depcoGasRiser.cost)+invoiceTotal+mccUnbilled;
-  const estimatedSpend=numVal(fortem.unbilled);
-  const spendWithEstimate=recordedSpend+estimatedSpend;
-  const auditedAnnualBudget=splitIronbarkDrilling&&Number(periodSourceBudgetData&&periodSourceBudgetData.total)>0?numVal(periodSourceBudgetData.total):0;
-  const wholeBudget=splitIronbarkDrilling&&numVal(periodSourceBudgetData&&periodSourceBudgetData.comparison_total)>0?numVal(periodSourceBudgetData.comparison_total):(auditedAnnualBudget||numVal(budgetTotals&&budgetTotals.total));
-  const wholeVariance=wholeBudget-spendWithEstimate;
-  const annualUndated=rows.some(function(inv){return inv.posting_scope==='annual';});
-  const topSummary='<div class="period-cost-overview">'
-    +'<div><span>Recorded expenditure</span><strong>'+cur(recordedSpend)+'</strong></div>'
-    +'<div><span>2026 annual comparison budget</span><strong>'+cur(wholeBudget)+'</strong></div>'
-    +'<div><span>Budget less spend + estimates</span><strong class="'+(wholeVariance<0?'variance-neg':'variance-pos')+'">'+(wholeVariance<0?'-':'')+cur(Math.abs(wholeVariance))+'</strong></div>'
-    +'<div><span>Unbilled estimates (separate)</span><strong>'+cur(estimatedSpend)+'</strong></div>'
-    +'</div>'
-    +'<div class="period-cost-overview-note">Recorded spend = drilling activity charges + included supplier invoices; unposted and rejected invoices are excluded. '
-    +(estimatedSpend?'Budget variance includes separately labelled Fortem estimate. ':'')
-    +(annualUndated?'Some MCC posted totals are annual aggregates without invoice dates; they are included in this overview, not attributable to a single month. ':'')
-    +'For Ironbark, the $3.92m annual comparison baseline is separate from the $4.75m revised Version 5.4 per-hole programme estimate. Missing contractor records are not assumed to be zero.</div>';
   el.innerHTML='<div class="period-support-panel">'
-    +topSummary
     +renderFortemEstimateEditor(fortem)
     +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
     +'<div class="period-support-note">Actuals are sourced from invoices, MCC weekly charges, and drilling activity reports. Applied Fortem estimates are labelled separately and included in support totals and budget variance. Fortem daily estimates are excluded from the percentage-based forecast below. A contractor with no source record or applied estimate is shown as <b>Actual not loaded</b>, not $0.</div>'
