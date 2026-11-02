@@ -2697,6 +2697,7 @@ tbody td[contenteditable=true]:focus {
         <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
         <span class="table-count" id="bulk-report-count">0 selected</span>
         <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
+        <button class="btn-ghost" type="button" onclick="clearDarReportFilters()">Clear report filters</button>
       </div>
       <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
         <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
@@ -6018,7 +6019,7 @@ function renderDailyReportSummary(rows){
   const totalHours=dailyReportsData.reduce(function(s,r){return s+r.hours;},0);
   const reviewCount=dailyReportsData.filter(function(r){return r.flags.length;}).length;
   const setText=function(id,value){const el=document.getElementById(id);if(el)el.textContent=value;};
-  setText('report-register-title',activeContractor==='MCC Group'?'MCC '+(activeProgram||'All Workstreams')+' Daily Site Services Reports':'Daily Reports');
+  setText('report-register-title',activeContractor==='MCC Group'?'MCC '+(activeProgram||'All Workstreams')+' Daily Site Services Reports':(activeContractor||'')+' Daily Reports — '+(activeProjectName||'All projects')+' / '+(activeProgram||'All programs'));
   setText('report-total',dailyReportsData.length.toLocaleString());
   setText('report-count',dailyReportsData.length.toLocaleString());
   setText('report-cost',cur(totalCost));
@@ -7612,6 +7613,19 @@ async function changeReportApprovalFromList(select){
     toast('Decision save failed','err');
     renderDailyReportSummary(activitiesData);
   }
+}
+
+function clearDarReportFilters(){
+  const search=document.getElementById("report-search");
+  if(search)search.value="";
+  const advanced=document.getElementById("f-search");
+  if(advanced)advanced.value="";
+  ["f-dates","f-holes","f-sites","f-codes"].forEach(function(id){
+    const select=document.getElementById(id);
+    if(select)Array.from(select.options).forEach(function(option){option.selected=true;});
+  });
+  activityMissingCodesOnly=false;
+  loadActivities();
 }
 
 function filterDailyReportRows(){
