@@ -7349,6 +7349,29 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const bd=b.sections.has('Drilling')?0:1;
     return ad-bd||b.budget-a.budget||a.label.localeCompare(b.label);
   });
+  // Annual 2026 budgets come from the complete audited project source,
+  // independent of the report's selected date range and borehole subset.
+  const annualSource=periodSourceBudgetData||{};
+  const annualByContractor=new Map();
+  if(splitIronbarkDrilling&&Number(annualSource.year)===2026&&Array.isArray(annualSource.contractors)&&Array.isArray(annualSource.holes)){
+    annualSource.contractors.forEach(function(definition,index){
+      const key=contractorSummaryKey(definition.name||definition.key);
+      const amount=annualSource.holes.reduce(function(sum,hole){
+        return sum+numVal(hole&&hole[3+index]);
+      },0);
+      annualByContractor.set(key,(annualByContractor.get(key)||0)+amount);
+    });
+  }else{
+    // Existing project budget entries are the fallback where no audited
+    // full-year source exists. Do not mistake a period budget for an annual one.
+    (projectBudgetsData||[]).filter(function(r){
+      return (!selectedPeriod().project||projectNamesMatch(r.project,selectedPeriod().project))
+        &&(!activeProgram||!r.program||r.program===activeProgram);
+    }).forEach(function(r){
+      const key=contractorSummaryKey(r.vendor||budgetRowSection(r));
+      annualByContractor.set(key,(annualByContractor.get(key)||0)+numVal(r.budget_amount));
+    });
+  }
   const contractorCardHtml=contractorCards.map(function(item){
     const variance=item.budget-item.spent;
     const sectionText=Array.from(item.sections).join(' / ')||'Uncoded';
@@ -7363,6 +7386,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     return '<div class="period-support-card'+(recorded?'':' no-actual')+'">'
       +'<div class="label">'+esc(item.label)+'</div>'
       +'<div class="value">'+value+'</div>'
+      +'<div class="sub">2026 annual budget: <b>'+(annualByContractor.has(contractorSummaryKey(item.label))?cur(annualByContractor.get(contractorSummaryKey(item.label))):'Not separately allocated')+'</b></div>'
       +'<div class="sub">'+sub+'</div>'
       +'<div class="variance '+(recorded?(variance>=0?'variance-pos':'variance-neg'):'')+'">'+varianceText+'</div>'
       +'</div>';
