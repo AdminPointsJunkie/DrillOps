@@ -116,4 +116,3 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   w.testSetEditor();assert.equal($('#people').hidden,true);assert.equal($('#project-settings').hidden,true);$('#name-dialog').close();w.testOpenProject();assert.equal($('#name-dialog').open,false);
  }finally{w.close();delete globalThis.document;}
 });
-
