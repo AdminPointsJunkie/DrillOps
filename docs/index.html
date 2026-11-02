@@ -10725,6 +10725,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
     renderBoreholeDetails();
     return;
   }
+  const previousValue = bh[col];
   bh[col] = val;
   if((col==='easting'||col==='northing')&&bh.easting&&bh.northing) {
     const wgs = mgaToWgs84(bh.easting, bh.northing);
@@ -10738,6 +10739,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
     if(!res.ok) throw new Error(await res.text());
     toast('Saved');
   } catch(e) {
+    bh[col] = previousValue;
     toast('Save failed: '+((e&&e.message)||'change was not saved'),'err');
   }
   if(col==='hole_id') {
