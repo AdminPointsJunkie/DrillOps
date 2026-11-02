@@ -11079,6 +11079,7 @@ def get_project_budget_source(
         "sheet": source.get("sheet"),
         "range": source.get("range"),
         "total": source.get("total"),
+        "comparison_total": source.get("comparison_total"),
         "contractors": source.get("contractors", []),
         "holes": source.get("holes", []),
         "boreholes": source.get("boreholes", []),
