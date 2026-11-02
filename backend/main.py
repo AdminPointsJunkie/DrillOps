@@ -9946,6 +9946,14 @@ async def update_borehole(hole_id: str, request: Request):
                 )
             if cur.rowcount == 0:
                 raise HTTPException(404, f"Borehole {hole_id} not found for contractor {contractor}")
+            # Status is a property of the borehole, not the contractor-specific
+            # copy of the planning record. Keep duplicate copies consistent so
+            # the next GET cannot display a stale status.
+            if "status" in u:
+                cur.execute(
+                    "UPDATE boreholes SET status=%s WHERE hole_id=%s",
+                    (u["status"], u.get("hole_id") or hole_id),
+                )
         conn.commit()
     return {"status": "updated"}
 
