@@ -15,7 +15,19 @@ export function validateCollection(fc) {
  function geom(g){if(!g)throw Error('A feature has no geometry. No features have been silently skipped.');if(g.type==='GeometryCollection')g.geometries.forEach(geom);else visit(g.coordinates);}
  fc.features.forEach(f=>geom(f.geometry));if(!bbox.every(Number.isFinite))throw Error('Empty geometry.');return bbox;
 }
-export function csvGeoJSON(rows,x,y){if(rows.length>20000)throw Error('CSV supports up to 20,000 points per layer. Split this file before importing.');if(!rows.length)throw Error('The CSV contains no point rows.');return {type:'FeatureCollection',features:rows.map((r,i)=>{try{return{type:'Feature',properties:r,geometry:{type:'Point',coordinates:[coordinate(r[x]),coordinate(r[y])]}}}catch(e){throw Error(`CSV row ${i+2}: ${e.message}`)}})};}
+export function csvGeoJSON(rows,x,y){
+ if(rows.length>20000)throw Error('CSV supports up to 20,000 points per layer. Split this file before importing.');
+ if(!rows.length)throw Error('The CSV contains no point rows.');
+ if(x===y)throw Error('Choose different columns for X and Y.');
+ return {type:'FeatureCollection',features:rows.map((r,i)=>{
+  const read=key=>{
+   if(!Object.hasOwn(r,key))throw Error(`CSV row ${i+2}: column ${JSON.stringify(key)} is missing. Select the coordinate column again.`);
+   try{const value=coordinate(r[key]);if(!Number.isFinite(value))throw Error('A coordinate must be a finite number.');return value;}
+   catch(e){throw Error(`CSV row ${i+2}, column ${JSON.stringify(key)}: ${e.message}`);}
+  };
+  return {type:'Feature',properties:r,geometry:{type:'Point',coordinates:[read(x),read(y)]}};
+ })};
+}
 export function errorText(e){return e?.message||e?.error|| (Array.isArray(e)?e.map(errorText).join('; '):String(e));}
 export function preserveCollapsedDXFLines(fc){
  for(const f of fc.features||[]){const g=f.geometry,c=g?.coordinates;
