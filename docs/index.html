@@ -7522,13 +7522,14 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const recordedSpend=numVal(drillingSpend)+invoiceTotal+mccUnbilled;
   const estimatedSpend=numVal(fortem.unbilled);
   const spendWithEstimate=recordedSpend+estimatedSpend;
-  const wholeBudget=numVal(budgetTotals&&budgetTotals.total);
+  const auditedAnnualBudget=splitIronbarkDrilling&&Number(periodSourceBudgetData&&periodSourceBudgetData.total)>0?numVal(periodSourceBudgetData.total):0;
+  const wholeBudget=auditedAnnualBudget||numVal(budgetTotals&&budgetTotals.total);
   const wholeVariance=wholeBudget-spendWithEstimate;
   const annualUndated=rows.some(function(inv){return inv.posting_scope==='annual';});
   const topSummary='<div class="period-cost-overview">'
     +'<div><span>Recorded expenditure</span><strong>'+cur(recordedSpend)+'</strong></div>'
     +'<div><span>2026 project budget</span><strong>'+cur(wholeBudget)+'</strong></div>'
-    +'<div><span>Budget remaining / (over)</span><strong class="'+(wholeVariance<0?'variance-neg':'variance-pos')+'">'+(wholeVariance<0?'-':'')+cur(Math.abs(wholeVariance))+'</strong></div>'
+    +'<div><span>Budget less spend + estimates</span><strong class="'+(wholeVariance<0?'variance-neg':'variance-pos')+'">'+(wholeVariance<0?'-':'')+cur(Math.abs(wholeVariance))+'</strong></div>'
     +'<div><span>Unbilled estimates (separate)</span><strong>'+cur(estimatedSpend)+'</strong></div>'
     +'</div>'
     +'<div class="period-cost-overview-note">Recorded spend = drilling activity charges + included supplier invoices; unposted and rejected invoices are excluded. '
