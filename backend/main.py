@@ -9550,6 +9550,13 @@ def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> li
             ),
         ).copy()
         for placeholder in placeholders:
+            # The approved Company plan owns planning scope and drill order.
+            # A legacy operating-hole row can otherwise hide a 2026 site
+            # when it carries a different year or program.
+            if placeholder.get("contractor") == "Company" and placeholder.get("current_budget_scope"):
+                for planning_field in ("project", "program", "planned_year", "site_id", "drill_order"):
+                    if placeholder.get(planning_field) not in (None, ""):
+                        preferred[planning_field] = placeholder[planning_field]
             for field in fallback_fields:
                 if preferred.get(field) in (None, "", 0) and placeholder.get(field) not in (None, "", 0):
                     preferred[field] = placeholder.get(field)
