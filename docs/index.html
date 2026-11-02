@@ -7538,7 +7538,6 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc(inv.invoice_date||inv.billing_month||'')+'</td>'
       +'<td>'+esc(inv.project||'')+'</td>'
       +'<td>'+esc(inv.po_reference||'')+'</td>'
-      +'<td>'+esc(inv.posting_status||'Recorded')+'</td>'
       +'<td class="num"><b>'+cur(inv.total_aud)+'</b></td>'
       +'</tr>';
   }).join('')+(mccUnbilled>0?'<tr>'
@@ -7580,9 +7579,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     +'<table class="period-mini-table" style="margin-bottom:10px;"><thead><tr><th>Section</th><th>Budget</th><th>'+(fortem.unbilled>0?'Cost incl. estimate':'Spent')+'</th><th>Variance</th></tr></thead><tbody>'
     +(sectionRows||'<tr><td colspan="4" style="padding:14px;color:var(--muted);text-align:center;">No project budgets recorded.</td></tr>')
     +'</tbody></table>'
-    +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Status</th><th>Total</th></tr></thead><tbody>'
-    +(body+fortemRow||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
-    +'<tr><td colspan="7"><b>'+(fortem.unbilled>0?'Total support including estimate':'Total support actuals')+'</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
+    +'<table class="period-mini-table"><thead><tr><th>Section</th><th>Contractor</th><th>Invoice #</th><th>Date</th><th>Project</th><th>PO</th><th>Total</th></tr></thead><tbody>'
+    +(body+fortemRow||'<tr><td colspan="7" style="padding:18px;color:var(--muted);text-align:center;">No Earthworks, Support, Lab Testing or Misc invoices in this period.</td></tr>')
+    +'<tr><td colspan="6"><b>'+(fortem.unbilled>0?'Total support including estimate':'Total support actuals')+'</b></td><td class="num"><b>'+cur(total)+'</b></td></tr>'
     +'</tbody></table></div>';
 }
 
