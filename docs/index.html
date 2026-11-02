@@ -7425,12 +7425,20 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const sub=recorded
       ?(annualPosted?'2026 annual posted invoices (individual posting dates not provided) | ':'')+(item.estimated?'Includes ':'Actual from ')+(actualSource||'source records')+' | '+esc(sectionText)+(item.invoices?' | '+item.invoices+' invoice'+(item.invoices===1?'':'s'):'')+mccDetail
       :'No invoice or weekly activity recorded in the selected period | '+esc(sectionText);
+    const fortemPreview=contractorSummaryKey(item.label)==='fortem'
+      ?'<div class="sub" style="margin-top:7px;border-top:1px solid var(--border);padding-top:7px;"><b>Cost estimate for selected dates: '+cur(fortem.gross)+'</b>'
+       +' | '+fortem.settings.days+' days × '+cur(fortem.settings.geologist+fortem.settings.vehicle)
+       +' + '+fortem.settings.flights+' flights × '+cur(fortem.settings.flightRate)
+       +' | Estimated unbilled: '+cur(fortem.unbilled)+(fortem.settings.enabled?' (included)':' (not included)')
+       +'. Expand Fortem estimated cost above to edit.</div>'
+      :'';
     const varianceText=recorded?cur(Math.abs(variance))+' '+(variance>=0?'under':'over'):'Actuals unavailable';
     const card='<div class="period-support-card'+(recorded?'':' no-actual')+'">'
       +'<div class="label">'+esc(item.label)+'</div>'
       +'<div class="value">'+value+'</div>'
       +'<div class="sub">2026 annual budget: <b>'+(annualByContractor.has(contractorSummaryKey(item.label))?cur(annualByContractor.get(contractorSummaryKey(item.label))):'Not separately allocated')+'</b></div>'
       +'<div class="sub">'+sub+'</div>'
+      +fortemPreview
       +'<div class="variance '+(recorded?(variance>=0?'variance-pos':'variance-neg'):'')+'">'+varianceText+'</div>'
       +'</div>';
     return {group:contractorGroup(item),card:card};
