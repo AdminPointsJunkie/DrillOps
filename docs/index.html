@@ -7577,7 +7577,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const estimatedSpend=numVal(fortem.unbilled);
   const spendWithEstimate=recordedSpend+estimatedSpend;
   const auditedAnnualBudget=splitIronbarkDrilling&&Number(periodSourceBudgetData&&periodSourceBudgetData.total)>0?numVal(periodSourceBudgetData.total):0;
-  const wholeBudget=auditedAnnualBudget||numVal(budgetTotals&&budgetTotals.total);
+  const wholeBudget=splitIronbarkDrilling&&numVal(periodSourceBudgetData&&periodSourceBudgetData.comparison_total)>0?numVal(periodSourceBudgetData.comparison_total):(auditedAnnualBudget||numVal(budgetTotals&&budgetTotals.total));
   const wholeVariance=wholeBudget-spendWithEstimate;
   const annualUndated=rows.some(function(inv){return inv.posting_scope==='annual';});
   const topSummary='<div class="period-cost-overview">'
