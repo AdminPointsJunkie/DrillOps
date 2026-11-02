@@ -9466,7 +9466,12 @@ def dedupe_borehole_plan_rows(rows: list[dict], fallback_fields: set[str]) -> li
 
 
 def burton_borehole_activity_aliases(row: dict) -> dict:
-    """Link confirmed Burton source spellings without rewriting approved DARs."""
+    """Return audited DAR hole aliases without rewriting original reports."""
+    if row.get("project") == "Ironbark" and row.get("hole_id") == "IB674C":
+        row["activity_hole_ids"] = list(dict.fromkeys(
+            list(row.get("activity_hole_ids") or []) + ["IB674C", "IB674"]
+        ))
+        return row
     if row.get("project") != "BCC Fugitive Emissions":
         return row
     aliases = {
@@ -9532,6 +9537,8 @@ COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = f"""
     OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
     OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
     OR ({IRONBARK_NORMALIZED_ACTIVITY_MATCH_SQL})
+    OR (b.project='Ironbark' AND b.hole_id='IB674C' AND a.hole_num='IB674'
+        AND a.project='Ironbark' AND a.program='Exploration')
     OR (
         COALESCE(b.site_id,'')<>''
         AND EXISTS (
