@@ -6406,11 +6406,15 @@ function invoiceMatchesPeriod(inv,period){
 function supportSectionForInvoice(inv){
   const cat=String(inv.contractor_category||'').toLowerCase();
   const text=[inv.contractor,inv.project,inv.notes,inv.source_file,inv.po_reference,inv.invoice_number].join(' ').toLowerCase();
+  const supplier=contractorSummaryKey(inv.contractor);
+  if(supplier==='epiroc')return 'Downhole Geophysical Logging';
+  if(supplier==='fortem')return 'Geological Support & Project Management';
   if(cat==='drilling')return 'Drilling';
-  if(contractorSummaryKey(inv.contractor)==='mccgroup')return 'Earthworks';
+  if(supplier==='mccgroup')return 'Earthworks';
   if(cat==='earthworks'||text.match(/earth|civil|dozer|excavat|grader|pad|track|king|konstruct|chms/))return 'Earthworks';
   if(cat==='lab testing'||text.match(/geogas|sigra|gas|geochem|lab test|assay|stantec|stantect/))return 'Lab Testing';
-  if(cat==='geological support'||text.match(/fortem|geophys|wireline|logging|geolog|weatherford/))return 'Geophysical / Geological Support';
+  if(/geophys|wireline|logging|weatherford|epiroc/.test(text))return 'Downhole Geophysical Logging';
+  if(cat==='geological support'||/geolog|project management/.test(text))return 'Geological Support & Project Management';
   if(cat==='labour'||text.match(/mcc|labour|labor|support/))return 'Support';
   return 'MISC';
 }
@@ -6460,7 +6464,8 @@ function periodFilteredBudgetRows(period){
 function sourceBudgetSection(key){
   if(key==='mitchells')return 'Drilling';
   if(key==='mcc')return 'Earthworks';
-  if(key==='geophysics'||key==='fortem')return 'Geophysical / Geological Support';
+  if(key==='geophysics')return 'Downhole Geophysical Logging';
+  if(key==='fortem')return 'Geological Support & Project Management';
   if(['gas_testing','stantec','fi_testing','spon_com','coal_quality'].includes(key))return 'Lab Testing';
   return 'MISC';
 }
@@ -7289,7 +7294,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const rows=reportPostedSupportInvoices(invoices).slice().sort(function(a,b){
     return (invoiceReportIso(b)||'').localeCompare(invoiceReportIso(a)||'') || String(a.contractor||'').localeCompare(String(b.contractor||''));
   });
-  const totals={Earthworks:0,Support:0,'Geophysical / Geological Support':0,'Lab Testing':0,MISC:0};
+  const totals={Earthworks:0,Support:0,'Downhole Geophysical Logging':0,'Geological Support & Project Management':0,'Lab Testing':0,MISC:0};
   rows.forEach(function(inv){
     const section=supportSectionForInvoice(inv);
     totals[section]=(totals[section]||0)+numVal(inv.total_aud);
@@ -7367,12 +7372,12 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     totals.Support=(totals.Support||0)+mccUnbilled;
   }
   if(fortem.settings.enabled){
-    const item=ensureContractor('Fortem','Geophysical / Geological Support');
+    const item=ensureContractor('Fortem','Geological Support & Project Management');
     item.spent+=fortem.unbilled;
     item.estimated=true;
     item.actualsRecorded=true;
     item.actualSources.add('editable daily estimate');
-    totals['Geophysical / Geological Support']+=fortem.unbilled;
+    totals['Geological Support & Project Management']=(totals['Geological Support & Project Management']||0)+fortem.unbilled;
   }
   const contractorCards=Array.from(contractorMap.values()).filter(function(item){
     // Always show both Ironbark drilling providers, even when no reports
@@ -7411,7 +7416,8 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     if(item.sections.has('Drilling'))return 'Drilling';
     if(k==='mccgroup'||k==='chms'||k==='kingkonstruct'||item.sections.has('Earthworks'))return 'Earthworks';
     if(['geogas','stantec','sponcomtesting','b3'].includes(k)||item.sections.has('Lab Testing'))return 'Lab Testing';
-    if(['fortem','epiroc'].includes(k)||item.sections.has('Geophysical / Geological Support'))return 'Geophysical / Geological Support';
+    if(k==='epiroc'||item.sections.has('Downhole Geophysical Logging'))return 'Downhole Geophysical Logging';
+    if(k==='fortem'||item.sections.has('Geological Support & Project Management'))return 'Geological Support & Project Management';
     return 'Other Support';
   }
   const contractorCardEntries=contractorCards.map(function(item){
@@ -7443,7 +7449,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'</div>';
     return {group:contractorGroup(item),card:card};
   });
-  const groupOrder=['Drilling','Earthworks','Lab Testing','Geophysical / Geological Support','Other Support'];
+  const groupOrder=['Drilling','Earthworks','Lab Testing','Downhole Geophysical Logging','Geological Support & Project Management','Other Support'];
   const contractorCardHtml=groupOrder.map(function(group){
     const cards=contractorCardEntries.filter(function(entry){return entry.group===group;});
     if(!cards.length)return '';
@@ -7500,9 +7506,9 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   }).join('');
   const sectionActuals=Object.assign({},totals);
   sectionActuals.Drilling=numVal(drillingSpend);
-  const sections=Array.from(new Set(['Drilling','Earthworks','Support','Geophysical / Geological Support','Lab Testing','MISC']
+  const sections=Array.from(new Set(['Drilling','Earthworks','Support','Downhole Geophysical Logging','Geological Support & Project Management','Lab Testing','MISC']
     .concat(Object.keys(totals)).concat(Object.keys(budgetBySection)))).filter(function(label){
-      return (sectionActuals[label]||0)>0||(budgetBySection[label]||0)>0||['Drilling','Earthworks','Geophysical / Geological Support','Lab Testing','MISC'].includes(label);
+      return (sectionActuals[label]||0)>0||(budgetBySection[label]||0)>0||['Drilling','Earthworks','Downhole Geophysical Logging','Geological Support & Project Management','Lab Testing','MISC'].includes(label);
     });
   const sectionRows=sections.map(function(label){
     const budget=budgetBySection[label]||0;
@@ -7518,7 +7524,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc(inv.invoice_date||inv.billing_month||'')+'</td>'
       +'<td>'+esc(inv.project||'')+'</td>'
       +'<td>'+esc(inv.po_reference||'')+'</td>'
-      +'<td>'+esc(inv.status||'')+'</td>'
+      +'<td>'+esc(inv.posting_status||'Recorded')+'</td>'
       +'<td class="num"><b>'+cur(inv.total_aud)+'</b></td>'
       +'</tr>';
   }).join('')+(mccUnbilled>0?'<tr>'
@@ -7526,7 +7532,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc((selectedPeriod().from||'start')+' to '+(selectedPeriod().to||'end'))+'</td>'
       +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
-  const fortemRow=fortem.unbilled>0?'<tr><td>Geophysical / Geological Support</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
+  const fortemRow=fortem.unbilled>0?'<tr><td>Geological Support & Project Management</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
   const recordedSpend=numVal(drillingSpend)+invoiceTotal+mccUnbilled;
   const estimatedSpend=numVal(fortem.unbilled);
   const spendWithEstimate=recordedSpend+estimatedSpend;
@@ -12586,18 +12592,25 @@ function normalBudgetSection(value,vendor){
   const cat=contractorCategory(contractor).toLowerCase();
   if(cat==='drilling')return 'Drilling';
   if(cat==='earthworks')return 'Earthworks';
-  if(cat==='geological support')return 'Geophysical / Geological Support';
+  const vendorName=String(vendor||'').toLowerCase();
+  if(/weatherford|epiroc|precision energy/.test(vendorName))return 'Downhole Geophysical Logging';
+  if(/fortem/.test(vendorName))return 'Geological Support & Project Management';
+  if(cat==='geological support')return 'Geological Support & Project Management';
   if(cat==='lab testing')return 'Lab Testing';
   if(cat==='labour')return 'Support';
   const text=String((value||'')+' '+(vendor||'')).toLowerCase();
   if(text.match(/drill|allianz|mitchell/))return 'Drilling';
   if(text.match(/earth|civil|dozer|excavat|grader|pad|track/))return 'Earthworks';
-  if(text.match(/fortem|geolog|geophys|logging|weatherford|epiroc|stant|wireline/))return 'Geophysical / Geological Support';
+  if(text.match(/geophys|logging|weatherford|epiroc|wireline/))return 'Downhole Geophysical Logging';
+  if(text.match(/fortem|geolog|project management/))return 'Geological Support & Project Management';
   if(text.match(/geogas|sigra|gas|geochem|lab test|assay/))return 'Lab Testing';
   return value||'MISC';
 }
 
 function budgetRowSection(row){
+  const vendor=String(row&&row.vendor||'');
+  if(/weatherford|epiroc|precision energy/i.test(vendor))return 'Downhole Geophysical Logging';
+  if(/fortem/i.test(vendor))return 'Geological Support & Project Management';
   return String((row&&row.canonical_section)||'').trim()||normalBudgetSection(row&&row.section,row&&row.vendor);
 }
 
