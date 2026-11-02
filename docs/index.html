@@ -635,6 +635,11 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
 .period-support-card .label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px;}
 .period-support-card .value{font-size:18px;font-weight:800;color:var(--text);}
 .period-support-card .sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.period-support-card .annual-budget{margin-top:9px;padding:9px 0;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:3px;}
+.period-support-card .annual-budget span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.035em;color:var(--text2);}
+.period-support-card .annual-budget strong{font-size:21px;line-height:1.18;font-weight:850;color:var(--accent);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.period-cost-overview>div:nth-child(2){border-width:2px;}
+.period-cost-overview>div:nth-child(2) strong{font-size:30px;line-height:1.12;color:var(--accent);}
 .period-support-card .variance{font-size:10px;font-weight:800;margin-top:5px;}
 .period-support-card.no-actual{border-style:dashed;background:#fcfcfd;}
 .period-support-card.no-actual .value{font-size:15px;color:#6b7280;}
@@ -7456,7 +7461,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     const card='<div class="period-support-card'+(recorded?'':' no-actual')+'">'
       +'<div class="label">'+esc(item.label)+'</div>'
       +'<div class="value">'+value+'</div>'
-      +'<div class="sub">2026 annual budget: <b>'+(annualByContractor.has(contractorSummaryKey(item.label))?cur(annualByContractor.get(contractorSummaryKey(item.label))):'Not separately allocated')+'</b></div>'
+      +'<div class="annual-budget"><span>2026 annual budget</span><strong>'+(annualByContractor.has(contractorSummaryKey(item.label))?cur(annualByContractor.get(contractorSummaryKey(item.label))):'Not separately allocated')+'</strong></div>'
       +'<div class="sub">'+sub+'</div>'
       +fortemPreview
       +'<div class="variance '+(recorded?(variance>=0?'variance-pos':'variance-neg'):'')+'">'+varianceText+'</div>'
