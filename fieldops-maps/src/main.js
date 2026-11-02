@@ -1,3 +1,4 @@
+import {columnOptions,coordinateColumns} from './table-columns.js';
 import {isArchiveFile,isLocalGeoTIFF,assertCloudFile,cloudLayout} from './data-policy.js';
 import {releaseCache} from './release-cache.js';
 import {createAnalyticsMeter} from './analytics-meter.js';
@@ -309,13 +310,13 @@ function openReview(i){if(busy)return;reviewIndex=i;const q=queue[i];$('#review-
  $('#table-mode').value=q.review?.tableMode||'coordinates';
  $('#join-layer').innerHTML=layers.filter(l=>l.kind==='vector'&&l.fc&&!l.metadata?.annotation).map(l=>`<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
  if(q.review?.joinLayer)$('#join-layer').value=q.review.joinLayer;
- $('#join-row-key').innerHTML=q.fields.map(f=>`<option>${esc(f)}</option>`).join('');
- const joinColumns=()=>{const target=layers.find(l=>l.id===$('#join-layer').value);$('#join-feature-key').innerHTML=[...new Set((target?.fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))].map(f=>`<option>${esc(f)}</option>`).join('');};
+ $('#join-row-key').innerHTML=columnOptions(q.fields);
+ const joinColumns=()=>{const target=layers.find(l=>l.id===$('#join-layer').value);$('#join-feature-key').innerHTML=columnOptions([...new Set((target?.fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))]);};
  $('#join-layer').onchange=joinColumns;joinColumns();
  if(q.review?.joinRowKey)$('#join-row-key').value=q.review.joinRowKey;if(q.review?.joinFeatureKey)$('#join-feature-key').value=q.review.joinFeatureKey;
  const tableMode=()=>{const join=$('#table-mode').value==='join';$('#join-fields').hidden=!join;for(const selector of ['#csv-x','#csv-y'])$(selector).closest('label').hidden=join;if(join)selectCRS('EPSG:4326','EPSG:4326 — Existing layer coordinates');};$('#table-mode').onchange=tableMode;tableMode();
  }
- if(q.rows){for(const s of ['#csv-x','#csv-y'])$(s).innerHTML=q.fields.map(f=>`<option>${esc(f)}</option>`).join('');$('#csv-x').value=q.fields.find(f=>/^(lon|lng|longitude|easting|x)$/i.test(f))||q.fields[0];$('#csv-y').value=q.fields.find(f=>/^(lat|latitude|northing|y)$/i.test(f))||q.fields[1]||q.fields[0];}
+ if(q.rows){for(const s of ['#csv-x','#csv-y'])$(s).innerHTML=columnOptions(q.fields);$('#csv-x').value=coordinateColumns(q.fields).x;$('#csv-y').value=coordinateColumns(q.fields).y;}
  if(q.review){const r=q.review;selectCRS(r.selectedCRS,r.selectedLabel);$('#layer-name').value=r.name;$('#custom-crs').value=r.custom;$('#vertical').value=r.vertical;$('#csv-x').value=r.x;$('#csv-y').value=r.y;$('#epoch').value=r.epoch;$('#pipeline').value=r.pipeline;$('#gcps').value=r.gcps;}
  if(q.format==='DXF'&&!q.editLayer)$('#import-crs-note').textContent+=' Points, lines and shapes will be imported as separate editable layers.';
  if(q.editLayer){$('#import-crs-note').textContent='Editing this layer’s source settings. Save to rebuild it from the original file.';$('#use-embedded').hidden=true;}$('#import-layer').textContent=q.editLayer?'Save layer settings':'Import layer →';$('#review').showModal();}
@@ -342,7 +343,7 @@ async function openLayerSettings(layer){
   const q=candidates.find(q=>q.layerName&&q.layerName===layer.metadata?.source_layer)|| (candidates.length===1?candidates[0]:candidates.find(q=>q.name===layer.name));
   if(!q)throw Error(result.errors.join('\n')||'Could not identify the original dataset. Import the source file again.');
   const m=layer.metadata||{};
-  q.editLayer=layer;q.review={selectedCRS:layer.source_crs,selectedLabel:layer.crsLabel||layer.source_crs,custom:'',epoch:m.source_epoch||'',pipeline:m.pipeline||'',gcps:m.control_points||'',x:q.fields?.find(f=>/^(lon|lng|longitude|easting|x)$/i.test(f))||q.fields?.[0],y:q.fields?.find(f=>/^(lat|latitude|northing|y)$/i.test(f))||q.fields?.[1],...m.import_settings,name:layer.name,vertical:layer.vertical_datum||'Unknown'};
+  q.editLayer=layer;q.review={selectedCRS:layer.source_crs,selectedLabel:layer.crsLabel||layer.source_crs,custom:'',epoch:m.source_epoch||'',pipeline:m.pipeline||'',gcps:m.control_points||'',x:coordinateColumns(q.fields||[]).x,y:coordinateColumns(q.fields||[]).y,...m.import_settings,name:layer.name,vertical:layer.vertical_datum||'Unknown'};
   queue.push(q);renderQueue();setBusy(false);openReview(queue.length-1);
  }catch(e){toast(errorText(e));}finally{setBusy(false);}
 }
