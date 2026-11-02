@@ -9248,8 +9248,21 @@ function renderOcrIntegrityCheck(check) {
 }
 
 function renderDepcoOcrPrice(pricing){
-  if(!pricing)return 'No suggestion yet';
-  return '<strong>'+esc(pricing.code||'Needs code review')+'</strong><div>'+(pricing.unit_rate==null?'Rate pending':cur(pricing.unit_rate))+' / '+(pricing.line_cost==null?'Amount pending':cur(pricing.line_cost))+'</div><details><summary>Pricing details</summary><small>'+esc(pricing.rate_basis||'')+'</small></details>';
+  if(!pricing)return '<span style="color:#a05a00;">No suggestion yet — refresh code suggestions.</span>';
+  const reason=String(pricing.rate_basis||'');
+  const needsReview=reason.startsWith('DEPCO review required:');
+  return '<strong>'+esc(pricing.code||'Needs code review')+'</strong>'
+    +'<div>'+(pricing.unit_rate==null?'Rate pending':cur(pricing.unit_rate))+' / '+(pricing.line_cost==null?'Amount pending':cur(pricing.line_cost))+'</div>'
+    +(needsReview?'<div role="status" style="margin-top:4px;color:#a05a00;font-size:11px;">'+esc(reason)+'</div>':'<details><summary>Pricing details</summary><small>'+esc(reason)+'</small></details>');
+}
+function depcoOcrContractWarning(data,rates){
+  const items=(data&&data.activities)||[];
+  if(rates.length)return '';
+  if(!items.length)return '';
+  return '<div role="alert" style="margin:8px 0 12px;padding:12px;background:#fff7e6;border:1px solid #e9bd65;color:#805000;border-radius:6px;font-size:12px;">'
+    +'<strong>DEPCO code suggestions unavailable for this project.</strong> No active contract rate lines were found for '
+    +esc(ocrImportScope.project)+' / '+esc(ocrImportScope.program)
+    +'. Open Cost Contracts and link an active DEPCO contract with its approved rates to this exact project and program. Do not use another project\'s rates. Then refresh suggestions.</div>';
 }
 
 async function refreshDepcoOcrPrices(){
@@ -9307,7 +9320,7 @@ function renderOcrPreview() {
     html += '<label style="font-size:10px;color:var(--muted);">' + item[1]
       + '<input type="text" data-ocr-header="' + item[0] + '"'+(item[0]==='date'?' placeholder="DD/MM/YYYY" inputmode="numeric"':'')+' value="' + attr(data[item[0]] == null ? '' : data[item[0]]) + '" style="display:block;width:100%;margin-top:3px;padding:7px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);"></label>';
   });
-  html += '</div>' + renderOcrIntegrityCheck(ocrCurrentIntegrityCheck) + '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Activities (' + ((data.activities || []).length) + ')</div>'
+  html += '</div>' + renderOcrIntegrityCheck(ocrCurrentIntegrityCheck) + (depcoPricing?depcoOcrContractWarning(data,ocrContractRates):'') + '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Activities (' + ((data.activities || []).length) + ')</div>'
     + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Comments</th>'+ (depcoPricing?'<th>Contract code &amp; price (ex GST)</th>':'') +'<th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th>Bit / core</th><th>Diameter</th><th></th></tr></thead><tbody>';
   (data.activities || []).forEach(function(activity, index) {
     html += '<tr data-ocr-activity="' + index + '"><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index) + '</td>'
@@ -9325,7 +9338,7 @@ function renderOcrPreview() {
     + '<button type="button" id="ocr-confirm-import" style="padding:8px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;">Import reviewed data</button></div></div></div>';
   panel.innerHTML = html;
   panel.style.display = 'block';
-  panel.oninput = function(){ocrPricingDirty=depcoPricing;panel.querySelectorAll('[data-ocr-pricing]').forEach(function(cell){cell.textContent='Edited — refresh suggestions';});};
+  panel.oninput = function(){if(!depcoPricing)return;ocrPricingDirty=true;panel.querySelectorAll('[data-ocr-pricing]').forEach(function(cell){cell.textContent='Edited — refresh suggestions';});};
   panel.onchange = function(e){if(depcoPricing&&e.target.matches('select[data-ocr-field="code"]'))refreshDepcoOcrPrices();};
 
   panel.onclick = function(e) {
