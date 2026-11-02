@@ -2640,6 +2640,7 @@ tbody td[contenteditable=true]:focus {
             <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
           </div>
           <div class="period-reconciliation" id="period-reconciliation" aria-live="polite"></div>
+          <div id="period-drilling-providers" aria-live="polite"></div>
           <div class="period-section-title period-print-section-start" id="exploration-metres-title">Program Drilling Metres</div>
           <div class="exploration-metres-grid" id="exploration-metres-summary">
             <div class="exploration-metres-card">Loading annual drilling metres...</div>
@@ -6266,9 +6267,22 @@ async function loadReportsPage(preserveRange){
   try{
     const drillingContractor=reportDrillingContractor();
     const reportYear=activeProjectYear();
-    const suffix='contractor='+encodeURIComponent(drillingContractor)+'&_='+Date.now();
+    const splitIronbark=activeProgram==='Exploration'&&projectNamesMatch(activeProjectName,'Ironbark');
+    const reportContractors=splitIronbark?['Mitchells Drilling','DEPCO Drilling']:[drillingContractor];
+    const stamp=Date.now();
+    const fetchDrillingBundle=async function(contractor){
+      const response=await fetch(API+'/activity-report-data?contractor='+encodeURIComponent(contractor)+'&_='+stamp,{cache:'no-store'});
+      if(!response.ok)throw new Error('Could not load '+contractor+' drilling records');
+      return response.json();
+    };
+    const combinedDrillingBundles=Promise.all(reportContractors.map(fetchDrillingBundle)).then(function(bundles){
+      return ['activities','consumables','crew','report_approvals','activity_sheet_locks'].reduce(function(out,key){
+        out[key]=bundles.flatMap(function(b){return Array.isArray(b[key])?b[key]:[];});
+        return out;
+      },{});
+    });
     const results=await Promise.all([
-      fetch(API+'/activity-report-data?'+suffix,{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}),
+      combinedDrillingBundles,
       loadPeriodSupportInvoices(),
       fetch(API+'/project-budgets?contractor=Company&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}),
       fetch(API+'/project-budget-source?project='+encodeURIComponent(activeProjectName||'')+'&year='+encodeURIComponent(reportYear)+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
@@ -6323,6 +6337,7 @@ function periodFilteredRows(){
     if(period.to&&(!iso||iso>period.to))return false;
     if(!period.project&&!rowMatchesActiveProgram(r))return false;
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
+    if(activeProgram==='Exploration'&&projectNamesMatch(period.project,'Ironbark')&&String(r.program||'').split(',').map(p=>p.trim()).indexOf('Exploration')<0)return false;
     return true;
   });
 }
@@ -6342,6 +6357,10 @@ function periodFilteredConsumables(){
     const related=r.source_file?(activities||[]).filter(a=>a.source_file===r.source_file&&a.contractor===r.contractor):[];
     if(period.project&&related.length&&related.every(a=>String(a.project||'').trim())&&!related.some(a=>projectNamesMatch(a.project,period.project)))return false;
     if(!rowMatchesPeriodProject(r,holes,period.project))return false;
+    if(activeProgram==='Exploration'&&projectNamesMatch(period.project,'Ironbark')){
+      const relatedPrograms=related.map(a=>String(a.program||'').split(',').map(p=>p.trim()));
+      if(relatedPrograms.length&&!relatedPrograms.some(p=>p.includes('Exploration')))return false;
+    }
     return true;
   });
 }
@@ -6596,6 +6615,16 @@ function renderPeriodReport(){
     return !groupedConsumableKeys.has(reportKeyFor(row));
   }).reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
   const totalDrillingCost=drillingReports.reduce(function(sum,report){return sum+report.cost;},0)+ungroupedConsumableCost;
+  const drillingByContractor=new Map();
+  drillingReports.forEach(function(report){
+    const key=contractorSummaryKey(report.contractor);
+    drillingByContractor.set(key,(drillingByContractor.get(key)||0)+report.cost);
+  });
+  consumables.filter(function(row){return !groupedConsumableKeys.has(reportKeyFor(row));}).forEach(function(row){
+    const key=contractorSummaryKey(row.contractor);
+    drillingByContractor.set(key,(drillingByContractor.get(key)||0)+numVal(row.line_cost));
+  });
+  renderPeriodDrillingProviders(period,rows,drillingByContractor);
   const totalMetres=rows.reduce(function(s,r){return s+numVal(r.total_metres);},0);
   const metrics=periodHoleMetrics(rows,consumables,reportHoles,holes);
   renderPeriodReconciliation(rows,reportHoles,metrics);
@@ -6636,7 +6665,7 @@ function renderPeriodReport(){
     drillingSummaryEl.className='value '+(drillingBudgetTotal&&totalDrillingCost>drillingBudgetTotal?'variance-neg':'');
   }
   const drillVariance=drillingBudgetTotal-totalDrillingCost;
-  const reportCountLabel=drillingReports.length+' '+drillingContractor+' report'+(drillingReports.length===1?'':'s');
+  const reportCountLabel=drillingReports.length+' drilling report'+(drillingReports.length===1?'':'s')+(activeProgram==='Exploration'&&projectNamesMatch(period.project,'Ironbark')?' (Mitchells + Depco)':' from '+drillingContractor);
   setPeriodText('period-drilling-sub',reportCountLabel+(drillingBudgetTotal?' / '+cur(Math.abs(drillVariance))+' '+(drillVariance>=0?'under':'over'):' / No drilling budget loaded'));
   setPeriodText('period-support-total',cur(supportCost));
   document.getElementById('period-support-total').previousElementSibling.textContent=fortem.unbilled>0?'Support incl. estimate':'Recorded Support';
@@ -6663,7 +6692,7 @@ function renderPeriodReport(){
   renderPeriodHoleGraphics(metrics);
   renderPeriodHoleTable(metrics);
   renderPeriodCostBreakdown(rows,consumables,holes,drillingBudgetTotal,totalDrillingCost);
-  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary,fortem);
+  renderPeriodSupportInvoices(supportInvoices,budgetTotals,totalDrillingCost,mccChargeSummary,fortem,drillingByContractor);
   renderPeriodStandbyReasons(rows);
   renderPeriodProgress(rows,activeHoles,projectHoles,reportHoles,holeStatusSummary);
 }
@@ -7102,7 +7131,7 @@ function contractorSummaryKey(value){
 
 function reportForecastLabel(item){
   const sections=Array.from(item.sections||[]);
-  if(sections.includes('Drilling'))return 'Drilling';
+  if(sections.includes('Drilling'))return item.label||'Drilling';
   return item.label||sections.join(' / ')||'Unassigned';
 }
 
@@ -7201,7 +7230,28 @@ function renderFortemEstimateEditor(fortem){
     +'<div role="status" style="color:#b45309;">'+esc(fortem.storageWarning)+'</div></form></details>';
 }
 
-function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary,fortem){
+function renderPeriodDrillingProviders(period,rows,byContractor){
+  const el=document.getElementById('period-drilling-providers');
+  if(!el)return;
+  if(!(activeProgram==='Exploration'&&projectNamesMatch(period.project,'Ironbark'))){el.innerHTML='';return;}
+  const providers=[['Mitchells Drilling','mitchells'],['DEPCO Drilling','depcodrilling']];
+  const reportCounts=new Map();
+  groupDailyReports(rows,[]).forEach(function(r){
+    const key=contractorSummaryKey(r.contractor);
+    reportCounts.set(key,(reportCounts.get(key)||0)+1);
+  });
+  const records=providers.map(function(p){
+    const value=byContractor.get(p[1])||0;
+    return '<tr><td><b>'+esc(p[0])+'</b></td><td class="num">'+(reportCounts.get(p[1])||0)+'</td><td class="num">'+cur(value)+'</td><td>'+((reportCounts.get(p[1])||0)>0?'Activity records loaded':'No Exploration activity recorded')+'</td></tr>';
+  }).join('');
+  const total=providers.reduce(function(sum,p){return sum+(byContractor.get(p[1])||0);},0);
+  el.innerHTML='<div class="period-section-title period-print-section-start">Ironbark Exploration — Drilling Costs by Provider</div>'
+    +'<div class="period-table-hint">Provider actuals are taken from each contractor\'s activity and consumable records for the selected reporting period. Gas Riser work is excluded. Budget allocations remain unchanged.</div>'
+    +'<table class="period-mini-table" style="margin-bottom:12px"><thead><tr><th>Drilling provider</th><th>Daily reports</th><th>Recorded cost</th><th>Source status</th></tr></thead><tbody>'
+    +records+'<tr><td><b>Combined drilling</b></td><td class="num"><b>'+Array.from(reportCounts.values()).reduce(function(s,n){return s+n;},0)+'</b></td><td class="num"><b>'+cur(total)+'</b></td><td>Mitchells + Depco</td></tr></tbody></table>';
+}
+
+function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChargeSummary,fortem,drillingByContractor){
   fortem=fortem||periodFortemEstimate(selectedPeriod(),invoices);
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
@@ -7235,7 +7285,20 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   const drillingBudgetRows=contractorBudgetRows.filter(function(r){return budgetRowSection(r)==='Drilling';});
   const drillingBudget=drillingBudgetRows.reduce(function(s,r){return s+numVal(r.budget_amount);},0);
   const effectiveDrillingBudget=numVal(budgetTotals&&budgetTotals.drilling)||drillingBudget;
-  if(drillingBudgetRows.length){
+  const splitIronbarkDrilling=activeProgram==='Exploration'&&projectNamesMatch(selectedPeriod().project,'Ironbark');
+  if(splitIronbarkDrilling){
+    // Preserve existing vendor budgets, but attribute actuals strictly to the
+    // contractor that produced each daily report. Never split actuals by budget share.
+    if(!drillingBudgetRows.length&&effectiveDrillingBudget>0){
+      ensureContractor('Mitchells Drilling','Drilling').budget+=effectiveDrillingBudget;
+    }
+    ['Mitchells Drilling','DEPCO Drilling'].forEach(function(provider){
+      const item=ensureContractor(provider,'Drilling');
+      item.spent=numVal(drillingByContractor&&drillingByContractor.get(contractorSummaryKey(provider)));
+      item.actualsRecorded=item.spent>0;
+      if(item.actualsRecorded)item.actualSources.add('activity reports');
+    });
+  }else if(drillingBudgetRows.length){
     drillingBudgetRows.forEach(function(r){
       const section=budgetRowSection(r);
       const item=ensureContractor(r.vendor||reportDrillingContractor()||section,section);
