@@ -6412,18 +6412,19 @@ function periodFilteredMccCharges(){
   });
 }
 
+function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec'].includes(contractorSummaryKey(name));}
+function approvedInvoiceForReport(invoice){
+  // Payment status is not a posting status. Require explicit posting evidence.
+  return !isPostedOnlySupplier(invoice.contractor) || String(invoice.posting_status||invoice.postingStatus||'').trim().toLowerCase()==='posted';
+}
+function reportPostedSupportInvoices(invoices){return (invoices||[]).filter(approvedInvoiceForReport);}
 function periodMccChargeSummary(invoices){
   const weeklyRows=periodFilteredMccCharges();
   const weeklyTotal=weeklyRows.reduce(function(sum,row){return sum+numVal(row.line_cost);},0);
-  const mccInvoices=(invoices||[]).filter(function(invoice){return contractorSummaryKey(invoice.contractor)==='mccgroup';});
+  const mccInvoices=reportPostedSupportInvoices(invoices).filter(function(invoice){return contractorSummaryKey(invoice.contractor)==='mccgroup';});
   const invoiceTotal=mccInvoices.reduce(function(sum,invoice){return sum+numVal(invoice.total_aud);},0);
-  // Approved MCC invoices take precedence over EOS/weekly activity totals.
-  // Weekly reports are operational evidence, not additional cost whenever
-  // there are invoices in the period. A positive difference is NOT proof of
-  // unbilled work and must not be automatically added to actuals.
-  const invoicesOverride=mccInvoices.length>0;
-  const unbilled=invoicesOverride?0:weeklyTotal;
-  return {weeklyTotal:weeklyTotal,invoiceTotal:invoiceTotal,unbilled:unbilled,actual:invoicesOverride?invoiceTotal:weeklyTotal,rowCount:weeklyRows.length,invoicesOverride:invoicesOverride};
+  // Invoices override EOS completely; no automatic unbilled estimate.
+  return {weeklyTotal:weeklyTotal,invoiceTotal:invoiceTotal,unbilled:0,actual:invoiceTotal,rowCount:weeklyRows.length,invoicesOverride:true,postedInvoiceCount:mccInvoices.length};
 }
 
 function periodFilteredBudgetRows(period){
@@ -6637,7 +6638,7 @@ function renderPeriodReport(){
   const budgetTotals=periodBudgetTotals(period,metrics);
   const budgetTotal=budgetTotals.total;
   const drillHours=metrics.reduce(function(s,r){return s+r.drillHours;},0);
-  const supportInvoiceCost=supportInvoices.reduce(function(s,r){return s+numVal(r.total_aud);},0);
+  const supportInvoiceCost=reportPostedSupportInvoices(supportInvoices).reduce(function(s,r){return s+numVal(r.total_aud);},0);
   const fortem=periodFortemEstimate(period,supportInvoices);
   const supportCost=supportInvoiceCost+mccChargeSummary.unbilled+fortem.unbilled;
   const totalSpent=totalDrillingCost+supportCost;
@@ -7264,7 +7265,7 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
   fortem=fortem||periodFortemEstimate(selectedPeriod(),invoices);
   const el=document.getElementById('period-support-invoices');
   if(!el)return;
-  const rows=(invoices||[]).slice().sort(function(a,b){
+  const rows=reportPostedSupportInvoices(invoices).slice().sort(function(a,b){
     return (invoiceReportIso(b)||'').localeCompare(invoiceReportIso(a)||'') || String(a.contractor||'').localeCompare(String(b.contractor||''));
   });
   const totals={Earthworks:0,Support:0,'Geophysical / Geological Support':0,'Lab Testing':0,MISC:0};
@@ -7339,8 +7340,8 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
     item.spent+=mccUnbilled;
     item.mccWeeklyTotal=numVal(mccChargeSummary.weeklyTotal);
     item.mccUnbilled=mccUnbilled;
-    item.actualsRecorded=true;
-    item.actualSources.add(mccChargeSummary.invoicesOverride?'invoices (EOS reference only)':'weekly charges (provisional)');
+    if(mccChargeSummary.postedInvoiceCount>0)item.actualsRecorded=true;
+    item.actualSources.add('posted invoices only; EOS reference only');
     totals.Support=(totals.Support||0)+mccUnbilled;
   }
   if(fortem.settings.enabled){
