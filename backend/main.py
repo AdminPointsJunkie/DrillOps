@@ -8590,6 +8590,24 @@ async def create_manual_invoice(request: Request):
         raise HTTPException(500, f"Database error: {str(e)}")
 
 
+@app.get("/ironbark-posted-invoices")
+def ironbark_posted_invoices(year: int = Query(2026)):
+    if year != 2026:
+        return []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT supplier, po_number, po_item, invoice_reference, posted_amount, posting_date, source_notes FROM ironbark_posted_costs WHERE reporting_year=%s AND posting_status='Posted'", (year,))
+            rows = [dict(row) for row in cur.fetchall()]
+    return [{"contractor": row["supplier"], "project": "Ironbark",
+             "program": "Exploration", "invoice_number": row["invoice_reference"],
+             "po_reference": row["po_number"], "po_item": row["po_item"],
+             "invoice_date": str(row["posting_date"]) if row["posting_date"] else "",
+             "total_aud": float(row["posted_amount"]), "posting_status": "Posted",
+             "posting_scope": "annual" if row["posting_date"] is None else "dated",
+             "source_file": "Consolidated Purchase Orders 2026",
+             "status": "Posted", "notes": row["source_notes"] or ""} for row in rows]
+
+
 @app.get("/invoices")
 def get_invoices(
     contractor: str = Query(...),
