@@ -620,6 +620,13 @@ tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2
   .period-code-open::after{display:none;}
 }
 .period-support-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:14px;break-inside:avoid;}
+.period-cost-overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin:0 0 8px;}
+.period-cost-overview>div{background:#fff;border:1px solid var(--border);border-radius:7px;padding:11px 13px;display:flex;flex-direction:column;gap:4px;}
+.period-cost-overview span{font-size:11px;color:var(--muted);font-weight:700;}
+.period-cost-overview strong{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
+.period-cost-overview strong.variance-neg{color:var(--red);}
+.period-cost-overview strong.variance-pos{color:var(--green);}
+.period-cost-overview-note{font-size:11px;color:var(--muted);margin:0 0 14px;line-height:1.5;}
 .period-support-total{display:flex;flex-direction:column;gap:14px;margin-bottom:12px;}
 .period-contractor-group{border:1px solid var(--border);background:#f7f9fb;border-radius:8px;padding:10px 12px;break-inside:avoid;}
 .period-contractor-group h3{font-size:12px;font-weight:800;color:var(--text2);margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid var(--border);letter-spacing:.025em;}
@@ -6426,7 +6433,7 @@ function periodFilteredMccCharges(){
   });
 }
 
-function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec','impactenvironmental'].includes(contractorSummaryKey(name));}
+function isPostedOnlySupplier(name){return ['mccgroup','geogas','stantec','impactenvironmental','fortem'].includes(contractorSummaryKey(name));}
 function approvedInvoiceForReport(invoice){
   // Payment status is not a posting status. Require explicit posting evidence.
   return !isPostedOnlySupplier(invoice.contractor) || String(invoice.posting_status||invoice.postingStatus||'').trim().toLowerCase()==='posted';
@@ -7512,7 +7519,24 @@ function renderPeriodSupportInvoices(invoices,budgetTotals,drillingSpend,mccChar
       +'<td>'+esc(selectedPeriod().project||activeProjectName||'')+'</td><td></td><td>Weekly charges</td>'
       +'<td class="num"><b>'+cur(mccUnbilled)+'</b></td></tr>':'');
   const fortemRow=fortem.unbilled>0?'<tr><td>Geophysical / Geological Support</td><td>Fortem</td><td>Estimated unbilled cost</td><td>'+esc(selectedPeriod().from+' to '+selectedPeriod().to)+'</td><td>'+esc(selectedPeriod().project)+'</td><td></td><td>Estimate</td><td class="num"><b>'+cur(fortem.unbilled)+'</b></td></tr>':'';
+  const recordedSpend=numVal(drillingSpend)+invoiceTotal+mccUnbilled;
+  const estimatedSpend=numVal(fortem.unbilled);
+  const spendWithEstimate=recordedSpend+estimatedSpend;
+  const wholeBudget=numVal(budgetTotals&&budgetTotals.total);
+  const wholeVariance=wholeBudget-spendWithEstimate;
+  const annualUndated=rows.some(function(inv){return inv.posting_scope==='annual';});
+  const topSummary='<div class="period-cost-overview">'
+    +'<div><span>Recorded expenditure</span><strong>'+cur(recordedSpend)+'</strong></div>'
+    +'<div><span>2026 project budget</span><strong>'+cur(wholeBudget)+'</strong></div>'
+    +'<div><span>Budget remaining / (over)</span><strong class="'+(wholeVariance<0?'variance-neg':'variance-pos')+'">'+(wholeVariance<0?'-':'')+cur(Math.abs(wholeVariance))+'</strong></div>'
+    +'<div><span>Unbilled estimates (separate)</span><strong>'+cur(estimatedSpend)+'</strong></div>'
+    +'</div>'
+    +'<div class="period-cost-overview-note">Recorded spend = drilling activity charges + included supplier invoices; unposted and rejected invoices are excluded. '
+    +(estimatedSpend?'Budget variance includes separately labelled Fortem estimate. ':'')
+    +(annualUndated?'Some MCC posted totals are annual aggregates without invoice dates; they are included in this overview, not attributable to a single month. ':'')
+    +'Missing contractor records are not assumed to be zero.</div>';
   el.innerHTML='<div class="period-support-panel">'
+    +topSummary
     +renderFortemEstimateEditor(fortem)
     +'<div class="period-support-total">'+(contractorCardHtml||'<div class="period-support-card"><div class="label">No contractor budgets</div><div class="value">--</div><div class="sub">Import or enter project budget rows to show contractor budget cards.</div></div>')+'</div>'
     +'<div class="period-support-note">Actuals are sourced from invoices, MCC weekly charges, and drilling activity reports. Applied Fortem estimates are labelled separately and included in support totals and budget variance. Fortem daily estimates are excluded from the percentage-based forecast below. A contractor with no source record or applied estimate is shown as <b>Actual not loaded</b>, not $0.</div>'
