@@ -11,6 +11,7 @@ export function publicMapHandler(createClient,env){
    const workspace=await db.from('workspaces').select('status').eq('id',project.data.workspace_id).maybeSingle();if(workspace.error||workspace.data?.status!=='active')return reply(404,{error:'This map is unavailable.'});
    const release=await db.from('map_releases').select('manifest,version,published_at').eq('map_id',share.data.map_id).order('version',{ascending:false}).limit(1).maybeSingle();if(release.error||!release.data)return reply(404,{error:'This map has not been synced yet.'});
    const manifest=structuredClone(release.data.manifest);
+   delete manifest.supporting_files; // Project documents are available only to assigned signed-in members.
    for(const layer of manifest.layers||[]){
     // The public viewer exposes published map data, never private source or attachment files.
     if(layer.fc)for(const feature of layer.fc.features||[]){for(const key of Object.keys(feature.properties||{}))if(key.startsWith('_'))delete feature.properties[key];}

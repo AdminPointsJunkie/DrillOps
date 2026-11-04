@@ -86,6 +86,8 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
   from,
   auth:{onAuthStateChange(callback){queueMicrotask(()=>callback('INITIAL_SESSION',{user:{id:'local-testing'}}));}},
   rpc(name,args){return result(async()=>{
+   if(name==='maps_supporting_file'){const m=(await all('maps')).find(m=>m.id===args.p_map);if(!m)throw Error('Project unavailable');const files=m.supporting_files||[];m.supporting_files=args.p_action==='remove'?files.filter(f=>f.path!==args.p_file.path):files.some(f=>f.path===args.p_file.path)?files:[...files,args.p_file];await put('maps',m);return m.supporting_files;}
+
    if(name==='maps_layer_bin')return layerBin(args);
    if(['replace_vector_versioned','apply_map_style'].includes(name))return dataWorkflow(name,args);
    if(name==='import_vector'){const id=crypto.randomUUID();await put('layers',{id,created_at:new Date().toISOString(),visible:true,opacity:.85,...args.p_layer,feature_count:args.p_features.length,fc:{type:'FeatureCollection',features:args.p_features}});return id;}

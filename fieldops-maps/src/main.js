@@ -1,3 +1,5 @@
+import {installSupportingFiles} from './supporting-files.js';
+import './supporting-files.css';
 import {configureAppearance} from './appearance.js';
 import {openNumberFormats} from './number-format-ui.js';
 import {openShareMap} from './share-map.js';
@@ -82,7 +84,7 @@ const icon=(name)=>({layers:'▱',plus:'＋',upload:'↑',close:'×',refresh:'�
 let user=null,activeMap=null,layers=[],queue=[],crsList=[],busy=false,reviewIndex=null,preview=null;
 let layerTree=[],layoutPending=0,layoutSave=Promise.resolve();
 let homeUI=null,toolMenus=null,mapComponents=null,workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
-let mapContext=null,mapComparison=null;
+let mapContext=null,mapComparison=null,supportingFiles=null;
 let authReady=false;
 const analyticsMeter=LOCAL_TESTING?null:createAnalyticsMeter({origin:SUPABASE_URL,context:()=>({userId:user?.id,workspaceId:currentWorkspace?.id})});
 const db=LOCAL_TESTING?createLocalWorkspace():createClient(SUPABASE_URL,SUPABASE_KEY,{global:{fetch:analyticsMeter.fetch}});
@@ -552,6 +554,7 @@ const passwordSetup=installPasswordSetup(db,authLink,()=>user,toast);
 let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;appearance.setUser(user);if(previousUser?.id!==user?.id){analyticsMeter?.clear();if(previousUser?.id||!user)void releaseCache.clear();}authReady=true;$('#account-profile').hidden=!user;if(previousUser?.id!==user?.id)accountProfile.close();registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();layerBin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
 let editingProject=false;
 function syncProject(){
+ supportingFiles?.refresh();
  homeUI?.refresh();
  refreshCoordinateDisplay();mapContext?.close();mapComparison?.close();
  refreshSaveStatus();
@@ -623,7 +626,7 @@ $('#map-select').onchange=e=>loadMap(e.target.value);$('#refresh').onclick=async
 renderLayers();
 window.addEventListener('beforeunload',e=>{if(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||queue.length||styleSaves.size||saves.state().failed||layers.some(l=>(!l.saved&&!isLocalGeoTIFF(l))||l.saving)){e.preventDefault();e.returnValue='';}});
 
-function updateAccess(){document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();toolMenus?.refresh();}
+function updateAccess(){supportingFiles?.refresh();document.body.classList.toggle('viewer-mode',isReadOnly());document.body.classList.toggle('admin-mode',isAdmin());$('#storage-usage-button').hidden=LOCAL_TESTING||!currentWorkspace;$('#platform-admin').hidden=LOCAL_TESTING||!workspaceContext?.platform_admin;$('#people').hidden=LOCAL_TESTING||!isAdmin();$('#project-settings').hidden=!isAdmin();$('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#open-annotation').hidden=!isAdmin();$('#open-drawing').hidden=isReadOnly();toolMenus?.refresh();}
 async function saveStylePart(l,key,value){if(!canEditLayer(l))throw Error('This layer is read only.');const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)throw Error('Layer is no longer open.');await changeLayerStyle({target:{closest:()=>card,dataset:{action:key},value}});renderLayers();if(saves.state().failed)throw Error('Changed here, but cloud saving failed. Use Retry before SYNC.');toast(l.saved?'Settings saved. SYNC to publish these defaults.':'Settings applied. Save the layer to keep them.');}
 function openAnnotationSettings(l){if(!isAdmin())return;editAnnotation(l,{canAnnotate:isAdmin,save:async(layer,values)=>{const next={...layer,name:values.name,fc:structuredClone(layer.fc)};next.fc.features[0].properties.note=values.note;if(values.url!==undefined)next.fc.features[0].properties.url=values.url;next.metadata={...layer.metadata,annotation:{...layer.metadata.annotation},style:values.style||layer.metadata.style};await replaceLayer(layer,next,true);if(values.opacity!==undefined)await saveStylePart(layer,'opacity',values.opacity);await changeLayerStyle({target:{closest:()=>[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===layer.id),dataset:{action:'color'},value:values.color}});renderLayers();},remove:trashLayer});}
 explorer=installMapExplorer({L,map,getLayers:()=>layers,isVisible,canEdit:canEditLayer,redraw:redrawLayer,saveStyle:saveStylePart,onGroupChange:changeFeatureGroup,renderInfo:(l,f)=>popup(f,l),showInfo:(title,content)=>{identifyActive=true;$('#identify').setAttribute('aria-pressed','true');$('#feature-info').hidden=false;$('#feature-info-title').textContent=title;$('#feature-info-content').replaceChildren(content);}});
@@ -814,3 +817,5 @@ homeUI=installProjectHome({onProfile:()=>accountProfile.open(),paintAvatar:(el)=
  capturePreview:async()=>{if(!activeMap||!layers.length||geometryEditor?.active||fieldTools?.drawing||busy)return null;const {toJpeg}=await import('html-to-image');return toJpeg($('#map'),{quality:.7,pixelRatio:1,canvasWidth:400,canvasHeight:240,skipFonts:true,filter:node=>!node.classList?.contains('leaflet-control-container')});}
 });
 homeUI.open();
+
+supportingFiles=installSupportingFiles({db,getProject:()=>activeMap,getUser:()=>user,canEdit:()=>!!activeMap&&!isReadOnly()&&(LOCAL_TESTING||!!user),local:LOCAL_TESTING,setBusy,onResize:()=>map.invalidateSize({pan:false}),onChanged:()=>{syncDirty=true;refreshSaveStatus();}});

@@ -8,7 +8,7 @@ async function legacyPublishedLayers(db,project){
  const loaded=[];
  try{for(const item of data.manifest.layers||[]){const l=structuredClone(item);if(l.kind==='raster'&&!l.metadata?.xyz){const result=await db.storage.from('gis-files').download(l.raster_path);if(result.error)throw result.error;l.url=URL.createObjectURL(result.data);}l.saved=true;l.crsLabel=l.metadata?.crs_label;l.feature_count=l.fc?.features.length;loaded.push(l);}}
  catch(error){for(const l of loaded)if(l.url?.startsWith('blob:'))URL.revokeObjectURL(l.url);throw error;}
- return {layers:loaded,project:{...project,...data.manifest.project,layer_layout:data.manifest.layer_layout,last_synced_at:data.published_at,published_version:data.version}};
+ return {layers:loaded,project:{...project,...data.manifest.project,supporting_files:data.manifest.supporting_files||[],layer_layout:data.manifest.layer_layout,last_synced_at:data.published_at,published_version:data.version}};
 }
 
 export async function publishedLayers(db,project,{userId,cache=releaseCache}={}){
@@ -35,5 +35,5 @@ export async function publishedLayers(db,project,{userId,cache=releaseCache}={})
  if(cache.generation!==epoch)throw Error('Account changed while opening the map.');
  await save();
  }catch(error){await cache.remove(key);for(const l of loaded)if(l.url?.startsWith('blob:'))URL.revokeObjectURL(l.url);throw error;}
- return {layers:loaded,project:{...project,...manifest.project,release_id:manifest.id,layer_layout:manifest.layer_layout,last_synced_at:manifest.published_at,published_version:manifest.version}};
+ return {layers:loaded,project:{...project,...manifest.project,supporting_files:manifest.supporting_files||[],release_id:manifest.id,layer_layout:manifest.layer_layout,last_synced_at:manifest.published_at,published_version:manifest.version}};
 }
