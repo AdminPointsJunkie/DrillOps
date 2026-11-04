@@ -55,3 +55,12 @@ test('dialog classifies, edits, validates formulas, applies and cancels without 
  again.querySelector('[name=colorExpression]').value='unknown([Status])';again.querySelector('[data-preview-button]').click();assert.match(again.querySelector('[data-message]').textContent,/Unknown function/);
  again.querySelector('[data-close]').click();assert.equal(applied.mode,'categorized');dom.window.close();delete globalThis.document;
 });
+test('quantiles cover every numeric value once and never split ties; palettes persist as ordinary rules',()=>{
+ const collection={features:[0,0,0,1,2,2,9,100,null,'bad',''].map(v=>({properties:{v}}))};const classes=classifyFeatures(collection,'v','graduated',4,'quantile','blue');
+ for(const n of [0,1,2,9,100])assert.equal(classes.filter((c,i)=>n>=c.min&&(n<c.max||i===classes.length-1&&n<=c.max)).length,1);
+ assert.equal(classes[0].color,'#eff3ff');assert.equal(classes.at(-1).color,'#08519c');
+ assert.equal(classifyFeatures({features:[{properties:{v:7}}]},'v','graduated',5,'quantile').length,1);
+ assert.deepEqual(attributeEvaluator({mode:'graduated',field:'v',classes})( {v:null}),{});
+});
+
+test('quantiles use three classes for three distinct values when five requested',()=>{assert.equal(classifyFeatures({features:[10,20,100].map(v=>({properties:{v}}))},'v','graduated',5,'quantile').length,3);});

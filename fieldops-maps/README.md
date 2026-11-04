@@ -323,3 +323,15 @@ This covers these four workflows but does not claim Felt's identical data catalo
 - Existing phone releases remain unchanged until the next SYNC. Shared uploaded objects and files referenced by published snapshots are retained; this migration purges archived database records, not Storage objects.
 - Apply `20261104080131_layer_recycle_bin.sql` before deploying the web build. The archive is private, RLS-enabled and accessible only through permission-checked functions. Restore destinations must remain inside the workspace. Annotation actions require workspace admin access.
 - Validation: 194 Node tests; production build; real-browser desktop/mobile Save, remove, refresh, restore-to-another-project and project-delete checks; isolated SQL checks; transaction-only integration checks on Shared Map (rolled back). No existing user projects were deleted during validation.
+
+### Account controls and map workflow update — 4 November 2026
+
+Every signed-in account can open Account settings from the home workspace menu or DrillOps → Settings, independently of workspace role. Name, email, optional contact phone/job title and marketing preference are saved on the user's own auth profile. Email changes use Supabase confirmation. Marketing is opt-in only; missing preferences mean false. Preference changes retain the wording, timestamp and source. No mailing campaign or provider integration is enabled by this UI.
+
+Photos are cropped/resized to 512 px JPEG and stored in a private `profile-photos` bucket (1 MB, owner-path SELECT/INSERT/DELETE only). Signed URLs are created for the account avatar; initials remain the fallback. Photos currently appear in the user's personal account controls, not other members' directory entries. Migration `20261104082319_account_profile_photos.sql` creates the bucket and policies. A rollback-only live policy check verified own reads and denial of cross-account reads.
+
+Upload → Paste spreadsheet or GeoJSON accepts tabular clipboard text, CSV and GeoJSON (5 MB / 20,000 records), previews the first five records and uses the existing coordinate/join review. Layer search filters the sidebar without changing map visibility or published content.
+
+Style by value adds equal-interval/quantile classification and sequential colour palettes. Ties are kept together; fewer classes are produced when distinct values are insufficient. Preview draws temporary styles on the actual map; Apply saves the style, Cancel removes the preview. Saved explicit class boundaries remain compatible with native rendering.
+
+Analysis now previews the result on the map before Add result layer. Parameter edits invalidate the preview, cancellation terminates the worker and removes temporary geometry, and acceptance checks the source is still open. Results include operation/source/parameter provenance in layer metadata and remain drafts until saved and explicitly synced. Existing 20,000-feature limits and geometry restrictions remain in place. This is an incremental Felt-inspired workflow update, not full Felt feature parity or a new live-collaboration/connected-database backend.
