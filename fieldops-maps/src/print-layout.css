@@ -19,3 +19,5 @@
 .print-pages [aria-pressed=true]{background:#e1edf6;border-color:#376b95}
 .print-settings fieldset{border:1px solid #ccd5df;border-radius:6px;margin:14px 0;padding:8px}
 .print-settings legend{font-weight:600}.print-settings input[type=color]{height:36px;padding:3px}
+
+.print-template-picker input{display:block;width:100%;box-sizing:border-box;margin:8px 0 16px;padding:10px;border:1px solid #aebac4;border-radius:5px;font:inherit}.print-template-grid small{display:block;margin-top:5px;color:#526358}
