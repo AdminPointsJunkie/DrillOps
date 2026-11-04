@@ -407,3 +407,9 @@ Text boxes and custom layouts now have explicit toolbar actions: ＋ Text box, S
 Print map settings now include up/down layer ordering, shared by preview stacking, legends and vector/raster output. Layer order and visibility persist in custom layouts for the same project; unrelated projects use their own layers. Each page element has an accessible trash button in Items on page, plus Remove element in its settings; Delete/Backspace removes a selected element outside text inputs. Removing an element changes the layout only. Validation: 230 tests passed, production build succeeded, two overlapping layers reordered correctly, SVG draw order verified, and custom-layout reload retained order and removal.
 
 Map framing interaction: double-click inside a map box to pan/zoom; double-click outside it (including another page element or the blank page) to save the current view and return to layout mode. Escape remains available. Active mode shows a toolbar hint and hides resize handles. Pointer capture now starts only when dragging, and a stationary click no longer rebuilds the box, preserving browser double-click targeting. Verified entry, zoom, pan, outside double-click exit and re-entry in the browser; 230 tests and production build passed.
+
+### Print text formatting (5 November 2026)
+
+Select a text box to set its font, size, bold, italic, underline, text colour, alignment, line spacing, padding and optional background colour. Formatting applies to the whole box and is retained in saved custom layouts. Preview and export share text layout rendering; vector PDF uses standard PDF font variants for styled text.
+
+Validation: 233 tests passed, production build passed, and browser/PDF checks confirmed coloured, centred, bold/italic/underlined text.

@@ -1,5 +1,6 @@
+import {textBoxSVG} from './print-text.js';
 import {xml,textSVG,legendSVG,layerSVG,framePoint,footprint} from './print-cartography.js';
-import {tokens,itemFrame,orderedPrintLayers} from './print-model.js';
+import {itemFrame,orderedPrintLayers} from './print-model.js';
 const px=96/25.4;
 const image=(url,w,h)=>`<image width="${w}" height="${h}" href="${xml(url)}" preserveAspectRatio="none"/>`;
 export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
@@ -9,7 +10,7 @@ export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
  for(const item of page.items){if(item.hidden)continue;const w=item.w*px,h=item.h*px,id=`clip-${i++}`;
   out+=`<defs><clipPath id="${id}"><rect width="${w}" height="${h}"/></clipPath></defs><g transform="translate(${item.x*px} ${item.y*px})"><g clip-path="url(#${id})">`;
   if(item.type==='section')out+=`<rect width="${w}" height="${h}" fill="${xml(item.color||'#e8eee9')}"/>`;
-  else if(item.type==='text')out+=textSVG(tokens(item.text,context),2,(item.fontSize||14)+2,w-4,item.fontSize||14);
+  else if(item.type==='text')out+=textBoxSVG(item,context,w,h);
   else if(item.type==='image')out+=`<image width="${w}" height="${h}" href="${xml(item.src)}" preserveAspectRatio="xMidYMid meet"/>`;
   else if(item.type==='legend'){const target=targetFor(item);out+=legendSVG(orderedPrintLayers(target,context.layers),item,w,h,{title:quick&&page.title?context.title:'Legend',description:quick&&page.description?context.description:''}).markup;}
   else if(item.type==='map'||item.type==='locator'){
@@ -47,6 +48,7 @@ export async function vectorPDF(pdf,svg,width,height){
  if(!pdf.getFontList().NotoSans){pdf.addFileToVFS('NotoSans.ttf',fontData);pdf.addFont('NotoSans.ttf','NotoSans','normal');pdf.addFont('NotoSans.ttf','NotoSans','bold');}
  const element=new DOMParser().parseFromString(svg.replaceAll('font-family="Arial"','font-family="NotoSans"'),'image/svg+xml').documentElement;
  if(element.nodeName==='parsererror'||element.querySelector('parsererror'))throw Error('Could not build the vector document.');
+ for(const group of element.querySelectorAll('[data-text-font]'))for(const text of group.querySelectorAll('text'))text.setAttribute('font-family',({sans:'helvetica',serif:'times',mono:'courier'})[group.getAttribute('data-text-font')]||'helvetica');
  await svg2pdf(element,pdf,{x:0,y:0,width,height});
 }
 export function downloadBlob(blob,filename){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
