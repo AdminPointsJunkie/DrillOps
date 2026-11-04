@@ -6,7 +6,7 @@ import {memberReportHTML} from './member-report.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const roles={owner:'Owner',admin:'Admin',editor:'Editor',operator:'Operator'};
 export function installAccounts(db,getUser,doc=document,options={}){
- const {getWorkspace=()=>null,getContext=()=>({}),onChanged=async()=>{},canOpen=()=>true}=options;
+ const {getWorkspace=()=>null,getContext=()=>({}),onChanged=async()=>{},canOpen=()=>true,canAcceptInvitation=()=>true}=options;
  const dialog=doc.createElement('dialog');dialog.id='workspace-settings';doc.body.append(dialog);
  let state=null,tab='overview',working=false,workspace=null,dirty=false,generation=0;
  const leave=()=>!dirty||doc.defaultView.confirm('Discard unsaved settings changes?');
@@ -73,7 +73,7 @@ export function installAccounts(db,getUser,doc=document,options={}){
  doc.querySelector('#people').onclick=()=>openWorkspace();
  async function openInvitations(invites){
   dialog.classList.remove('ws-fullscreen');
-  dialog.innerHTML=`<div class="workspace-settings-heading"><h2>Your invitations</h2><button data-close aria-label="Close invitations">×</button></div><div data-message role="status"></div>${invites.map(i=>`<div class="workspace-invitation"><div><strong>${esc(i.workspace)}</strong><small>${roles[i.role]} · Expires ${esc(new Date(i.expires_at).toLocaleDateString())}</small></div><button class="primary" data-accept="${i.id}">Accept invitation</button></div>`).join('')}`;dialog.querySelector('[data-close]').onclick=()=>{if(!working)dialog.close();};dialog.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{if(working||!canOpen())return;working=true;b.disabled=true;try{const result=await mutate('accept',{id:b.dataset.accept},null);await onChanged(result.id);dialog.close();}catch(e){message(e.message);}finally{working=false;b.disabled=false;}});dialog.showModal();
+  dialog.innerHTML=`<div class="workspace-settings-heading"><h2>Your invitations</h2><button data-close aria-label="Close invitations">×</button></div><div data-message role="status"></div>${invites.map(i=>`<div class="workspace-invitation"><div><strong>${esc(i.workspace)}</strong><small>${roles[i.role]} · Expires ${esc(new Date(i.expires_at).toLocaleDateString())}</small></div><button class="primary" data-accept="${i.id}">Accept invitation</button></div>`).join('')}`;dialog.querySelector('[data-close]').onclick=()=>{if(!working)dialog.close();};dialog.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{if(working||!canAcceptInvitation())return;working=true;b.disabled=true;try{const result=await mutate('accept',{id:b.dataset.accept},null);await onChanged(result.id);dialog.close();}catch(e){message(e.message);}finally{working=false;b.disabled=false;}});dialog.showModal();
  }
  return {openWorkspace,openInvitations,close(){generation++;dirty=false;dialog.close();state=null;dialog.innerHTML='';}};
 }

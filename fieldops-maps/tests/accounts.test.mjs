@@ -34,3 +34,18 @@ test('company admin cannot see platform tools and recipient acceptance uses only
  const ui=installAccounts(db,()=>({id:'admin'}),doc,{getWorkspace:()=>state.workspace,getContext:()=>({platform_admin:false})});await doc.querySelector('#people').onclick();doc.querySelector('[data-tab=people]').click();assert.equal(doc.querySelector('[data-tab=companies]'),null);assert.equal(doc.querySelector('[data-member=owner] button').disabled,true);
  await ui.openInvitations([{id:'invite',workspace:'Company',role:'operator',expires_at:'2030-01-01'}]);doc.querySelector('[data-accept]').click();await tick();assert.deepEqual(calls.at(-1)[1],{p_workspace:null,p_action:'accept',p_payload:{id:'invite'}});dom.window.close();
 });
+test('a recipient without admin access can accept, while pending work and server errors remain protected',async()=>{
+ const dom=new JSDOM('<button id="people">Settings</button>'),doc=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ const calls=[],changed=[];let pending=false,fail=false,release;
+ const db={rpc:async(name,args)=>{calls.push([name,args]);await new Promise(resolve=>release=resolve);return fail?{error:{message:'Invitation expired'}}:{data:{id:'argo'}};}};
+ const ui=installAccounts(db,()=>({id:'recipient'}),doc,{canOpen:()=>false,canAcceptInvitation:()=>!pending,onChanged:async id=>changed.push(id)});
+ await ui.openWorkspace();assert.equal(doc.querySelector('dialog').open,false);assert.equal(calls.length,0);
+ await ui.openInvitations([{id:'invite',workspace:'Argo NR',role:'admin',expires_at:'2030-01-01'}]);
+ const button=doc.querySelector('[data-accept]');pending=true;await button.onclick();assert.equal(calls.length,0);
+ pending=false;fail=true;const first=button.onclick();assert.equal(button.disabled,true);await button.onclick();assert.equal(calls.length,1);release();await first;
+ assert.equal(doc.querySelector('[data-message]').textContent,'Invitation expired');assert.equal(button.disabled,false);assert.equal(doc.querySelector('dialog').open,true);assert.deepEqual(changed,[]);
+ fail=false;const retry=button.onclick();release();await retry;
+ assert.deepEqual(calls.at(-1),['workspace_mutate',{p_workspace:null,p_action:'accept',p_payload:{id:'invite'}}]);assert.deepEqual(changed,['argo']);assert.equal(doc.querySelector('dialog').open,false);
+ dom.window.close();
+});

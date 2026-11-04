@@ -313,3 +313,13 @@ Validation: 179 tests pass; production build passes. Local synthetic browser che
 Validation: 186 tests pass and production build succeeds. Browser checks added a 177-country layer, loaded 1,092 real Brisbane building footprints and extracted one as an editable polygon, renamed a group and changed its legend icon, and moved/recalculated/reopened a route endpoint (891.9 m to 778.6 m). Online mixed-route recalculation is additionally covered by automated tests; no customer project was altered during these checks.
 
 This covers these four workflows but does not claim Felt's identical data catalogue, full worldwide state/local coverage, or automatic boundary refresh on every pan. New changes apply to the web portal, not the native TestFlight build.
+
+## Draft saving and Recently deleted (4 November 2026)
+
+- **SAVE**, beside **SYNC**, saves pending layers and layout without publishing a phone release. **SYNC** publishes the current active project.
+- **DrillOps menu → File → Project settings → Delete project** permanently deletes a project after confirmation. The database removes its layers, published releases and basket entries. Offline device copies may remain until devices reconnect.
+- Removing a saved layer moves its complete row and feature records into the workspace's **Recently deleted** basket atomically. Refresh cannot reload archived layers and SYNC cannot publish them. Unsaved local layers require confirmation because they have no stored copy to restore.
+- The basket restores a layer to its original project or another editable project in the same workspace. Geometry, attributes, styling and layer identity are retained. Workspace admins can empty the basket; editable items can be permanently deleted individually. Deleted records expire after 30 days, with database cleanup hourly at minute 17. Browser-only testing cleans expired records when the basket is accessed.
+- Existing phone releases remain unchanged until the next SYNC. Shared uploaded objects and files referenced by published snapshots are retained; this migration purges archived database records, not Storage objects.
+- Apply `20261104080131_layer_recycle_bin.sql` before deploying the web build. The archive is private, RLS-enabled and accessible only through permission-checked functions. Restore destinations must remain inside the workspace. Annotation actions require workspace admin access.
+- Validation: 194 Node tests; production build; real-browser desktop/mobile Save, remove, refresh, restore-to-another-project and project-delete checks; isolated SQL checks; transaction-only integration checks on Shared Map (rolled back). No existing user projects were deleted during validation.

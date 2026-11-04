@@ -1,8 +1,8 @@
 // Testing data stays on this device. This adapter never changes cloud access policies.
 export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
  const ready = new Promise((resolve,reject) => {
-  const request=indexedDB.open('fieldops-maps-testing',1);
-  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files'])request.result.createObjectStore(name,{keyPath:'id'});};
+  const request=indexedDB.open('fieldops-maps-testing',2);
+  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files','trash'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'});};
   request.onsuccess=()=>resolve(request.result);
   request.onerror=()=>reject(Error('Browser storage is unavailable. Allow site storage to save test projects.'));
  });
@@ -23,7 +23,17 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
   const execute=()=>result(async()=>{
    if(action==='insert'){const row={id:crypto.randomUUID(),created_at:new Date().toISOString(),...payload};await put(table,row);return [row];}
    const rows=(await all(table)).filter(r=>!filter||r[filter[0]]===filter[1]);
-   if(action==='delete'){for(const row of rows)await operation(table,'readwrite',s=>s.delete(row.id));}
+   if(action==='delete'){
+    if(table==='maps'){
+     const db=await ready,ids=new Set(rows.map(row=>row.id));
+     await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['maps','layers','trash'],'readwrite');
+      for(const id of ids)tx.objectStore('maps').delete(id);
+      for(const store of ['layers','trash']){const cursor=tx.objectStore(store).openCursor();cursor.onsuccess=()=>{const item=cursor.result;if(!item)return;if(ids.has(item.value.map_id))item.delete();item.continue();};}
+      tx.oncomplete=()=>resolve();tx.onerror=tx.onabort=()=>reject(tx.error||Error('Could not delete project.'));
+     });
+    }else for(const row of rows)await operation(table,'readwrite',s=>s.delete(row.id));
+   }
    if(action==='update'){for(const row of rows){Object.assign(row,payload);await put(table,row);}}
    return rows;
   });
@@ -32,10 +42,37 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
    async single(){const response=await execute();if(response.error)return response;if(response.data.length!==1)return {data:null,error:Error('Project no longer exists. Refresh and try again.')};return {data:response.data[0],error:null};}};
   return query;
  }
+ async function layerBin(args){
+  const db=await ready;
+  return new Promise((resolve,reject)=>{
+   const tx=db.transaction(['maps','layers','trash'],'readwrite'),maps=tx.objectStore('maps'),layers=tx.objectStore('layers'),trash=tx.objectStore('trash');let output,error;
+   const requests=[maps.getAll(),layers.getAll(),trash.getAll()],values=[];let count=0;
+   requests.forEach((request,index)=>request.onsuccess=()=>{values[index]=request.result;if(++count!==3)return;
+    try{
+     const [projects,active,deleted]=values,now=Date.now(),live=deleted.filter(r=>new Date(r.expires_at).getTime()>now);
+     deleted.filter(r=>!live.includes(r)).forEach(r=>trash.delete(r.id));
+     const item=live.find(r=>r.id===args.p_layer),action=args.p_action;
+     if(action==='list')output=live.map(r=>({id:r.id,name:r.layer.name,map_id:r.map_id,project:projects.find(p=>p.id===r.map_id)?.name,deleted_at:r.deleted_at,expires_at:r.expires_at,can_change:true}));
+     else if(action==='empty'){live.forEach(r=>trash.delete(r.id));output={};}
+     else if(action==='trash'){
+      const layer=active.find(l=>l.id===args.p_layer),project=projects.find(p=>p.id===layer?.map_id);if(!layer||!project)throw Error('Layer not found. Refresh and try again.');
+      trash.add({id:layer.id,map_id:layer.map_id,layer,deleted_at:new Date(now).toISOString(),expires_at:new Date(now+30*86400000).toISOString()});layers.delete(layer.id);
+      project.layer_layout=(project.layer_layout||[]).filter(n=>n!==layer.id).map(n=>typeof n==='string'?n:{...n,children:n.children.filter(id=>id!==layer.id)});maps.put(project);output={id:layer.id,map_id:layer.map_id};
+     }else if(action==='purge'){if(!item)throw Error('Deleted layer not found.');trash.delete(item.id);output={id:item.id};}
+     else if(action==='restore'){
+      if(!item)throw Error('Deleted layer is no longer available.');const project=projects.find(p=>p.id===(args.p_target||item.map_id));if(!project)throw Error('Destination project not found.');
+      layers.add({...item.layer,map_id:project.id});project.layer_layout=[...(project.layer_layout||[]),item.id];maps.put(project);trash.delete(item.id);output={id:item.id,map_id:project.id};
+     }else throw Error('Unknown basket action.');
+    }catch(e){error=e;tx.abort();}
+   });
+   tx.oncomplete=()=>resolve(output);tx.onerror=tx.onabort=()=>reject(error||tx.error||Error('Could not update Recently deleted.'));
+  });
+ }
  return {
   from,
   auth:{onAuthStateChange(callback){queueMicrotask(()=>callback('INITIAL_SESSION',{user:{id:'local-testing'}}));}},
   rpc(name,args){return result(async()=>{
+   if(name==='maps_layer_bin')return layerBin(args);
    if(name==='import_vector'){const id=crypto.randomUUID();await put('layers',{id,created_at:new Date().toISOString(),visible:true,opacity:.85,...args.p_layer,feature_count:args.p_features.length,fc:{type:'FeatureCollection',features:args.p_features}});return id;}
    if(name==='layer_geojson'){const row=await operation('layers','readonly',s=>s.get(args.p_layer_id));if(!row)throw Error('Layer not found.');return row.fc;}
    throw Error('Unsupported local operation.');
