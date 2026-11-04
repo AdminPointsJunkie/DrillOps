@@ -47,3 +47,12 @@
 .app-submenu>summary:has(>.tool-label-icon){justify-content:flex-start;gap:10px}
 .app-submenu>summary:has(>.tool-label-icon):after{margin-left:auto}
 .map-context button:has(>.tool-label-icon),.map-context a:has(>.tool-label-icon),.map-context summary:has(>.tool-label-icon){display:flex;align-items:center;justify-content:flex-start;gap:10px}.map-context summary:has(>.tool-label-icon)>span,.map-context button:has(>.tool-label-icon)>kbd{margin-left:auto}
+
+/* Keep large layer lists scannable; secondary controls open on demand. */
+#layers .layer-card:not(.layer-expanded)>.layer-bottom,
+#layers .layer-card:not(.layer-expanded)>.layer-option-buttons,
+#layers .layer-card:not(.layer-expanded)>[data-layer-panel],
+#layers .layer-card:not(.layer-expanded)>.crs-tag{display:none}
+#layers .layer-top strong{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+#layers .layer-top small{line-height:1.4}
+.collapse-layer-controls{align-self:flex-end;font-size:10px;color:#597565;padding:3px 2px 7px}

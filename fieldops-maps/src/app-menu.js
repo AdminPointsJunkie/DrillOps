@@ -1,3 +1,4 @@
+import {installAppearanceSettings} from './appearance.js';
 import {addToolIcon,decorateToolMenu} from './tool-icons.js';
 import {installDisplayUnits} from './display-units.js';
 import {toolDialog} from './explore-dialogs.js';
@@ -14,7 +15,7 @@ export function installAppMenu({accountContent,canCreate,home}){
  const file=group('File');proxy(file,'New project','new-map',true);proxy(file,'Upload files','dropzone',true);proxy(file,'Project settings','project-settings',true);
  const edit=group('Edit');proxy(edit,'Draw and edit features','open-drawing',true);proxy(edit,'Add annotation','open-annotation',true);proxy(edit,'Measure','open-measure');
  const view=group('View');proxy(view,'Toggle layers panel','mobile-layers');proxy(view,'Fit all layers','fit');proxy(view,'Attribute table','open-table');proxy(view,'Find a feature','open-search');proxy(view,'Filter layer','open-filter');
- const settings=group('Settings');installDisplayUnits(settings);const profile=document.getElementById('account-profile');if(profile){settings.append(profile);profile.addEventListener('click',()=>root.open=false);}
+ const settings=group('Settings');installDisplayUnits(settings);installAppearanceSettings(settings);const profile=document.getElementById('account-profile');if(profile){settings.append(profile);profile.addEventListener('click',()=>root.open=false);}
  const help=group('Help and account');const workspaceSwitcher=document.querySelector('.company-switcher');if(workspaceSwitcher)help.append(workspaceSwitcher);proxy(help,'Help','help');action(help,'Tool guide and limits',()=>window.open('./tools.html','_blank','noopener'));action(help,'Supported file types',()=>window.open('./file-types.html','_blank','noopener'));
  for(const b of [...accountContent.querySelectorAll('button')]){help.append(b);b.addEventListener('click',()=>root.open=false);actions.push({get label(){return b.textContent.trim();},run:()=>b.click(),enabled:()=>!b.hidden&&!b.disabled});}accountContent.parentElement.remove();
  function refresh(){decorateToolMenu(content);for(const a of actions)if(a.button){a.button.hidden=(a.edit&&!canCreate())||!!a.source?.hidden;a.button.disabled=!a.enabled();}}
