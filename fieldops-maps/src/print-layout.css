@@ -29,3 +29,41 @@
 .print-edit-hint{flex-basis:100%;padding:7px 10px;border-radius:5px;background:#fff3d8;color:#694500;font-weight:600}.print-item.editing .resize{display:none}
 
 .print-formatted-text{width:100%;height:100%;overflow:hidden}.print-formatted-text svg{display:block}.print-text-style{display:flex;flex-wrap:wrap;gap:10px}.print-text-style label{margin:4px 0}
+
+/* Export-editor-only symbol categories. */
+.print-toolbar{flex-wrap:nowrap;gap:12px;padding:9px 16px;position:relative;z-index:3000}
+.print-toolbar strong{font-size:14px;font-weight:600}
+.print-category-tools{display:flex;align-items:center;gap:6px;margin:auto}
+.print-tool-category{position:relative;border:0;padding:0;margin:0;background:none}
+.print-tool-category>summary{list-style:none;display:flex;align-items:center;justify-content:center;gap:5px;width:52px;height:38px;border:1px solid transparent;border-radius:7px;cursor:pointer;color:#315d49}
+.print-tool-category>summary::-webkit-details-marker{display:none}
+.print-tool-category>summary:hover,.print-tool-category[open]>summary{background:#e9f1ec;border-color:#cbdcd1}
+.print-tool-category>summary:focus-visible,.print-close-icon:focus-visible{outline:2px solid #315d49;outline-offset:2px}
+.print-category-chevron{font-size:13px;opacity:.65}
+.print-category-menu{position:absolute;top:46px;left:0;min-width:180px;padding:7px;background:#fff;border:1px solid #d3dfd7;border-radius:10px;box-shadow:0 8px 25px #17352525;display:grid;gap:2px}
+.print-category-menu>small{padding:7px 9px;color:#6b7d71;font-size:11px}
+.print-category-menu>button{display:flex;align-items:center;gap:10px;border:0;text-align:left;padding:9px 10px;font-size:13px;white-space:nowrap}
+.print-category-menu>button:hover{background:#edf4ef}
+.print-editor .print-close-icon{display:grid;place-items:center;border:0;width:38px;height:38px;padding:8px;background:transparent;margin-left:auto}
+@media(max-width:650px){.print-toolbar{overflow:visible;gap:4px;padding:8px}.print-toolbar strong{font-size:12px}.print-category-tools{gap:0}.print-tool-category>summary{width:38px}.print-category-menu{position:fixed;top:60px;left:12px;right:12px;max-height:65dvh;overflow:auto}}
+
+/* Compact export-only page and element rail. */
+.print-pages{display:flex;flex-direction:column;padding:12px 10px;gap:12px}
+.print-page-switcher{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.print-page-switcher select{width:0;flex:1;min-width:0;padding:8px 5px;border:1px solid #cbd7cf;border-radius:6px;background:white;color:#24362c;font:12px system-ui}
+.print-pages .print-page-switcher button{width:30px;height:32px;display:grid;place-items:center;padding:4px;margin:0;border:0;background:transparent}
+.print-elements-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 5px;font-size:11px;font-weight:600;color:#65786c}
+.print-elements-heading small{font-size:10px;padding:2px 5px;background:#e7eee9;border-radius:5px}
+.print-elements-list{display:flex;flex-direction:column;gap:3px;overflow:auto;min-height:0}
+.print-pages .print-element-choice{display:flex;align-items:center;gap:8px;margin:0;padding:9px 6px;min-height:38px;width:100%;border:1px solid transparent;background:transparent;border-radius:6px;font-size:12px}
+.print-element-choice svg{flex:none;width:16px;height:16px;color:#52705e}
+.print-element-choice span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.print-pages .print-element-choice:hover{background:#edf3ef}
+.print-pages .print-element-choice[aria-pressed=true]{background:#e3eee7;border-color:#aecbb8}
+.print-element-actions{display:flex;gap:5px;padding-top:10px;border-top:1px solid #dde6df;margin-top:auto}
+.print-pages .print-element-actions button{display:grid;place-items:center;width:34px;height:34px;margin:0;padding:7px;background:transparent;border:0}
+.print-element-actions button:last-child{margin-left:auto}
+.print-element-actions button:disabled{cursor:default;opacity:.3}
+.print-local-note{font-size:9px;color:#718277;text-align:center}
+@media(max-width:900px) and (min-width:651px){.print-body{grid-template-columns:140px minmax(100px,1fr) 195px}}
+@media(max-width:650px){.print-pages{display:none}}
