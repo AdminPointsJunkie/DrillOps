@@ -1,8 +1,8 @@
 // Testing data stays on this device. This adapter never changes cloud access policies.
 export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
  const ready = new Promise((resolve,reject) => {
-  const request=indexedDB.open('fieldops-maps-testing',2);
-  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files','trash'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'});};
+  const request=indexedDB.open('fieldops-maps-testing',3);
+  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files','trash','layer_data_versions','map_style_presets'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'});};
   request.onsuccess=()=>resolve(request.result);
   request.onerror=()=>reject(Error('Browser storage is unavailable. Allow site storage to save test projects.'));
  });
@@ -68,11 +68,26 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
    tx.oncomplete=()=>resolve(output);tx.onerror=tx.onabort=()=>reject(error||tx.error||Error('Could not update Recently deleted.'));
   });
  }
+ async function dataWorkflow(name,args){
+  const db=await ready;return new Promise((resolve,reject)=>{
+   const tx=db.transaction(['layers','layer_data_versions'],'readwrite'),ls=tx.objectStore('layers'),vs=tx.objectStore('layer_data_versions');let output,error;
+   const a=ls.getAll(),b=vs.getAll();let count=0;for(const request of [a,b])request.onsuccess=()=>{if(++count<2)return;try{
+    if(name==='apply_map_style'){const selected=args.p_ids.map(id=>a.result.find(l=>l.id===id));if(selected.some(l=>!l))throw Error('A layer is unavailable');for(const l of selected)ls.put({...l,color:args.p_style.color,opacity:args.p_style.opacity,metadata:{...l.metadata,style:{...args.p_style.style,view:l.metadata?.style?.view,popup:l.metadata?.style?.popup}}});}
+    else{const old=a.result.find(l=>l.id===args.p_layer_id);if(!old)throw Error('Layer unavailable');if((old.metadata?.data_revision||'')!==(args.p_expected||''))throw Error('Layer data changed. Refresh and review again.');
+     const restore=args.p_restore?b.result.find(v=>v.id===args.p_restore&&v.layer_id===old.id):null;if(args.p_restore&&!restore)throw Error('Previous version unavailable');
+     const token=crypto.randomUUID(),id=crypto.randomUUID(),layer={...(restore?.layer||args.p_layer),name:old.name,metadata:{...(restore?.layer||args.p_layer).metadata,style:old.metadata?.style,data_revision:token}},features=restore?.features||args.p_features;
+     vs.put({id,layer_id:old.id,created_at:new Date().toISOString(),layer:old,features:old.fc.features});for(const v of b.result.filter(v=>v.layer_id===old.id).sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(2))vs.delete(v.id);
+     ls.put({...old,...layer,fc:{type:'FeatureCollection',features},feature_count:features.length});output={version:id,data_revision:token,layer,features};}
+   }catch(e){error=e;tx.abort();}};
+   tx.oncomplete=()=>resolve(output);tx.onerror=tx.onabort=()=>reject(error||tx.error);
+  });
+ }
  return {
   from,
   auth:{onAuthStateChange(callback){queueMicrotask(()=>callback('INITIAL_SESSION',{user:{id:'local-testing'}}));}},
   rpc(name,args){return result(async()=>{
    if(name==='maps_layer_bin')return layerBin(args);
+   if(['replace_vector_versioned','apply_map_style'].includes(name))return dataWorkflow(name,args);
    if(name==='import_vector'){const id=crypto.randomUUID();await put('layers',{id,created_at:new Date().toISOString(),visible:true,opacity:.85,...args.p_layer,feature_count:args.p_features.length,fc:{type:'FeatureCollection',features:args.p_features}});return id;}
    if(name==='layer_geojson'){const row=await operation('layers','readonly',s=>s.get(args.p_layer_id));if(!row)throw Error('Layer not found.');return row.fc;}
    throw Error('Unsupported local operation.');

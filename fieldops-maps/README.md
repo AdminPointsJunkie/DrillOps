@@ -335,3 +335,50 @@ Upload → Paste spreadsheet or GeoJSON accepts tabular clipboard text, CSV and 
 Style by value adds equal-interval/quantile classification and sequential colour palettes. Ties are kept together; fewer classes are produced when distinct values are insufficient. Preview draws temporary styles on the actual map; Apply saves the style, Cancel removes the preview. Saved explicit class boundaries remain compatible with native rendering.
 
 Analysis now previews the result on the map before Add result layer. Parameter edits invalidate the preview, cancellation terminates the worker and removes temporary geometry, and acceptance checks the source is still open. Results include operation/source/parameter provenance in layer metadata and remain drafts until saved and explicitly synced. Existing 20,000-feature limits and geometry restrictions remain in place. This is an incremental Felt-inspired workflow update, not full Felt feature parity or a new live-collaboration/connected-database backend.
+
+## Data workflows, styling and public viewing (4 November 2026)
+
+Layer Style now includes **Replace data**, **Previous data**, **Presets & bulk styling**
+and **Number formatting**. Replacement uses the existing import review and reuses
+that layer's coordinate-column settings. It previews added/removed columns, blocks
+missing presentation fields and mismatched geometry families, and can match a unique
+record column to retain location attachments and feature groups. Replacements keep
+layer identity, name, presentation and order. Cloud replacement and backup are one
+transaction; the latest three previous datasets can be restored after refresh.
+Recovery keeps the current presentation. It does not publish: Sync is separate.
+Replacement currently accepts one vector dataset per operation; multi-sheet sources
+must be exported to one dataset first. Original TIFF/archive cloud restrictions remain.
+
+Workspace style presets copy colour, opacity, symbol/line/fill settings, labels,
+classification rules and number formats, preserving each target's filters/popups.
+Applying to multiple saved layers is atomic. Missing label/classification/formula
+columns block application. Natural breaks use exact weighted Jenks classification;
+manual limits must cover the numeric data. Style-by-value controls now appear for
+lines and polygons as well as points. Number formats are per column: decimals,
+thousands separators, trimmed zeros, percentages, compact values and prefix/suffix.
+They format display values without rewriting source numbers.
+
+Analysis now clips points and lines as well as polygons, measures nearest distances
+from points, summarizes clipped lengths/areas/values within polygons, and produces
+geometry-validation point reports. Invalid geometries are reported, not silently
+repaired. Saved result settings can be rerun against current inputs; source updates
+do not automatically recalculate existing results. Missing sources block reruns.
+Operations run in cancellable browser workers with map preview before acceptance.
+The 20,000-feature and pair-work limits remain. Heatmaps use a bounded 384-pixel
+Gaussian density image (equal point weights, radius in metres, local Web Mercator
+scale), saved as a regular raster for web/phone publication. Hexagon summaries create
+ordinary count polygons, with a 2,000-cell/5-million-point-cell work limit.
+
+**Share** enables or disables an unguessable view-only link. It is off by default and
+serves only the latest synced release. A separate public viewer supports pan/zoom,
+layer visibility and feature inspection, with no editing, upload, export or publishing
+controls. It exposes published layer data/attributes, not source files or attachment
+files. The endpoint rechecks the link, project and active workspace on every request;
+the viewer checks every 30 seconds. Published raster previews use 60-second signed
+URLs. Previously viewed/downloaded content cannot be recalled. No existing map is
+made public by deployment. A map must have a synced release before viewers can open it.
+
+Direct Drive/OneDrive/Dropbox registrations still need provider account setup and real
+consent verification before those integrations can be enabled; device file imports
+continue to work. This release does not lift cloud/browser size limits or add scheduled
+source refresh, full live collaboration, mobile field capture, or server GIS processing.

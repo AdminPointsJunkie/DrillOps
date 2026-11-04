@@ -1,3 +1,4 @@
+import {naturalBreaks,manualBreaks} from './class-breaks.js';
 import {compileExpression} from './style-expression.js';
 export const attributeSymbols=['circle','square','triangle','diamond','cross'];
 export const attributeFields=fc=>[...new Set((fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))].filter(key=>!key.startsWith('_fieldmaps_'));
@@ -5,7 +6,7 @@ export const stylePalettes={categorical:['#147d72','#c17d28','#6c61aa','#ce6359'
 const palette=['#147d72','#c17d28','#6c61aa','#ce6359','#3087ba','#ad397d','#638c30','#805443'];
 const numeric=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&Number.isFinite(Number(v));
 export const categoryKey=v=>v===null||v===undefined?'null':`${typeof v}:${String(v)}`;
-export function classifyFeatures(fc,field,mode,count=5,method='equal',paletteName='categorical'){
+export function classifyFeatures(fc,field,mode,count=5,method='equal',paletteName='categorical',manual=''){
  const values=(fc?.features||[]).map(f=>f.properties?.[field]);
  const colors=stylePalettes[paletteName]||palette;
  const style=(i,total=count)=>({color:colors[paletteName==='categorical'?i%colors.length:Math.round(i*(colors.length-1)/Math.max(1,total-1))],symbol:'circle',pointSize:12});
@@ -17,11 +18,12 @@ export function classifyFeatures(fc,field,mode,count=5,method='equal',paletteNam
  const numbers=values.filter(numeric).map(Number);if(!numbers.length)throw new Error('This column has no numeric values.');
  let min=Infinity,max=-Infinity;for(const n of numbers){min=Math.min(min,n);max=Math.max(max,n);}
  count=Math.max(2,Math.min(12,Math.round(Number(count)||5)));if(min===max)count=1;
+ if(['jenks','manual'].includes(method)){const breaks=method==='jenks'?naturalBreaks(numbers,count):manualBreaks(numbers,manual);return breaks.slice(0,-1).map((value,i)=>({min:value,max:breaks[i+1],...style(i,breaks.length-1)}));}
  if(method==='quantile'){
   numbers.sort((a,b)=>a-b);const breaks=[min];for(let i=1;i<count;i++){const at=Math.min(numbers.length-2,Math.ceil(i*numbers.length/count)-1);if(at<0||numbers[at]===numbers[at+1])continue;const value=numbers[at]/2+numbers[at+1]/2;if(value>breaks.at(-1)&&value<max)breaks.push(value);}breaks.push(max);
   return breaks.slice(0,-1).map((value,i)=>({min:value,max:breaks[i+1],...style(i,breaks.length-1)}));
  }
- if(method!=='equal')throw Error('Choose equal intervals or quantiles.');
+ if(method!=='equal')throw Error('Choose equal intervals, quantiles, natural breaks or manual limits.');
  return Array.from({length:count},(_,i)=>({min:min+(max-min)*i/count,max:i===count-1?max:min+(max-min)*(i+1)/count,...style(i)}));
 }
 function validStyle(value){
@@ -48,5 +50,5 @@ export function featureAppearance(layer,feature){
  const rules=layer.metadata?.style?.rules;if(!rules||!feature)return layer;
  let evaluate=cache.get(rules);if(!evaluate){try{evaluate=attributeEvaluator(rules,attributeFields(layer.fc));}catch{evaluate=()=>({});}cache.set(rules,evaluate);}
  const style=evaluate(feature.properties||{});
- return {...layer,color:style.color||layer.color,metadata:{...layer.metadata,style:{...layer.metadata?.style,...style}}};
+ return {...layer,color:style.color||layer.color,metadata:{...layer.metadata,style:{...layer.metadata?.style,...style,...(style.color?{fillColor:style.color}:{})}}};
 }

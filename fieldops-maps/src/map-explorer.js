@@ -1,3 +1,4 @@
+import {formatField} from './number-format.js';
 import {appendGroupLegend} from './group-legend.js';
 import {attributeFields,matchesView,legendItems,tableRows,textValue,featureTitle,featureInfo,featureBounds} from './explore-data.js';
 import {escapeHTML as esc,filterDialog,popupDialog} from './explore-dialogs.js';
@@ -26,7 +27,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
   const l=layer(),fields=l?attributeFields(l.fc):[],rows=currentRows();page=Math.min(page,Math.max(0,Math.ceil(rows.length/100)-1));
   if(document.activeElement!==q('[data-table-search]'))q('[data-table-search]').value=l?view(l).search||'':'';
   q('thead').innerHTML=`<tr><th>Show</th>${fields.map(f=>`<th><button data-sort="${esc(f)}">${esc(f)}${sortField===f?(direction===1?' ↑':' ↓'):''}</button></th>`).join('')}</tr>`;
-  q('tbody').innerHTML=rows.slice(page*100,page*100+100).map(({feature,index})=>`<tr data-feature="${index}" class="${selected?.id===current&&selected.index===index?'selected':''}" tabindex="0" aria-label="Show ${esc(featureTitle(l,feature,index))}"><td><button data-show="${index}" aria-label="Show feature on map">◎</button></td>${fields.map(f=>`<td>${esc(textValue(feature.properties?.[f]))}</td>`).join('')}</tr>`).join('');
+  q('tbody').innerHTML=rows.slice(page*100,page*100+100).map(({feature,index})=>`<tr data-feature="${index}" class="${selected?.id===current&&selected.index===index?'selected':''}" tabindex="0" aria-label="Show ${esc(featureTitle(l,feature,index))}"><td><button data-show="${index}" aria-label="Show feature on map">◎</button></td>${fields.map(f=>`<td>${esc(formatField(l,f,feature.properties?.[f]))}</td>`).join('')}</tr>`).join('');
   q('[data-table-count]').textContent=l?`${rows.length.toLocaleString()} of ${l.fc.features.length.toLocaleString()} features${isVisible(l)?'':' · layer hidden'}`:'No vector layers';
   q('[data-page-label]').textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(rows.length/100))}`;
   q('[data-page="-1"]').disabled=page===0;q('[data-page="1"]').disabled=(page+1)*100>=rows.length;

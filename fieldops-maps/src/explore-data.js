@@ -1,3 +1,4 @@
+import {formatField} from './number-format.js';
 import {formatDistance,formatArea} from './display-units.js';
 import {attributeFields as readFields,categoryKey} from './attribute-style.js';
 const fieldCache=new WeakMap(),categoryCache=new WeakMap(),collator=new Intl.Collator(undefined,{numeric:true});
@@ -47,7 +48,7 @@ export function displayFields(layer){
 export function featureTitle(layer,feature,index){const key=layer.metadata?.style?.popup?.titleField||attributeFields(layer.fc).find(f=>/^(hole.?id|name|id|label)$/i.test(f));return textValue(feature.properties?.[key])||`${layer.name} · ${index+1}`;}
 export function featureInfo(layer,feature,document){
  const el=document.createElement('div');el.className='feature-popup';const table=document.createElement('table');
- for(const {field,label} of displayFields(layer)){const tr=document.createElement('tr');for(const value of [label||field,textValue(feature.properties?.[field])||'—']){const td=document.createElement('td');td.textContent=value;tr.append(td);}table.append(tr);}el.append(table);return el;
+ for(const {field,label} of displayFields(layer)){const tr=document.createElement('tr');for(const value of [label||field,formatField(layer,field,feature.properties?.[field])||'—']){const td=document.createElement('td');td.textContent=value;tr.append(td);}table.append(tr);}el.append(table);return el;
 }
 const radians=Math.PI/180,R=6371008.8;
 export function measureDistance(points){let sum=0;for(let i=1;i<points.length;i++){const [x,y]=points[i-1],[xx,yy]=points[i],a=Math.sin((yy-y)*radians/2)**2+Math.cos(y*radians)*Math.cos(yy*radians)*Math.sin((xx-x)*radians/2)**2;sum+=2*R*Math.atan2(Math.sqrt(Math.min(1,a)),Math.sqrt(Math.max(0,1-a)));}return sum;}
