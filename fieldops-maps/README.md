@@ -394,3 +394,10 @@ Releases must preserve `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_APP_ID`, `VITE_GOOG
 Each saved project has a right-hand Supporting Files panel. Documents and images use the existing private file storage and upload metering, separately from GIS layers. PDF, Office documents, text/RTF and common images are accepted, up to 50 MB each, 20 files/300 MB per batch and 200 files per project. Uploads save the project draft immediately; SYNC snapshots the list for assigned app users. Removing a draft reference leaves previously published bytes intact until the normal publication lifecycle permits cleanup. Public viewing links omit supporting document metadata and download access.
 
 The database migration adds a validated `maps.supporting_files` list, an atomic add/remove endpoint, immutable file protection and supporting-file publication snapshots. It preserves the existing workspace/project permissions. Native build 2.0 (24) adds Map / Files navigation, file preview/share and supporting documents in complete offline downloads. Web tests and rolled-back database role tests cover limits, private references and publication isolation; native integration tests cover offline documents and incomplete-package rejection.
+
+
+### Custom print layout boxes — 5 November 2026
+
+Print layout now provides direct Company logo upload/replacement, a selectable Items on page list, four-corner resizing, exact position/size fields, keyboard nudging, and front/back stacking controls. Every box type supports an optional frame with colour and thickness controls. SVG/vector PDF and raster exports share the same frame settings. Layouts and embedded logos remain saved on the current device, including reusable layouts.
+
+Validation: 229 automated tests passed; production build succeeded. Browser checks covered logo upload, dragging, northwest-corner resizing, exact dimensions and frame toggling. Exported PNG was visually checked; SVG contained all six frames and the embedded logo.

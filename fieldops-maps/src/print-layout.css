@@ -9,3 +9,13 @@
 @media(max-width:650px){.print-body,.quick-export .print-body{grid-template-columns:minmax(0,1fr) 180px}.print-pages{display:none}.print-toolbar{max-height:120px;overflow:auto}}
 .print-template-picker{width:min(760px,90vw);max-height:85vh;overflow:auto;border:1px solid #cbd2d9;border-radius:10px;padding:24px;color:#283746;background:white}.print-template-picker::backdrop{background:#18232f66}.print-template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin:20px 0}.print-template-thumb{display:block;position:relative;width:100%;background:white;border:1px solid #aebac4;margin-bottom:10px}.print-template-thumb i{position:absolute;box-sizing:border-box;border:1px solid #aebac4}.print-template-grid button{text-align:left;padding:12px}
 .print-exporting .print-sheet{margin:0;box-shadow:none}
+
+.print-item .resize{width:14px;height:14px;border:2px solid white;border-radius:3px;box-sizing:border-box;background:#376b95;touch-action:none}
+.print-item .resize-nw{left:-7px;top:-7px;right:auto;bottom:auto;cursor:nw-resize}
+.print-item .resize-ne{right:-7px;top:-7px;bottom:auto;cursor:ne-resize}
+.print-item .resize-sw{left:-7px;bottom:-7px;right:auto;cursor:sw-resize}
+.print-item .resize-se{right:-7px;bottom:-7px;cursor:se-resize}
+.print-pages [data-select-item]{font-size:12px;text-transform:none;overflow-wrap:anywhere}
+.print-pages [aria-pressed=true]{background:#e1edf6;border-color:#376b95}
+.print-settings fieldset{border:1px solid #ccd5df;border-radius:6px;margin:14px 0;padding:8px}
+.print-settings legend{font-weight:600}.print-settings input[type=color]{height:36px;padding:3px}

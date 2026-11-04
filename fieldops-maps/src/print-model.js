@@ -30,3 +30,15 @@ export function sampleLayouts(context){
  for(const page of [report,portrait,figure])for(const item of page.items)if(item.type==='map')item.frame=true;
  return [report,portrait,figure].map(page=>({name:page.name,page}));
 }
+
+// Shared by the page preview and vector output so printed frames match the editor.
+export function itemFrame(item){return {enabled:item.frame!==false,color:/^#[0-9a-f]{6}$/i.test(item.frameColor||'')?item.frameColor:'#555555',width:Math.max(.25,Math.min(10,Number(item.frameWidth)||1))};}
+export function resizeItem(item,start,dx,dy,page,corner='se'){
+ const west=corner.includes('w'),north=corner.includes('n');
+ const right=start.x+start.w,bottom=start.y+start.h;
+ const left=west?Math.max(0,Math.min(right-5,start.x+dx)):start.x;
+ const top=north?Math.max(0,Math.min(bottom-5,start.y+dy)):start.y;
+ item.x=left;item.y=top;
+ item.w=west?right-left:Math.max(5,Math.min(page.width-left,start.w+dx));
+ item.h=north?bottom-top:Math.max(5,Math.min(page.height-top,start.h+dy));
+}

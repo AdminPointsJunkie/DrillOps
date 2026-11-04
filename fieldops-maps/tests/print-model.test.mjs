@@ -14,3 +14,17 @@ test('sample layouts keep map frames and all page items inside printable margins
  assert.equal(templates.length,3);
  for(const {page} of templates){for(const item of page.items){assert.ok(item.x>=0&&item.y>=0);assert.ok(item.x+item.w<=page.width);assert.ok(item.y+item.h<=page.height);if(item.type==='map')assert.equal(item.frame,true);}}
 });
+
+
+test('corner resizing anchors the opposite corner and stays within the page',async()=>{
+ const {resizeItem}=await import('../src/print-model.js');const page={width:200,height:100},start={x:20,y:20,w:60,h:40};
+ for(const corner of ['nw','ne','sw','se']){const item={...start};resizeItem(item,start,10,5,page,corner);assert.equal(item.x,corner.includes('w')?30:20);assert.equal(item.y,corner.includes('n')?25:20);assert.equal(item.w,corner.includes('w')?50:70);assert.equal(item.h,corner.includes('n')?35:45);}
+ const item={...start};resizeItem(item,start,-1000,-1000,page,'nw');assert.deepEqual(item,{x:0,y:0,w:80,h:60});resizeItem(item,start,1000,1000,page,'nw');assert.equal(item.w,5);assert.equal(item.h,5);
+ resizeItem(item,start,1000,1000,page,'se');assert.equal(item.x+item.w,200);assert.equal(item.y+item.h,100);
+});
+test('all box types have consistent safe frame defaults and can opt out',async()=>{
+ const {itemFrame}=await import('../src/print-model.js');
+ for(const type of ['map','text','legend','locator','image','section'])assert.deepEqual(itemFrame({type}),{enabled:true,color:'#555555',width:1});
+ assert.deepEqual(itemFrame({frame:false,frameColor:'#123abc',frameWidth:3}),{enabled:false,color:'#123abc',width:3});
+ assert.equal(itemFrame({frameColor:'bad',frameWidth:100}).color,'#555555');assert.equal(itemFrame({frameWidth:100}).width,10);
+});

@@ -1,12 +1,12 @@
 import {xml,textSVG,legendSVG,layerSVG,framePoint,footprint} from './print-cartography.js';
-import {tokens} from './print-model.js';
+import {tokens,itemFrame} from './print-model.js';
 const px=96/25.4;
 const image=(url,w,h)=>`<image width="${w}" height="${h}" href="${xml(url)}" preserveAspectRatio="none"/>`;
 export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
  const {toCanvas}=await import('html-to-image');const width=page.width*px,height=page.height*px;
  let out=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><title>${xml(context.title)}</title><rect width="100%" height="100%" fill="white"/>`,i=0;
  const active=page.items.filter(i=>i.type==='map'),targetFor=item=>active.find(m=>m.id===item.target)||active[0];
- for(const item of [...page.items].sort((a,b)=>Number(b.type==='section')-Number(a.type==='section'))){if(item.hidden)continue;const w=item.w*px,h=item.h*px,id=`clip-${i++}`;
+ for(const item of page.items){if(item.hidden)continue;const w=item.w*px,h=item.h*px,id=`clip-${i++}`;
   out+=`<defs><clipPath id="${id}"><rect width="${w}" height="${h}"/></clipPath></defs><g transform="translate(${item.x*px} ${item.y*px})"><g clip-path="url(#${id})">`;
   if(item.type==='section')out+=`<rect width="${w}" height="${h}" fill="${xml(item.color||'#e8eee9')}"/>`;
   else if(item.type==='text')out+=textSVG(tokens(item.text,context),2,(item.fontSize||14)+2,w-4,item.fontSize||14);
@@ -36,7 +36,7 @@ export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
    if(credit){const lines=Math.ceil(credit.length*8*.56/Math.max(20,w-10));out+=`<rect x="0" y="${h-lines*10-4}" width="${w}" height="${lines*10+4}" fill="white" fill-opacity=".85"/>`+textSVG(credit,4,h-lines*10+4,w-8,8);}
    if(item.scale){const control=m.getContainer().parentElement.parentElement.querySelector('.leaflet-control-scale-line');if(control){const length=control.getBoundingClientRect().width,y=h-32;out+=`<rect x="8" y="${y-14}" width="${length+4}" height="19" fill="white" fill-opacity=".8"/><path d="M10 ${y-3}V${y+2}H${10+length}V${y-3}" fill="none" stroke="#333" stroke-width="1.5"/>`+textSVG(control.textContent,12,y-3,length,9);}}
   }
-  if(item.frame&&['map','locator'].includes(item.type))out+=`<rect x=".5" y=".5" width="${w-1}" height="${h-1}" fill="none" stroke="#555" stroke-width="1"/>`;
+  const frame=itemFrame(item);if(frame.enabled)out+=`<rect x="${frame.width/2}" y="${frame.width/2}" width="${Math.max(0,w-frame.width)}" height="${Math.max(0,h-frame.width)}" fill="none" stroke="${frame.color}" stroke-width="${frame.width}"/>`;
   out+='</g></g>';
  }return out+'</svg>';
 }
