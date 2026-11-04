@@ -12,7 +12,7 @@ export function preparePastedData(text,name='Pasted data'){
   const columns=[...new Set(fc.features.flatMap(f=>Object.keys(f.properties||{})))];
   return {file:new File([JSON.stringify(fc)],name+'.geojson',{type:'application/geo+json'}),count:fc.features.length,columns,rows:fc.features.slice(0,5).map(f=>columns.map(c=>f.properties?.[c]??'')),kind:'features'};
  }
- const parsed=Papa.parse(text.trim(),{skipEmptyLines:'greedy'});if(parsed.errors.some(e=>e.code!=='UndetectableDelimiter'))throw Error('Could not read the table. Check quotes and column separators.');
+ const parsed=Papa.parse(text.replace(/^\uFEFF/,''),{skipEmptyLines:'greedy'});if(parsed.errors.some(e=>e.code!=='UndetectableDelimiter'))throw Error('Could not read the table. Check quotes and column separators.');
  const [raw,...rows]=parsed.data,columns=raw?.map(v=>String(v).trim());
  if(!columns?.length||columns.some(c=>!c)||new Set(columns).size!==columns.length)throw Error('The first row must contain unique, non-empty column names.');
  if(!rows.length)throw Error('Include a header row and at least one data row.');
