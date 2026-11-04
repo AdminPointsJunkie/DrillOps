@@ -1,5 +1,5 @@
 import {xml,textSVG,legendSVG,layerSVG,framePoint,footprint} from './print-cartography.js';
-import {tokens,itemFrame} from './print-model.js';
+import {tokens,itemFrame,orderedPrintLayers} from './print-model.js';
 const px=96/25.4;
 const image=(url,w,h)=>`<image width="${w}" height="${h}" href="${xml(url)}" preserveAspectRatio="none"/>`;
 export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
@@ -11,7 +11,7 @@ export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
   if(item.type==='section')out+=`<rect width="${w}" height="${h}" fill="${xml(item.color||'#e8eee9')}"/>`;
   else if(item.type==='text')out+=textSVG(tokens(item.text,context),2,(item.fontSize||14)+2,w-4,item.fontSize||14);
   else if(item.type==='image')out+=`<image width="${w}" height="${h}" href="${xml(item.src)}" preserveAspectRatio="xMidYMid meet"/>`;
-  else if(item.type==='legend'){const target=targetFor(item);out+=legendSVG(context.layers.filter(l=>target?.layers.includes(l.id)),item,w,h,{title:quick&&page.title?context.title:'Legend',description:quick&&page.description?context.description:''}).markup;}
+  else if(item.type==='legend'){const target=targetFor(item);out+=legendSVG(orderedPrintLayers(target,context.layers),item,w,h,{title:quick&&page.title?context.title:'Legend',description:quick&&page.description?context.description:''}).markup;}
   else if(item.type==='map'||item.type==='locator'){
    const m=maps.get(item.id);if(!m)throw Error('Map view could not be prepared.');const frame=m.getContainer().parentElement;
    const capture=async selected=>{
@@ -26,7 +26,7 @@ export async function pageSVG(page,context,maps,{quick=false,pixelRatio=2}={}){
    };
    const basemap=(item.type==='locator'?targetFor(item)?.basemap:item.basemap)||context.basemap;
    out+=basemap==='none'?`<rect width="${w}" height="${h}" fill="#eef1ee"/>`:image(await capture(null),w,h);
-   if(item.type==='map')for(const layer of context.layers.filter(l=>item.layers.includes(l.id)).slice().reverse()){
+   if(item.type==='map')for(const layer of orderedPrintLayers(item,context.layers).slice().reverse()){
     if(layer.kind==='raster'||layer.metadata?.xyz)out+=image(await capture(layer.id),w,h);else out+=`<g data-layer="${xml(layer.name)}">${layerSVG(layer,m)}</g>`;
    }
    else{const target=maps.get(targetFor(item)?.id);if(target){const d=footprint(target).map((ll,i)=>{const p=framePoint(m,ll);return `${i?'L':'M'}${p[0]} ${p[1]}`;}).join('')+'Z';out+=`<path d="${d}" fill="#cc3333" fill-opacity=".08" stroke="#cc3333" stroke-width="2"/>`;}}

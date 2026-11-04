@@ -21,3 +21,7 @@
 .print-settings legend{font-weight:600}.print-settings input[type=color]{height:36px;padding:3px}
 
 .print-template-picker input{display:block;width:100%;box-sizing:border-box;margin:8px 0 16px;padding:10px;border:1px solid #aebac4;border-radius:5px;font:inherit}.print-template-grid small{display:block;margin-top:5px;color:#526358}
+
+.print-layer-order{max-height:300px}.print-layer-row{display:flex;align-items:center;gap:3px;border-bottom:1px solid #dde3e8}.print-layer-row label{flex:1;min-width:0;overflow-wrap:anywhere}.print-layer-row button{flex:none;padding:5px 8px;margin:0}.print-layer-row button:disabled{cursor:default}
+
+.print-element-row{display:flex;gap:4px;align-items:stretch;margin-bottom:8px}.print-pages .print-element-row button{margin:0}.print-element-row [data-select-item]{flex:1;min-width:0}.print-pages .print-remove-element{width:30px;flex:none;padding:5px;display:grid;place-items:center;color:#98443c}

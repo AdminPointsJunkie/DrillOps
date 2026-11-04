@@ -42,3 +42,14 @@ export function resizeItem(item,start,dx,dy,page,corner='se'){
  item.w=west?right-left:Math.max(5,Math.min(page.width-left,start.w+dx));
  item.h=north?bottom-top:Math.max(5,Math.min(page.height-top,start.h+dy));
 }
+
+export function orderedPrintLayers(item,layers,includeHidden=false){
+ const byId=new Map(layers.map(l=>[l.id,l]));
+ const ids=[...new Set([...(item?.layerOrder||item?.layers||[]),...layers.map(l=>l.id)])];
+ return ids.filter(id=>byId.has(id)&&(includeHidden||(item?.layers||[]).includes(id))).map(id=>byId.get(id));
+}
+export function reorderPrintLayer(item,layers,id,direction){
+ const ids=orderedPrintLayers(item,layers,true).map(l=>l.id),index=ids.indexOf(id),next=index+direction;
+ if(index<0||next<0||next>=ids.length)return false;
+ [ids[index],ids[next]]=[ids[next],ids[index]];item.layerOrder=ids;return true;
+}

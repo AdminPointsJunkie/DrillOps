@@ -28,3 +28,14 @@ test('all box types have consistent safe frame defaults and can opt out',async()
  assert.deepEqual(itemFrame({frame:false,frameColor:'#123abc',frameWidth:3}),{enabled:false,color:'#123abc',width:3});
  assert.equal(itemFrame({frameColor:'bad',frameWidth:100}).color,'#555555');assert.equal(itemFrame({frameWidth:100}).width,10);
 });
+
+test('print layer ordering preserves hidden positions and ignores removed layers',async()=>{
+ const {orderedPrintLayers,reorderPrintLayer}=await import('../src/print-model.js');
+ const layers=['a','b','c'].map(id=>({id})),item={layers:['a','c']};
+ assert.deepEqual(orderedPrintLayers(item,layers).map(l=>l.id),['a','c']);
+ assert.equal(reorderPrintLayer(item,layers,'c',-1),true);
+ assert.deepEqual(orderedPrintLayers(item,layers).map(l=>l.id),['c','a']);
+ item.layers.push('b');assert.deepEqual(orderedPrintLayers(item,layers).map(l=>l.id),['c','a','b']);
+ assert.equal(reorderPrintLayer(item,layers,'c',-1),false);
+ assert.deepEqual(orderedPrintLayers(item,layers.slice(1)).map(l=>l.id),['c','b']);
+});
