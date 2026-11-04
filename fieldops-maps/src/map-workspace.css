@@ -41,3 +41,9 @@
 @media(min-width:761px){.analysis-dialog{position:fixed;top:80px;right:16px;left:auto;bottom:auto;margin:0;width:320px;max-height:calc(100dvh - 100px);padding:20px;border-radius:10px;box-shadow:0 8px 30px #18352325}.analysis-dialog h2{font-size:18px}.analysis-dialog p,.analysis-dialog small{font-size:11px;line-height:1.5}.analysis-dialog .dialog-heading{margin-bottom:8px}}
 .attribute-dialog::backdrop{background:transparent;backdrop-filter:none}
 @media(min-width:761px){.attribute-dialog{position:fixed;left:auto;right:16px;top:80px;bottom:auto;margin:0;width:420px;max-width:calc(100vw - 340px);max-height:calc(100dvh - 100px);padding:20px;border-radius:10px}.attribute-dialog .dialog-heading h2{font-size:19px}.attribute-dialog .attribute-actions{position:sticky;bottom:-20px;background:white;padding:12px 0}}
+/* Tool labels keep their text, with a consistent decorative symbol beside it. */
+.tool-label-icon{flex:0 0 18px;vertical-align:middle;color:currentColor;pointer-events:none}
+.tool-menu-content button:has(>.tool-label-icon),.app-quick-results button:has(>.tool-label-icon){display:flex;align-items:center;gap:10px}
+.app-submenu>summary:has(>.tool-label-icon){justify-content:flex-start;gap:10px}
+.app-submenu>summary:has(>.tool-label-icon):after{margin-left:auto}
+.map-context button:has(>.tool-label-icon),.map-context a:has(>.tool-label-icon),.map-context summary:has(>.tool-label-icon){display:flex;align-items:center;justify-content:flex-start;gap:10px}.map-context summary:has(>.tool-label-icon)>span,.map-context button:has(>.tool-label-icon)>kbd{margin-left:auto}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 import {mapCoordinates,locationLinks} from '../src/map-coordinates.js';
+import {addToolIcon} from '../src/tool-icons.js';
 import {pastedFeatures} from '../src/map-paste.js';
 const catalogue=JSON.parse(await readFile(new URL('../public/crs.json',import.meta.url),'utf8'));
 test('coordinate display uses CRS axis format and transforms the position, while links retain WGS84',async()=>{
@@ -22,7 +23,7 @@ test('Paste here preserves relative geometry, attributes and elevations and reje
 test('menu actions use right-click position, permissions, external links and dismiss stale requests',async()=>{
  const dom=new JSDOM('<div id="map"></div>',{url:'https://example.test',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,handlers={},calls=[];
  const source=(await readFile(new URL('../src/map-context.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replace('export function','function');
- Object.assign(w,{locationLinks,canEdit:true});w.eval(source+';window.install=installMapContext;');
+ Object.assign(w,{locationLinks,addToolIcon,canEdit:true});w.eval(source+';window.install=installMapContext;');
  let resolve;const map={on:(event,fn)=>{handlers[event]=fn;},getContainer:()=>w.document.querySelector('#map'),getZoom:()=>14};
  const menu=w.install({map,coordinates:()=>new Promise(r=>resolve=r),canEdit:()=>w.canEdit,comment:at=>calls.push(['comment',at]),measure:(kind,at)=>calls.push([kind,at]),compare:()=>calls.push(['compare']),paste:(text,at)=>calls.push([text,at]),notify:()=>{}});
  const event={latlng:{lat:-27,lng:153},containerPoint:{x:40,y:40},originalEvent:{clientX:40,clientY:40}};

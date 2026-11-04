@@ -1,13 +1,15 @@
+import {addToolIcon} from './tool-icons.js';
 import {locationLinks} from './map-coordinates.js';
 import './map-context.css';
 export function installMapContext({map,coordinates,canEdit,comment,measure,compare,paste,notify}){
  const menu=document.createElement('section');menu.className='map-context';menu.hidden=true;menu.setAttribute('aria-label','Map location actions');document.body.append(menu);
  menu.innerHTML=`<button class="context-coordinate" data-copy disabled>Loading coordinates…</button><small data-crs></small><button data-comment>Add comment…</button><details><summary>Measure <span>›</span></summary><div class="context-submenu"><button data-measure="distance">Distance</button><button data-measure="area">Area</button></div></details><button data-compare>Compare…</button><hr><details><summary>Open in <span>›</span></summary><div class="context-submenu" data-links></div></details><hr><button data-paste>Paste here <kbd>⌘ V</kbd></button>`;
+ menu.querySelectorAll('button:not(.context-coordinate),summary').forEach(addToolIcon);
  let point=null,text='',revision=0;
  const close=()=>{menu.hidden=true;revision++;menu.querySelectorAll('details').forEach(d=>d.open=false);};
  async function open(e){close();point={lat:e.latlng.lat,lng:e.latlng.lng};const current=revision;menu.hidden=false;text='';const copy=menu.querySelector('[data-copy]');copy.disabled=true;copy.textContent='Loading coordinates…';menu.querySelector('[data-crs]').textContent='';
   for(const name of ['comment','paste'])menu.querySelector(`[data-${name}]`).disabled=!canEdit();
-  const links=menu.querySelector('[data-links]');links.replaceChildren();for(const [name,url] of locationLinks(point,map.getZoom())){const a=document.createElement('a');a.textContent=name;a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.onclick=close;links.append(a);}
+  const links=menu.querySelector('[data-links]');links.replaceChildren();for(const [name,url] of locationLinks(point,map.getZoom())){const a=document.createElement('a');a.textContent=name;a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.onclick=close;addToolIcon(a);links.append(a);}
   const rect=map.getContainer().getBoundingClientRect(),x=e.originalEvent?.clientX??rect.left+e.containerPoint.x,y=e.originalEvent?.clientY??rect.top+e.containerPoint.y;
   menu.style.left=Math.max(8,Math.min(x,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-menu.offsetHeight-8))+'px';menu.classList.toggle('open-left',x+menu.offsetWidth+202>innerWidth);menu.querySelector('[data-compare]').focus();
   try{const result=await coordinates(point);if(current!==revision)return;text=result.text;copy.textContent=text;copy.disabled=false;menu.querySelector('[data-crs]').textContent=result.label+' · '+result.axes;}catch(error){if(current===revision){copy.textContent='Coordinates unavailable';menu.querySelector('[data-crs]').textContent=error.message;}}
