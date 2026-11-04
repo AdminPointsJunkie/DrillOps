@@ -382,3 +382,9 @@ Direct Drive/OneDrive/Dropbox registrations still need provider account setup an
 consent verification before those integrations can be enabled; device file imports
 continue to work. This release does not lift cloud/browser size limits or add scheduled
 source refresh, full live collaboration, mobile field capture, or server GIS processing.
+
+### Cloud provider activation — 5 November 2026
+
+Google Drive and Dropbox registrations are configured for `www.drillops.com.au`. Google uses the DrillOps project `gen-lang-client-0336912368` (number `497875615131`), a website OAuth client, `drive.file`, and a browser key restricted to Drive/Picker and the required referrers. Dropbox uses the Chooser with the registered website domain; Chooser does not require production approval. Public browser identifiers are kept in the local build environment; no OAuth client secret is used by this application. OneDrive remains disabled until its Microsoft app registration is completed.
+
+Releases must preserve `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_APP_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_DROPBOX_APP_KEY` when rebuilding. Do not claim a provider was live-tested from mocked unit tests alone.
