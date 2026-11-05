@@ -29,3 +29,19 @@ test('DWG sections share original DWG provenance and retain colours and CAD laye
  const file=drawing();const layer={id:'source',kind:'vector',name:'Survey',files:[file],metadata:{format:'DWG',cad_import:{reader:'ACadSharp'}},fc:{type:'FeatureCollection',features:[{type:'Feature',properties:{Layer:'Survey points','CAD colour':'#ff0000'},geometry:{type:'Point',coordinates:[153,-27]}},{type:'Feature',properties:{Layer:'Boundary'},geometry:{type:'LineString',coordinates:[[153,-27],[153.1,-27.1]]}}]}};
  const parts=splitDXFSections(layer);assert.equal(parts.length,2);assert.equal(parts[0].files[0],file);assert.equal(parts[0].sourceUpload,parts[1].sourceUpload);assert.equal(parts[0].fc.features[0].properties.Layer,'Survey points');assert.equal(parts[0].metadata.format,'DWG');
 });
+
+test('DWG imports preserve original named layers, mixed geometry, colours and shared source',()=>{
+ const original=drawing(),point={type:'Feature',properties:{Layer:'Drill targets','CAD colour':'#ff0000',Text:'Hole 1'},geometry:{type:'Point',coordinates:[148,-22,99]}},line={type:'Feature',properties:{Layer:'Drill targets','CAD colour':'#00ff00'},geometry:{type:'LineString',coordinates:[[148,-22],[148.1,-22.1]]}},other={...structuredClone(point),properties:{Layer:'Lease boundary','CAD colour':'#0000ff'}};
+ const source={id:'drawing',name:'Original drawing',kind:'vector',files:[original],source_crs:'EPSG:28355',metadata:{format:'DWG',source_layer:'entities',style:{labelField:'Text'},dxf_geometry:'point'},fc:{type:'FeatureCollection',features:[point,other,line]}};
+ const parts=splitDXFSections(source);
+ assert.deepEqual(parts.map(p=>p.name),['Drill targets','Lease boundary']);assert.deepEqual(parts.map(p=>p.feature_count),[2,1]);assert.deepEqual(parts[0].fc.features,[point,line]);
+ assert.equal(parts[0].metadata.cad_layer,'Drill targets');assert.equal(parts[0].metadata.dxf_geometry,undefined);assert.equal(parts[0].metadata.source_layer,'entities');assert.equal(parts[0].source_crs,'EPSG:28355');
+ assert.equal(parts[0].files[0],original);assert.equal(parts[0].sourceUpload,parts[1].sourceUpload);assert.notEqual(parts[0].id,parts[1].id);
+ parts[0].fc.features[0].properties.Text='Changed';assert.equal(point.properties.Text,'Hole 1');
+});
+test('rebuilding a renamed DWG layer keeps only its original CAD layer; legacy geometry sections still rebuild',()=>{
+ const source={id:'edited',name:'Renamed targets',kind:'vector',metadata:{format:'DWG'},fc:{type:'FeatureCollection',features:['Targets','Roads','Targets'].map((Layer,i)=>({type:'Feature',properties:{Layer},geometry:{type:'Point',coordinates:[148+i/100,-22]}}))}};
+ const [part]=splitDXFSections(source,{cadLayer:'Targets'});assert.equal(part.id,'edited');assert.equal(part.name,'Renamed targets');assert.equal(part.feature_count,2);assert.ok(part.fc.features.every(f=>f.properties.Layer==='Targets'));
+ assert.throws(()=>splitDXFSections(source,{cadLayer:'Missing'}),/no longer contains/);
+ assert.equal(splitDXFSections(source,{only:'point'})[0].fc.features.length,3);
+});

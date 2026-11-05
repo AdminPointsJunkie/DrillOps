@@ -29,6 +29,7 @@ import {openDataLibrary} from './data-library.js';
 import {openRoute} from './route-ui.js';
 import {installFeatureExtract} from './feature-extract.js';
 import {installMapSelection} from './map-selection.js';
+import {createSelectionDeletion} from './selection-delete.js';
 import {editFeatureAttributes} from './feature-attributes.js';
 import {toolDialog} from './explore-dialogs.js';
 import {openCloudImport} from './cloud-import.js';
@@ -371,7 +372,8 @@ function openReview(i){if(busy)return;reviewIndex=i;const q=queue[i];$('#review-
  }
  if(q.rows){for(const s of ['#csv-x','#csv-y'])$(s).innerHTML=q.fields.map(f=>`<option>${esc(f)}</option>`).join('');$('#csv-x').value=q.fields.find(f=>/^(lon|lng|longitude|easting|x)$/i.test(f))||q.fields[0];$('#csv-y').value=q.fields.find(f=>/^(lat|latitude|northing|y)$/i.test(f))||q.fields[1]||q.fields[0];}
  if(q.review){const r=q.review;selectCRS(r.selectedCRS,r.selectedLabel);$('#layer-name').value=r.name;$('#custom-crs').value=r.custom||'';$('#vertical').value=r.vertical;if(r.x)$('#csv-x').value=r.x;if(r.y)$('#csv-y').value=r.y;$('#epoch').value=r.epoch||'';$('#pipeline').value=r.pipeline||'';$('#gcps').value=r.gcps||'';}
- if(['DXF','DWG'].includes(q.format)&&!q.editLayer)$('#import-crs-note').textContent+=' Points, lines and shapes will be imported as separate editable layers.';
+ if(q.format==='DWG'&&!q.editLayer)$('#import-crs-note').textContent+=' Original CAD layers will be preserved as separate editable layers, grouped under the drawing.';
+ else if(q.format==='DXF'&&!q.editLayer)$('#import-crs-note').textContent+=' Points, lines and shapes will be imported as separate editable layers.';
  if(q.replaceTarget){$('#import-crs-note').textContent='Replace data: review coordinates, then check changed columns. Presentation is retained.';}if(q.editLayer){$('#import-crs-note').textContent='Editing this layer’s source settings. Save to rebuild it from the original file.';$('#use-embedded').hidden=true;}$('#import-layer').textContent=q.replaceTarget?'Review replacement →':q.editLayer?'Save layer settings':'Import layer →';$('#review').showModal();}
 $('#crs-search').oninput=()=>{selectedCRS='';selectedLabel='';$('#crs-selected').textContent='Select a result to confirm the coordinate system.';const term=$('#crs-search').value.toLowerCase().trim();const terms=term.replace('epsg:','').split(/\s+/);let matches=crsList.filter(c=>terms.every(t=>(c.code+' '+c.name).toLowerCase().includes(t)));matches.sort((a,b)=>Number(b.code.toLowerCase()==='epsg:'+term)-Number(a.code.toLowerCase()==='epsg:'+term));matches=matches.slice(0,40);$('#crs-results').innerHTML=matches.map(c=>`<button type="button" role="option" data-code="${c.code}"><b>${c.code}</b><span>${esc(c.name)}</span></button>`).join('')||'<p>No matching EPSG reference. You can enter WKT or PROJ under advanced settings.</p>';$('#crs-results').hidden=false;$('#crs-search').setAttribute('aria-expanded','true');};
 $('#crs-results').onclick=e=>{const b=e.target.closest('[data-code]');if(b){const c=crsList.find(c=>c.code===b.dataset.code);selectCRS(c.code,`${c.code} — ${c.name}`);}};
@@ -443,7 +445,7 @@ async function replaceLayer(old,next,replaceStyle=false){
  }
  if(!layers.includes(old))return;
  const oldURL=old.url,oldRaster=old.raster_path;
- syncDirty=true;map.removeLayer(rendered.get(old.id));Object.assign(old,payload,{fc:next.fc,blob:next.blob,url:next.url,files:next.files});
+ syncDirty=true;map.removeLayer(rendered.get(old.id));Object.assign(old,payload,{fc:next.fc,blob:next.blob,url:next.url,files:next.files,...(next.kind==='vector'?{feature_count:next.fc.features.length}:{})});
  const ml=makeLayer(old);rendered.set(old.id,ml);if(isVisible(old))ml.addTo(map);renderLayers();updateEmpty();
  if(oldURL?.startsWith('blob:'))URL.revokeObjectURL(oldURL);
  if(rasterPath&&oldRaster)await db.storage.from('gis-files').remove([oldRaster]);
@@ -463,7 +465,9 @@ async function reviewAction(isPreview){
   const pending=convertCurrent(progress);
   if(background){$('#review').close();progress('Preparing raster in the background…');}
   let l=await pending;
-  if((q.editLayer||q.replaceTarget)?.metadata?.dxf_geometry)l=splitDXFSections(l,{only:(q.editLayer||q.replaceTarget).metadata.dxf_geometry})[0];
+  const sourceMetadata=(q.editLayer||q.replaceTarget)?.metadata;
+  if(sourceMetadata?.cad_layer!==undefined)l=splitDXFSections(l,{cadLayer:sourceMetadata.cad_layer})[0];
+  else if(sourceMetadata?.dxf_geometry)l=splitDXFSections(l,{only:sourceMetadata.dxf_geometry})[0];
   if(preview){map.removeLayer(preview);preview=null;}
   if(isPreview){
    preview=makeLayer(l).addTo(map);if(!background)map.fitBounds(preview.getBounds(),{padding:[45,45],maxZoom:17});
@@ -474,9 +478,9 @@ async function reviewAction(isPreview){
    const imported=q.editLayer?[l]:['DXF','DWG'].includes(l.metadata?.format)?splitDXFSections(l):[l];
    if(q.editLayer)await replaceLayer(q.editLayer,l);else{
     imported.forEach(addLayer);
-    if(q.importGroup&&imported.length===1){const ids=imported.map(part=>part.id);layerTree=layerTree.filter(node=>!ids.includes(node));let group=layerTree.find(node=>node.id===q.importGroup.id);if(!group){group={...q.importGroup,visible:true,collapsed:false,children:[]};layerTree.unshift(group);}group.children.push(...ids);renderLayers();}
+    if(q.importGroup&&imported.length===1&&l.metadata?.format!=='DWG'){const ids=imported.map(part=>part.id);layerTree=layerTree.filter(node=>!ids.includes(node));let group=layerTree.find(node=>node.id===q.importGroup.id);if(!group){group={...q.importGroup,visible:true,collapsed:false,children:[]};layerTree.unshift(group);}group.children.push(...ids);renderLayers();}
 
-    if(imported.length>1){const ids=imported.map(part=>part.id);layerTree=layerTree.filter(node=>!ids.includes(node));layerTree.unshift({id:crypto.randomUUID(),name:l.name,visible:true,collapsed:false,children:ids});renderLayers();}
+    if(imported.length>1||l.metadata?.format==='DWG'){const ids=imported.map(part=>part.id);layerTree=layerTree.filter(node=>!ids.includes(node));layerTree.unshift({id:crypto.randomUUID(),name:l.name,visible:true,collapsed:false,children:ids});renderLayers();}
    }
    queue.splice(queue.indexOf(q),1);renderQueue();$('#review').close();if(!background)fit();
    if(user&&!q.editLayer){const failures=[];for(const part of imported){try{await saveLayer(part,progress);}catch(e){failures.push(`${part.name}: ${errorText(e)}`);}}if(failures.length){if(background)importJob(l.name,'Imported, but saving failed: '+failures.join('; ')+' Use Save on the layer to retry.',false);toast('Imported; saving needs attention: '+failures.join('; '));return;}}
@@ -735,7 +739,30 @@ async function updateFeatureGroups(selected,group){
  }
  mapSelection.refresh();
 }
+const selectionDeletion=createSelectionDeletion({getLayers:()=>layers,getScope:analysisScope,canEdit:canEditLayer,
+ replace:(layer,values)=>replaceLayer(layer,{...layer,...values},true),
+ remove:async layer=>{
+  const parent=parentGroup(layerTree,layer.id),list=parent?.children||layerTree,location={parent:parent?.id,index:list.findIndex(n=>nodeId(n)===layer.id)};
+  if(layer.saved){const {error}=await db.rpc('maps_layer_bin',{p_workspace:currentWorkspace?.id,p_action:'trash',p_layer:layer.id});if(error)throw error;}
+  map.removeLayer(rendered.get(layer.id));rendered.delete(layer.id);layers=layers.filter(l=>l!==layer);removeNode(layerTree,layer.id);return location;
+ },
+ restore:async(layer,location)=>{
+  if(layer.saved){const {error}=await db.rpc('maps_layer_bin',{p_workspace:currentWorkspace?.id,p_action:'restore',p_layer:layer.id,p_target:activeMap.id});if(error)throw error;}
+  layers.push(layer);const list=layerTree.find(n=>n.id===location.parent)?.children||layerTree;list.splice(Math.max(0,location.index),0,layer.id);
+  const ml=makeLayer(layer);rendered.set(layer.id,ml);if(isVisible(layer))ml.addTo(map);
+ }
+});
+async function deleteSelection(selected,undo=false){
+ if(!canCreate()||homeUI?.active||geometryEditor?.active||fieldTools?.pending||layoutPending||styleSaves.size||saves.state().pending||layers.some(l=>l.saving))throw Error('Finish the current edits and saves first.');
+ setBusy(true,undo?'Restoring selected features…':'Deleting selected features…');
+ try{
+  const result=await (undo?selectionDeletion.undo():selectionDeletion.delete(selected));
+  if(result.count){syncDirty=true;explorer?.reset();renderLayers();updateEmpty();await saveLayout();toast(`${result.count} feature${result.count===1?'':'s'} ${undo?'restored':'deleted'}.${undo?'':' Undo with ⌘Z / Ctrl+Z.'}`);}
+  if(result.errors.length)throw Error(result.errors.join(' '));
+ }finally{setBusy(false);}
+}
 mapSelection=installMapSelection({L,map,getLayers:()=>layers,isVisible,acceptFeature:(l,f)=>!explorer||explorer.acceptFeature(l,f),canEdit:canEditLayer,notify:toast,
+ onDelete:selected=>deleteSelection(selected),onUndoDelete:()=>deleteSelection([],true),canUndoDelete:()=>selectionDeletion.canUndo,
  onActivate:()=>{if(geometryEditor?.active||fieldTools?.pending){toast('Finish the current drawing first.');return false;}fieldTools?.reset();featureExtract?.reset();document.querySelector('.route-panel')?.close();mapComparison?.close();identify(false);},
  onInspect:s=>{if(s.index!==null)explorer.select(s.layer,s.index,false);else toast(s.layer.name+' · image layer');},
  onEdit:async s=>{if(s.layer.kind==='vector'){await openDrawing(s.layer);if(!s.layer.metadata?.routing)geometryEditor?.selectFeature(s.index);}else await openLayerSettings(s.layer);},

@@ -48,3 +48,15 @@ test('rebuilding source settings replaces only the existing DXF section',async()
  h.context.replaceLayer=async(a,b)=>{assert.equal(a,old);replacement=b;};await h.context.reviewAction(false);
  assert.equal(replacement.fc.features.length,1);assert.equal(replacement.fc.features[0].geometry.type,'LineString');assert.equal(replacement.metadata.dxf_geometry,'line');assert.equal(h.context.layers.length,0);assert.equal(h.uploaded.length,0);
 });
+
+test('DWG import creates one group with the original CAD layer names and uploads the drawing once',async()=>{
+ const h=harness();h.context.convertCurrent=async()=>{const l=makeLayer();l.metadata.format='DWG';l.files=[{name:'survey.dwg',size:100}];l.fc.features.forEach((f,i)=>f.properties.Layer=i===1?'Roads':'Targets');return l;};
+ await h.context.reviewAction(false);
+ assert.deepEqual(h.context.layers.map(l=>l.name),['Targets','Roads']);assert.deepEqual(h.context.layers.map(l=>l.metadata.cad_layer),['Targets','Roads']);assert.deepEqual(h.context.layers.map(l=>l.fc.features.length),[2,1]);assert.equal(h.uploaded.length,1);assert.equal(h.context.layerTree[0].name,'Survey');assert.equal(h.context.layerTree[0].children.length,2);
+});
+test('DWG source-setting rebuild replaces only its named CAD layer',async()=>{
+ const h=harness(),old={id:'existing',metadata:{format:'DWG',cad_layer:'Targets'}};h.context.queue=[{kind:'vector',editLayer:old}];let replacement;
+ h.context.convertCurrent=async()=>{const l=makeLayer();l.metadata.format='DWG';l.fc.features.forEach((f,i)=>f.properties.Layer=i===1?'Roads':'Targets');return l;};
+ h.context.replaceLayer=async(a,b)=>{assert.equal(a,old);replacement=b;};await h.context.reviewAction(false);
+ assert.equal(replacement.fc.features.length,2);assert.ok(replacement.fc.features.every(f=>f.properties.Layer==='Targets'));assert.equal(replacement.metadata.cad_layer,'Targets');
+});
