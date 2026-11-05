@@ -413,3 +413,9 @@ Map framing interaction: double-click inside a map box to pan/zoom; double-click
 Select a text box to set its font, size, bold, italic, underline, text colour, alignment, line spacing, padding and optional background colour. Formatting applies to the whole box and is retained in saved custom layouts. Preview and export share text layout rendering; vector PDF uses standard PDF font variants for styled text.
 
 Validation: 233 tests passed, production build passed, and browser/PDF checks confirmed coloured, centred, bold/italic/underlined text.
+
+### Workspace and public layer library — preview, 5 November 2026
+
+The existing library entry opens a searchable browser with Workspace, Public data and admin-only Archived tabs, categories and actual geometry previews. Owners/admins save independent snapshots of current vector layers, cloud imagery or XYZ settings, with names/descriptions and presentation. Editors reuse copies. Feature attachments and original upload files are excluded; local-only GeoTIFFs remain local. Maximum snapshot file size is 50 MB. Archive/restore preserves project copies. Public data starts with the five existing attributed Natural Earth/grid datasets; it does not claim the full Felt catalogue.
+
+Private layer-library storage and the workspace_layer_library table were installed with RLS. Rolled-back live database checks passed owner save/read, editor read, editor write denial, archived-row hiding, operator exclusion and unrelated-user isolation. The security advisor reported no library findings. All 239 tests and production build pass. Local browser verification saved a sample layer, reopened it, previewed it and added a separate project copy; public Countries preview was checked. Screenshots: Shared Map/verification/layer-library-20261105. Website deployment remains pending user preview approval.

@@ -1,8 +1,8 @@
 // Testing data stays on this device. This adapter never changes cloud access policies.
 export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
  const ready = new Promise((resolve,reject) => {
-  const request=indexedDB.open('fieldops-maps-testing',3);
-  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files','trash','layer_data_versions','map_style_presets'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'});};
+  const request=indexedDB.open('fieldops-maps-testing',4);
+  request.onupgradeneeded=()=>{for(const name of ['maps','layers','files','trash','layer_data_versions','map_style_presets','workspace_layer_library'])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name,{keyPath:'id'});};
   request.onsuccess=()=>resolve(request.result);
   request.onerror=()=>reject(Error('Browser storage is unavailable. Allow site storage to save test projects.'));
  });
