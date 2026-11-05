@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WasmBuildNative>false</WasmBuildNative>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <WasmEnableHotReload>false</WasmEnableHotReload>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="$(ACadSharpProject)" /></ItemGroup>
+</Project>

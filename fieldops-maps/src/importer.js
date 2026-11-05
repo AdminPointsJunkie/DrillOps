@@ -1,3 +1,4 @@
+import {convertDWG,preserveCADColours} from './dwg-import.js';
 import {repairDXFHatches} from './dxf-hatches.js';
 import initGdalJs from 'gdal3.js';
 const workerUrl=import.meta.env.BASE_URL+'gdal-worker.js';
@@ -12,7 +13,7 @@ import {fileLayerName} from './layer-name.js';
 let engine;
 export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
 const id=()=>crypto.randomUUID().replaceAll('-','');
-export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive}={}){
+export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive,dwg=convertDWG}={}){
  const all=[...files];if(all.length>25)throw Error('Select up to 25 files at a time.');
  if(all.some(f=>f.size>(/\.tiff?$/i.test(f.name)?250:50)*1024*1024))throw Error('GeoTIFF files must be 250 MB or smaller; other files must be 50 MB or smaller.');
  if(all.reduce((s,f)=>s+f.size,0)>300*1024*1024)throw Error('Import up to 300 MB per batch.');
@@ -29,9 +30,10 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
     }
     if(imagePattern.test(primary.name)&&group.length===1){items.push(...await readImages(primary,sourceFiles));continue;}
     const special=await readSpecial(primary,sourceFiles);if(special){items.push(...special);continue;}
+    const cad=/\.dwg$/i.test(primary.name)?await dwg(primary,progress):null;
     const G=await engine();
     // Preserve sidecar names within each dataset, without archive directory prefixes.
-    const inputs=/\.vrt$/i.test(primary.name)?await prepareVRT(primary,batch):group;
+    const inputs=/\.vrt$/i.test(primary.name)?await prepareVRT(primary,batch):cad?[cad.file]:group;
     const mounted=inputs.map(f=>f.name.includes('/')?new File([f],f.name.split('/').at(-1)):f);
     const result=await G.open(mounted,[],/\.(zip|kmz)$/i.test(primary.name)?['vsizip']:[]);
     let count=0;
@@ -54,7 +56,7 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
         items.push({name:fileLayerName(group,ds.path,layer.name,true),layerName:layer.name,kind:'vector',format:'OSM',files:sourceFiles,fc,source:'EPSG:4326',count:fc.features.length});count++;continue;
        }
        const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
-       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',format:/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
+       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',cad:cad?{warnings:cad.warnings,reader:cad.reader,entityCount:cad.entityCount}:null,format:cad?'DWG':/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
       }
      }
     }
@@ -82,11 +84,12 @@ export async function convert(item,settings,progress=()=>{}){
  if(settings.pipeline)opts.push('-ct',settings.pipeline);
  if(settings.gcps){const rows=settings.gcps.trim().split('\n').filter(Boolean);if(rows.length<3)throw Error('Enter at least three control points.');for(const row of rows){const v=row.split(/[,\s]+/).map(Number);if(v.length!==4||!v.every(Number.isFinite))throw Error('Each control point needs local X, local Y, target X, target Y.');opts.push('-gcp',...v.map(String));}opts.push('-order','1');}
  if(item.kind==='vector'){
- const options=['-f','GeoJSON',...opts,'-lco','RFC7946=YES'];if(item.layerName)options.push(item.layerName);
+ const options=['-f','GeoJSON',...opts,'-lco','RFC7946=YES'];if(item.format==='DWG')options.push('-sql',`SELECT *, OGR_STYLE FROM "${String(item.layerName).replaceAll('"','""')}"`);else if(item.layerName)options.push(item.layerName);
  progress('Transforming vector coordinates…');
  const out=await G.ogr2ogr(ds,options,`vector_${id()}`);
  const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));
- if(item.format==='DXF')await repairDXFLayer(fc);
+ if(['DXF','DWG'].includes(item.format))await repairDXFLayer(fc);
+ if(item.format==='DWG')preserveCADColours(fc);
  const bounds=validateCollection(fc);if(csv)await G.close(ds);return {fc,bounds};
  }
  // Reproject the raster to the map's actual projection before making a bounded display image.

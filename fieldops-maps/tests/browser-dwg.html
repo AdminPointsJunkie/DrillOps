@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>DWG import verification</title><h1>DWG import verification</h1><pre id="results">Running browser DWG → DXF → map checks…</pre><script type="module">
+import {inspect,convert} from '../src/importer.js';
+import {splitDXFSections} from '../src/dxf-sections.js';
+import {vectorStyle} from '../src/layer-style.js';
+const log=document.querySelector('#results'),messages=[];
+const assert=(yes,message)=>{if(!yes)throw Error(message);};
+const file=async name=>new File([await (await fetch('./fixtures/dwg/'+name)).arrayBuffer()],name);
+try{
+ const original=await file('control.dwg');
+ const dwg=await inspect([original],m=>{log.textContent=m;});
+ assert(!dwg.errors.length,dwg.errors.join('; '));assert(dwg.items.length===1,'Expected one model-space dataset');
+ const q=dwg.items[0];assert(q.format==='DWG'&&q.files[0]===original,'Original DWG provenance lost');assert(!q.source,'Drawing should require CRS confirmation');
+ const data=await convert(q,{crs:'EPSG:7856'},m=>{log.textContent=m;});
+ const dxf=await inspect([await file('control.dxf')]);assert(!dxf.errors.length,dxf.errors.join('; '));
+ const baseline=await convert(dxf.items[0],{crs:'EPSG:7856'});
+ assert(data.fc.features.length===baseline.fc.features.length,'DWG/DXF feature counts differ');
+ const coordinates=value=>typeof value[0]==='number'?[value[0],value[1],value[2]??0].map(n=>Math.round(n*1e7)/1e7):value.map(coordinates);
+ const normalize=fc=>fc.features.map(f=>JSON.stringify({geometry:{type:f.geometry.type,coordinates:coordinates(f.geometry.coordinates)},layer:f.properties.Layer,text:f.properties.Text})).sort();
+ // CAD writers can make implicit zero elevations explicit; compare geometry semantically.
+ assert(JSON.stringify(normalize(data.fc))===JSON.stringify(normalize(baseline.fc)),'Geometry, block placement, text or CAD layer names changed');
+ const point=data.fc.features.find(f=>f.geometry.type==='Point'&&!f.properties.Text);
+ assert(Math.abs(point.geometry.coordinates[0]-153)<.00001&&point.geometry.coordinates[1]<-27&&point.geometry.coordinates[1]>-28,'Wrong map position');assert(point.geometry.coordinates[2]===125,'Elevation lost');
+ assert(data.fc.features.some(f=>f.properties['CAD colour']==='#ff0000'),'Red CAD colour missing');assert(data.fc.features.some(f=>f.properties['CAD colour']==='#00ff00'),'Green CAD colour missing');
+ const layer={id:'test',name:'DWG control',kind:'vector',color:'#999999',opacity:1,files:[original],fc:data.fc,metadata:{format:'DWG',style:{rules:{mode:'expression',expressions:{color:'[CAD colour]'}}}}};
+ const parts=splitDXFSections(layer);assert(parts.length>=2,'Editable geometry sections missing');assert(parts.every(p=>p.files[0]===original),'Sections lost source DWG');
+ const red=data.fc.features.find(f=>f.properties['CAD colour']==='#ff0000');assert(vectorStyle(layer,red).fillColor==='#ff0000','CAD colour did not reach renderer');
+ messages.push('PASS — DWG read in isolated browser worker','PASS — same geometry, block placement, text and CAD layer names as source DXF','PASS — projected coordinates and elevation preserved','PASS — CAD colours retained and used by renderer','PASS — original DWG retained across editable sections',`${data.fc.features.length} features; ${q.cad.warnings.length} reader notices.`);
+ log.textContent=messages.join('\n');document.body.dataset.result='pass';
+}catch(e){log.textContent='FAIL — '+e.message;document.body.dataset.result='fail';console.error(e);}
+</script>

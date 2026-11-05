@@ -3,7 +3,7 @@ export const dxfSectionNames={point:'Points',line:'Lines',shape:'Shapes'};
 export const geometrySection=g=>({Point:'point',MultiPoint:'point',LineString:'line',MultiLineString:'line',Polygon:'shape',MultiPolygon:'shape'})[g?.type];
 
 export function splitDXFSections(layer,{only=null,newID=()=>crypto.randomUUID()}={}){
- if(layer.kind!=='vector'||layer.metadata?.format!=='DXF')return [layer];
+ if(layer.kind!=='vector'||!['DXF','DWG'].includes(layer.metadata?.format))return [layer];
  const buckets={point:[],line:[],shape:[]};
  for(const source of layer.fc.features){
   function visit(geometry){
