@@ -1,0 +1,12 @@
+<!doctype html><title>Layer export checks</title><h1>Layer export checks</h1><pre id="out">Running…</pre><script type="module">
+import {exportVector} from '../src/layer-export.js';import {gdal,inspect,convert} from '../src/importer.js';import {unzipSync} from 'fflate';
+const out=document.querySelector('#out'),assert=(a,m)=>{if(!a)throw Error(m);};
+const layer={name:'Survey',fc:{type:'FeatureCollection',features:[{type:'Feature',properties:{Name:'Point A',long_field_name:'hello'},geometry:{type:'Point',coordinates:[153,-27,125]}},{type:'Feature',properties:{Name:'Boundary',long_field_name:'world'},geometry:{type:'LineString',coordinates:[[153,-27,125],[153.001,-27.001,130]]}},{type:'Feature',properties:{Name:'Area'},geometry:{type:'Polygon',coordinates:[[[153,-27],[153.001,-27],[153.001,-27.001],[153,-27]]]}}]}};
+try{const results=[];for(const format of ['geojson','dxf','shp','kml']){
+ out.textContent='Exporting and reopening '+format;const result=await exportVector(layer,{format,crs:'EPSG:7856'},gdal);assert(result.blob.size>0,'Empty '+format);
+ let files=[new File([result.blob],result.name)];if(format==='shp'){const zip=unzipSync(new Uint8Array(await result.blob.arrayBuffer()));assert(zip['fields.json'],'Field mapping missing');files=Object.entries(zip).filter(([n])=>/\.(shp|shx|dbf|prj|cpg)$/.test(n)).map(([n,b])=>new File([b],n));assert(files.length>=15,'Shapefile sidecars missing');}
+ const opened=await inspect(files);assert(!opened.errors.length,opened.errors.join('; '));let features=[];for(const item of opened.items){const data=await convert(item,{crs:format==='kml'||format==='geojson'?'EPSG:4326':'EPSG:7856'});features.push(...data.fc.features);}
+ assert(features.length===3,format+' lost features: '+features.length);const p=features.find(f=>f.geometry.type.includes('Point'));const coord=p.geometry.type==='Point'?p.geometry.coordinates:p.geometry.coordinates[0];assert(Math.abs(coord[0]-153)<1e-6&&Math.abs(coord[1]+27)<1e-6,'Wrong coordinates '+format);assert(Math.abs(coord[2]-125)<.001,'Elevation lost '+format);
+ if(format==='shp'||format==='geojson')assert(p.properties.Name==='Point A','Attributes lost');results.push('PASS — '+format+' export and reimport: geometry, coordinates and elevation');}
+ out.textContent=results.join('\n');document.body.dataset.result='pass';}catch(e){out.textContent='FAIL — '+e.message;console.error(e);}
+</script>
