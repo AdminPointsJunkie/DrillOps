@@ -42,7 +42,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  const w=dom.window, catalogue=[{code:'EPSG:7856',name:'GDA2020 / MGA zone 56'},{code:'EPSG:4326',name:'WGS 84'}];
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
- const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor;
+ const projects=[], conversions=[],featureHandlers=[];let rasterMode=false,finishRaster,attributeEditor,embeddedSource='';
  const db={rpc:async(name)=>name==='workspace_context'?{data:{platform_admin:false,workspaces:[{id:'workspace',name:'Company',role:'admin',status:'active'}],invitations:[]}}:{data:null},auth:{onAuthStateChange(fn){fn('SIGNED_IN',{user:{id:'test-owner',app_metadata:{maps_role:'editor'}}});}},from(table){
   let action='select',payload,filter;
   const query={select(){return query;},order(){return Promise.resolve({data:table==='maps'?[...projects]:[],error:null});},
@@ -58,7 +58,7 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
  globalThis.document=w.document;
  Object.assign(w,{installLayerControl,installSocialAuth:()=>({mount(){},async finish(){}}),createWorkspaceLibrary,installSupportingFiles,configureAppearance,matchMedia:()=>({matches:false,addEventListener(){}}),installAccountProfile:()=>({open(){},close(){},paintAvatar(){}}),installLayerBin,installFeatureExtract,installMapSelection,editFeatureAttributes,toolDialog,isArchiveFile,isLocalGeoTIFF,assertCloudFile,cloudLayout,releaseCache:{clear:async()=>{}},createAnalyticsMeter,setInterval:()=>0,locationFilesPanel,addLocationFiles,removeLocationFile,attachmentPaths,installSidebarToggle:()=>({}),installMapContext:()=>({close(){}}),installMapCompare:()=>({open(){},close(){},refresh(){},rekey(){},includes(){return false;}}),mapCoordinates:async()=>({text:"0, 0",label:"EPSG:4326",axes:"Latitude, longitude"}),installProjectHome,bindLineDistance,installToolMenus,installMapComponents,openAnalysis(){},openURLUpload(){},registerUpload:async()=>{},reportWebDevice:async()=>true,installStorageUsage:()=>({open(){},close(){}}),installPlatformAdmin:()=>({open(){},close(){}}),installRegistration:(db,options)=>installRegistration(db,{...options,doc:w.document}),installWorkspaceLayout,installMapExplorer,featureInfo,installFieldTools,annotationLayer,editAnnotation,publishedProjects,publishedLayers:(db,p)=>publishedLayers(db,p),openAttributeStyle:(layer,onApply)=>{attributeEditor={layer,onApply};},readAuthLink:()=>({}),installPasswordSetup:()=>({onSession(){}}),installAccounts:()=>({close(){}}),createSaveStatus,syncProjectRelease,transferProject,CLOUD_FILE_LIMIT,installSidebarResize,orderPanes,pointLabels,cachedConversion,nodeId,flattenTree,parentGroup,removeNode,moveNode,normaliseTree,structuredClone,L,createClient:()=>db,SUPABASE_URL:'',SUPABASE_KEY:'',LOCAL_TESTING:false,xyzSettings,xyzLayer,importCRS,projectCRS,installBasemaps,vectorStyle,pointMarker,styleControls,visibilityIcon,
   errorText:e=>e.message,fetch:async()=>({json:async()=>catalogue}),
-  inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:'EPSG:4326',count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
+  inspect:async()=>({items:rasterMode?[{name:'Large raster',format:'GeoTIFF',kind:'raster',source:'EPSG:4326',info:{size:[10000,10000]},files:[]}]:[{name:'Survey',format:'CSV',kind:'vector',source:embeddedSource,count:1,rows:[{x:153,y:-27}],fields:['x','y'],files:[{name:'survey.csv'}]}],errors:[]}),
   convert:async(item,settings)=>{conversions.push(settings.crs);if(rasterMode)return new Promise((resolve,reject)=>{finishRaster={resolve,reject};});return {fc,bounds:[153,-27,153,-27]};}});
  const code=(await readFile(new URL('../src/main.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.env.BASE_URL',"'/maps/'");
  w.eval(code+";window.testSetEditor=()=>{currentWorkspace.role='editor';updateAccess();};window.testOpenProject=()=>openProject(true);");
@@ -73,15 +73,19 @@ test('create, edit and switch projects; retain per-import CRS overrides through 
   assert.equal(projects.length,2);assert.equal($('#map-select').options.length,3);
   change('#map-select','1');await tick();assert.match($('#project-default').textContent,/7856/);
   $('#project-settings').click();input('#new-name','Ironbark survey');submit('#name-form');await tick();assert.equal(projects[0].name,'Ironbark survey');
-  // Import review starts with the project CRS, despite embedded WGS84.
+  // A file with no CRS starts with the project CRS; manual overrides survive preview.
   Object.defineProperty($('#files'),'files',{value:[{name:'survey.csv'}]});$('#files').dispatchEvent(new w.Event('change'));await tick();
-  assert.match($('#crs-search').value,/7856/);assert.equal($('#use-embedded').hidden,false);
-  $('#use-embedded').click();assert.equal($('#crs-search').value,'Embedded coordinate system');
+  assert.match($('#crs-search').value,/7856/);assert.equal($('#use-embedded').hidden,true);assert.match($('#import-crs-note').textContent,/No file CRS was found.*project CRS/);
+  input('#crs-search','4326');$('#crs-results [data-code="EPSG:4326"]').click();
   $('#preview-layer').click();await tick();assert.equal(conversions[0],'EPSG:4326');
   $('#identify').click();featureHandlers[0]();assert.equal($('#feature-info').hidden,false);assert.match($('#feature-info-title').textContent,/Survey/);assert.ok($('#feature-info-content table'));assert.ok($('#feature-info-content input[type=file]'));assert.match($('#feature-info-content').textContent,/Attachments/);$('#close-info').click();assert.equal($('#identify').getAttribute('aria-pressed'),'false');
-  $('#queue [data-index]').click();assert.equal($('#crs-search').value,'Embedded coordinate system');assert.equal(projects[0].default_crs,'EPSG:7856');
+  $('#queue [data-index]').click();assert.match($('#crs-search').value,/4326/);assert.equal(projects[0].default_crs,'EPSG:7856');
   $('#review').close();change('#map-select','2');await tick();assert.equal($('#map-select').value,'1','pending imports prevent switching projects');
-  $('#queue [data-discard]').click();change('#map-select','2');await tick();assert.match($('#project-default').textContent,/4326/);
+  $('#queue [data-discard]').click();
+  // An available file CRS takes precedence over the project fallback.
+  embeddedSource='EPSG:4326';$('#files').dispatchEvent(new w.Event('change'));await tick();
+  assert.equal($('#crs-search').value,'Embedded coordinate system');assert.match($('#import-crs-note').textContent,/file’s coordinate system/);
+  $('#review').close();$('#queue [data-discard]').click();change('#map-select','2');await tick();assert.match($('#project-default').textContent,/4326/);
   $('#project-settings').click();input('#project-crs','');submit('#name-form');await tick();assert.equal(projects[1].default_crs,null);
   // Editing a source reuses its layer identity and applies new import settings.
   w.eval('user=null');

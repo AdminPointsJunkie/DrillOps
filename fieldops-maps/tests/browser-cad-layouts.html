@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>CAD layout import checks</title><h1>CAD layout import checks</h1><pre id="results">Running…</pre><script type="module">
+import {inspect,convert} from '../src/importer.js';
+import {importCRS} from '../src/project.js';
+const log=document.querySelector('#results'),messages=[];
+const assert=(yes,message)=>{if(!yes)throw Error(message);};
+const point=(name,x,y,space)=>['0','POINT','8',name,...(space===undefined?[]:['67',String(space)]),'10',String(x),'20',String(y),'30','123'].join('\n');
+const dxf=entities=>new File([`0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`],'layout-check.dxf');
+const model=[point('Model at origin',0,0),point('Explicit model space',153,-27,0)];
+// Sheet coordinates are deliberately invalid as longitude/latitude: filtering must happen before transformation.
+const paper=point('Sheet title',1000000,1000000,1),mixed=dxf([...model,paper]);
+try{
+ for(const format of ['DXF','DWG']){
+  const original=format==='DXF'?mixed:new File(['AC1032fixture'],'layout-check.dwg');
+  const read=await inspect([original],()=>{},{dwg:async()=>({file:mixed,reader:'Test DXF bridge',entityCount:3,warnings:[]})});
+  assert(!read.errors.length,read.errors.join('; '));assert(read.items.length===1,`${format}: missing dataset`);
+  const q=read.items[0],choice=importCRS({default_crs:'EPSG:4326'},q.source);
+  assert(q.count===2&&q.excludedPaperSpace===1,`${format}: review count includes paper space`);
+  assert(!q.source&&choice.fromProject&&choice.code==='EPSG:4326',`${format}: project CRS fallback missing`);
+  const {fc,bounds}=await convert(q,{crs:choice.code});
+  assert(fc.features.length===2,`${format}: wrong model-space count`);
+  assert(!fc.features.some(f=>f.properties.PaperSpace),`${format}: paper-space feature survived`);
+  assert(fc.features.some(f=>f.geometry.coordinates[0]===0&&f.geometry.coordinates[1]===0),`${format}: legitimate model geometry at the origin lost`);
+  assert(fc.features.every(f=>f.geometry.coordinates[2]===123),`${format}: elevations changed`);
+  assert(JSON.stringify(bounds)==='[0,-27,153,0]',`${format}: layout polluted map extent`);
+  assert(q.files[0]===original,`${format}: original file lost`);
+  messages.push(`PASS — ${format}: sheet objects excluded before projection, accurate review count and bounds, model geometry and elevations retained`);
+ }
+ const empty=await inspect([dxf([paper])]);
+ assert(empty.items.length===0&&empty.errors.some(e=>e.includes('No model-space geometry')), 'Sheet-only drawing should explain why there is nothing to import');
+ messages.push('PASS — sheet-only drawing returns a clear message');
+ const read=await inspect([dxf(model)]);
+ assert(!read.errors.length&&read.items[0].count===2&&read.items[0].excludedPaperSpace===0,'Model-only drawing changed');
+ const ordinary={kind:'vector',format:'GeoJSON',fc:{type:'FeatureCollection',features:[{type:'Feature',properties:{PaperSpace:1},geometry:{type:'Point',coordinates:[1,2]}}]}};
+ assert((await convert(ordinary,{crs:'EPSG:4326'})).fc.features.length===1,'Non-CAD property must not trigger filtering');
+ messages.push('PASS — model-only drawings and non-CAD data remain intact');
+ log.textContent=messages.join('\n');document.body.dataset.result='pass';
+}catch(error){log.textContent=messages.concat('FAIL — '+error.message).join('\n');document.body.dataset.result='fail';console.error(error);}
+</script>

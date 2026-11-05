@@ -13,6 +13,9 @@ import {fileLayerName} from './layer-name.js';
 let engine;
 export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
 const id=()=>crypto.randomUUID().replaceAll('-','');
+// GDAL marks sheet/layout entities with PaperSpace=1; model-space entities are NULL or 0.
+// Filter before reprojection so sheet coordinates cannot distort extents or fail conversion.
+const modelSpaceFilter='PaperSpace IS NULL OR PaperSpace = 0';
 export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive,dwg=convertDWG}={}){
  const all=[...files];if(all.length>25)throw Error('Select up to 25 files at a time.');
  if(all.some(f=>f.size>(/\.tiff?$/i.test(f.name)?250:50)*1024*1024))throw Error('GeoTIFF files must be 250 MB or smaller; other files must be 50 MB or smaller.');
@@ -36,7 +39,7 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
     const inputs=/\.vrt$/i.test(primary.name)?await prepareVRT(primary,batch):cad?[cad.file]:group;
     const mounted=inputs.map(f=>f.name.includes('/')?new File([f],f.name.split('/').at(-1)):f);
     const result=await G.open(mounted,[],/\.(zip|kmz)$/i.test(primary.name)?['vsizip']:[]);
-    let count=0;
+    let count=0,hasCAD=false;
     for(const ds of result.datasets){
      if(/\.vrt$/i.test(primary.name)&&! /\.vrt$/i.test(ds.path))continue;
      const info=ds.info||await G.getInfo(ds);
@@ -46,7 +49,9 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
       const localOnly=/^(GTiff|COG|VRT)$/i.test(info.driverShortName||details.driverName||'')||/\.tiff?$/i.test(primary.name);if(localOnly)for(const file of sourceFiles)if(archivePattern.test(file.name))file.localOnlyArchive=true;
       items.push({localOnly,name:fileLayerName(group,ds.path),kind:'raster',format:info.driverShortName||details.driverName,files:sourceFiles,ds,info,source:info.coordinateSystem?.wkt||details.projectionWkt||'',count:0,hasTransform});count++;
      }else{
-      const detail=await G.ogrinfo(ds,['-al','-so']);
+      const originalDetail=await G.ogrinfo(ds,['-al','-so']);
+      const isCAD=!!cad||originalDetail.driverShortName==='DXF';hasCAD||=isCAD;
+      const detail=isCAD?await G.ogrinfo(ds,['-al','-so','-where',modelSpaceFilter]):originalDetail;
       for(const layer of detail.layers||[]){
        if(layer.featureCount===0)continue;
        if(detail.driverShortName==='OSM'){
@@ -56,11 +61,12 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
         items.push({name:fileLayerName(group,ds.path,layer.name,true),layerName:layer.name,kind:'vector',format:'OSM',files:sourceFiles,fc,source:'EPSG:4326',count:fc.features.length});count++;continue;
        }
        const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
-       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',cad:cad?{warnings:cad.warnings,reader:cad.reader,entityCount:cad.entityCount}:null,format:cad?'DWG':/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
+       const excludedPaperSpace=isCAD?Math.max(0,(originalDetail.layers.find(l=>l.name===layer.name)?.featureCount||0)-(layer.featureCount||0)):0;
+       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',cad:cad?{warnings:cad.warnings,reader:cad.reader,entityCount:cad.entityCount}:null,excludedPaperSpace,format:cad?'DWG':/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
       }
      }
     }
-    if(!count)throw Error('No supported spatial dataset was found in this file.');
+    if(!count)throw Error(hasCAD?'No model-space geometry was found. Page-layout objects are excluded from map imports.':'No supported spatial dataset was found in this file.');
    }catch(e){errors.push(`${primary.name}: ${errorText(e)}`);}
   }
  }
@@ -84,7 +90,7 @@ export async function convert(item,settings,progress=()=>{}){
  if(settings.pipeline)opts.push('-ct',settings.pipeline);
  if(settings.gcps){const rows=settings.gcps.trim().split('\n').filter(Boolean);if(rows.length<3)throw Error('Enter at least three control points.');for(const row of rows){const v=row.split(/[,\s]+/).map(Number);if(v.length!==4||!v.every(Number.isFinite))throw Error('Each control point needs local X, local Y, target X, target Y.');opts.push('-gcp',...v.map(String));}opts.push('-order','1');}
  if(item.kind==='vector'){
- const options=['-f','GeoJSON',...opts,'-lco','RFC7946=YES'];if(item.format==='DWG')options.push('-sql',`SELECT *, OGR_STYLE FROM "${String(item.layerName).replaceAll('"','""')}"`);else if(item.layerName)options.push(item.layerName);
+ const options=['-f','GeoJSON',...opts,'-lco','RFC7946=YES'];if(item.format==='DWG')options.push('-sql',`SELECT *, OGR_STYLE FROM "${String(item.layerName).replaceAll('"','""')}" WHERE ${modelSpaceFilter}`);else{if(item.format==='DXF')options.push('-where',modelSpaceFilter);if(item.layerName)options.push(item.layerName);}
  progress('Transforming vector coordinates…');
  const out=await G.ogr2ogr(ds,options,`vector_${id()}`);
  const fc=JSON.parse(new TextDecoder().decode(await G.getFileBytes(out)));

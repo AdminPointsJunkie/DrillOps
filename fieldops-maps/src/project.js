@@ -1,5 +1,6 @@
 // Projects retain the existing maps IDs and layer relationships.
 export function importCRS(project, embedded = '', embeddedLabel = '') {
+  if (embedded?.trim()) return { code: embedded, label: embeddedLabel || embedded, fromProject: false };
   if (project?.default_crs) return {
     code: project.default_crs,
     label: project.default_crs_label || project.default_crs,
