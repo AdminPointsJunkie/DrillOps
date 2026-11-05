@@ -30,7 +30,7 @@ test('Focused layer shortcuts invoke copying and visibility, without interceptin
 });
 test('clicking row or symbol opens editor once; settings fallback and permission guards work',()=>{
  const {dom,doc,layer,busy}=setup();const card=doc.querySelector('.layer-card'),style=card.querySelector('[data-layer-options=style]'),panel=doc.createElement('section');panel.dataset.layerPanel='style';panel.hidden=true;card.append(panel);let opens=0,settings=0;style.onclick=()=>{opens++;panel.hidden=false;};
- card.querySelector('.geometry-symbol').click();card.querySelector('.layer-top strong').click();assert.equal(opens,1);
+ card.querySelector('.geometry-symbol').click();card.querySelector('.layer-top strong').click();assert.equal(panel.hidden,false);assert.equal(style.getAttribute('aria-expanded'),'true');panel.hidden=true;card.querySelector('.layer-key').click();assert.equal(panel.hidden,false);
  card.querySelector('[data-action=settings]').onclick=()=>settings++;style.remove();layer.kind='raster';card.querySelector('.layer-top').click();assert.equal(settings,1);
  busy(true);card.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));assert.equal(settings,1);dom.window.close();
  const read=setup(false);let count=0;read.doc.querySelector('[data-layer-options=style]').onclick=()=>count++;read.doc.querySelector('.layer-card').dispatchEvent(new read.dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));assert.equal(count,0);read.dom.window.close();

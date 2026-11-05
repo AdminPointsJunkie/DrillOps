@@ -14,7 +14,7 @@ test('drag ordering across groups and root is deterministic and prevents nested 
  moveNode(tree,'lines',null);assert.equal(parentGroup(tree,'lines'),undefined);
  const before=JSON.stringify(tree);assert.equal(moveNode(tree,'survey','points','before'),false);assert.equal(JSON.stringify(tree),before);
  moveNode(tree,'survey','imagery','before');assert.deepEqual(flattenTree(tree),['boundary','points','imagery','lines']);
- assert.deepEqual(flattenTree(normaliseTree([...tree,'lines'],['new'])),['boundary','points','imagery','lines','new']);
+ assert.deepEqual(flattenTree(normaliseTree([...tree,'lines'],[...flattenTree(tree),'new'])),['boundary','points','imagery','lines','new']);
 });
 
 test('preview conversion is reused only when every coordinate option matches; failure remains retryable',async()=>{
@@ -46,3 +46,5 @@ test('deleting the final layer prunes its group only',async()=>{
  const {removeNode}=await import('../src/layer-tree.js');const tree=[{id:'new',children:[]},{id:'a',children:['one','two']}];
  removeNode(tree,'one');assert.equal(tree.length,2);assert.equal(removeNode(tree,'two'),'two');assert.deepEqual(tree,[{id:'new',children:[]}]);
 });
+
+test('loading saved groups removes deleted layer references and empty groups',()=>{assert.deepEqual(normaliseTree([{id:'empty',children:[]},{id:'gone',children:['deleted']},{id:'kept',children:['deleted','live']}],['live']),[{id:'kept',name:'Group',visible:true,collapsed:false,children:['live']}]);});

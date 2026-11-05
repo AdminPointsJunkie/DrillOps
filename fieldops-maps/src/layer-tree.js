@@ -24,8 +24,8 @@ export function moveNode(tree,id,targetId,position='before'){
  list.splice(list.findIndex(n=>nodeId(n)===targetId)+(position==='after'?1:0),0,node);return finish();
 }
 export function normaliseTree(raw,ids){
- const seen=new Set(),groups=new Set();
- const take=id=>typeof id==='string'&&!seen.has(id)&&(seen.add(id),true);
+ const seen=new Set(),groups=new Set(),available=new Set(ids);
+ const take=id=>typeof id==='string'&&available.has(id)&&!seen.has(id)&&(seen.add(id),true);
  const tree=[];
  for(const node of Array.isArray(raw)?raw:[]){
   if(typeof node==='string'){if(take(node))tree.push(node);}
@@ -34,6 +34,7 @@ export function normaliseTree(raw,ids){
     children:(Array.isArray(node.children)?node.children:[]).filter(take)});
   }
  }
+ for(let i=tree.length-1;i>=0;i--)if(typeof tree[i]!=='string'&&!tree[i].children.length)tree.splice(i,1);
  for(const id of ids)if(take(id))tree.push(id);
  return tree;
 }
