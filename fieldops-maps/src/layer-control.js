@@ -1,3 +1,4 @@
+import {installPanelDragging} from './panel-drag.js';
 import {geometryKinds,layerStyle,lineStyles} from './layer-style.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const colour=value=>/^#[0-9a-f]{6}$/i.test(value)?value:'#78958a';
@@ -17,6 +18,7 @@ export function legendContents(layer){
 }
 export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
+ const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
  let selected=null,mode='list',returnFocus=null;
  const old=tabs.querySelector('.active'),count=old.querySelector('#layer-count');
@@ -24,8 +26,10 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
  for(const [id,label] of [['legend','Legend'],['list','List']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.id='layer-tab-'+id;b.dataset.view=id;b.setAttribute('role','tab');b.setAttribute('aria-controls','layers');tablist.append(b);}
  old.replaceWith(tablist);tabs.insertBefore(count,tablist.nextSibling);
  root.setAttribute('role','tabpanel');
+ const grip=doc.createElement('button');grip.type='button';grip.className='panel-drag-handle';grip.dataset.panelDrag='';grip.textContent='⠿';grip.title='Drag to move layers';grip.setAttribute('aria-label','Move layers panel (drag or use arrow keys)');tabs.append(grip);
+
  const basemap=doc.querySelector('#basemap');
- if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';footer.innerHTML='<span aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="12" r="10"/><path d="m5 5 5-2 3 4-4 3 1 4-4 1-2-5m10 2 6-2 1 5-4 6-2-3z" fill="#222321"/></svg></span><label for="layer-basemap">Basemap</label>';const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.value=basemap.value;picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};basemap.addEventListener('change',()=>picker.value=basemap.value);footer.append(picker);sidebar.append(footer);}
+ if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';footer.innerHTML='<span aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="12" r="10"/><path d="m5 5 5-2 3 4-4 3 1 4-4 1-2-5m10 2 6-2 1 5-4 6-2-3z" fill="var(--felt-panel)"/></svg></span><label for="layer-basemap">Basemap</label>';const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.value=basemap.value;picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};basemap.addEventListener('change',()=>picker.value=basemap.value);footer.append(picker);sidebar.append(footer);}
 
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
@@ -37,7 +41,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
   const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||isBusy()||layer.saving)return;
   close();select(card);returnFocus=trigger||card;returnFocus.setAttribute('aria-expanded','true');
   const actions=[['Show on map','[data-action="zoom"]',false],['Edit layer…','[data-action="settings"]',true],['Edit geometry…','[data-action="geometry"]',true],['Style…','[data-layer-options="style"]',true],['Organise…','[data-layer-options="organise"]',true],['Edit tile link…','[data-action="edit-xyz"]',true],['Export layer','[data-action="export"]',false],['Save layer','[data-action="save"]',true],['Move to Recently deleted','[data-action="remove"]',true]];
-  menu.replaceChildren();
+  menu.replaceChildren();const menuHeading=doc.createElement('div');menuHeading.className='context-drag-heading';menuHeading.dataset.panelDrag='';menuHeading.textContent=layer.name;menuHeading.title='Drag to move menu';menu.append(menuHeading);
   for(const [label,selector,edit] of actions){const target=card.querySelector(selector);if(!target||(edit&&!canEdit(layer)))continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.setAttribute('role','menuitem');b.onclick=()=>{close(true);if(!isBusy()&&!layer.saving&&(!edit||canEdit(layer)))target.click();};menu.append(b);}
   menu.hidden=false;const box=menu.getBoundingClientRect(),win=doc.defaultView;menu.style.left=Math.max(8,Math.min(x,win.innerWidth-box.width-8))+'px';menu.style.top=Math.max(8,Math.min(y,win.innerHeight-box.height-8))+'px';menu.querySelector('button')?.focus();
  }
@@ -70,6 +74,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
    }
    const title=top.querySelector('strong');title.title=layer.name+' · Right-click for options';
   }
+  dragging.refresh();
  }
  setMode(mode);refresh();return {refresh};
 }
