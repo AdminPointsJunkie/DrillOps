@@ -6,7 +6,7 @@ async function loadImage(z,x,y){
   // Missing-tile responses do not always carry CORS headers. Image loading
   // still reports failure, allowing a parent fallback without fetching pixels.
   const request=new Promise((resolve,reject)=>{
-   const image=new Image();
+   const image=new Image();image.crossOrigin='anonymous';
    const timeout=setTimeout(()=>{image.onload=image.onerror=null;reject(Error('Satellite imagery request timed out.'));},15000);
    image.onload=()=>{clearTimeout(timeout);resolve(image);};
    image.onerror=()=>{clearTimeout(timeout);resolve(null);};

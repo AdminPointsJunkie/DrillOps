@@ -2,7 +2,7 @@ import {formatField} from './number-format.js';
 import {appendGroupLegend} from './group-legend.js';
 import {attributeFields,matchesView,legendItems,tableRows,textValue,featureTitle,featureInfo,featureBounds} from './explore-data.js';
 import {escapeHTML as esc,filterDialog,popupDialog} from './explore-dialogs.js';
-export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,saveStyle,showInfo,onGroupChange,renderInfo=(l,f)=>featureInfo(l,f,document)}){
+export function installMapExplorer({L,map,canOpenTable=()=>true,getLayers,isVisible,canEdit,redraw,saveStyle,showInfo,onGroupChange,renderInfo=(l,f)=>featureInfo(l,f,document)}){
  let componentFilter=()=>true;const views=new Map();let current='',sortField='',direction=1,page=0,selected=null,selection=null,searchTimer,tableTimer;
  const root=document.querySelector('.map-area');
  root.insertAdjacentHTML('beforeend',`<section class="attribute-table" hidden aria-label="Attribute table"><div class="table-toolbar"><strong>Table</strong><select data-table-layer aria-label="Table layer"></select><input data-table-search type="search" placeholder="Find in this layer…" aria-label="Filter table and map"><button data-filter title="Filter layer">⏷ Filters</button><button data-reset title="Reset this view">Reset</button><button data-save-view title="Save filters and legend choices as the project default">Save default</button><button data-info-settings title="Configure feature information">⚙ Fields</button><button data-close-table aria-label="Close table">×</button></div><div class="table-summary"><span data-table-count></span><label><input type="checkbox" data-extent> Table: current map extent only</label><span data-view-note></span></div><div class="table-scroll"><table><thead></thead><tbody></tbody></table></div><div class="table-pagination"><button data-page="-1">Previous</button><span data-page-label></span><button data-page="1">Next</button></div></section><section class="feature-search" hidden aria-label="Search features"><div class="info-heading"><strong>Find a hole or asset</strong><button data-close-search aria-label="Close search">×</button></div><input type="search" data-global-search placeholder="Search visible layers…" aria-label="Search visible features"><p class="field-note">Searches features matching your current filters and legend choices.</p><div class="feature-results" role="status"></div></section>`);
@@ -49,7 +49,7 @@ export function installMapExplorer({L,map,getLayers,isVisible,canEdit,redraw,sav
  }
  function refresh(){renderLegends();renderTable();refreshSearch();if(selected){const l=getLayers().find(l=>l.id===selected.id),f=l?.fc?.features[selected.index];if(!l||!f||!isVisible(l)||!acceptFeature(l,f))clearSelection();}}
  function changed(l){clearSelection();redraw(l);page=0;refresh();document.dispatchEvent(new document.defaultView.Event('fieldmaps-view-change'));}
- function openTable(id){current=id||current;table.hidden=false;root.classList.add('table-open');renderTable();}
+ function openTable(id){if(!canOpenTable())return;current=id||current;table.hidden=false;root.classList.add('table-open');renderTable();}
  function openFilter(l){if(!l)return;filterDialog(l,view(l),filter=>{view(l).filter=filter;changed(l);});}
  async function saveDefault(l){if(!l||!canEdit(l))return;await saveStyle(l,'view',structuredClone(view(l)));}
  function resetView(l){if(!l)return;views.set(l.id,structuredClone(l.metadata?.style?.view||{}));changed(l);}
