@@ -11,7 +11,7 @@ function setup(db,user={id:'new',user_metadata:{full_name:'New Owner',new_compan
 test('existing testers can sign in and legacy signup mode exposes no registration controls',async()=>{
  const calls=[];const {ui,doc}=setup({auth:{signInWithPassword:async p=>{calls.push(p);return {data:{session:{}}};},signUp:()=>assert.fail('Public registration must not be called')}});ui.open(true);
  assert.equal(doc.querySelector('#signup'),null);assert.equal(doc.querySelector('#registration-fields'),null);assert.equal(doc.querySelector('#company-onboarding'),null);
- assert.match(doc.body.textContent,/Email sign-in is available for existing accounts/);
+ assert.equal(doc.querySelector('#auth-title').textContent,'Sign in');
  doc.querySelector('#email').value='tester@example.invalid';doc.querySelector('#password').value='test-password';
  doc.querySelector('#auth-form').dispatchEvent(new doc.defaultView.Event('submit',{cancelable:true}));await tick();
  assert.deepEqual(calls,[{email:'tester@example.invalid',password:'test-password'}]);assert.equal(doc.querySelector('#password').value,'');assert.equal(doc.querySelector('#auth').open,false);

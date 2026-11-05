@@ -35,3 +35,19 @@
 [data-theme=dark] #empty-map :is(p,small){color:#b5b5b5}
 
 [data-theme=dark] .explore-dialog .dialog-actions{background:#1c1c1c;color:#ededed}
+
+/* Compact sign-in, with a neutral backdrop in both themes. */
+#auth{width:min(380px,calc(100vw - 32px));padding:24px;box-shadow:0 20px 80px #0004}
+#auth::backdrop{background:#0008}
+#auth .dialog-heading{align-items:center;margin-bottom:18px}
+#auth .dialog-heading h2{margin:0;font-size:22px}
+#auth [data-social-auth]{margin:0 0 18px;padding:0 0 18px;border-top:0;border-bottom:1px solid #8884}
+#auth [data-social-auth] [role=status]:empty{display:none}
+#auth .dialog-actions{display:flex;flex-direction:column-reverse;gap:8px;margin-top:20px}
+#auth .dialog-actions button{width:100%}
+#auth #email-link{border:0;background:transparent!important;font-weight:400}
+#auth :focus-visible{outline-color:#999}
+#auth input:focus{border-color:#888;box-shadow:0 0 0 2px #8882}
+[data-theme=dark] #auth{background:#1c1c1c!important;color:#ededed!important;box-shadow:0 20px 80px #0008}
+[data-theme=dark] #auth::backdrop{background:#000a}
+[data-theme=dark] #auth #auth-error:not(:empty){background:#292929;color:#ededed}
