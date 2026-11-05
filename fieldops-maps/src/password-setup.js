@@ -20,7 +20,7 @@ export function installPasswordSetup(db,context,getUser,toast,doc=document){
   const user=session?.user;if(!user){checkedUser=null;openedUser=null;button.hidden=true;dialog.close();$('#password-form').reset();return;}
   if(event==='PASSWORD_RECOVERY'||(!context.error&&context.hasTokens&&['invite','recovery'].includes(context.type)&&openedUser!==user.id)){openedUser=user.id;button.hidden=false;open(context.type==='recovery'||event==='PASSWORD_RECOVERY');}
   if(checkedUser===user.id||saving)return;checkedUser=user.id;
-  try{const {data,error}=await db.rpc('maps_needs_password');if(error)throw error;if(getUser()?.id!==user.id)return;if(data===true){button.hidden=false;if(openedUser!==user.id){openedUser=user.id;open();}}}
+  try{const {data,error}=await db.rpc('maps_needs_password');if(error)throw error;if(getUser()?.id!==user.id)return;if(data===true&&!user.identities?.some(i=>['google','azure','github'].includes(i.provider))){button.hidden=false;if(openedUser!==user.id){openedUser=user.id;open();}}}
   catch(e){checkedUser=null;toast('Could not check account setup. Refresh to retry. '+(e.message||String(e)));}
  }};
 }

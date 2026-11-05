@@ -1,3 +1,4 @@
+import {installSocialAuth} from './social-auth.js';
 import {openLayerExport} from './layer-export.js';
 import {createLibraryFavourites} from './library-favourites.js';
 import './data-library.css';
@@ -81,7 +82,7 @@ import {errorText} from './geo.js';
 import {importCRS,projectCRS} from './project.js';
 import {installBasemaps} from './basemaps.js';
 import {vectorStyle,pointMarker,styleControls,visibilityIcon} from './layer-style.js';
-const authLink=readAuthLink(location.href);
+const authLink=readAuthLink(location.href);if(new URL(location.href).searchParams.has('auth_flow'))authLink.error=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(name)=>({layers:'▱',plus:'＋',upload:'↑',close:'×',refresh:'↻',locate:'◎',fit:'⤢',cloud:'☁',arrow:'→',check:'✓'}[name]||name);
@@ -520,8 +521,9 @@ $('#identify').onclick=()=>identify(!identifyActive);$('#close-info').onclick=()
 $('#fit').onclick=fit;$('#help').onclick=()=>$('#help-dialog').showModal();
 let locationMarker;$('#locate').onclick=()=>{if(!navigator.geolocation)return toast('Location is unavailable in this browser.');navigator.geolocation.getCurrentPosition(p=>{if(locationMarker)map.removeLayer(locationMarker);locationMarker=L.circle([p.coords.latitude,p.coords.longitude],{radius:p.coords.accuracy,color:'#3087ba',fillOpacity:.15}).addTo(map).bindPopup(`GPS accuracy: approximately ${Math.round(p.coords.accuracy)} m`);map.setView(locationMarker.getLatLng(),16)},e=>toast(e.message),{enableHighAccuracy:true,timeout:15000});};
 $('#account').onclick=async()=>{if(user&&(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>(!l.saved&&!isLocalGeoTIFF(l))||l.saving)))return toast('Finish pending imports and saves before signing out.');if(user){const {error}=await db.auth.signOut();if(error)return toast(errorText(error));clearMap();activeMap=null;$('#map-select').innerHTML='<option value="">Unsaved project</option>';syncProject();queue=[];renderQueue();toast('Signed out.')}else registration.open(false);};
-const registration=installRegistration(db);
-const accountProfile=installAccountProfile({db,getUser:()=>user,onSaved:u=>{user=u;homeUI?.refresh();}});
+const socialAuth=installSocialAuth({db,url:SUPABASE_URL,key:SUPABASE_KEY,notify:toast,openAccount:u=>{user=u;accountProfile.open();},canLeave:()=>!(geometryEditor?.pending||fieldTools?.pending||busy||layoutPending||styleSaves.size||saves.state().failed||queue.length||layers.some(l=>(!l.saved&&!isLocalGeoTIFF(l))||l.saving))});
+const registration=installRegistration(db,{socialAuth});
+const accountProfile=installAccountProfile({db,socialAuth,getUser:()=>user,onSaved:u=>{user=u;homeUI?.refresh();}});
 $('#account-profile').onclick=()=>accountProfile.open();
 let browserBackup,browserProjects=[];
 $('#browser-projects').onclick=async()=>{
@@ -556,7 +558,7 @@ let platformRouteOpened=false;
 const platformAdmin=installPlatformAdmin(db,{isPlatform:()=>!!workspaceContext?.platform_admin,canOpen:()=>{if(workspacePending()){toast('Finish pending edits and saves before opening platform administration.');return false;}return true;},manageCompany:(id,section)=>accountUI.openWorkspace(id,section),onChanged:refreshWorkspaces});
 $('#platform-admin').onclick=()=>platformAdmin.open();
 const passwordSetup=installPasswordSetup(db,authLink,()=>user,toast);
-let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;appearance.setUser(user);if(previousUser?.id!==user?.id){analyticsMeter?.clear();if(previousUser?.id||!user)void releaseCache.clear();}authReady=true;$('#account-profile').hidden=!user;if(previousUser?.id!==user?.id)accountProfile.close();registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();layerBin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
+let maps=[];db.auth.onAuthStateChange((event,session)=>{const previousUser=user;user=session?.user||null;appearance.setUser(user);if(previousUser?.id!==user?.id){analyticsMeter?.clear();if(previousUser?.id||!user)void releaseCache.clear();}authReady=true;if(!LOCAL_TESTING)setTimeout(()=>void socialAuth.finish(user).catch(e=>toast('Could not verify sign-in: '+errorText(e))),0);$('#account-profile').hidden=!user;if(previousUser?.id!==user?.id)accountProfile.close();registration.restoreSession(user);if(previousUser?.id!==user?.id)maps=[];if(previousUser?.id!==user?.id){storageUsage.close();platformAdmin.close();layerBin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;}updateAccess();$('#coming-soon').hidden=LOCAL_TESTING||!!user;if(!user){registration.reset();platformAdmin.close();accountUI.close();workspaceContext=null;currentWorkspace=null;renderWorkspaces();}if(previousUser&&(previousUser.id!==user?.id||previousUser.app_metadata?.maps_role!==user?.app_metadata?.maps_role)){clearMap();activeMap=null;queue=[];renderQueue();syncProject();}if(!LOCAL_TESTING)setTimeout(()=>passwordSetup.onSession(event,session),0);$('#browser-projects').hidden=true;$('#account').innerHTML=user?'Sign out ↗':'Sign in ↗';homeUI?.refresh();$('#cloud-state').textContent=LOCAL_TESTING?'Testing · saved in this browser':user?(workspaceContext?.platform_admin?'Platform admin':currentWorkspace?currentWorkspace.name+' · '+currentWorkspace.role:'Cloud workspace'):'Sign in to save projects';refreshSaveStatus();if(user)setTimeout(async()=>{try{if(!LOCAL_TESTING&&db.rpc){await loadWorkspaces();updateAccess();}maps=await listMaps();homeUI?.refresh();}catch(e){toast(errorText(e));}},0);});
 let editingProject=false;
 function syncProject(){
  supportingFiles?.refresh();
