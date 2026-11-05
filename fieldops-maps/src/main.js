@@ -1,3 +1,4 @@
+import {installLayerControl} from './layer-control.js';
 import {installSocialAuth} from './social-auth.js';
 import {openLayerExport} from './layer-export.js';
 import {createLibraryFavourites} from './library-favourites.js';
@@ -72,6 +73,7 @@ import './tool-menus.css';
 import './project-home.css';
 import './map-workspace.css';
 import './appearance.css';
+import './layer-control.css';
 import {installWorkspaceLayout} from './workspace-layout.js';
 import {createClient} from '@supabase/supabase-js';
 import {SUPABASE_URL,SUPABASE_KEY,LOCAL_TESTING} from './config.js';
@@ -88,6 +90,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const icon=(name)=>({layers:'▱',plus:'＋',upload:'↑',close:'×',refresh:'↻',locate:'◎',fit:'⤢',cloud:'☁',arrow:'→',check:'✓'}[name]||name);
 let user=null,activeMap=null,layers=[],queue=[],crsList=[],busy=false,reviewIndex=null,preview=null;
 let layerTree=[],layoutPending=0,layoutSave=Promise.resolve();
+let layerControl=null;
 let homeUI=null,toolMenus=null,mapComponents=null,workspaceLayout=null,workspaceContext=null,currentWorkspace=null;
 let mapContext=null,mapComparison=null,supportingFiles=null;
 let authReady=false;
@@ -251,7 +254,7 @@ function organiseControls(l){return `<div class="organise-controls" data-layer-p
 function renderLayers(){
  const card=id=>{const l=layers.find(l=>l.id===id);return l?layerCard(l):'';};
  $('#layers').innerHTML='<p class="order-hint">Top of list draws on top · drag ⠿ to arrange</p>'+layerTree.map(n=>typeof n==='string'?card(n):`<section class="layer-group" data-group="${n.id}"><div class="group-heading" data-group-drop="${n.id}" data-node="${n.id}"><button class="drag-handle" draggable="true" data-drag="${n.id}" aria-label="Drag group ${esc(n.name)}">⠿</button><button class="group-collapse" data-group-action="collapse" aria-expanded="${!n.collapsed}">${n.collapsed?'▸':'▾'} ${esc(n.name)} <small>${n.children.filter(id=>layers.some(l=>l.id===id)).length}</small></button><button class="layer-visibility" data-group-action="visibility" aria-label="Toggle group ${esc(n.name)}" aria-pressed="${n.visible!==false}">${visibilityIcon(n.visible!==false)}</button><button data-group-action="rename" title="Rename group" aria-label="Rename group ${esc(n.name)}">✎</button></div><div class="group-contents" ${n.collapsed?'hidden':''}>${n.children.map(card).join('')}<div class="group-drop-zone" data-group-drop="${n.id}">Drop layers into this group</div><div class="group-actions"><button data-move="${n.id}" data-direction="-1" aria-label="Move group ${esc(n.name)} up">↑</button><button data-move="${n.id}" data-direction="1" aria-label="Move group ${esc(n.name)} down">↓</button><button data-group-action="remove">Ungroup</button></div></div></section>`).join('')+'<div class="root-drop-zone" data-root-drop="true">Drop here to move outside groups</div>';
- filterLayerList();syncStack();workspaceLayout?.refresh();mapComponents?.refresh();if(mapSelection?.active)mapSelection.refresh();
+ filterLayerList();syncStack();workspaceLayout?.refresh();layerControl?.refresh();mapComponents?.refresh();if(mapSelection?.active)mapSelection.refresh();
 }
 function arrangementChanged(){renderLayers();saveLayout();}
 let editingGroup=null;
@@ -320,7 +323,7 @@ async function changeLayerStyle(e){
  else if(styleKeys.has(action)){l.metadata={...l.metadata,style:{...l.metadata?.style,[action]:styleNumbers.has(action)?Number(e.target.value):e.target.value}};}
  else return;
  if(e.target.type==='range'){const output=e.target.parentElement.querySelector('output');if(output)output.textContent=Math.round(Number(e.target.value)*100)+'%';}
- map.removeLayer(rendered.get(l.id));const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();
+ map.removeLayer(rendered.get(l.id));const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();layerControl?.refresh();
  if(l.saved&&canEditLayer(l)){
   const payload={visible:l.visible!==false,color:l.color,opacity:l.opacity??.8,metadata:l.metadata||{}};
   const save=saves.run(`style:${l.id}`,async()=>{const {error}=await db.from('layers').update(payload).eq('id',l.id);if(error)throw error;}).catch(error=>toast('Style changed here, but could not save: '+error.message));
@@ -333,7 +336,7 @@ $('#layers').addEventListener('input',e=>{if(e.target.type==='number'){if(e.targ
  if(action==='color'||action==='opacity')l[action]=action==='opacity'?Number(e.target.value):e.target.value;
  else if(action==='fillColor'||action==='fillOpacity')l.metadata={...l.metadata,style:{...l.metadata?.style,[action]:action==='fillOpacity'?Number(e.target.value):e.target.value}};
  const output=e.target.parentElement.querySelector('output');if(output)output.textContent=Math.round(Number(e.target.value)*100)+'%';
- map.removeLayer(rendered.get(l.id));const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();
+ map.removeLayer(rendered.get(l.id));const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();layerControl?.refresh();
 }});
 $('#layers').addEventListener('change',e=>changeLayerStyle(e).catch(error=>toast(errorText(error))));
 function renderQueue(){$('#queue').innerHTML=queue.length?`<div class="list-heading">IMPORT QUEUE <span>${queue.length}</span></div>`+queue.map((q,i)=>`<div class="queue-item"><div><strong>${esc(q.name)}</strong><small>${esc(q.format)} · ${q.source?'CRS detected':'Choose coordinate system'}</small></div><button class="review-button" data-index="${i}">Review →</button><button class="small-button" data-discard="${i}" aria-label="Discard ${esc(q.name)} from import queue">×</button></div>`).join(''):'';}
@@ -679,6 +682,7 @@ async function openDrawing(target){
 $('#open-drawing').onclick=()=>openDrawing().catch(e=>toast(errorText(e)));
 
 workspaceLayout=installWorkspaceLayout();
+layerControl=installLayerControl({getLayers:()=>layers,canEdit:canEditLayer,isBusy:()=>busy||syncing,onComponents:()=>mapComponents?.show()});
 installSidebarToggle({sidebar:$('#sidebar'),toggle:$('#mobile-layers'),collapse:$('#collapse-layers'),reopen:$('#reopen-layers'),onResize:()=>map.invalidateSize({pan:false})});
 const canCreate=()=>!!(LOCAL_TESTING||user)&&!isReadOnly()&&!busy&&!syncing;
 const shareButton=document.createElement('button');shareButton.type='button';shareButton.id='share-map';shareButton.textContent='↗ Share';shareButton.title='Share a view-only map link';$('#sync-project').before(shareButton);
