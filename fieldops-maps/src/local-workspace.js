@@ -19,10 +19,10 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
  const put=(table,row)=>operation(table,'readwrite',s=>s.put(row));
  const result=async fn=>{try{return {data:await fn(),error:null};}catch(error){return {data:null,error};}};
  function from(table){
-  let action='select',payload,filter;
+  let action='select',payload,filters=[],bounds=null;
   const execute=()=>result(async()=>{
    if(action==='insert'){const row={id:crypto.randomUUID(),created_at:new Date().toISOString(),...payload};await put(table,row);return [row];}
-   const rows=(await all(table)).filter(r=>!filter||r[filter[0]]===filter[1]);
+   let rows=(await all(table)).filter(r=>filters.every(([key,value])=>r[key]===value));if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);
    if(action==='delete'){
     if(table==='maps'){
      const db=await ready,ids=new Set(rows.map(row=>row.id));
@@ -38,7 +38,7 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
    return rows;
   });
   const query={delete(){action='delete';return query;},select(){return query;},insert(value){action='insert';payload=value;return query;},update(value){action='update';payload=value;return query;},
-   eq(key,value){filter=[key,value];return query;},order(){return execute();},then(ok,bad){return execute().then(ok,bad);},
+   eq(key,value){filters.push([key,value]);return query;},order(){return query;},range(start,end){bounds=[start,end];return query;},then(ok,bad){return execute().then(ok,bad);},
    async single(){const response=await execute();if(response.error)return response;if(response.data.length!==1)return {data:null,error:Error('Project no longer exists. Refresh and try again.')};return {data:response.data[0],error:null};}};
   return query;
  }

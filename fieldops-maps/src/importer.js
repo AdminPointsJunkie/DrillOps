@@ -1,3 +1,4 @@
+import {readDWGReferences} from './cad-references.js';
 import {convertDWG,preserveCADColours} from './dwg-import.js';
 import {repairDXFHatches} from './dxf-hatches.js';
 import initGdalJs from 'gdal3.js';
@@ -11,19 +12,19 @@ import {groupFiles,unsupportedReason} from './import-formats.js';
 import {csvGeoJSON,validateCollection,errorText,preserveCollapsedDXFLines} from './geo.js';
 import {fileLayerName} from './layer-name.js';
 let engine;
-export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
+export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{DXF_MERGE_BLOCK_GEOMETRIES:'FALSE',PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
 const id=()=>crypto.randomUUID().replaceAll('-','');
 // GDAL marks sheet/layout entities with PaperSpace=1; model-space entities are NULL or 0.
 // Filter before reprojection so sheet coordinates cannot distort extents or fail conversion.
 const modelSpaceFilter='PaperSpace IS NULL OR PaperSpace = 0';
-export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive,dwg=convertDWG}={}){
- const all=[...files];if(all.length>25)throw Error('Select up to 25 files at a time.');
+export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackArchive,dwg=convertDWG,resolveReferences,cadImport}={}){
+ const sourceFilesForCAD=[...files],all=cadImport?.references?.length?[sourceFilesForCAD[0]]:[...files];if(all.length>25)throw Error('Select up to 25 files at a time.');
  if(all.some(f=>f.size>(/\.tiff?$/i.test(f.name)?250:50)*1024*1024))throw Error('GeoTIFF files must be 250 MB or smaller; other files must be 50 MB or smaller.');
  if(all.reduce((s,f)=>s+f.size,0)>300*1024*1024)throw Error('Import up to 300 MB per batch.');
  const items=[],errors=[],archiveBudget={remaining:300*1024*1024};
  async function readBatch(batch,originals=null,depth=0){
   for(const group of groupFiles(batch)){
-   const primary=group[0],sourceFiles=originals||group;
+   const primary=group[0];let sourceFiles=originals||group;
    try{
     progress(`Reading ${primary.name}…`);
     const reason=unsupportedReason(primary.name);if(reason)throw Error(reason);
@@ -33,7 +34,8 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
     }
     if(imagePattern.test(primary.name)&&group.length===1){items.push(...await readImages(primary,sourceFiles));continue;}
     const special=await readSpecial(primary,sourceFiles);if(special){items.push(...special);continue;}
-    const cad=/\.dwg$/i.test(primary.name)?await dwg(primary,progress):null;
+    const cad=/\.dwg$/i.test(primary.name)?await readDWGReferences(primary,progress,{dwg,resolveReferences,saved:cadImport,sourceFiles:sourceFilesForCAD}):null;
+    if(cad?.references?.length)sourceFiles=cad.originals;
     const G=await engine();
     // Preserve sidecar names within each dataset, without archive directory prefixes.
     const inputs=/\.vrt$/i.test(primary.name)?await prepareVRT(primary,batch):cad?[cad.file]:group;
@@ -62,7 +64,7 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
        }
        const source=layer.geometryFields?.[0]?.coordinateSystem?.wkt||'';
        const excludedPaperSpace=isCAD?Math.max(0,(originalDetail.layers.find(l=>l.name===layer.name)?.featureCount||0)-(layer.featureCount||0)):0;
-       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',cad:cad?{warnings:cad.warnings,reader:cad.reader,entityCount:cad.entityCount}:null,excludedPaperSpace,format:cad?'DWG':/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
+       items.push({name:fileLayerName(group,ds.path,layer.name,detail.layers.length>1),layerName:layer.name,kind:'vector',cad:cad?{warnings:cad.warnings,reader:cad.reader,entityCount:cad.entityCount,references:cad.references}:null,excludedPaperSpace,format:cad?'DWG':/\.kmz$/i.test(primary.name)?'KMZ':detail.driverShortName||'Vector',files:sourceFiles,ds,info:layer,source,count:layer.featureCount||0});count++;
       }
      }
     }

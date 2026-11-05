@@ -16,3 +16,5 @@
 
 [data-theme=dark] .library-type-icon{background:#303030;color:#d4d4d4}
 [data-theme=dark] :is(.library-placeholder,.library-empty){color:#b5b5b5}
+
+.library-placeholder>small{display:block;margin-top:8px}

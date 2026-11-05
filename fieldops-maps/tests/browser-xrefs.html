@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>DWG reference verification</title><h1>DWG reference verification</h1><pre id="results">Running…</pre><script type="module">
+import {inspect,convert} from '../src/importer.js';
+import {convertDWG} from '../src/dwg-import.js';
+const log=document.querySelector('#results'),assert=(ok,msg)=>{if(!ok)throw Error(msg);},file=async name=>new File([await (await fetch('./fixtures/xrefs/'+name)).arrayBuffer()],name);
+try{
+ const root=await file('host.dwg'),child=await file('survey.dwg'),nested=await file('nested.dwg');
+ const discovery=await convertDWG(root,m=>log.textContent=m);assert(discovery.references.length===1,'Root xref discovery failed');assert(discovery.references[0].path==='C:\\Mine\\CAD\\survey.dwg','Stored path changed');
+ const seen=[],result=await inspect([root],m=>log.textContent=m,{resolveReferences:async ({references})=>{seen.push(references.map(r=>r.name));return references.map(r=>({key:r.key,file:r.name==='Survey'?child:nested,origin:'Test fixture'}));}});
+ assert(!result.errors.length,result.errors.join('; '));assert(result.items.length===1,'Expected one combined dataset');
+ const item=result.items[0],data=await convert(item,{crs:'EPSG:7856'},m=>log.textContent=m);
+ const baseline=await inspect([await file('expected.dxf')]);assert(!baseline.errors.length,baseline.errors.join('; '));const expected=await convert(baseline.items[0],{crs:'EPSG:7856'});
+ const normalized=fc=>fc.features.map(f=>JSON.stringify({type:f.geometry.type,coordinates:JSON.stringify(f.geometry.coordinates).replace(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi,n=>String(Math.round(Number(n)*1e7)/1e7))})).sort();
+ assert(JSON.stringify(normalized(data.fc))===JSON.stringify(normalized(expected.fc)),'Insertion base, rotation, scale or repeat placement changed: '+JSON.stringify(data.fc));
+ assert(data.fc.features.filter(f=>f.properties['CAD colour']==='#00ff00').length===2,'Child CAD colour missing: '+JSON.stringify(data.fc));assert(data.fc.features.filter(f=>f.properties['CAD colour']==='#ff0000').length===2,'Nested CAD colour missing');
+ assert(data.fc.features.some(f=>f.properties.Layer==='Survey$0$Survey'),'Child layer namespace missing');
+ assert(JSON.stringify(seen)==='[["Survey"],["Nested"]]','Nested discovery/overlay semantics changed: '+JSON.stringify(seen));assert(item.cad.references.find(r=>r.name==='Overlay').issue.includes('Nested overlay'),'Nested overlay not explained');
+ const rebuilt=await inspect(item.files,()=>{},{cadImport:item.cad});assert(!rebuilt.errors.length,rebuilt.errors.join('; '));const again=await convert(rebuilt.items[0],{crs:'EPSG:7856'});assert(JSON.stringify(normalized(again.fc))===JSON.stringify(normalized(data.fc)),'Saved reference rebuild changed geometry');
+ const skipped=await inspect([root],()=>{},{resolveReferences:async()=>[]});assert(!skipped.errors.length,skipped.errors.join('; '));const alone=await convert(skipped.items[0],{crs:'EPSG:7856'});assert(alone.fc.features.length===1,'Skipped xref geometry leaked into the map');
+ const circular=await convertDWG(root,()=>{},{references:[{key:discovery.references[0].key,file:root}]});assert(circular.references[0].issue==='Circular reference skipped','Circular reference guard failed');
+ log.textContent='PASS — stored paths and nested references discovered\nPASS — position, base point, rotation, nonuniform scale and repeated inserts match independent DXF\nPASS — CAD colours and separate layers retained\nPASS — nested overlays and cycles skipped\nPASS — original source bundle rebuilds identically\nPASS — unchecked reference excluded\n'+data.fc.features.length+' features';document.body.dataset.result='pass';
+}catch(e){log.textContent='FAIL — '+e.message;document.body.dataset.result='fail';console.error(e);}
+</script>

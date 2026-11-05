@@ -17,7 +17,7 @@ try{
  const coordinates=value=>typeof value[0]==='number'?[value[0],value[1],value[2]??0].map(n=>Math.round(n*1e7)/1e7):value.map(coordinates);
  const normalize=fc=>fc.features.map(f=>JSON.stringify({geometry:{type:f.geometry.type,coordinates:coordinates(f.geometry.coordinates)},layer:f.properties.Layer,text:f.properties.Text})).sort();
  // CAD writers can make implicit zero elevations explicit; compare geometry semantically.
- assert(JSON.stringify(normalize(data.fc))===JSON.stringify(normalize(baseline.fc)),'Geometry, block placement, text or CAD layer names changed');
+ assert(JSON.stringify(normalize(data.fc))===JSON.stringify(normalize(baseline.fc)),'Geometry, block placement, text or CAD layer names changed: '+JSON.stringify({dwg:normalize(data.fc),dxf:normalize(baseline.fc)}));
  const point=data.fc.features.find(f=>f.geometry.type==='Point'&&!f.properties.Text);
  assert(Math.abs(point.geometry.coordinates[0]-153)<.00001&&point.geometry.coordinates[1]<-27&&point.geometry.coordinates[1]>-28,'Wrong map position');assert(point.geometry.coordinates[2]===125,'Elevation lost');
  assert(data.fc.features.some(f=>f.properties['CAD colour']==='#ff0000'),'Red CAD colour missing');assert(data.fc.features.some(f=>f.properties['CAD colour']==='#00ff00'),'Green CAD colour missing');

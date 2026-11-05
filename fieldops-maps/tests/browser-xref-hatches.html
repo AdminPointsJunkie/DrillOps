@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>Linked DWG hatch verification</title><h1>Linked DWG hatch verification</h1><pre id="results">Running…</pre><script type="module">
+import {inspect,convert} from '../src/importer.js';
+import {vectorStyle} from '../src/layer-style.js';
+import {splitDXFSections} from '../src/dxf-sections.js';
+const log=document.querySelector('#results'),assert=(ok,msg)=>{if(!ok)throw Error(msg);},file=async name=>new File([await (await fetch('./fixtures/xrefs/'+name)).arrayBuffer()],name);
+try{
+ const root=await file('host.dwg'),hatch=await file('hatched.dwg');const result=await inspect([root],m=>log.textContent=m,{resolveReferences:async({references})=>references.map(r=>({key:r.key,file:hatch}))});assert(!result.errors.length,result.errors.join('; '));const data=await convert(result.items[0],{crs:'EPSG:7856'},m=>log.textContent=m);
+ const areas=data.fc.features.filter(f=>String(f.properties.SubClasses).includes('AcDbHatch'));assert(areas.length===4,'Expected all four repeated hatch areas: '+JSON.stringify(data.fc));assert(areas.every(f=>f.geometry.type==='Polygon'),'Hatches must be editable polygons');assert(areas.filter(f=>f.geometry.coordinates.length===2).length===2,'Inner hatch holes were lost');
+ const baseline=await inspect([await file('hatches-expected.dxf')]);assert(!baseline.errors.length,baseline.errors.join('; '));const expected=await convert(baseline.items[0],{crs:'EPSG:7856'});
+ const shape=features=>features.map(f=>f.geometry.coordinates.map(ring=>[...new Set(ring.map(p=>p.slice(0,2).map(n=>Math.round(n*1e7)/1e7).join(',')))].sort().join('|')).sort().join(';')).sort();assert(JSON.stringify(shape(areas))===JSON.stringify(shape(expected.fc.features)),'Hatch placement or holes changed');
+ assert(areas.filter(f=>f.properties['CAD colour']==='#ffff00').length===2,'Solid hatch colour lost: '+JSON.stringify(areas));assert(areas.filter(f=>f.properties['CAD colour']==='#00ffff').length===2,'Patterned hatch colour lost');
+ assert(areas.every(f=>f.properties['CAD hatch pattern']&&!f.properties.Text),'Pattern names must be attributes, not map labels');
+ const layer={id:'test',kind:'vector',name:'Hatches',color:'#555555',fc:{type:'FeatureCollection',features:areas},metadata:{format:'DWG',style:{rules:{mode:'expression',expressions:{color:'[CAD colour]'}}}}};const parts=splitDXFSections(layer);assert(parts.length===2,'Hatch layers merged');for(const f of areas){const style=vectorStyle(layer,f);assert(style.fillColor===f.properties['CAD colour']&&style.fillOpacity>0,'Hatch not rendered as a filled area');}
+ log.textContent='PASS — solid and patterned hatch boundaries imported as editable polygons\nPASS — inner holes retained\nPASS — rotated, scaled and repeated placements match independent geometry\nPASS — yellow and cyan CAD colours reach the renderer\nPASS — hatch layers remain separate\nCAD pattern linework is displayed as a solid map fill.';document.body.dataset.result='pass';
+}catch(e){log.textContent='FAIL — '+e.message;document.body.dataset.result='fail';console.error(e);}
+</script>

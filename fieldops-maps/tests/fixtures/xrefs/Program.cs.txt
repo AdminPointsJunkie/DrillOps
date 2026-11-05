@@ -1,0 +1,9 @@
+using System;using System.IO;using ACadSharp;using ACadSharp.IO;using ACadSharp.Entities;using ACadSharp.Tables;using CSMath;
+class Program {
+ static void Main(string[] args){System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);var dest=args[0];Directory.CreateDirectory(dest);
+ var child=new CadDocument();child.Header.ModelSpaceInsertionBase=new XYZ(10,20,0);var green=new Layer("Survey"){Color=new Color(3)};child.Layers.Add(green);child.Entities.Add(new Point(new XYZ(11,22,0)){Layer=green});var nested=new BlockRecord("Nested",@"..\shared\nested.dwg");child.BlockRecords.Add(nested);child.Entities.Add(new Insert(nested){InsertPoint=new XYZ(20,30,0)});var overlay=new BlockRecord("Overlay",@"..\shared\overlay.dwg",true);child.BlockRecords.Add(overlay);child.Entities.Add(new Insert(overlay));DwgWriter.Write(Path.Combine(dest,"survey.dwg"),child);
+ var sub=new CadDocument();sub.Entities.Add(new Point(new XYZ(1,1,0)){Color=new Color(1)});DwgWriter.Write(Path.Combine(dest,"nested.dwg"),sub);
+ var root=new CadDocument();root.Entities.Add(new Line(new XYZ(500000,7000000,0),new XYZ(500010,7000010,0)){Color=new Color(5)});var xref=new BlockRecord("Survey",@"C:\Mine\CAD\survey.dwg");root.BlockRecords.Add(xref);root.Entities.Add(new Insert(xref){InsertPoint=new XYZ(500000,7000000,0),Rotation=Math.PI/2,XScale=2,YScale=3});root.Entities.Add(new Insert(xref){InsertPoint=new XYZ(500100,7000000,0)});DwgWriter.Write(Path.Combine(dest,"host.dwg"),root);
+ var expected=new CadDocument();expected.Entities.Add(new Line(new XYZ(500000,7000000,0),new XYZ(500010,7000010,0)){Color=new Color(5)});foreach(var p in new[]{new XYZ(499994,7000002,0),new XYZ(500101,7000002,0)})expected.Entities.Add(new Point(p){Color=new Color(3)});foreach(var p in new[]{new XYZ(499967,7000022,0),new XYZ(500111,7000011,0)})expected.Entities.Add(new Point(p){Color=new Color(1)});DxfWriter.Write(Path.Combine(dest,"expected.dxf"),expected);
+ }
+}

@@ -22,3 +22,10 @@ test('saved project layers appear automatically and reuse creates independent co
  await assert.rejects(api.archive(rows[0],true),/source project/);
  await db.from('layers').delete().eq('id',result.data);assert.equal((await api.list()).length,0);
 });
+test('original DWG library uploads remain byte-exact, discoverable and company scoped',async()=>{
+ const s=setup(),file=new File(['AC1032 drawing bytes'],'survey.dwg'),row=await s.api.saveDrawing(file,details);
+ assert.equal(row.presentation.drawing.filename,'survey.dwg');assert.equal((await s.api.listDrawings()).length,1);assert.equal(await (await s.api.loadDrawing(row)).text(),await file.text());const copy=await s.api.load(row);assert.equal(copy.drawing,true);assert.equal(copy.files[0].name,'survey.dwg');
+ s.workspace('w2');assert.deepEqual(await s.api.listDrawings(),[]);await assert.rejects(s.api.loadDrawing(row),/workspace/);s.workspace('w1');s.manage(false);await assert.rejects(s.api.saveDrawing(file,details),/admin/);s.manage(true);await s.api.archive(row,true);assert.deepEqual(await s.api.listDrawings(),[]);await assert.rejects(s.api.loadDrawing(row),/no longer available/);
+});
+test('invalid CAD uploads never enter the library',async()=>{const {api}=setup();await assert.rejects(api.saveDrawing(new File(['fake'],'fake.dwg'),details),/recognised/);assert.deepEqual(await api.listDrawings(),[]);});
+test('admins can preview archived drawings for restore but archived references cannot be selected',async()=>{const {api}=setup(),row=await api.saveDrawing(new File(['AC1032 test'],'survey.dwg'),details);await api.archive(row,true);assert.equal((await api.load(row)).drawing,true);await assert.rejects(api.loadDrawing(row),/no longer available/);await api.archive(row,false);assert.equal((await api.listDrawings()).length,1);});

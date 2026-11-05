@@ -6,9 +6,11 @@ export async function validateDWG(file){
  if(!['AC1014','AC1015','AC1018','AC1021','AC1024','AC1027','AC1032'].includes(signature))throw Error('This DWG version is not supported. Save it as AutoCAD 2018 DWG or DXF and try again.');
  return signature;
 }
-export async function convertDWG(file,progress=()=>{},{workerFactory=()=>new Worker(import.meta.env.BASE_URL+'dwg/convert-worker.js',{type:'module'}),timeout=120000}={}){
+export async function convertDWG(file,progress=()=>{},{workerFactory=()=>new Worker(import.meta.env.BASE_URL+'dwg/convert-worker.js?v=20261105-xrefs',{type:'module'}),timeout=120000,references=[]}={}){
  await validateDWG(file);
  progress('Loading DWG reader…');
+ if(references.length>100||references.reduce((n,r)=>n+r.file.size,file.size)>300*1024*1024)throw Error('Import up to 300 MB including referenced drawings.');
+ const supplied=[];for(const ref of references){await validateDWG(ref.file);supplied.push({key:ref.key,bytes:await ref.file.arrayBuffer()});}
  const bytes=await file.arrayBuffer();
  return new Promise((resolve,reject)=>{
   const worker=workerFactory();let timer;
@@ -19,16 +21,20 @@ export async function convertDWG(file,progress=()=>{},{workerFactory=()=>new Wor
    if(data.progress){progress(data.progress);return;}
    if(data.error){if(import.meta.env?.DEV)console.warn(data.detail);finish(Error(data.error));return;}
    if(!(data.bytes instanceof Uint8Array)||!data.bytes.length||data.bytes.length>100*1024*1024){finish(Error('The DWG conversion did not produce a usable drawing. Export a 2D DXF instead.'));return;}
-   finish(null,{file:new File([data.bytes],file.name.replace(/\.dwg$/i,'.dxf'),{type:'application/dxf'}),warnings:Array.isArray(data.warnings)?data.warnings.slice(0,100).map(String):[],entityCount:data.entityCount,reader:'ACadSharp 3.8.37'});
+   finish(null,{file:new File([data.bytes],file.name.replace(/\.dwg$/i,'.dxf'),{type:'application/dxf'}),warnings:Array.isArray(data.warnings)?data.warnings.slice(0,100).map(String):[],entityCount:data.entityCount,references:Array.isArray(data.references)?data.references:[],reader:'ACadSharp 3.8.37'});
   };
-  worker.postMessage({bytes},[bytes]);
+  worker.postMessage({bytes,references:supplied},[bytes,...supplied.map(r=>r.bytes)]);
  });
 }
 // GDAL resolves ByLayer/ByBlock colours into OGR styles during block expansion.
 export function preserveCADColours(fc){
  for(const feature of fc.features||[]){
   const props=feature.properties??={};
-  const colour=String(props.OGR_STYLE||'').match(/(?:^|[,(;])c:(#[0-9a-f]{6})(?:[0-9a-f]{2})?(?=[,)])/i)?.[1];
+  const style=String(props.OGR_STYLE||''),area=['Polygon','MultiPolygon'].includes(feature.geometry?.type);
+  const fill=area?style.match(/(?:^|[,(;])fc:(#[0-9a-f]{6})(?:[0-9a-f]{2})?(?=[,)])/i)?.[1]:null;
+  const colour=fill||style.match(/(?:^|[,(;])c:(#[0-9a-f]{6})(?:[0-9a-f]{2})?(?=[,)])/i)?.[1];
+  // GDAL uses Text for a hatch's pattern name. Keep it as an attribute, not a map label.
+  if(String(props.SubClasses||'').split(':').includes('AcDbHatch')&&props.Text){props['CAD hatch pattern']=props.Text;delete props.Text;}
   if(colour)props['CAD colour']=colour;
  }
  return fc;

@@ -56,3 +56,8 @@ test('split DWG colours reach map features and the layer list, including existin
   const saved=JSON.parse(JSON.stringify(part));saved.color='#315d49';assert.ok(legendSymbol(saved).includes(`fill="${expected}"`));assert.equal(vectorStyle(saved,saved.fc.features[0]).fillColor,expected);
  }
 });
+
+test('CAD hatches preserve brush colours and pattern names without labelling polygons as SOLID',()=>{
+ const fc={features:[{properties:{SubClasses:'AcDbEntity:AcDbHatch',Text:'ANSI31',OGR_STYLE:'BRUSH(fc:#00ffff80);PEN(c:#000000)'},geometry:{type:'Polygon',coordinates:[]}},{properties:{SubClasses:'AcDbEntity:AcDbHatch',Text:'SOLID',OGR_STYLE:'BRUSH(fc:#ffff00)'},geometry:{type:'MultiPolygon',coordinates:[]}}]};
+ preserveCADColours(fc);assert.deepEqual(fc.features.map(f=>f.properties['CAD colour']),['#00ffff','#ffff00']);assert.deepEqual(fc.features.map(f=>f.properties['CAD hatch pattern']),['ANSI31','SOLID']);assert.ok(fc.features.every(f=>!('Text' in f.properties)));
+});

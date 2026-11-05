@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {mkdtempSync,cpSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,cpSync,rmSync,mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -10,6 +10,11 @@ try{
  const source=join(tmp,'ACadSharp');
  run('git',['clone','https://github.com/DomCR/ACadSharp.git',source]);
  run('git',['checkout',commit],source);run('git',['submodule','update','--init','--recursive'],source);
+ // GDAL needs explicit layer 0 to inherit the enclosing INSERT layer when blocks expand.
+ const writer=join(source,'src/ACadSharp/IO/DXF/DxfStreamWriter/DxfSectionWriterBase.cs');
+ const original=readFileSync(writer,'utf8'),defaultLayer='this._writer.WriteIfNotDefault(8, entity.Layer.Name, Layer.DefaultName);';
+ if(!original.includes(defaultLayer))throw Error('Review the ACadSharp layer-0 compatibility patch after upgrading.');
+ writeFileSync(writer,original.replace(defaultLayer,'this._writer.Write(8, entity.Layer.Name);'));
  const project=resolve(root,'tools/dwg-browser');
  rmSync(join(project,'bin/Release/net10.0/browser-wasm/publish'),{recursive:true,force:true});
  run('dotnet',['publish',project,'-c','Release','-p:TargetFrameworks=net10.0','-p:DebugType=none','-p:DebugSymbols=false','-p:GeneratePackageOnBuild=false',`-p:ACadSharpProject=${source}/src/ACadSharp/ACadSharp.csproj`]);

@@ -1,3 +1,4 @@
+import {validateDWG} from './dwg-import.js';
 import {isLocalGeoTIFF} from './data-policy.js';
 export const LIBRARY_LIMIT=50*1024*1024;
 export function libraryPresentation(layer){
@@ -46,7 +47,30 @@ export function createWorkspaceLibrary({db,getWorkspace,getUser,canManage,getSco
    try{assertScope(scope);const r=await db.from('workspace_layer_library').insert(row).select().single();if(r.error)throw r.error;return r.data;}
    catch(error){if(blob)await bucket().remove([row.asset_path]);throw error;}
   },
+  async listDrawings(){
+   const scope=getScope(),id=workspace();if(!id)return [];
+   const rows=[];for(let offset=0;;offset+=500){const r=await db.from('workspace_layer_library').select('*').eq('workspace_id',id).eq('archived',false).order('created_at',{ascending:false}).range(offset,offset+499);if(r.error)throw r.error;assertScope(scope);rows.push(...r.data.filter(row=>row.presentation?.drawing?.format==='DWG'));if(r.data.length<500)break;}return rows;
+  },
+  async saveDrawing(file,details){
+   const scope=getScope(),workspace_id=workspace();if(!workspace_id||!canManage())throw Error('Workspace admin access is required to upload library drawings.');
+   await validateDWG(file);assertScope(scope);
+   const id=crypto.randomUUID(),row={id,workspace_id,name:details.name.trim(),description:details.description.trim(),category:details.category.trim()||'CAD drawings',kind:'vector',presentation:{drawing:{format:'DWG',filename:file.name}},asset_path:`${workspace_id}/${id}/data`,asset_bytes:file.size,feature_count:0,archived:false,created_by:getUser()?.id};
+   if(!row.name||row.name.length>160)throw Error('Enter a drawing name up to 160 characters.');
+   if(!canManage())throw Error('Workspace access changed.');
+   const upload=await bucket().upload(row.asset_path,file,{contentType:'application/acad'});if(upload.error)throw upload.error;
+   try{assertScope(scope);if(!canManage())throw Error('Workspace access changed.');const r=await db.from('workspace_layer_library').insert(row).select().single();if(r.error)throw r.error;return r.data;}
+   catch(error){await bucket().remove([row.asset_path]);throw error;}
+  },
+  async loadDrawing(row,{allowArchived=false}={}){
+   const scope=getScope();if(row.workspace_id!==workspace())throw Error('Choose a drawing in this workspace.');
+   const r=await db.from('workspace_layer_library').select('*').eq('id',row.id).eq('workspace_id',workspace()).single();if(r.error)throw r.error;
+   const current=r.data;if(!current||(current.archived&&!(allowArchived&&canManage()))||current.presentation?.drawing?.format!=='DWG')throw Error('This library drawing is no longer available.');
+   if(current.asset_path!==`${workspace()}/${current.id}/data`)throw Error('The drawing source is invalid.');
+   const result=await bucket().download(current.asset_path);if(result.error)throw result.error;assertScope(scope);
+   const file=new File([result.data],current.presentation.drawing.filename,{type:'application/acad'});await validateDWG(file);return file;
+  },
   async load(row){
+   if(row.presentation?.drawing)return {drawing:true,name:row.name,files:[await this.loadDrawing(row,{allowArchived:true})]};
    const scope=getScope();if(row.workspace_id!==workspace())throw Error('Choose a layer in this workspace.');
    if(row.source_layer_id){
     const project=await db.from('maps').select('id,workspace_id').eq('id',row.source_project_id).single();if(project.error)throw project.error;

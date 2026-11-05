@@ -33,3 +33,5 @@
 [data-theme=dark] :is(.layer-style-controls small,.layer-style-controls p,.inspector-heading small,.table-summary){color:#b5b5b5!important}
 [data-theme=dark] :is(#toast,.empty-icon,.tabs b){background:#303030;color:#ededed;border-color:#484848}
 [data-theme=dark] #empty-map :is(p,small){color:#b5b5b5}
+
+[data-theme=dark] .explore-dialog .dialog-actions{background:#1c1c1c;color:#ededed}
