@@ -15,7 +15,8 @@ export function splitDXFSections(layer,{only=null,cadLayer=null,newID=()=>crypto
   if(!buckets.size)throw Error(cadLayer!==null?`The DWG no longer contains the CAD layer “${cadLayer}”. Import the drawing again to review its layers.`:'The DWG contains no model-space features.');
   return [...buckets].map(([name,features])=>{
    const fc={type:'FeatureCollection',features},metadata=structuredClone(layer.metadata);delete metadata.dxf_geometry;
-   return {...layer,id:cadLayer!==null?layer.id:newID(),name:cadLayer!==null?layer.name:name||'Unnamed CAD layer',fc,bounds:validateCollection(fc),feature_count:features.length,metadata:{...metadata,cad_layer:name},sourceUpload:sharedSource};
+   const sample=features.find(f=>!f.properties?.Text&&/^#[0-9a-f]{6}$/i.test(f.properties?.['CAD colour']))||features.find(f=>/^#[0-9a-f]{6}$/i.test(f.properties?.['CAD colour']));
+   return {...layer,color:sample?.properties['CAD colour']||layer.color,id:cadLayer!==null?layer.id:newID(),name:cadLayer!==null?layer.name:name||'Unnamed CAD layer',fc,bounds:validateCollection(fc),feature_count:features.length,metadata:{...metadata,cad_layer:name},sourceUpload:sharedSource};
   });
  }
  const buckets={point:[],line:[],shape:[]};

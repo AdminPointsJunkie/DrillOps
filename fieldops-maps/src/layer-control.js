@@ -1,8 +1,11 @@
+import {featureAppearance} from './attribute-style.js';
 import {installPanelDragging} from './panel-drag.js';
 import {geometryKinds,layerStyle,lineStyles} from './layer-style.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const colour=value=>/^#[0-9a-f]{6}$/i.test(value)?value:'#78958a';
 export function legendSymbol(layer,override={}){
+ const sample=layer.fc?.features.find(f=>!f.properties?.Text)||layer.fc?.features[0];
+ layer=featureAppearance(layer,sample);
  const style={...layerStyle(layer),...override},color=colour(override.color||layer.color),kinds=geometryKinds(layer.fc);
  let shape;
  if(layer.kind==='raster')shape='<rect x="3" y="3" width="18" height="18" rx="3" fill="none"/><path d="m4 18 6-7 4 4 3-3 4 6" fill="none"/>';

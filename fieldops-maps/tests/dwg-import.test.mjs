@@ -45,3 +45,14 @@ test('rebuilding a renamed DWG layer keeps only its original CAD layer; legacy g
  assert.throws(()=>splitDXFSections(source,{cadLayer:'Missing'}),/no longer contains/);
  assert.equal(splitDXFSections(source,{only:'point'})[0].fc.features.length,3);
 });
+
+test('split DWG colours reach map features and the layer list, including existing saved layers',async()=>{
+ const {legendSymbol}=await import('../src/layer-control.js'),{vectorStyle}=await import('../src/layer-style.js');
+ const features=['#ff0000','#00ff00'].map((color,i)=>({type:'Feature',properties:{Layer:String(i),'CAD colour':color},geometry:{type:'Point',coordinates:[148+i/10,-22]}}));
+ const source={kind:'vector',color:'#315d49',metadata:{format:'DWG',style:{rules:{mode:'expression',expressions:{color:'[CAD colour]'}}}},fc:{type:'FeatureCollection',features}};
+ const parts=splitDXFSections(source);
+ for(const [i,part] of parts.entries()){
+  const expected=features[i].properties['CAD colour'];assert.equal(part.color,expected);assert.equal(vectorStyle(part,part.fc.features[0]).fillColor,expected);assert.ok(legendSymbol(part).includes(`fill="${expected}"`));
+  const saved=JSON.parse(JSON.stringify(part));saved.color='#315d49';assert.ok(legendSymbol(saved).includes(`fill="${expected}"`));assert.equal(vectorStyle(saved,saved.fc.features[0]).fillColor,expected);
+ }
+});
