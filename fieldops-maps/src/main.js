@@ -848,7 +848,7 @@ async function openPrint(quick=false){
 for(const [label,quick] of [['Print layout',false],['Export image',true]]){const button=document.createElement('button');button.className='subtle';button.textContent=label;button.onclick=()=>openPrint(quick);toolMenus.addExport(button);}
 document.addEventListener('keydown',e=>{if(printEditorOpen||homeUI?.active)return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();openPrint(false);}if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key.toLowerCase()==='e'){e.preventDefault();openPrint(true);}});
 
-homeUI=installProjectHome({onProfile:()=>accountProfile.open(),paintAvatar:(el)=>accountProfile.paintAvatar(el,user),getState:()=>({user,authReady,workspace:currentWorkspace,workspaces:workspaceContext?.workspaces||[],projects:!user?[]:LOCAL_TESTING?maps:maps.filter(p=>p.workspace_id===currentWorkspace?.id),active:activeMap,admin:isAdmin(),platformAdmin:!!workspaceContext?.platform_admin,invitationCount:workspaceContext?.invitations?.length||0,canCreate:canCreate()}),
+homeUI=installProjectHome({previewDb:db,previewLocal:LOCAL_TESTING,onProfile:()=>accountProfile.open(),paintAvatar:(el)=>accountProfile.paintAvatar(el,user),getState:()=>({user,authReady,previewAccess:!isReadOnly(),workspace:currentWorkspace,workspaces:workspaceContext?.workspaces||[],projects:!user?[]:LOCAL_TESTING?maps:maps.filter(p=>p.workspace_id===currentWorkspace?.id),active:activeMap,admin:isAdmin(),platformAdmin:!!workspaceContext?.platform_admin,invitationCount:workspaceContext?.invitations?.length||0,canCreate:canCreate()}),
  onOpen:async id=>{if(activeMap?.id===id)return;if(workspacePending())throw Error('Return to the current map and finish pending edits or saves before switching projects.');await loadMap(id);if(activeMap?.id!==id)throw Error('Could not open this project. Refresh the project list and try again.');},
  onNew:()=>{if(workspacePending())throw Error('Return to the current map and save or discard pending work before creating another project.');openProject();},
  onWorkspace:async id=>{if(workspacePending())throw Error('Return to the current map and finish pending work before switching workspace.');await $('#company-select').onchange({target:{value:id}});},
@@ -859,5 +859,7 @@ homeUI=installProjectHome({onProfile:()=>accountProfile.open(),paintAvatar:(el)=
  capturePreview:async()=>{if(!activeMap||!layers.length||geometryEditor?.active||fieldTools?.drawing||busy)return null;const {toJpeg}=await import('html-to-image');return toJpeg($('#map'),{quality:.7,pixelRatio:1,canvasWidth:400,canvasHeight:240,skipFonts:true,filter:node=>!node.classList?.contains('leaflet-control-container')});}
 });
 homeUI.open();
+let previewTimer;
+map.on('moveend layeradd layerremove',()=>{clearTimeout(previewTimer);previewTimer=setTimeout(()=>{if(!homeUI.active&&!document.hidden)void homeUI.capture();},2500);});
 
 supportingFiles=installSupportingFiles({db,getProject:()=>activeMap,getUser:()=>user,canEdit:()=>!!activeMap&&!isReadOnly()&&(LOCAL_TESTING||!!user),local:LOCAL_TESTING,setBusy,onResize:()=>map.invalidateSize({pan:false}),onChanged:()=>{syncDirty=true;refreshSaveStatus();}});
