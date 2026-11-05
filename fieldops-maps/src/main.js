@@ -750,13 +750,13 @@ async function updateFeatureGroups(selected,group){
 const selectionDeletion=createSelectionDeletion({getLayers:()=>layers,getScope:analysisScope,canEdit:canEditLayer,
  replace:(layer,values)=>replaceLayer(layer,{...layer,...values},true),
  remove:async layer=>{
-  const parent=parentGroup(layerTree,layer.id),list=parent?.children||layerTree,location={parent:parent?.id,index:list.findIndex(n=>nodeId(n)===layer.id)};
+  const parent=parentGroup(layerTree,layer.id),list=parent?.children||layerTree,location={parent:parent?.id,group:parent?{...parent,children:[]}:null,groupIndex:parent?layerTree.indexOf(parent):-1,index:list.findIndex(n=>nodeId(n)===layer.id)};
   if(layer.saved){const {error}=await db.rpc('maps_layer_bin',{p_workspace:currentWorkspace?.id,p_action:'trash',p_layer:layer.id});if(error)throw error;}
   map.removeLayer(rendered.get(layer.id));rendered.delete(layer.id);layers=layers.filter(l=>l!==layer);removeNode(layerTree,layer.id);return location;
  },
  restore:async(layer,location)=>{
   if(layer.saved){const {error}=await db.rpc('maps_layer_bin',{p_workspace:currentWorkspace?.id,p_action:'restore',p_layer:layer.id,p_target:activeMap.id});if(error)throw error;}
-  layers.push(layer);const list=layerTree.find(n=>n.id===location.parent)?.children||layerTree;list.splice(Math.max(0,location.index),0,layer.id);
+  layers.push(layer);if(location.group&&!layerTree.some(n=>n.id===location.parent))layerTree.splice(Math.max(0,location.groupIndex),0,{...location.group,children:[]});const list=layerTree.find(n=>n.id===location.parent)?.children||layerTree;list.splice(Math.max(0,location.index),0,layer.id);
   const ml=makeLayer(layer);rendered.set(layer.id,ml);if(isVisible(layer))ml.addTo(map);
  }
 });

@@ -2,9 +2,9 @@
 export const nodeId=node=>typeof node==='string'?node:node.id;
 export const flattenTree=tree=>tree.flatMap(node=>typeof node==='string'?[node]:node.children);
 export function parentGroup(tree,id){return tree.find(n=>typeof n!=='string'&&n.children.includes(id));}
-export function removeNode(tree,id){
+export function removeNode(tree,id,prune=true){
  for(const list of [tree,...tree.filter(n=>typeof n!=='string').map(n=>n.children)]){
-  const index=list.findIndex(n=>nodeId(n)===id);if(index!==-1)return list.splice(index,1)[0];
+  const index=list.findIndex(n=>nodeId(n)===id);if(index!==-1){const removed=list.splice(index,1)[0];if(prune){const group=tree.find(n=>typeof n!=='string'&&n.children===list);if(group&&!list.length)tree.splice(tree.indexOf(group),1);}return removed;}
  }
 }
 export function moveNode(tree,id,targetId,position='before'){
@@ -15,11 +15,13 @@ export function moveNode(tree,id,targetId,position='before'){
  // Groups can move at the root only; never into themselves or another group.
  if(typeof node!=='string'&&(parentGroup(tree,targetId)||position==='inside'))return false;
  if(targetId&&!targetGroup&&!flattenTree(tree).includes(targetId))return false;
- removeNode(tree,id);
- if(!targetId){tree.push(node);return true;}
- if(position==='inside'&&targetGroup){targetGroup.children.push(node);return true;}
+ const source=parentGroup(tree,id);
+ removeNode(tree,id,false);
+ const finish=()=>{if(source&&!source.children.length)tree.splice(tree.indexOf(source),1);return true;};
+ if(!targetId){tree.push(node);return finish();}
+ if(position==='inside'&&targetGroup){targetGroup.children.push(node);return finish();}
  const list=parentGroup(tree,targetId)?.children||tree;
- list.splice(list.findIndex(n=>nodeId(n)===targetId)+(position==='after'?1:0),0,node);return true;
+ list.splice(list.findIndex(n=>nodeId(n)===targetId)+(position==='after'?1:0),0,node);return finish();
 }
 export function normaliseTree(raw,ids){
  const seen=new Set(),groups=new Set();

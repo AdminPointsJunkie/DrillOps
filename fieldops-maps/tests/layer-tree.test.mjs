@@ -34,3 +34,15 @@ test('CSV labels use text, respect viewport and cap, and can be turned off',()=>
  assert.equal(markers[0].tooltip.text.innerHTML,'&lt;script&gt;unsafe&lt;/script&gt;');assert.equal(markers[0].tooltip.options.pane,'points');assert.equal(markers[2].tooltip,null);
  item.metadata.style.labelField='';pointLabels(layer,item,{contains:()=>true},dom.window.document);assert.ok(markers.every(m=>!m.tooltip));dom.window.close();
 });
+
+test('empty source groups disappear after moves, while new empty groups and same-group moves survive',()=>{
+ const empty={id:'new',children:[]},a={id:'a',children:['one']},b={id:'b',children:['two']},tree=[empty,a,b];
+ moveNode(tree,'one','a','inside');assert.equal(tree.includes(a),true);
+ moveNode(tree,'one','b','inside');assert.equal(tree.includes(a),false);assert.equal(tree.includes(empty),true);
+ moveNode(tree,'two',null);assert.equal(tree.includes(b),true);
+ moveNode(tree,'one','b','before');assert.deepEqual(tree,[empty,'one','two']);
+});
+test('deleting the final layer prunes its group only',async()=>{
+ const {removeNode}=await import('../src/layer-tree.js');const tree=[{id:'new',children:[]},{id:'a',children:['one','two']}];
+ removeNode(tree,'one');assert.equal(tree.length,2);assert.equal(removeNode(tree,'two'),'two');assert.deepEqual(tree,[{id:'new',children:[]}]);
+});

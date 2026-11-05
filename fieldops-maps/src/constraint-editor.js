@@ -1,0 +1,20 @@
+import L from 'leaflet';
+// Bounds are edited separately so Cancel never changes the saved map settings.
+export function editConstraints({map,value,doc=document,onSave,onClose=()=>{}}){
+ const panel=doc.createElement('section');panel.id='map-constraints-panel';panel.className='map-floating-panel constraint-editor';panel.setAttribute('aria-label','Map constraints');
+ panel.innerHTML='<header data-panel-drag><strong>Map constraints</strong><button type="button" data-cancel aria-label="Close map constraints">×</button></header><form><section><h3>Bounds</h3><p>Drag the corner handles to define the visible region.</p><button type="button" data-clear>Remove extent limit</button></section><section><h3>Zoom</h3><p>Optionally set the minimum and maximum zoom levels for the map.</p><div class="zoom-limits"><label>Min zoom<input name="minZoom" type="number" min="0" max="22" required></label><label>Max zoom<input name="maxZoom" type="number" min="0" max="22" required></label></div></section><p class="error" role="status"></p><footer><button type="button" data-cancel>Cancel</button><button type="submit">Save</button></footer></form>';
+ doc.body.append(panel);const form=panel.querySelector('form');form.elements.minZoom.value=value.minZoom;form.elements.maxZoom.value=value.maxZoom;
+ const previous={bounds:map.options.maxBounds,min:map.getMinZoom(),max:map.getMaxZoom()},center=map.getCenter(),zoom=map.getZoom();
+ map.setMaxBounds(null);map.setMinZoom(0);map.setMaxZoom(22);
+ const view=map.getBounds().pad(-.16),visible=L.latLngBounds([[Math.max(-85,view.getSouth()),Math.max(-180,Math.min(179,view.getWest()))],[Math.min(85,view.getNorth()),Math.min(180,Math.max(-179,view.getEast()))]]);let bounds=value.bounds?L.latLngBounds([[value.bounds[1],value.bounds[0]],[value.bounds[3],value.bounds[2]]]):visible;
+ if(value.bounds)map.fitBounds(bounds,{padding:[60,60],animate:false});
+ let enabled=true,closed=false;const group=L.featureGroup().addTo(map),rectangle=L.rectangle(bounds,{color:'#ffffff',weight:2,dashArray:'7 7',fillColor:'#64748b',fillOpacity:.08,interactive:false}).addTo(group);
+ const corners=()=>[bounds.getNorthWest(),bounds.getNorthEast(),bounds.getSouthEast(),bounds.getSouthWest()];
+ const handles=corners().map((point,index)=>{const marker=L.marker(point,{draggable:true,icon:L.divIcon({className:'constraint-corner',iconSize:[16,16],iconAnchor:[8,8]}),keyboard:true,title:'Resize map bounds corner '+(index+1),autoPan:true}).addTo(group);let opposite;marker.on('dragstart',()=>opposite=corners()[(index+2)%4]);marker.on('drag',()=>{const p=marker.getLatLng();p.lat=Math.max(-85,Math.min(85,p.lat));p.lng=Math.max(-180,Math.min(180,p.lng));bounds=L.latLngBounds(opposite,p);rectangle.setBounds(bounds);handles.forEach((h,i)=>{if(i!==index)h.setLatLng(corners()[i]);});});marker.on('dragend',()=>handles.forEach((h,i)=>h.setLatLng(corners()[i])));return marker;});
+ function close(){if(closed)return;closed=true;group.remove();panel.remove();doc.removeEventListener('keydown',escape);map.setMinZoom(0);map.setMaxZoom(22);map.setMinZoom(previous.min);map.setMaxZoom(previous.max);map.setMaxBounds(previous.bounds||null);map.setView(center,zoom,{animate:false});onClose();}
+ function escape(e){if(e.key==='Escape'){e.preventDefault();close();}}doc.addEventListener('keydown',escape);
+ panel.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=close);
+ panel.querySelector('[data-clear]').onclick=e=>{enabled=!enabled;if(enabled)group.addTo(map);else group.remove();e.target.textContent=enabled?'Remove extent limit':'Add extent limit';};
+ form.onsubmit=e=>{e.preventDefault();const next={bounds:enabled?[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()]:null,minZoom:Number(form.elements.minZoom.value),maxZoom:Number(form.elements.maxZoom.value)};try{if(next.minZoom>next.maxZoom)throw Error('Minimum zoom must be no greater than maximum zoom.');if(next.bounds&&(next.bounds[0]>=next.bounds[2]||next.bounds[1]>=next.bounds[3]))throw Error('Choose a rectangle with a positive width and height.');onSave(next);close();}catch(error){panel.querySelector('.error').textContent=error.message;}};
+ return {close};
+}
