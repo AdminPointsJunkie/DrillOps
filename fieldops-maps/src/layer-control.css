@@ -150,3 +150,8 @@ body.felt-workspace #app>header{height:44px;background:var(--felt-panel);color:v
 .map-floating-panel>header{position:static!important;height:auto!important;min-height:30px;width:auto;flex-wrap:nowrap;background:transparent!important}.map-floating-panel fieldset:disabled{opacity:.7}.map-floating-panel textarea{font:14px/1.5 Arial,sans-serif}
 .constraint-corner{background:#fff;border:1px solid #475569;box-shadow:0 1px 4px #0006;cursor:nwse-resize}
 .constraint-editor{z-index:1200}.constraint-editor footer{display:flex;justify-content:flex-end;gap:8px}
+
+/* Popovers escape Safari's clipping of fixed descendants in a scroll panel. */
+#sidebar.felt-layer-control [data-layer-panel][popover]{margin:0;left:auto;bottom:auto}
+.layer-context-menu[popover]{margin:0;right:auto;bottom:auto}
+[data-layer-panel][popover]::backdrop,.layer-context-menu[popover]::backdrop{background:transparent;pointer-events:none}

@@ -1,3 +1,4 @@
+import {installFloatingInspectors} from './floating-inspectors.js';
 import {featureAppearance} from './attribute-style.js';
 import {installPanelDragging} from './panel-drag.js';
 import {geometryKinds,layerStyle,lineStyles} from './layer-style.js';
@@ -35,7 +36,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
  if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';if(onBasemap){const b=doc.createElement('button');b.type='button';b.textContent='◉  Basemap';b.onclick=onBasemap;footer.append(b);}else{const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};footer.append(picker);}sidebar.append(footer);}
 
 
- const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);
+ const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
  function select(card){selected=card.dataset.id;for(const row of root.querySelectorAll('.layer-card'))row.classList.toggle('selected',row===card);}
  function setMode(value){mode=value;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();}
@@ -97,7 +98,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
    }
    const title=top.querySelector('strong');title.title=layer.name+' · Right-click for options';
   }
-  dragging.refresh();
+  dragging.refresh();floating.refresh();
  }
  setMode(mode);refresh();return {refresh};
 }
