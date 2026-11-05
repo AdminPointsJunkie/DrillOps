@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createLibraryFavourites} from '../src/library-favourites.js';import {JSDOM} from 'jsdom';
+test('account favourites preserve other companies and reject account changes',async()=>{
+ let user='u',workspace='a',metadata={library_favourites:{b:[{key:'source:qglobe',kind:'source'}]}},writes=0;
+ const db={auth:{getUser:async()=>({data:{user:{id:'u',user_metadata:metadata}}}),updateUser:async({data})=>{writes++;metadata={...metadata,...data};return {};}}};
+ const store=createLibraryFavourites({db,getUser:()=>({id:user}),getWorkspace:()=>({id:workspace})});await store.save([{key:'layer:public:rivers',kind:'layer'}]);assert.equal((await store.list())[0].key,'layer:public:rivers');workspace='b';assert.equal((await store.list())[0].key,'source:qglobe');user='other';await assert.rejects(store.save([]),/Account changed/);assert.equal(writes,1);
+});
+test('library stars persist and public favourites can be opened without workspace loader',async()=>{
+ const {openDataLibrary}=await import('../src/data-library.js');const dom=new JSDOM('',{url:'https://example.com'});globalThis.document=dom.window.document;dom.window.HTMLDialogElement.prototype.showModal=function(){};dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
+ const favourites=createLibraryFavourites({local:true,storage:dom.window.localStorage,getUser:()=>null,getWorkspace:()=>({id:'a'})});const wait=()=>new Promise(r=>setTimeout(r,0));
+ try{let d=openDataLibrary({canCreate:()=>true,getScope:()=> 'a',favourites});await wait();d.querySelector('[data-star="source:qglobe"]').click();await wait();d.querySelector('[data-star="layer:public:rivers"]').click();await wait();d.close();d=openDataLibrary({canCreate:()=>true,getScope:()=> 'a',favourites});await wait();d.querySelector('[data-tab=favourites]').click();assert.ok(d.querySelector('[data-source=qglobe]'));assert.ok(d.querySelector('[data-layer=rivers]'));assert.equal(d.querySelector('[data-layer=countries]'),null);d.querySelector('[data-star="source:qglobe"]').click();await wait();assert.equal(d.querySelector('[data-source=qglobe]'),null);d.close();}finally{delete globalThis.document;dom.window.close();}
+});
