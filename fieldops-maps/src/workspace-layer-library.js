@@ -14,7 +14,19 @@ export function createWorkspaceLibrary({db,getWorkspace,getUser,canManage,getSco
  const assertScope=scope=>{if(scope!==getScope())throw Error('The project or workspace changed. Reopen the library.');};
  const bucket=()=>db.storage.from('layer-library');
  return {
-  async list(){const id=workspace();if(!id)return [];const {data,error}=await db.from('workspace_layer_library').select('*').eq('workspace_id',id).order('created_at',{ascending:false});if(error)throw error;return data;},
+  async list(){
+   const scope=getScope(),id=workspace();if(!id)return [];
+   const {data,error}=await db.from('workspace_layer_library').select('*').eq('workspace_id',id).order('created_at',{ascending:false});if(error)throw error;
+   let projects=db.from('maps').select('id,name,workspace_id');if(!local)projects=projects.eq('workspace_id',id);
+   const result=await projects;if(result.error)throw result.error;assertScope(scope);
+   const maps=new Map((result.data||[]).map(p=>[p.id,p]));let source=[];
+   if(maps.size){
+    if(local){const r=await db.from('layers').select('*');if(r.error)throw r.error;source=r.data||[];}
+    else {const ids=[...maps.keys()];for(let start=0;start<ids.length;start+=100){for(let offset=0;;offset+=500){const r=await db.from('layers').select('*').in('map_id',ids.slice(start,start+100)).order('id').range(offset,offset+499);if(r.error)throw r.error;assertScope(scope);source.push(...r.data);if(r.data.length<500)break;}}}
+    source=source.filter(l=>maps.has(l.map_id)&&!isLocalGeoTIFF(l));
+   }
+   assertScope(scope);return [...data,...source.map(l=>({id:'project:'+l.id,source_layer_id:l.id,source_project_id:l.map_id,workspace_id:id,name:l.name,description:'From '+maps.get(l.map_id).name,category:'Project layers',kind:l.metadata?.xyz?'tiles':l.kind,presentation:libraryPresentation(l),created_at:l.created_at,archived:false}))];
+  },
   async save(layer,details){
    const scope=getScope(),workspace_id=workspace();if(!workspace_id||!canManage())throw Error('Workspace admin access is required to save library layers.');
    if(isLocalGeoTIFF(layer))throw Error('Local-only imagery cannot be shared in the library.');
@@ -36,11 +48,22 @@ export function createWorkspaceLibrary({db,getWorkspace,getUser,canManage,getSco
   },
   async load(row){
    const scope=getScope();if(row.workspace_id!==workspace())throw Error('Choose a layer in this workspace.');
+   if(row.source_layer_id){
+    const project=await db.from('maps').select('id,workspace_id').eq('id',row.source_project_id).single();if(project.error)throw project.error;
+    if(!local&&project.data?.workspace_id!==workspace())throw Error('Choose a layer in this workspace.');
+    const result=await db.from('layers').select('*').eq('id',row.source_layer_id).single();if(result.error)throw result.error;const source=result.data;
+    if(!source||source.map_id!==row.source_project_id)throw Error('The source layer is no longer available.');
+    assertScope(scope);const copy={...libraryPresentation(source),id:crypto.randomUUID(),name:source.name,kind:source.kind,saved:false,visible:true,files:[]};
+    copy.metadata={...copy.metadata,library:{source_layer_id:source.id,source_project_id:source.map_id}};
+    if(source.kind==='vector'){const r=await db.rpc('layer_geojson',{p_layer_id:source.id});if(r.error)throw r.error;copy.fc=libraryFeatures(r.data);}
+    else if(!source.metadata?.xyz){const r=await db.storage.from('gis-files').download(source.raster_path);if(r.error)throw r.error;copy.blob=r.data;}
+    assertScope(scope);return copy;
+   }
    const layer={...structuredClone(row.presentation),id:crypto.randomUUID(),name:row.name,kind:row.kind==='tiles'?'raster':row.kind,saved:false,visible:true,files:[]};
    layer.metadata={...layer.metadata,library:{id:row.id,name:row.name,saved_at:row.created_at}};
    if(row.asset_path){const r=await bucket().download(row.asset_path);if(r.error)throw r.error;assertScope(scope);if(row.kind==='vector')layer.fc=libraryFeatures(JSON.parse(await r.data.text()));else layer.blob=r.data;}
    assertScope(scope);return layer;
   },
-  async archive(row,archived){if(!canManage()||row.workspace_id!==workspace())throw Error('Workspace admin access required.');const r=await db.from('workspace_layer_library').update({archived}).eq('id',row.id).select().single();if(r.error)throw r.error;return r.data;}
+  async archive(row,archived){if(row.source_layer_id)throw Error('Manage project layers in their source project.');if(!canManage()||row.workspace_id!==workspace())throw Error('Workspace admin access required.');const r=await db.from('workspace_layer_library').update({archived}).eq('id',row.id).select().single();if(r.error)throw r.error;return r.data;}
  };
 }

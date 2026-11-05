@@ -12,3 +12,13 @@ test('library scope blocks cross-workspace reuse and admin actions',async()=>{co
 test('archive and restore preserve snapshot and previously added copies',async()=>{const {api}=setup(),row=await api.save(layer(),details),copy=await api.load(row);await api.archive(row,true);assert.equal((await api.list())[0].archived,true);assert.equal(copy.fc.features.length,1);await api.archive(row,false);assert.equal((await api.list())[0].archived,false);});
 test('local GeoTIFF previews cannot be uploaded to library',async()=>{const {api}=setup();await assert.rejects(()=>api.save({...layer(),kind:'raster',metadata:{format:'GeoTIFF'},blob:new Blob(['image'])},details),/Local-only/);});
 test('tile services need no stored file; raster bytes are copied independently',async()=>{const {api}=setup();const tile=await api.save({...layer(),kind:'raster',metadata:{xyz:{url:'https://example.com/{z}/{x}/{y}.png'}}},details);assert.equal(tile.kind,'tiles');assert.equal(tile.asset_path,null);assert.equal((await api.load(tile)).metadata.xyz.url,'https://example.com/{z}/{x}/{y}.png');const raster=await api.save({...layer(),kind:'raster',blob:new Blob(['raster'],{type:'image/png'})},details);assert.equal(await (await api.load(raster)).blob.text(),'raster');});
+test('saved project layers appear automatically and reuse creates independent company copies',async()=>{
+ const db=createLocalWorkspace(new IDBFactory());const api=createWorkspaceLibrary({db,getWorkspace:()=>({id:'w1'}),getUser:()=>({id:'u'}),getScope:()=> 'w1',canManage:()=>true,local:true});
+ const p=await db.from('maps').insert({name:'Survey project',workspace_id:'w1'}).select().single();
+ const original=layer();const result=await db.rpc('import_vector',{p_layer:{name:original.name,map_id:p.data.id,kind:'vector',metadata:original.metadata,color:original.color},p_features:original.fc.features});assert.ifError(result.error);
+ const rows=await api.list();assert.equal(rows.length,1);assert.equal(rows[0].category,'Project layers');assert.match(rows[0].description,/Survey project/);
+ const copy=await api.load(rows[0]);assert.equal(copy.fc.features[0].properties.name,'A');assert.notEqual(copy.id,result.data);assert.equal(copy.saved,false);assert.equal(copy.fc.features[0].properties._fieldmaps_files,undefined);
+ await assert.rejects(api.load({...rows[0],workspace_id:'another-company'}),/workspace/);
+ await assert.rejects(api.archive(rows[0],true),/source project/);
+ await db.from('layers').delete().eq('id',result.data);assert.equal((await api.list()).length,0);
+});
