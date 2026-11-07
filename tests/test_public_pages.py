@@ -7,7 +7,7 @@ import subprocess
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / 'docs'
-PAGES = ['index.html', 'eos.html', 'account.html', 'project.html', 'drillops.html', 'fieldops.html', 'fieldmaps.html', 'support.html', 'privacy.html', 'fieldops-support.html', 'fieldops-privacy.html']
+PAGES = ['index.html', 'eos.html', 'account.html', 'project.html', 'drillops.html', 'accounting.html', 'project-management.html', 'fieldops.html', 'fieldmaps.html', 'support.html', 'privacy.html', 'fieldops-support.html', 'fieldops-privacy.html']
 PAGES += [str(path.relative_to(DOCS)) for path in (DOCS/'OLD').glob('*.html')]
 class HTML(HTMLParser):
     def __init__(self, source):
@@ -34,7 +34,7 @@ class PublicPages(unittest.TestCase):
     def test_product_access(self):
         activities=(DOCS/'drillops.html').read_text()
         maps=(DOCS/'fieldmaps.html').read_text()
-        self.assertIn('href="./index.html?signin=activities#portal-login">Sign in',activities)
+        self.assertIn('href="./eos.html">Sign in',activities)
         self.assertIn('href="./maps/?signin=1">Sign in',maps)
         self.assertNotIn('6796881116',activities)
     def test_fieldops_store_and_qr(self):

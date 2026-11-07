@@ -91,3 +91,11 @@ python -m http.server 3000 --directory frontend
 
 SQLite is stored at the path set by the `DB_PATH` env var on Render.
 Free tier disk resets on redeploy — add a **Render Persistent Disk** ($1/month) for production.
+
+### Company website and shared branding
+
+DrillOps is the company. The public product pages are EOS (`docs/drillops.html`, retaining its existing URL), Account (`docs/accounting.html`), Project (`docs/project-management.html`), FieldOps and FieldMaps. The signed-in applications remain `eos.html`, `account.html` and `project.html`.
+
+The shared FieldMaps-inspired wordmark and visual styles live in `docs/brand.css`. Public navigation is generated from `scripts/site_brand.py`; the three operations product pages are defined in `scripts/build_public_pages.py`, and the company homepage content lives in `docs/website/home.html`. Run `python3 scripts/build_public_pages.py` and `python3 scripts/build_workspaces.py` after source changes, and commit generated documents. The existing FieldMaps app and `/OLD` are independent of this build.
+
+Public Account and Project screenshots show actual empty interface states and contain no customer records.
