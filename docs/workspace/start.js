@@ -1,6 +1,10 @@
 
 (async()=>{
   if(loadRecoverySessionFromUrl())return;
+  // A saved session is not a request to leave the public homepage.
+  const entryParams=new URLSearchParams(window.location.search);
+  const requestedSignIn=entryParams.has('signin')||entryParams.has('return_to')||window.location.hash==='#portal-login';
+  if(document.body.dataset.publicHome==='true'&&!requestedSignIn){showLogin();return;}
   authSession=loadStoredAuthSession();
   if(!authSession){showLogin();return;}
   try{

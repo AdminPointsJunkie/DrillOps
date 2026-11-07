@@ -1,7 +1,7 @@
 # Standalone DrillOps apps
 
 Entry points:
-- `index.html`: legacy entry address; opens EOS directly after the existing login.
+- `index.html`: public homepage; stays public even with a saved session. Explicit sign-in links enter EOS, and password recovery/return links retain their existing flow.
 - `eos.html`: EOS reporting, production, recorded-work charges, rates and operational imports.
 - `account.html`: invoice actuals ledger, purchase orders, suppliers and invoice imports.
 - `project.html`: project setup, borehole planning/maps, budget planning and administration.
@@ -9,6 +9,8 @@ Entry points:
 Each app document contains only its own page panels and its own navigation. Cross-app links navigate to the owning app. They are independent documents, not tabs around the old all-in-one page. Shared dialogs and authentication remain in `shell.html`; the existing business functions and API/auth client remain in `runtime.js`. `start.js` runs after optional app enhancements, including Account's invoice ledger.
 
 The shared session key, API origin and client/project/program selection keys are unchanged. No database copies, schema changes or new access privileges are introduced. Management access is still verified before app initialization; non-management accounts retain their field portal route. Never put tokens in app links.
+
+EOS's contractor choices are restricted to Mitchells Drilling, DEPCO Drilling and MCC Group, with the existing project/program filters still applied. Both cached contractor choices and project-linked contractor responses are scoped for EOS; the full supplier cache remains available to Account and Project. No supplier records are deleted.
 
 ## Editing
 

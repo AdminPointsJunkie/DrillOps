@@ -71,4 +71,9 @@ class PublicPages(unittest.TestCase):
         self.assertIn("const AUTH_STORAGE_KEY='drillops_supabase_session'",old)
         self.assertNotIn('./workspace/runtime.js',old)
         self.assertIn('href="./index.html"',(DOCS/'OLD/training.html').read_text())
+    def test_homepage_has_an_explicit_public_entry_marker(self):
+        self.assertIn('data-public-home="true"',(DOCS/'index.html').read_text())
+        self.assertIn('<title>DrillOps</title>',(DOCS/'index.html').read_text())
+        for name in ['eos','account','project']:
+            self.assertNotIn('data-public-home=',(DOCS/(name+'.html')).read_text())
 if __name__=='__main__': unittest.main()
