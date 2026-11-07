@@ -29,6 +29,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form, Reque
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from admin_api import create_admin_router
+from borehole_reads import borehole_actuals_query
 from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
@@ -3386,19 +3387,21 @@ def root():
     }
 
 
-@app.get("/contractors")
-def get_contractors():
-    """Return contractors from DB, ensuring shipped defaults exist."""
+@app.on_event("startup")
+def ensure_default_contractors():
+    """Ensure shipped defaults once at startup, never on a page read."""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            for name, code in CONTRACTORS:
-                programs = DEFAULT_CONTRACTOR_PROGRAMS.get(name, "Exploration")
-                category = DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc")
-                expense_gl = default_contractor_expense_gl(category)
-                cur.execute("""
-                    INSERT INTO contractors (name, short_code, category, program, expense_gl)
-                    VALUES (%s, %s, %s, %s, %s) ON CONFLICT (name) DO NOTHING
-                """, (name, code, category, programs, expense_gl))
+            defaults = [
+                (name, code, DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc"),
+                 DEFAULT_CONTRACTOR_PROGRAMS.get(name, "Exploration"),
+                 default_contractor_expense_gl(DEFAULT_CONTRACTOR_CATEGORIES.get(name, "Misc")))
+                for name, code in CONTRACTORS
+            ]
+            psycopg2.extras.execute_values(cur, """
+                INSERT INTO contractors (name, short_code, category, program, expense_gl)
+                VALUES %s ON CONFLICT (name) DO NOTHING
+            """, defaults)
             cur.execute("""
                 UPDATE contractors
                 SET short_code = COALESCE(NULLIF(short_code, ''), 'MCC'),
@@ -3424,10 +3427,16 @@ def get_contractors():
                     OR COALESCE(expense_gl, '') = ''
                   )
             """)
-            cur.execute("SELECT * FROM contractors ORDER BY program, name")
-            rows = [dict(r) for r in cur.fetchall()]
         conn.commit()
-    return rows
+
+
+@app.get("/contractors")
+def get_contractors():
+    """Read configured contractors without seeding or repairing rows per request."""
+    with get_conn(read_only=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM contractors ORDER BY program, name")
+            return [dict(r) for r in cur.fetchall()]
 
 
 @app.post("/contractors")
@@ -6702,19 +6711,19 @@ def get_crew(contractor: str = Query(...), dates: Optional[str] = Query(None)):
 
 @app.get("/filters")
 def get_filters(contractor: str = Query(...)):
-    with get_conn() as conn:
+    # One scan and one read round trip, instead of five separate queries.
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT date FROM activities WHERE contractor=%s AND date IS NOT NULL ORDER BY date", (contractor,))
-            dates = [r["date"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT hole_num FROM activities WHERE contractor=%s AND hole_num IS NOT NULL ORDER BY hole_num", (contractor,))
-            holes = [r["hole_num"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT site_name FROM activities WHERE contractor=%s AND site_name IS NOT NULL ORDER BY site_name", (contractor,))
-            sites = [r["site_name"] for r in cur.fetchall()]
-            cur.execute("SELECT DISTINCT code FROM activities WHERE contractor=%s AND code!='' ORDER BY code", (contractor,))
-            codes = [r["code"] for r in cur.fetchall()]
-            cur.execute("SELECT COUNT(*) AS n FROM activities WHERE contractor=%s", (contractor,))
-            total = cur.fetchone()["n"]
-    return {"dates": dates, "holes": holes, "sites": sites, "codes": codes, "total_rows": total}
+            cur.execute("""
+                SELECT
+                    COALESCE(array_agg(DISTINCT date ORDER BY date) FILTER (WHERE date IS NOT NULL), ARRAY[]::text[]) AS dates,
+                    COALESCE(array_agg(DISTINCT hole_num ORDER BY hole_num) FILTER (WHERE hole_num IS NOT NULL), ARRAY[]::text[]) AS holes,
+                    COALESCE(array_agg(DISTINCT site_name ORDER BY site_name) FILTER (WHERE site_name IS NOT NULL), ARRAY[]::text[]) AS sites,
+                    COALESCE(array_agg(DISTINCT code ORDER BY code) FILTER (WHERE code<>''), ARRAY[]::text[]) AS codes,
+                    COUNT(*) AS total_rows
+                FROM activities WHERE contractor=%s
+            """, (contractor,))
+            return dict(cur.fetchone())
 
 
 @app.get("/analytics")
@@ -9561,84 +9570,10 @@ COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL = f"""
 @app.get("/boreholes")
 def get_boreholes(contractor: Optional[str] = Query(None)):
     try:
-        with get_conn() as conn:
+        query, params = borehole_actuals_query(contractor, ACTIVITY_REPORT_DATE_AS_ISO_SQL)
+        with get_conn(read_only=True) as conn:
             with conn.cursor() as cur:
-                if contractor == "Company":
-                    # Borehole Planning is the company master plan.  Its actuals
-                    # come from the drilling contractor Activity Reports, not
-                    # from a non-existent "Company" activity feed.
-                    cur.execute(f"""
-                        SELECT b.*,
-                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
-                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
-                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
-                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
-                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
-                            SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
-                            COALESCE(
-                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    THEN {ACTIVITY_REPORT_DATE_AS_ISO_SQL} END),
-                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    THEN {ACTIVITY_REPORT_DATE_AS_ISO_SQL} END),
-                                MAX({ACTIVITY_REPORT_DATE_AS_ISO_SQL})
-                            ) AS completion_date
-                        FROM boreholes b
-                        LEFT JOIN activities a ON {COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL}
-                        WHERE b.contractor='Company'
-                        GROUP BY b.id ORDER BY b.drill_order
-                    """)
-                elif contractor:
-                    cur.execute(f"""
-                        SELECT b.*,
-                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
-                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
-                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
-                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
-                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
-                            SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
-                            COALESCE(
-                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END),
-                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END)
-                            ) AS completion_date
-                        FROM boreholes b
-                        LEFT JOIN activities a ON a.contractor=%s
-                            AND (
-                                a.hole_num=b.hole_id
-                                OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
-                                OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
-                            )
-                        WHERE b.contractor IN (%s, 'Company')
-                        GROUP BY b.id ORDER BY b.drill_order
-                    """, (contractor, contractor))
-                else:
-                    cur.execute(f"""
-                        SELECT b.*,
-                            COALESCE(SUM(a.line_cost),0) AS eos_cost,
-                            COALESCE(SUM(CASE WHEN a.code LIKE 'Drill_%%'
-                                OR a.code IN ('H_Min_Shift','H_Casing_Install','H_Circulation_Flush','H_Circulation_Lost','H_Reaming','H_Rig_Cementing','H_Surface_Setup','H_Tripping_Rods')
-                                THEN a.line_cost ELSE 0 END),0) AS drilling_cost,
-                            SUM(CASE WHEN a.code LIKE 'Drill_%%' THEN a.total_metres ELSE 0 END) AS drilling_metres,
-                            SUM(a.total_metres) AS eos_metres,
-                            COALESCE(BOOL_OR(COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'), FALSE) AS activity_complete,
-                            COALESCE(
-                                MAX(CASE WHEN COALESCE(a.notes,'') ~* '(^|[^a-z])(end of hole|eoh)([^a-z]|$)'
-                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END),
-                                MAX(CASE WHEN a.code LIKE 'Drill_%%'
-                                    AND a.date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN a.date END)
-                            ) AS completion_date
-                        FROM boreholes b
-                        LEFT JOIN activities a ON a.contractor=b.contractor
-                            AND (
-                                a.hole_num=b.hole_id
-                                OR (COALESCE(b.site_id,'')<>'' AND a.site_name=b.site_id)
-                                OR ({BURTON_BOREHOLE_ACTIVITY_MATCH_SQL})
-                            )
-                        GROUP BY b.id ORDER BY b.drill_order
-                    """)
+                cur.execute(query, params)
                 rows = [dict(r) for r in cur.fetchall()]
                 # The workbook defines budget scope, not operating history.
                 # Keep completed/in-progress holes evidenced by activity
@@ -9953,7 +9888,7 @@ def get_borehole_summary(contractor: Optional[str] = Query(None)):
 
 @app.get("/clients")
 def get_clients():
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT c.*, COUNT(p.id) AS project_count
@@ -10028,7 +9963,7 @@ def delete_client(client_id: int):
 
 @app.get("/projects")
 def get_projects(contractor: str = Query(...)):
-    with get_conn() as conn:
+    with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT p.*, c.name AS client_name, c.code AS client_code,

@@ -17,6 +17,7 @@ function authConfig(){
 }
 
 function saveAuthSession(session){
+  if(typeof invalidateEosReads==='function')invalidateEosReads();
   authSession=session;
   if(session){
     localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
@@ -2396,7 +2397,7 @@ async function loadActivities(){
     const bundle=await response.json();
     if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     applyActivityReportBundle(bundle);
-    if(WORKSPACE_APP==='eos')rememberEosProjects(bundle.activities);
+    if(WORKSPACE_APP==='eos')rememberEosProjects(bundle.activities,!dates&&!holes&&!sites&&!codes&&!search&&!activityMissingCodesOnly);
     activitiesData=filterWorkspaceActivities(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
     crewData=filterRowsForActiveProgram(crewData);
@@ -10203,6 +10204,18 @@ function highlightBhRow(holeId) {
 async function initializePortal(){
   if(portalInitialized)return;
   portalInitialized=true;
+  if(WORKSPACE_APP==='eos'){
+    // Open the requested view immediately after authentication. Registry metadata
+    // fills in alongside the report; no filter-count or project-link gate.
+    initializeEosScope();workspaceStarted=true;ensureActiveContractorInProgram();buildContractorSwitcher();
+    openInitialAppPage();
+    Promise.all([fetchContractors(),fetchProjects()]).then(()=>{
+      const previous=activeContractor;ensureActiveContractorInProgram();
+      if(previous!==activeContractor)switchContractor(activeContractor);
+      renderEosScopeControls();buildContractorSwitcher();syncWorkspaceControls();
+    }).catch(error=>console.warn('EOS setup refresh failed:',error.message));
+    return;
+  }
   await fetchContractors();
   await fetchProjects();
   if(WORKSPACE_APP==='eos')initializeEosScope();

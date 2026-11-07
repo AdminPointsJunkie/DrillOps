@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 
-INDEX_HTML = Path(__file__).resolve().parents[1] / "docs" / "index.html"
+INDEX_HTML = Path(__file__).resolve().parents[1] / "docs" / "workspace" / "runtime.js"
 
 
 class ActivityReportPerformanceTests(unittest.TestCase):
@@ -52,7 +52,7 @@ class ActivityReportPerformanceTests(unittest.TestCase):
         )
         self.assertIsNotNone(match, "Could not locate initializePortal")
         self.assertNotIn("await loadActivities()", match.group(1))
-        self.assertIn("drawerNav(savedPageButton)", match.group(1))
+        self.assertIn("openInitialAppPage()", match.group(1))
 
 
 if __name__ == "__main__":
