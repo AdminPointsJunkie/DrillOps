@@ -22,6 +22,8 @@ const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.setContent(pageHTML(fixtures));
 await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$80.00');
 assert.equal(await page.locator('#inv-body tr').count(),3);
+assert.equal(await page.locator('[data-view=review], [data-view=paid], #inv-status-filter, #inv-kpi-query').count(),0);
+assert.equal(await page.locator('#inv-table th').count(),7);
 assert.equal(await page.locator('#inv-body [contenteditable]').count(),0);
 assert.equal(await page.locator('#ledger-entry').getAttribute('open'),null);
 assert.match(await page.locator('#inv-body').innerText(),/\$20.00/);
