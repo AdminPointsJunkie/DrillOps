@@ -100,12 +100,5 @@
         "Users & change log"
       ]
     ]
-  },
-  "home": {
-    "name": "DrillOps",
-    "tag": "Choose your app.",
-    "copy": "Three independent workspaces. One account. Connected project data.",
-    "panels": [],
-    "nav": []
   }
 }

@@ -105,7 +105,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Account</div><a class="drawer-nav-item" href="./account.html">Account home</a><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)">Invoice ledger</button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)">Purchase orders</button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)">Suppliers</button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)">Import invoices</button><a class="drawer-nav-item app-switch" href="./index.html">Switch app</a></div>
+    <div class="drawer-section"><div class="drawer-section-title">Account</div><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)">Invoice ledger</button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)">Purchase orders</button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)">Suppliers</button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)">Import invoices</button></div>
 
   </div>
 </div>
@@ -115,7 +115,7 @@
   <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()" aria-label="Open menu">
     <span></span><span></span><span></span>
   </button>
-  <a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">Account</span>
+  <a class="workspace-area-name" href="./account.html" aria-label="Account home">Account</a>
   <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="display:none;">
     <option value="Exploration">Exploration</option>
     <option value="Gas Riser">Gas Riser</option>
@@ -298,8 +298,8 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Account navigation"><a href="./account.html">Home</a><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
-<section class="page active app-home" id="page-app-home"><div class="app-kicker">Account</div><h1>Your books. Clear and connected.</h1><p class="app-intro">Actual invoices, credit notes and purchase orders in one place.</p><div class="app-tasks"><a class="app-task" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-task" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-task" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-task" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></div></section>
+<nav class="app-local-nav" aria-label="Account navigation"><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
+
 
     <!-- Importer -->
     <section class="page" id="page-importer">

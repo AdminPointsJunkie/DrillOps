@@ -105,7 +105,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Project</div><a class="drawer-nav-item" href="./project.html">Project home</a><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)">Projects</button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)">Borehole planning & map</button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)">Budget planning</button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)">Users & change log</button><a class="drawer-nav-item app-switch" href="./index.html">Switch app</a></div>
+    <div class="drawer-section"><div class="drawer-section-title">Project</div><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)">Projects</button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)">Borehole planning & map</button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)">Budget planning</button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)">Users & change log</button><a class="drawer-nav-item" href="./training.html">Training matrix</a></div>
 
   </div>
 </div>
@@ -115,7 +115,7 @@
   <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()" aria-label="Open menu">
     <span></span><span></span><span></span>
   </button>
-  <a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">Project</span>
+  <a class="workspace-area-name" href="./project.html" aria-label="Project home">Project</a>
   <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="display:none;">
     <option value="Exploration">Exploration</option>
     <option value="Gas Riser">Gas Riser</option>
@@ -298,8 +298,8 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Project navigation"><a href="./project.html">Home</a><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a></nav>
-<section class="page active app-home" id="page-app-home"><div class="app-kicker">Project</div><h1>Plan the program. Keep it moving.</h1><p class="app-intro">Projects, borehole planning, maps and budget allocations.</p><div class="app-tasks"><a class="app-task" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-task" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-task" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-task" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a></div></section>
+<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a></nav>
+
 
     <!-- Importer -->
 
@@ -332,11 +332,6 @@
 
     <!-- Projects -->
     <section class="page management-page" id="page-project-budgets">
-      <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab active" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
-        <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
-        <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
-      </nav>
       <div class="management-head">
         <div>
           <div class="management-title">Projects</div>

@@ -7,27 +7,24 @@ ROOT=Path(__file__).resolve().parents[1]; DOCS=ROOT/'docs'; SRC=DOCS/'workspace'
 APPS={
  'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','production','costing','rates','cost-contracts','importer'],'nav':[('activities','Plods'),('reports','Period reports'),('production','Production'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports')]},
  'account':{'name':'Account','tag':'Your books. Clear and connected.','copy':'Actual invoices, credit notes and purchase orders in one place.','panels':['invoices','purchase-orders','contractors','importer'],'nav':[('invoices','Invoice ledger'),('purchase-orders','Purchase orders'),('contractors','Suppliers'),('importer','Import invoices')]},
- 'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-budgets','budget','boreholes','admin'],'nav':[('project-budgets','Projects'),('boreholes','Borehole planning & map'),('budget','Budget planning'),('admin','Users & change log')]},
- 'home':{'name':'DrillOps','tag':'Choose your app.','copy':'Three independent workspaces. One account. Connected project data.','panels':[],'nav':[]}}
+ 'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-budgets','budget','boreholes','admin'],'nav':[('project-budgets','Projects'),('boreholes','Borehole planning & map'),('budget','Budget planning'),('admin','Users & change log')]}}
 shell=(SRC/'shell.html').read_text()
 def link(area,page,label,css='app-task'):
  return f'<a class="{css}" href="./{area}.html?view={page}">{html.escape(label)}<span aria-hidden="true">↗</span></a>'
 for area,cfg in APPS.items():
- title=cfg['name'];nav='<div class="drawer-section"><div class="drawer-section-title">'+title+'</div><a class="drawer-nav-item" href="./'+('index' if area=='home' else area)+'.html">'+title+' home</a>'
+ title=cfg['name'];nav='<div class="drawer-section"><div class="drawer-section-title">'+title+'</div>'
+ if area=='eos':nav+='<a class="drawer-nav-item" href="./eos.html">Overview</a>'
  for page,label in cfg['nav']:nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">{label}</button>'
- if area=='eos':nav+='<a class="drawer-nav-item" href="./training.html">Training matrix</a>'
- nav+='<a class="drawer-nav-item app-switch" href="./index.html">Switch app</a></div>'
- home=f'<section class="page active app-home" id="page-app-home"><div class="app-kicker">{title}</div><h1>{cfg["tag"]}</h1><p class="app-intro">{cfg["copy"]}</p>'
- if area=='home':
-  home+='<div class="app-chooser">'
-  for key in ['eos','account','project']:
-   c=APPS[key];home+=f'<a class="app-choice app-choice-{key}" href="./{key}.html"><span class="app-monogram">{c["name"][:1]}</span><h2>{c["name"]}</h2><p>{c["copy"]}</p><strong>Open {c["name"]} ↗</strong></a>'
-  home+='</div>'
- else:home+='<div class="app-tasks">'+''.join(link(area,p,l) for p,l in cfg['nav'])+'</div>'
- home+='</section>'
- if area=='eos':home=(SRC/'eos-home.html').read_text()
+ if area=='project':nav+='<a class="drawer-nav-item" href="./training.html">Training matrix</a>'
+ nav+='</div>'
+ home=(SRC/'eos-home.html').read_text() if area=='eos' else ''
  s=shell.replace('{{navigation}}',nav).replace('{{area}}',area).replace('{{label}}',title).replace('{{home}}',home)
- s=s.replace('{{area-navigation}}','<nav class="app-local-nav" aria-label="'+title+' navigation"><a href="./'+('index' if area=='home' else area)+'.html">Home</a>'+''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'])+'</nav>' if area!='home' else '')
+ local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'])
+ if area=='project':local_links+='<a href="./training.html">Training matrix</a>'
+ if area=='eos':local_links='<a href="./eos.html">Overview</a>'+local_links
+ s=s.replace('{{area-navigation}}','<nav class="app-local-nav" aria-label="'+title+' navigation">'+local_links+'</nav>')
+ s=s.replace('<a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">'+title+'</span>',f'<a class="workspace-area-name" href="./{area}.html" aria-label="{title} home">{title}</a>')
+
  def panel(m):
   name=m[1]
   if name not in cfg['panels']:return ''
@@ -60,5 +57,7 @@ for area,cfg in APPS.items():
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
  if area!='home':
   s=s.replace('<div id="login-screen" class="site">','<div id="login-screen" class="site signin-mode">').replace('Sign in to your workspace.',f'Sign in to {title}.').replace('Operations workspace',title).replace('>DO</div>',f'>{title[:1]}</div>')
- (DOCS/('index.html' if area=='home' else area+'.html')).write_text('<!-- Generated by scripts/build_workspaces.py. Edit docs/workspace sources. -->\n'+'\n'.join(line.rstrip() for line in s.splitlines())+'\n')
+ (DOCS/(area+'.html')).write_text('<!-- Generated by scripts/build_workspaces.py. Edit docs/workspace sources. -->\n'+'\n'.join(line.rstrip() for line in s.splitlines())+'\n')
+# Legacy sign-in links now enter EOS directly; no app chooser.
+(DOCS/'index.html').write_text((DOCS/'eos.html').read_text().replace('class="site signin-mode"','class="site"',1))
 (SRC/'apps.json').write_text(json.dumps(APPS,indent=2)+'\n')

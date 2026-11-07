@@ -47,6 +47,9 @@ class PublicPages(unittest.TestCase):
             self.assertIn('src="./workspace/start.js',source)
             ids=HTML(source).ids
             self.assertEqual(len(ids),len(set(ids)),name+' duplicate ids')
+        for name in ['index.html','eos.html','account.html','project.html']:
+            self.assertNotIn('Switch app',(DOCS/name).read_text())
+            self.assertNotIn('app-chooser',(DOCS/name).read_text())
         self.assertNotIn('id="page-invoices"',(DOCS/'eos.html').read_text())
         self.assertNotIn('id="page-activities"',(DOCS/'account.html').read_text())
         self.assertNotIn('id="page-invoices"',(DOCS/'project.html').read_text())

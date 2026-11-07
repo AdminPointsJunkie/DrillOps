@@ -10156,7 +10156,6 @@ function highlightBhRow(holeId) {
 async function initializePortal(){
   if(portalInitialized)return;
   portalInitialized=true;
-  if(WORKSPACE_APP==='home'){showAppHome();return;}
   await fetchContractors();
   await fetchProjects();
   if(!restoreWorkspaceSelection()) await showWorkspaceGate();

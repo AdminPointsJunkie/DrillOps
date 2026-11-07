@@ -1,7 +1,7 @@
 # Standalone DrillOps apps
 
 Entry points:
-- `index.html`: authenticated app chooser (public marketing and existing login remain available before sign-in).
+- `index.html`: legacy entry address; opens EOS directly after the existing login.
 - `eos.html`: EOS reporting, production, recorded-work charges, rates and operational imports.
 - `account.html`: invoice actuals ledger, purchase orders, suppliers and invoice imports.
 - `project.html`: project setup, borehole planning/maps, budget planning and administration.
@@ -38,3 +38,5 @@ Browser integration tests mock API data and sessions locally. They do not use re
 EOS uses the existing daily-report bundle and approval records to show report counts, metres, hours, priced charges, recent plods and recorded time usage. These are recorded shifts, not sensor telemetry. Unknown pricing is flagged as incomplete. The selected contractor, client, project and program scope the overview. The plod register offers functional approval, shift and rig filters.
 
 Design references (reviewed 8 November 2026): CorePlan's public contractor/plod workflow (https://help.coreplan.io/en/articles/12888261-using-the-coreplan-driller-contractor-portal and https://www.coreplan.io/drilling) and Felt's interface (https://felt.com/). EOS retains its own name and assets; the implementation does not embed either vendor's screenshots or branding, nor claim feature parity with their platforms.
+
+Account opens straight into its invoice ledger; Project opens straight into its project register. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.

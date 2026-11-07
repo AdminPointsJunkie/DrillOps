@@ -23,9 +23,12 @@ const page=await context.newPage();let errors=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource:'))errors.push(m.text())});
 for(const [app,views] of Object.entries({index:[''],eos:['','reports','activities','production','costing','rates','cost-contracts','importer'],account:['','invoices','purchase-orders','contractors','importer'],project:['','project-budgets','budget','boreholes','admin']})){
  for(const view of views){errors=[];await page.goto(base+app+'.html'+(view?'?view='+view:''));await page.waitForTimeout(650);
- assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+view:'page-app-home');
+ assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+view:({account:'page-invoices',project:'page-project-budgets'}[app]||'page-app-home'));
  assert.deepEqual(errors,[],app+' '+view);
  assert.equal(await page.locator('#login-screen').isVisible(),false);
+ assert.equal(await page.locator('.app-chooser,.app-choice,.app-tasks,.app-switch').count(),0);
+ if(app==='eos')assert.equal(await page.locator('#drawer a[href="./training.html"]').count(),0);
+ if(app==='project')assert.equal(await page.locator('#drawer a[href="./training.html"]').count(),1);
  if(app==='account')assert.equal(await page.locator('#page-activities').count(),0);
  if(app==='eos')assert.equal(await page.locator('#page-invoices').count(),0);
  if(app==='eos'&&!view){await page.waitForFunction(()=>document.getElementById('eos-total').textContent==='1');assert.equal(await page.locator('#eos-metres').innerText(),'24 m');}
@@ -34,11 +37,11 @@ for(const [app,views] of Object.entries({index:[''],eos:['','reports','activitie
  }
 }
 await page.goto(base+'index.html');
-await page.locator('.app-choice-account').click();
+await page.goto(base+'account.html');
 await page.waitForFunction(()=>document.getElementById('login-screen')?.style.display==='none');
 assert.equal(await page.evaluate(()=>localStorage.getItem('drillops_project')),'Test Project');
 assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('drillops_supabase_session')).access_token),'test-session');
-await page.locator('.app-task[href*="view=invoices"]').click();
+
 await page.waitForFunction(()=>document.getElementById('ledger-count')?.textContent.startsWith('1 of 1'));
 assert.equal(await page.locator('#inv-kpi-total').innerText(),'$100.00');
 assert.equal(await page.locator('#inv-status-filter').count(),0);

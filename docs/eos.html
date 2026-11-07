@@ -106,7 +106,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">EOS</div><a class="drawer-nav-item" href="./eos.html">EOS home</a><button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)">Plods</button><button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)">Period reports</button><button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)">Production</button><button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)">Associated charges</button><button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)">Rate library</button><button class="drawer-nav-item" data-page="cost-contracts" onclick="drawerNav(this)">Contracts</button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)">Import reports</button><a class="drawer-nav-item" href="./training.html">Training matrix</a><a class="drawer-nav-item app-switch" href="./index.html">Switch app</a></div>
+    <div class="drawer-section"><div class="drawer-section-title">EOS</div><a class="drawer-nav-item" href="./eos.html">Overview</a><button class="drawer-nav-item" data-page="activities" onclick="drawerNav(this)">Plods</button><button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)">Period reports</button><button class="drawer-nav-item" data-page="production" onclick="drawerNav(this)">Production</button><button class="drawer-nav-item" data-page="costing" onclick="drawerNav(this)">Associated charges</button><button class="drawer-nav-item" data-page="rates" onclick="drawerNav(this)">Rate library</button><button class="drawer-nav-item" data-page="cost-contracts" onclick="drawerNav(this)">Contracts</button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)">Import reports</button></div>
 
   </div>
 </div>
@@ -116,7 +116,7 @@
   <button class="hamburger" id="hamburger-btn" onclick="toggleDrawer()" aria-label="Open menu">
     <span></span><span></span><span></span>
   </button>
-  <a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">EOS</span>
+  <a class="workspace-area-name" href="./eos.html" aria-label="EOS home">EOS</a>
   <select id="global-program-select" onchange="switchProgram(this.value)" title="Program workspace" style="display:none;">
     <option value="Exploration">Exploration</option>
     <option value="Gas Riser">Gas Riser</option>
@@ -299,7 +299,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="EOS navigation"><a href="./eos.html">Home</a><a class="app-nav-link" href="./eos.html?view=activities">Plods<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=reports">Period reports<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=production">Production<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=costing">Associated charges<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=rates">Rate library<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=cost-contracts">Contracts<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=importer">Import reports<span aria-hidden="true">↗</span></a></nav>
+<nav class="app-local-nav" aria-label="EOS navigation"><a href="./eos.html">Overview</a><a class="app-nav-link" href="./eos.html?view=activities">Plods<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=reports">Period reports<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=production">Production<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=costing">Associated charges<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=rates">Rate library<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=cost-contracts">Contracts<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=importer">Import reports<span aria-hidden="true">↗</span></a></nav>
 <section class="page active eos-dashboard" id="page-app-home">
   <div class="eos-breadcrumb">EOS <span>/</span> Operations overview</div>
   <div class="eos-page-heading"><div><h1>Drilling overview</h1><p id="eos-scope">Reports and charges for your selected project.</p></div><a class="eos-primary" href="./eos.html?view=importer">Import plods</a></div>
@@ -382,11 +382,6 @@
 
     <!-- Cost Contracts -->
     <section class="page management-page" id="page-cost-contracts">
-      <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
-        <button class="project-workspace-tab active" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
-        <button class="project-workspace-tab" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
-      </nav>
       <div class="management-head">
         <div>
           <div class="management-title">Cost Contracts</div>
@@ -870,11 +865,6 @@
 
     <!-- Rate Library -->
     <section class="page" id="page-rates">
-      <nav class="project-workspace-nav" aria-label="Project workspace sections">
-        <button class="project-workspace-tab" data-project-section="overview" type="button" onclick="openProjectWorkspaceSection('overview')">Projects</button>
-        <button class="project-workspace-tab" data-project-section="contracts" type="button" onclick="openProjectWorkspaceSection('contracts')">Cost Contracts</button>
-        <button class="project-workspace-tab active" data-project-section="rates" type="button" onclick="openProjectWorkspaceSection('rates')">Rate Library</button>
-      </nav>
       <h2 class="section-title">Rate Library</h2>
       <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px;">Reusable contractor/year schedules. Project-specific commercial rates are managed under Cost Contracts.</p>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
