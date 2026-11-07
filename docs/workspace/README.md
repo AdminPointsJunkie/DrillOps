@@ -42,3 +42,9 @@ Design references (reviewed 8 November 2026): CorePlan's public contractor/plod 
 Account opens straight into its invoice ledger; Project opens straight into its project register. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.
 
 All three apps share the approved EOS visual style: a white sidebar and compact header, neutral background, light panels, subdued blue actions and consistent tables. Training Matrix uses the same palette while preserving its evidence colours and adjustable text sizes.
+
+## Previous portal
+
+`/OLD/` retains the combined portal that was published immediately before this release, from commit `cfb28bf4858f841cb3cc2622e7406dbab0b759ce`. Its documents, scripts, styles and training pages are preserved by `scripts/snapshot_legacy_site.py`. Shared images and the separate FieldMaps app keep their unchanged root URLs. The old portal retains its existing login and uses the same live API data; it is not a backup database. Normal workspace generation does not overwrite this snapshot.
+
+The snapshot includes one compatibility guard: the old startup timer skips its retired analytics panel when that panel is absent.

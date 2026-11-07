@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / 'docs'
 PAGES = ['index.html', 'eos.html', 'account.html', 'project.html', 'drillops.html', 'fieldops.html', 'fieldmaps.html', 'support.html', 'privacy.html', 'fieldops-support.html', 'fieldops-privacy.html']
+PAGES += [str(path.relative_to(DOCS)) for path in (DOCS/'OLD').glob('*.html')]
 class HTML(HTMLParser):
     def __init__(self, source):
         super().__init__(); self.links=[]; self.assets=[]; self.ids=[]; self.feed(source)
@@ -24,7 +25,8 @@ class PublicPages(unittest.TestCase):
             for href in parsed.links+parsed.assets:
                 u=urlsplit(href)
                 if u.scheme or u.netloc or href=='#': continue
-                path=DOCS/unquote(u.path.lstrip('/')) if u.path else DOCS/name
+                base=DOCS if u.path.startswith('/') else (DOCS/name).parent
+                path=base/unquote(u.path.lstrip('/')) if u.path else DOCS/name
                 if path.is_dir(): path=path/'index.html'
                 self.assertTrue(path.exists(),f'{name}: missing {href}')
                 if u.fragment and path.suffix=='.html':
@@ -61,4 +63,12 @@ class PublicPages(unittest.TestCase):
             s=(DOCS/name).read_text()
             self.assertNotIn('assets/ecosystem-map.svg',s)
             self.assertNotIn('assets/portal-borehole-planning.png',s)
+    def test_legacy_portal_remains_combined_and_authenticated(self):
+        old=(DOCS/'OLD/index.html').read_text()
+        self.assertIn('id="page-invoices"',old)
+        self.assertIn('id="page-activities"',old)
+        self.assertIn('id="page-project-budgets"',old)
+        self.assertIn("const AUTH_STORAGE_KEY='drillops_supabase_session'",old)
+        self.assertNotIn('./workspace/runtime.js',old)
+        self.assertIn('href="./index.html"',(DOCS/'OLD/training.html').read_text())
 if __name__=='__main__': unittest.main()

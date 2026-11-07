@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18535443929"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-18535443929');
+</script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Daily Report | DrillOps</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--border:#d8e0ea;--text:#1f2d3d;--muted:#687789;--accent:#315d49;--green:#27ae60;--red:#dc2626;--yellow:#d97706;--shadow:0 1px 2px rgba(15,23,42,0.05);--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;}
+main{max-width:1540px;margin:0 auto;padding:18px;}
+.report-detail{background:var(--panel);border:1px solid var(--border);border-radius:7px;box-shadow:var(--shadow);overflow:hidden;}
+.report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:15px 16px;border-bottom:1px solid var(--border);background:#f8fafc;}
+.title{font-size:16px;font-weight:800;margin-bottom:6px;}
+.meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+button,.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-weight:650;font-size:12px;text-decoration:none;cursor:pointer;}
+button:hover,.btn:hover{background:#eef3f7;border-color:#9fb0c2;color:#254b3a;}
+button:disabled{cursor:not-allowed;opacity:.45;background:#f8fafc;color:#7b8794;border-color:#d8e0ea;}
+.report-nav-position{display:inline-flex;align-items:center;padding:0 2px;color:var(--muted);font-size:11px;font-weight:750;white-space:nowrap;}
+select,textarea,input{border:1px solid #c9d3df;background:#fff;color:#324256;border-radius:6px;font-family:var(--font);font-size:12px;}
+select{padding:8px 10px;font-weight:650;}
+textarea{width:100%;min-height:72px;padding:9px 10px;resize:vertical;}
+.report-date-editor{display:inline-flex;align-items:center;gap:6px;}
+.report-date-editor input{padding:5px 7px;font-weight:700;color:#1f2d3d;}
+.report-date-editor button{padding:5px 9px;font-size:11px;}
+.body{padding:16px;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+.kpi{border:1px solid var(--border);border-radius:7px;background:#fff;padding:11px 12px;}
+.kpi .label,.subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
+.kpi .value{font-size:18px;font-weight:800;margin-top:5px;}
+.subtitle{margin:16px 0 8px;}
+.timeline{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;overflow:hidden;}
+.timeline-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.timeline-tools button{padding:5px 9px;font-size:11px;}
+.minimum-shift-toggle{display:inline-flex;align-items:center;gap:7px;color:#334155;font-size:12px;font-weight:700;user-select:none;}
+.minimum-shift-toggle input{width:15px;height:15px;accent-color:var(--accent);}
+.minimum-shift-toggle small{color:var(--muted);font-weight:650;}
+.timeline-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:7px;scrollbar-color:#87909c #e8edf3;scrollbar-width:thin;}
+.timeline-scroll::-webkit-scrollbar{height:10px;}
+.timeline-scroll::-webkit-scrollbar-track{background:#e8edf3;border-radius:999px;}
+.timeline-scroll::-webkit-scrollbar-thumb{background:#87909c;border-radius:999px;}
+.timeline-inner{min-width:1200px;}
+.timeline-scale{position:relative;height:26px;border-bottom:1px solid var(--border);margin-bottom:8px;}
+.timeline-tick{position:absolute;top:0;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--muted);}
+.timeline-lanes{display:flex;flex-direction:column;gap:6px;}
+.timeline-lane{display:grid;grid-template-columns:86px minmax(0,1fr);gap:8px;align-items:center;}
+.timeline-lane-label{font-family:var(--mono);font-size:11px;font-weight:800;color:#1f2d3d;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.timeline-track{position:relative;height:42px;background:repeating-linear-gradient(90deg,#fff 0,#fff 79px,#edf1f5 80px);border:1px solid #dfe5ec;border-radius:6px;overflow:hidden;}
+.timeline-block{position:absolute;top:6px;height:28px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 2px rgba(15,23,42,0.14);}
+.notes{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;line-height:1.5;max-height:190px;overflow:auto;}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;}
+.grid.personnel-only{grid-template-columns:1fr;}
+.table-wrap{background:#fff;border:1px solid var(--border);border-radius:7px;overflow:hidden;box-shadow:var(--shadow);}
+.scroll{overflow:auto;max-height:360px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+thead th{position:sticky;top:0;background:#f1f4f7;color:#647285;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;font-weight:800;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+tbody td{padding:9px 12px;border-bottom:1px solid #edf0f3;color:#334155;vertical-align:top;}
+tbody td[contenteditable=true]{cursor:text;outline:none;}
+tbody td[contenteditable=true]:hover{background:#f0f4ff;}
+tbody td[contenteditable=true]:focus{background:#e5eee1;box-shadow:inset 0 0 0 2px var(--accent);}
+tr.saving td{background:#fff7e6;}
+.code{font-family:var(--mono);font-size:11px;color:#254b3a;font-weight:700;}
+.flag{display:inline-flex;border-radius:999px;background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;padding:3px 8px;font-size:10px;font-weight:800;margin-top:8px;}
+.approval-panel{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;margin-bottom:16px;}
+.approval-row{display:grid;grid-template-columns:220px minmax(0,1fr) auto;gap:10px;align-items:start;}
+.approval-reason{display:none;}
+.approval-reason.open{display:block;}
+.approval-lock-option{margin-top:8px;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:700;}
+.approval-lock-option input{width:15px;height:15px;accent-color:var(--accent);}
+.approval-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800;margin-left:8px;}
+.approval-status.approved{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
+.approval-status.rejected{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
+.approval-status.query{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
+.approval-status.locked{background:#eef2ff;color:#315d49;border:1px solid #bdc9ff;}
+.lock-btn.locked{background:#19201d;color:#fff;border-color:#19201d;}
+.log-list{display:flex;flex-direction:column;gap:10px;margin-top:10px;max-height:170px;overflow:auto;}
+.log-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;color:#334155;}
+.log-icon{font-size:13px;line-height:1.3;}
+.log-time{font-size:11px;color:var(--muted);white-space:nowrap;}
+.log-note{grid-column:2 / -1;border:1px solid #d8e0ea;border-radius:6px;background:#fff;padding:8px 10px;color:#526273;}
+.empty{padding:22px;color:var(--muted);}
+.weekly-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px;}
+.weekly-card{border:1px solid var(--border);border-radius:7px;background:#fbfcfd;padding:12px;}
+.weekly-card-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;}
+.weekly-card-value{font-size:18px;font-weight:800;color:#19201d;}
+.weekly-card-meta{font-size:12px;color:#607083;margin-top:4px;line-height:1.4;}
+.work-note{max-width:520px;line-height:1.45;}
+.mcc-workgroup-select,.mcc-hole-select{width:100%;min-width:190px;padding:6px 8px;font-size:11px;}
+.mcc-workgroup-select{min-width:285px;}
+.mcc-allocation{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.mcc-allocation input{width:68px;padding:6px 7px;text-align:right;font-weight:750;}
+.mcc-allocation span{color:var(--muted);font-weight:750;}
+.allocated-cost{font-weight:800;color:#19201d;white-space:nowrap;}
+.allocated-cost small{display:block;margin-top:3px;color:var(--muted);font-size:9px;font-weight:650;}
+.audit-status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;white-space:nowrap;}
+.audit-status.ok{background:#ecfdf3;color:#147a39;border:1px solid #bae7ca;}
+.audit-status.warn{background:#fff7e6;color:#a05a00;border:1px solid #f4d39b;}
+.audit-status.bad{background:#fff1f2;color:#b42335;border:1px solid #ffc7cd;}
+.weekly-overview{display:none;margin-bottom:16px;}
+.weekly-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:20px 22px;border:1px solid #c9d8cf;border-radius:10px;background:linear-gradient(135deg,#f4f8f5 0%,#eef5f1 58%,#e6f0ea 100%);box-shadow:var(--shadow);}
+.weekly-hero.review{border-color:#f1cf94;background:linear-gradient(135deg,#fffaf0 0%,#fff6e5 100%);}
+.weekly-hero.blocked{border-color:#f1b8bd;background:linear-gradient(135deg,#fff7f7 0%,#fff0f1 100%);}
+.weekly-hero-kicker{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.11em;color:#4c685b;}
+.weekly-hero-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(39,174,96,.12);}
+.weekly-hero.review .weekly-hero-dot{background:var(--yellow);box-shadow:0 0 0 4px rgba(217,119,6,.12);}
+.weekly-hero.blocked .weekly-hero-dot{background:var(--red);box-shadow:0 0 0 4px rgba(220,38,38,.12);}
+.weekly-hero-title{font-size:23px;line-height:1.15;font-weight:850;color:#19201d;margin-top:9px;letter-spacing:-.025em;}
+.weekly-hero-copy{font-size:13px;color:#5f6f66;margin-top:7px;line-height:1.45;max-width:780px;}
+.weekly-hero-total{text-align:right;min-width:180px;}
+.weekly-hero-total-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.weekly-hero-total-value{font-size:30px;font-weight:850;color:#19201d;margin-top:5px;letter-spacing:-.03em;}
+.weekly-hero-total-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.weekly-cost-hours{margin-top:10px;border:1px solid var(--border);border-radius:9px;background:#fff;box-shadow:var(--shadow);overflow:hidden;}
+.weekly-cost-hours-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fbfcfd;}
+.weekly-cost-hours-title{font-size:13px;font-weight:850;color:#26352d;}
+.weekly-cost-hours-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.weekly-cost-hours table th:nth-child(n+2),.weekly-cost-hours table td:nth-child(n+2){text-align:right;}
+.weekly-cost-section td{padding:8px 12px;background:#f4f6f3;color:#405248;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;}
+.weekly-cost-subtotal td{background:#fbfcfd;font-weight:800;color:#26352d;border-top:1px solid var(--border);}
+.weekly-cost-grand-total td{padding:12px;background:#eef4f0;font-weight:900;color:#19201d;font-size:14px;border-top:2px solid #c9d8cf;}
+.weekly-visual-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.45fr);gap:10px;margin-top:10px;}
+.weekly-visual-card{border:1px solid var(--border);border-radius:9px;background:#fff;padding:14px;box-shadow:var(--shadow);}
+.weekly-visual-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.weekly-visual-title{font-size:12px;font-weight:800;color:#26352d;}
+.weekly-visual-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.cost-bar{height:18px;border-radius:999px;overflow:hidden;display:flex;background:#edf1f4;box-shadow:inset 0 0 0 1px rgba(15,23,42,.05);}
+.cost-bar span{display:block;height:100%;min-width:0;transition:width .2s ease;}
+.cost-bar .labour{background:#315d49;}.cost-bar .equipment{background:#e59a3a;}.cost-bar .materials{background:#5b8def;}
+.cost-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:11px;}
+.cost-legend-item{font-size:11px;color:var(--muted);}
+.cost-legend-item b{display:block;color:#26352d;font-size:13px;margin-top:2px;}
+.cost-swatch{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;}
+.week-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:7px;}
+.week-day{min-height:76px;border:1px solid #dfe5ec;border-radius:8px;background:#f8fafc;padding:8px;text-align:center;}
+.week-day.verified{background:#eff9f3;border-color:#b9dfc7;}.week-day.review{background:#fff8e8;border-color:#f1cf94;}.week-day.missing{background:#fff3f3;border-color:#efc0c4;}
+.week-day.not-required{background:#f3f6f8;border-color:#d6dee6;}
+.week-day-name{font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.week-day-date{font-size:15px;font-weight:850;color:#26352d;margin-top:4px;}
+.week-day-status{font-size:9px;font-weight:800;margin-top:7px;color:#607083;line-height:1.25;}
+.audit-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc;}
+.audit-filter-buttons{display:flex;gap:6px;}
+.audit-filter-buttons button{padding:5px 9px;font-size:10px;}
+.audit-filter-buttons button.active{background:#19201d;border-color:#19201d;color:#fff;}
+.audit-summary-strip{display:flex;gap:18px;flex-wrap:wrap;padding:11px 12px;color:var(--muted);font-size:11px;}
+.audit-summary-strip strong{color:#26352d;font-size:13px;margin-right:4px;}
+.audit-row-warning td{background:#fffdf7;}
+.audit-row-danger td{background:#fff3f3;}
+.weekly-mode .approval-panel{padding:10px 12px;background:#fff;margin-bottom:12px;}
+.weekly-mode .approval-row{grid-template-columns:190px minmax(0,1fr) 110px;}
+.weekly-mode .approval-panel>.subtitle,.weekly-mode .approval-panel>.log-list{display:none;}
+.weekly-mode #report-kpis{display:none;}
+.weekly-mode #timeline-title,.weekly-mode #timeline{display:none;}
+@media(max-width:1000px){main{padding:10px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
+@media(max-width:1000px){.weekly-visual-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-cost-hours-head{flex-direction:column}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<link rel="stylesheet" href="./drillops-theme.css"/>
+</head>
+<body>
+<main>
+  <div class="report-detail">
+    <div class="report-head">
+      <div>
+        <div class="title" id="title">Daily report</div>
+        <div class="meta" id="meta"></div>
+        <div id="flags"></div>
+        <span class="approval-status" id="approval-status" style="display:none;"></span>
+      </div>
+      <div class="actions">
+        <button id="report-back-btn" type="button" disabled>&larr; Back</button>
+        <span class="report-nav-position" id="report-nav-position">1 of 1</span>
+        <button id="report-next-btn" type="button" disabled>Next &rarr;</button>
+        <button id="pdf-btn" type="button">PDF</button>
+        <button id="lock-btn" type="button">Lock sheet</button>
+        <a class="btn" href="index.html">Reports list</a>
+        <button type="button" onclick="window.close()">Close tab</button>
+      </div>
+    </div>
+    <div class="body">
+      <div class="weekly-overview" id="weekly-overview">
+        <div class="weekly-hero review" id="weekly-hero">
+          <div>
+            <div class="weekly-hero-kicker"><span class="weekly-hero-dot"></span><span id="weekly-readiness-kicker">Invoice readiness</span></div>
+            <div class="weekly-hero-title" id="weekly-readiness-title">Checking this week…</div>
+            <div class="weekly-hero-copy" id="weekly-readiness-copy">Comparing weekly quantities with available daily evidence.</div>
+          </div>
+          <div class="weekly-hero-total"><div class="weekly-hero-total-label">Contract cost</div><div class="weekly-hero-total-value" id="weekly-hero-total">--</div><div class="weekly-hero-total-meta">Ex GST · contract rates retained</div></div>
+        </div>
+        <div class="weekly-cost-hours" id="weekly-cost-hours">
+          <div class="weekly-cost-hours-head">
+            <div><div class="weekly-cost-hours-title">Costs &amp; Hours Summary</div><div class="weekly-cost-hours-meta" id="weekly-cost-hours-meta">Grouped like the invoice by labour and equipment rate item.</div></div>
+            <strong id="weekly-cost-hours-total">--</strong>
+          </div>
+          <table><thead><tr><th>Activity</th><th>Qty / Hours</th><th>Rate</th><th>Amount</th></tr></thead><tbody id="weekly-cost-hours-body"></tbody></table>
+        </div>
+        <div class="weekly-visual-grid">
+          <div class="weekly-visual-card">
+            <div class="weekly-visual-head"><div><div class="weekly-visual-title">Where the cost sits</div><div class="weekly-visual-meta">Contract-priced cost composition</div></div><strong id="weekly-cost-total">--</strong></div>
+            <div id="weekly-cost-mix"></div>
+          </div>
+          <div class="weekly-visual-card">
+            <div class="weekly-visual-head"><div class="weekly-visual-title">Daily evidence</div><strong id="weekly-evidence-score">Checking…</strong></div>
+            <div class="week-strip" id="weekly-day-strip"></div>
+          </div>
+        </div>
+      </div>
+      <div class="approval-panel">
+        <div class="approval-row">
+          <div>
+            <div class="subtitle" style="margin:0 0 7px;">Client Decision</div>
+            <select id="approval-select">
+              <option value="">Select decision</option>
+              <option value="approved">Approve report</option>
+              <option value="query">Query report</option>
+              <option value="rejected">Reject report</option>
+            </select>
+            <label class="approval-lock-option" id="approval-lock-wrap">
+              <input id="approval-lock-on-approve" type="checkbox" checked>
+              Lock data when approved
+            </label>
+          </div>
+          <div class="approval-reason" id="approval-reason-wrap">
+            <div class="subtitle" style="margin:0 0 7px;">Reason</div>
+            <textarea id="approval-reason" placeholder="Enter the rejection reason or query"></textarea>
+          </div>
+          <button type="button" id="approval-save" style="margin-top:18px;">Save</button>
+        </div>
+        <div class="subtitle">Log</div>
+        <div class="log-list" id="approval-log"></div>
+      </div>
+      <div class="kpis" id="report-kpis">
+        <div class="kpi"><div class="label" id="kpi-depth-label">Depth</div><div class="value" id="kpi-depth">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-duration-label">Duration</div><div class="value" id="kpi-duration">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-cost-label">Total Cost</div><div class="value" id="kpi-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-drilling-cost-label">Drilling Cost</div><div class="value" id="kpi-drilling-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-support-cost-label">Support Cost</div><div class="value" id="kpi-support-cost">--</div></div>
+        <div class="kpi" id="kpi-consumable-card"><div class="label" id="kpi-consumable-cost-label">Consumable Cost</div><div class="value" id="kpi-consumable-cost">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-costm-label">Cost / m</div><div class="value" id="kpi-costm">--</div></div>
+        <div class="kpi"><div class="label" id="kpi-activities-label">Activities</div><div class="value" id="kpi-activities">--</div></div>
+      </div>
+      <div class="subtitle" id="allocation-title">Metres Drilled</div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="scroll">
+          <table><thead><tr><th>Item</th><th>Unit Rate</th><th>Metres</th><th>GST</th><th>Total</th></tr></thead><tbody id="metres-drilled-body"></tbody></table>
+        </div>
+      </div>
+      <div class="subtitle" id="timeline-title">Shift Timeline</div>
+      <div class="timeline" id="timeline"></div>
+      <div id="weekly-audit-section" style="display:none;">
+        <div class="subtitle">Exceptions &amp; Daily Evidence</div>
+        <div class="table-wrap" style="margin-bottom:14px;">
+          <div class="audit-summary-strip" id="weekly-audit-kpis"></div>
+          <div class="audit-toolbar">
+            <div><strong>What needs attention</strong><div style="font-size:10px;color:var(--muted);margin-top:2px;">Exceptions are shown first; matched lines remain available.</div></div>
+            <div class="audit-filter-buttons"><button id="audit-exceptions-btn" class="active" type="button" onclick="setWeeklyAuditView(false)">Exceptions</button><button id="audit-all-btn" type="button" onclick="setWeeklyAuditView(true)">All lines</button></div>
+          </div>
+          <div class="scroll" style="max-height:420px;">
+            <table><thead><tr><th>Date</th><th>Rate Item</th><th>Daily Qty</th><th>Weekly Qty</th><th>Variance</th><th>Weekly Cost</th><th>Status</th></tr></thead><tbody id="weekly-audit-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="subtitle" id="notes-title">Report Notes</div>
+      <div class="notes" id="notes"></div>
+      <div class="subtitle" id="activities-title">Activities</div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="scroll">
+          <table><thead><tr><th>Time</th><th>Code</th><th>Duration</th><th>Depth</th><th>Notes</th><th>Charge/Hr</th><th>Charge/m</th><th>Cost</th></tr></thead><tbody id="activity-body"></tbody></table>
+        </div>
+      </div>
+      <div class="subtitle" id="equipment-title">Equipment</div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <table><thead><tr><th>Hole</th><th>Equipment</th><th>Unit</th><th>Duration</th><th>Notes</th><th>Charge/Unit</th><th>Total</th></tr></thead><tbody id="equipment-body"></tbody></table>
+      </div>
+      <div class="grid" id="support-detail-grid">
+        <div id="consumables-section">
+          <div class="subtitle">Consumables</div>
+          <div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody id="consumables-body"></tbody></table></div>
+        </div>
+        <div id="personnel-section">
+          <div class="subtitle" id="personnel-title">Personnel</div>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Hours</th></tr></thead><tbody id="crew-body"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="./config.js"></script>
+<script src="./auth-guard.js"></script>
+<script>
+const API=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'http://localhost:8000':'https://api.drillops.com.au';
+const params=new URLSearchParams(window.location.search);
+const contractor=params.get('contractor')||'Allianz Drilling';
+const program=params.get('program')||'';
+const reportDate=params.get('date')||'';
+const hole=params.get('hole')||'';
+const source=params.get('source')||'';
+const title=params.get('title')||'Daily report';
+const navigationToken=params.get('nav')||'';
+const isMccWeeklySource=/\.xlsx$/i.test(source)&&contractor==='MCC Group';
+const MCC_WORK_GROUPS=[
+  {code:'ARG-002',label:'ARG-002 - Gas Riser Civil Works',program:'Gas Riser'},
+  {code:'ARG-003',label:'ARG-003 - SIS Drill Civil Works',program:'SIS'},
+  {code:'ARG-004',label:'ARG-004 - SIS Drill Watercart Works',program:'SIS'},
+  {code:'ARG-005',label:'ARG-005 - Exploration Civils & Support Works',program:'Exploration'}
+];
+const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
+const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
+const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
+const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
+let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],hourlyRates=[],reportPlannedHoles=[],plannedHolesState='idle',sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
+let weeklyAuditRows=[],weeklyAuditShowAll=false,weeklyOverviewContext=null;
+const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function attr(s){return esc(s).replace(/"/g,'&quot;');}
+function fmt(v,d=2){if(v==null||v==='')return'';const n=parseFloat(v);return isNaN(n)?'':n.toFixed(d);}
+function cur(v){return '$'+(parseFloat(v)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function num(v){const n=parseFloat(v);return isNaN(n)?0:n;}
+function parseDurationHours(value){if(value==null||value==='')return 0;const s=String(value).trim();if(!s)return 0;if(s.includes(':')){const p=s.split(':').map(x=>parseFloat(x)||0);return (p[0]||0)+((p[1]||0)/60);}const n=parseFloat(s);return isNaN(n)?0:n;}
+function parseClockMinutes(value){if(!value)return null;let s=String(value).trim().replace(/\./g,':');if(/^\d{3,4}$/.test(s)){s=s.padStart(4,'0');return parseInt(s.slice(0,2))*60+parseInt(s.slice(2));}const m=s.match(/^(\d{1,2}):(\d{2})/);if(!m)return null;return parseInt(m[1])*60+parseInt(m[2]);}
+function clockLabel(mins){mins=((mins%1440)+1440)%1440;const h=Math.floor(mins/60),m=mins%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+function activityCategory(row){const text=((row.code||'')+' '+(row.notes||'')).toLowerCase();if(text.includes('drill')||text.includes('core')||text.includes('chip'))return 'Productive Drilling';if(text.includes('trip')||text.includes('rod'))return 'Tripping Rods';if(text.includes('flush')||text.includes('circul')||text.includes('water')||text.includes('lost'))return 'Circulation';if(text.includes('repair')||text.includes('breakdown'))return 'Repairs';if(text.includes('standby')||text.includes('fatigue')||text.includes('wait')||text.includes('delay')||text.includes('no access'))return 'Standby / Delays';if(text.includes('travel'))return 'Travel';if(text.includes('safety')||text.includes('prestart')||text.includes('meeting')||text.includes('admin'))return 'Safety & Admin';return 'Other';}
+function isDrilledMetresRow(row){const code=String(row.code||'');return num(row.total_metres)>0&&(code==='Drill_Core'||code==='Drill_Chip_or_Open_hole'||/drill|core|chip/i.test(code)||/^DEPCO_[ABC]_(PCD|BLADE|HAMMER)_/.test(code));}
+function isSupportCostRow(row){return /^D_(Backhoe|Water)/i.test(String(row.code||''));}
+function isEquipmentRow(row){const code=String(row.code||''),text=(code+' '+(row.notes||'')+' '+(row.rate_basis||'')).toLowerCase();return code.startsWith('E_')||text.includes('directional kit')||text.includes('directional drilling package')||text.includes('directional package');}
+function equipmentName(row){const note=String(row.notes||'').trim();if(note)return note.replace(/\s+/g,' ');return String(row.code||'Equipment').replace(/^E_/,'').replace(/_/g,' ');}
+function equipmentUnit(row){const basis=String(row.rate_basis||'');const m=basis.match(/\(([^)]+)\)/);if(m)return m[1];return row.quantity&&parseDurationHours(row.total_time)>0?'Per Hour':'Per Unit';}
+function diameterLabel(row){const raw=String(row.diameter||'').trim();if(!raw)return '';const n=parseFloat(raw);return isNaN(n)?raw:(n+'mm');}
+function depthBandLabel(from,to){const f=num(from),t=num(to);if(!t&&!f)return '';const start=Math.floor(f/100)*100;const end=Math.max(start+100,Math.ceil(t/100)*100);return '('+start+'-'+end+'m)';}
+function drillItemBase(row){const bit=row.bit_type||'Drilling',dia=diameterLabel(row);const hasDia=dia&&bit.toLowerCase().includes(dia.toLowerCase());return [bit,hasDia?'':dia].filter(Boolean).join(' ');}
+function drillItemLabel(row){return [drillItemBase(row),depthBandLabel(row.metres_from,row.metres_to)].filter(Boolean).join(' ');}
+function reportYear(row){const m=String(row.date||'').match(/\b(20\d{2})\b/);return m?m[1]:'2026';}
+function explicitPcdRangeLabel(value){const text=String(value||'').toUpperCase(),compact=text.replace(/[\s\/\-–]+/g,'_');if(text.includes('PCD OR BLADE 175-305MM')||compact.includes('175_305MM'))return 'PCD or Blade 175-305mm';if(text.includes('PCD OR BLADE 125-175MM')||compact.includes('125_175MM'))return 'PCD or Blade 125-175mm';if(text.includes('PCD OR BLADE 99-125MM')||compact.includes('99_125MM'))return 'PCD or Blade 99-125mm';return ''; }
+function normaliseReportBit(row){
+  const text=((row.bit_type||'')+' '+(row.code||'')+' '+(row.notes||'')+' '+(row.diameter||'')).toUpperCase();
+  const compact=text.replace(/[\s\/\-–]+/g,'_');
+  const rangeMm=[...text.matchAll(/\b(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*MM\b/g)].map(m=>[parseFloat(m[1]),parseFloat(m[2])]);
+  const mm=[...text.matchAll(/(\d+(?:\.\d+)?)\s*MM\b/g)].map(m=>parseFloat(m[1]));
+  for(const m of text.matchAll(/\b(\d+)\s+(\d+)\/(\d+)\b/g)){const d=parseFloat(m[3]);if(d)mm.push((parseFloat(m[1])+parseFloat(m[2])/d)*25.4);}
+  for(const m of text.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:INCH|IN|")\b/g))mm.push(parseFloat(m[1])*25.4);
+  if(text.includes('4C')||text.includes('101.6'))return '4C';
+  if(text.includes('PQ'))return 'PQ_PQ3';
+  if(text.includes('HQ')||text.includes('NQ'))return 'HQ_HQ3';
+  if(text.includes('PCD')||text.includes('CHIP')||text.includes('OPEN_HOLE')){
+    const explicit=explicitPcdRangeLabel(text);
+    if(explicit)return explicit;
+    if(rangeMm.some(r=>r[0]>=175&&r[1]<=305))return 'PCD or Blade 175-305mm';
+    if(rangeMm.some(r=>r[0]>=125&&r[0]<175&&r[1]<=175))return 'PCD or Blade 125-175mm';
+    if(rangeMm.some(r=>r[0]>=99&&r[0]<125&&r[1]<=125))return 'PCD or Blade 99-125mm';
+    if(mm.some(v=>v>=175))return 'PCD or Blade 175-305mm';
+    if(mm.some(v=>v>=125&&v<175))return 'PCD or Blade 125-175mm';
+    if(mm.some(v=>v>=99&&v<125))return 'PCD or Blade 99-125mm';
+    if(text.includes('305')||compact.includes('PCD_L'))return 'PCD or Blade 175-305mm';
+    if(text.includes('125')||text.includes('5-7/8')||compact.includes('PCD_M'))return 'PCD or Blade 125-175mm';
+    return 'PCD or Blade 99-125mm';
+  }
+  return String(row.bit_type||'');
+}
+function rateYearsFor(row){const y=reportYear(row),ys=[y];if(/^\d{4}$/.test(y)){ys.push(String(parseInt(y)-1),String(parseInt(y)+1));}ys.push('2026','2025');return [...new Set(ys)];}
+function drillSummarySegments(row){
+  const start=num(row.metres_from),end=num(row.metres_to),metres=num(row.total_metres),bit=normaliseReportBit(row);
+  if(!drillingRates.length||!end||end<=start||!bit)return [{item:drillItemLabel(row),rate:num(row.unit_rate),metres,cost:num(row.line_cost)}];
+  const explicitBit=explicitPcdRangeLabel([row.bit_type,row.diameter,row.notes,row.code].filter(Boolean).join(' '));
+  for(const year of rateYearsFor(row)){
+    const bands=drillingRates.filter(r=>String(r.year)===year&&normaliseReportBit({bit_type:r.bit_type})===bit&&(!explicitBit||explicitPcdRangeLabel(r.bit_type)===explicitBit)).sort((a,b)=>num(a.depth_from)-num(b.depth_from)||num(a.depth_to)-num(b.depth_to));
+    const segs=[];
+    bands.forEach(r=>{
+      const from=Math.max(start,num(r.depth_from)),to=Math.min(end,num(r.depth_to));
+      if(to>from){const m=Number((to-from).toFixed(2)),rate=num(r.rate);segs.push({item:drillItemBase(row)+' ('+num(r.depth_from).toFixed(0)+'-'+num(r.depth_to).toFixed(0)+'m)',rate,metres:m,cost:Number((m*rate).toFixed(2))});}
+    });
+    if(segs.length)return segs;
+  }
+  return [{item:drillItemLabel(row),rate:num(row.unit_rate),metres,cost:num(row.line_cost)}];
+}
+function metresDrilledSummary(rows){
+  const map={};
+  rows.filter(isDrilledMetresRow).forEach(r=>{
+    drillSummarySegments(r).forEach(seg=>{
+      const item=seg.item,rate=num(seg.rate),key=item+'|'+rate.toFixed(2);
+      if(!map[key])map[key]={item,rate,metres:0,cost:0,count:0};
+      map[key].count++;map[key].metres+=num(seg.metres);map[key].cost+=num(seg.cost);
+    });
+  });
+  return Object.values(map).sort((a,b)=>a.item.localeCompare(b.item)||a.rate-b.rate);
+}
+function rowChargePerMetre(row){
+  if(!isDrilledMetresRow(row))return null;
+  const segments=drillSummarySegments(row);
+  if(segments.length===1)return num(segments[0].rate)||null;
+  const metres=segments.reduce((s,r)=>s+num(r.metres),0);
+  const cost=segments.reduce((s,r)=>s+num(r.cost),0);
+  return metres>0?cost/metres:null;
+}
+function rowChargePerHour(row){
+  if(isDrilledMetresRow(row))return null;
+  const hours=parseDurationHours(row.total_time);
+  if(hours<=0)return null;
+  const rate=num(row.unit_rate);
+  return rate>0?rate:null;
+}
+function rowHoleLabel(row){
+  return String(row.hole_num||row.site_name||'No hole').trim()||'No hole';
+}
+function belongsToThisReport(row){
+  const sourceMatches=!source||!row.source_file||row.source_file===source;
+  const holeMatches=source?true:(!hole||row.hole_num===hole);
+  const programMatches=!program||!row.program||String(row.program).split(',').map(p=>p.trim()).includes(program);
+  return (!row.contractor||row.contractor===contractor)
+    && (!reportDate||row.date===reportDate)
+    && holeMatches
+    && sourceMatches
+    && programMatches;
+}
+function optionalNumber(text){
+  const raw=String(text||'').trim().replace(/[$,]/g,'');
+  if(!raw)return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+const reportContractCodes=new Map();
+const savingReportCodes=new Set();
+function contractCodeKey(row){return JSON.stringify([row.contractor,row.project,row.program]);}
+async function loadReportContractCodes(rows){
+  const groups=new Map(rows.filter(r=>r.contractor==='DEPCO Drilling').map(r=>[contractCodeKey(r),r]));
+  await Promise.all([...groups].map(async([key,row])=>{
+    try{reportContractCodes.set(key,await fetchJson(API+'/activities/'+encodeURIComponent(row.id)+'/contract-codes'));}
+    catch(e){reportContractCodes.set(key,null);}
+  }));
+}
+function reportCodeGroup(rate){
+  const text=String(rate.cost_code||'')+' '+String(rate.name||'');
+  if(rate.section==='Consumables')return 'Consumables';
+  if(rate.section==='Personnel'||/SUPERVISOR|ACCOMMODATION/i.test(text))return 'Personnel & accommodation';
+  if(/STANDBY/i.test(text))return 'Standby & delays';
+  if(/TRAVEL|MOBILISATION|DEMOBILISATION|MOB_DEMOB/i.test(text))return 'Travel & mobilisation';
+  if(/SAFETY|TRAINING|INSPECTION/i.test(text))return 'Safety, training & inspections';
+  if(rate.section==='Equipment')return 'Equipment';
+  if(/_PCD_/i.test(text))return 'Drilling — PCD';
+  if(/_BLADE_/i.test(text))return 'Drilling — blade';
+  if(/_HAMMER_/i.test(text))return 'Drilling — hammer';
+  if(/_CORE_/i.test(text))return 'Drilling — coring';
+  if(/SETUP|PACKUP/i.test(text))return 'Setup & pack-up';
+  if(/CASING|CEMENT|GROUT/i.test(text))return 'Casing & cementing';
+  if(/REPAIR|MAINTENANCE|RIG_TESTING/i.test(text))return 'Repairs, maintenance & testing';
+  if(/WATER_COLLECT|CON_COLLECT/i.test(text))return 'Water & supply collection';
+  if(/DRILL|BORING|RIG_RATE|TRIPPING|REAMING|CLEANOUT|CIRCULATION|MUD_MIXING|FISING|FISHING|WATER_FLOW/i.test(text))return 'Drilling operations';
+  return 'Other activities';
+}
+function groupedReportCodeOptions(rates,current){
+  const order=['Drilling — PCD','Drilling — blade','Drilling — hammer','Drilling — coring','Drilling operations','Setup & pack-up','Travel & mobilisation','Standby & delays','Safety, training & inspections','Casing & cementing','Water & supply collection','Repairs, maintenance & testing','Equipment','Personnel & accommodation','Consumables','Other activities'];
+  return order.map(group=>{
+    const items=rates.filter(r=>reportCodeGroup(r)===group).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true})||Number(a.depth_from||0)-Number(b.depth_from||0)||String(a.cost_code).localeCompare(String(b.cost_code),undefined,{numeric:true}));
+    if(!items.length)return '';
+    return '<optgroup label="'+attr(group)+'">'+items.map(r=>'<option value="'+attr(r.cost_code)+'"'+(current===r.cost_code?' selected':'')+'>'+esc(r.name)+(r.depth_from!=null?' ('+esc(r.depth_from)+'–'+esc(r.depth_to==null?'':r.depth_to)+' m)':'')+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Price needs review':cur(r.charge)+'/'+esc(r.unit||''))+'</option>').join('')+'</optgroup>';
+  }).join('');
+}
+function reportCodeCell(row){
+  if(row.contractor!=='DEPCO Drilling')return '<td contenteditable="true" data-col="code" class="code">'+esc(row.code||'')+'</td>';
+  const rates=reportContractCodes.get(contractCodeKey(row));
+  const disabled=sheetLock.locked||savingReportCodes.size>0||!rates||!rates.length;
+  const current=String(row.code||'');
+  let options='<option value="" disabled'+(!current?' selected':'')+'>Choose contract code</option>';
+  if(current&&!(rates||[]).some(r=>r.cost_code===current))options+='<option selected value="'+attr(current)+'">'+esc(current)+'</option>';
+  options+=groupedReportCodeOptions(rates||[],current);
+  return '<td class="code"><select class="report-code-select" aria-label="Activity '+attr(row.id)+' contract code" style="width:100%;min-width:220px;max-width:360px"'+(disabled?' disabled':'')+'>'+options+'</select>'+(!rates?'<small>Could not load contract codes. Reload to retry.</small>':!rates.length?'<small>No contract codes available.</small>':'')+'</td>';
+}
+async function saveReportCode(control){
+  const id=control.closest('tr').dataset.id;
+  const row=reportRows.find(r=>String(r.id)===String(id));
+  if(!row||sheetLock.locked||savingReportCodes.size||control.value===(row.code||''))return;
+  savingReportCodes.add(id);
+  document.querySelectorAll('.report-code-select').forEach(el=>el.disabled=true);
+  try{
+    const response=await fetch(API+'/activities/'+encodeURIComponent(id)+'/contract-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:control.value})});
+    if(!response.ok)throw new Error(await response.text());
+    const updated=await response.json();
+    updateCachedActivity(id,updated);
+    broadcastActivityUpdate(updated);
+  }catch(e){alert('Could not update code and pricing: '+e.message);}
+  finally{savingReportCodes.delete(id);renderReport(reportRows,reportConsumables,reportCrew);}
+}
+function activityRowPatch(col,value){
+  if(col==='time'){
+    const parts=String(value||'').split(/\s*-\s*/);
+    return {time_from:(parts[0]||'').trim(),time_to:(parts[1]||'').trim()};
+  }
+  if(col==='depth'){
+    const raw=String(value||'').trim();
+    if(!raw)return {metres_from:null,metres_to:null,total_metres:null};
+    const parts=String(value||'').split(/\s*-\s*/);
+    if(parts.length>1){
+      const from=optionalNumber(parts[0]),to=optionalNumber(parts[1]);
+      const metres=from!=null&&to!=null&&to>=from?Number((to-from).toFixed(2)):null;
+      return {metres_from:from,metres_to:to,total_metres:metres};
+    }
+    return {metres_from:null,metres_to:null,total_metres:optionalNumber(value)};
+  }
+  if(col==='line_cost')return {line_cost:optionalNumber(value)};
+  return {[col]:String(value||'').trim()};
+}
+function equipmentUnitRateBasis(value){
+  const unit=String(value||'').trim();
+  return 'CorePlan equipment charge'+(unit?' ('+unit+')':'');
+}
+function equipmentRowPatch(row,col,value){
+  if(col==='unit_rate'){
+    const unitRate=optionalNumber(value);
+    const quantity=num(row.quantity)||1;
+    return {unit_rate:unitRate,line_cost:unitRate==null?null:Number((unitRate*quantity).toFixed(2))};
+  }
+  if(col==='line_cost')return {line_cost:optionalNumber(value)};
+  if(col==='equipment_unit')return {rate_basis:equipmentUnitRateBasis(value)};
+  if(col==='total_time')return {total_time:String(value||'').trim()};
+  return {[col]:String(value||'').trim()};
+}
+function updateCachedActivity(id,updates){
+  const idx=reportRows.findIndex(r=>Number(r.id)===Number(id));
+  if(idx>=0)reportRows[idx]=Object.assign({},reportRows[idx],updates);
+}
+function broadcastActivityUpdate(row){
+  const msg={contractor,id:row.id,date:row.date,hole_num:row.hole_num,source_file:row.source_file,at:Date.now()};
+  try{if(activityBroadcast)activityBroadcast.postMessage(msg);}catch(e){}
+  try{localStorage.setItem('drillops-activity-updated',JSON.stringify(msg));}catch(e){}
+}
+async function saveReportActivityEdit(cell){
+  const tr=cell.closest('tr');
+  const id=tr.dataset.id;
+  const col=cell.dataset.col;
+  const patch=activityRowPatch(col,cell.textContent);
+  const shouldReprice=!['line_cost'].includes(col);
+  tr.classList.add('saving');
+  try{
+    let res=await fetch(API+'/activities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    if(!res.ok)throw new Error(await res.text());
+    let updated=patch;
+    if(shouldReprice){
+      res=await fetch(API+'/activities/'+encodeURIComponent(id)+'/reprice',{method:'POST'});
+      if(!res.ok)throw new Error(await res.text());
+      updated=await res.json();
+      if(updated&&updated._locked)renderSheetLock(Object.assign({},sheetLock,{locked:true}));
+    }
+    updateCachedActivity(id,updated);
+    const fresh=reportRows.find(r=>Number(r.id)===Number(id))||updated;
+    broadcastActivityUpdate(fresh);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(e){
+    alert('Could not save activity row: '+e.message);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }finally{
+    tr.classList.remove('saving');
+  }
+}
+function mccAllocationPercent(row){
+  const value=row&&row.allocation_percent!=null?num(row.allocation_percent):100;
+  return Math.min(100,Math.max(0,value));
+}
+function mccAllocatedCost(row){return num(row&&row.line_cost)*mccAllocationPercent(row)/100;}
+function mccWorkGroupForRow(row){
+  const text=[row&&row.location,row&&row.contract,row&&row.project].join(' ').toUpperCase();
+  const exact=MCC_WORK_GROUPS.find(group=>text.includes(group.code));
+  if(exact)return exact;
+  const rowProgram=String(row&&row.program||'').trim();
+  if(rowProgram==='Exploration')return MCC_WORK_GROUPS.find(group=>group.code==='ARG-005');
+  if(rowProgram==='Gas Riser')return MCC_WORK_GROUPS.find(group=>group.code==='ARG-002');
+  if(rowProgram==='SIS'){
+    const detail=[row&&row.code,row&&row.notes,row&&row.drill_rig].join(' ').toLowerCase();
+    return MCC_WORK_GROUPS.find(group=>group.code===(/water|cart/.test(detail)?'ARG-004':'ARG-003'));
+  }
+  return null;
+}
+function mccWorkGroupSelect(row){
+  const current=mccWorkGroupForRow(row);
+  return '<select class="mcc-workgroup-select" aria-label="ARG work group">'
+    +'<option value="">Select ARG work group</option>'
+    +MCC_WORK_GROUPS.map(group=>'<option value="'+attr(group.code)+'"'+(current&&current.code===group.code?' selected':'')+'>'+esc(group.label)+'</option>').join('')
+    +'</select>';
+}
+function plannedHoleKey(value){
+  let key=String(value||'').trim().toUpperCase().replace(/^IB[-\s]?/,'');
+  return key.replace(/[^A-Z0-9]/g,'');
+}
+function plannedHoleForRow(row){
+  const keys=[row&&row.hole_num].concat(String(row&&row.site_name||'').split(',')).map(plannedHoleKey).filter(Boolean);
+  return reportPlannedHoles.find(hole=>keys.includes(plannedHoleKey(hole.hole_id))||keys.includes(plannedHoleKey(hole.site_id)))||null;
+}
+function mccPlannedHoleSelect(row){
+  const current=plannedHoleForRow(row);
+  const imported=String(row&&row.site_name||row&&row.hole_num||'').trim();
+  if(plannedHolesState!=='loaded'){
+    const suffix=plannedHolesState==='failed'?'planned holes unavailable':'loading planned holes...';
+    return '<select class="mcc-hole-select" disabled aria-label="Planned hole"><option>'+esc(imported?imported+' · '+suffix:suffix)+'</option></select>';
+  }
+  const groups=new Map();
+  reportPlannedHoles.forEach(hole=>{
+    const projectName=String(hole.project||'Planned holes');
+    if(!groups.has(projectName))groups.set(projectName,[]);
+    groups.get(projectName).push(hole);
+  });
+  let options='<option value="">'+esc(imported&&!current?'Imported: '+imported+' — select planned hole':'Select planned hole')+'</option>';
+  groups.forEach((holes,projectName)=>{
+    options+='<optgroup label="'+attr(projectName)+'">'+holes.map(hole=>{
+      const label=String(hole.site_id||hole.hole_id)+(hole.site_id&&hole.hole_id&&hole.site_id!==hole.hole_id?' · '+hole.hole_id:'')+(hole.status?' — '+hole.status:'');
+      return '<option value="'+attr(hole.hole_id)+'"'+(current&&current.hole_id===hole.hole_id?' selected':'')+'>'+esc(label)+'</option>';
+    }).join('')+'</optgroup>';
+  });
+  return '<select class="mcc-hole-select" aria-label="Planned hole">'+options+'</select>';
+}
+async function saveMccAssignmentPatch(control,patch){
+  const tr=control.closest('tr');
+  const id=tr.dataset.id;
+  tr.classList.add('saving');
+  control.disabled=true;
+  try{
+    const res=await fetch(API+'/activities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    if(!res.ok)throw new Error(await res.text());
+    updateCachedActivity(id,patch);
+    const fresh=reportRows.find(row=>Number(row.id)===Number(id))||patch;
+    broadcastActivityUpdate(fresh);
+    if(patch.program&&program)reportRows=reportRows.filter(belongsToThisReport);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(error){
+    alert('Could not save MCC assignment: '+error.message);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }finally{
+    tr.classList.remove('saving');
+    control.disabled=false;
+  }
+}
+function saveMccWorkGroup(control){
+  const group=MCC_WORK_GROUPS.find(item=>item.code===control.value);
+  if(!group){renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{program:group.program,location:group.label,contract:group.label});
+}
+function saveMccPlannedHole(control){
+  const holeChoice=reportPlannedHoles.find(item=>String(item.hole_id)===String(control.value));
+  if(!holeChoice){renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{hole_num:holeChoice.hole_id,site_name:holeChoice.site_id||holeChoice.hole_id});
+}
+function saveMccAllocation(control){
+  const value=parseFloat(control.value);
+  if(!Number.isFinite(value)||value<0||value>100){alert('Allocation must be between 0% and 100%.');renderReport(reportRows,reportConsumables,reportCrew);return;}
+  saveMccAssignmentPatch(control,{allocation_percent:value});
+}
+function renderMccSiteServiceLineItems(rows){
+  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const activityBody=document.getElementById('activity-body');
+  const activityTable=activityBody.closest('table');
+  activityTable.querySelector('thead').innerHTML='<tr><th>Work Group / ARG Contract</th><th>Planned Hole</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Allocation</th><th>Work Performed</th><th>Rate</th><th>Allocated Cost</th></tr>';
+  activityBody.innerHTML=rows.map(row=>{
+    const percent=mccAllocationPercent(row),gross=num(row.line_cost),allocated=mccAllocatedCost(row);
+    const allocationNote=percent<100?'<small>'+percent.toFixed(0)+'% of '+cur(gross)+'</small>':'';
+    return '<tr data-id="'+attr(row.id)+'"><td>'+mccWorkGroupSelect(row)+'</td><td>'+mccPlannedHoleSelect(row)+'</td><td>'+esc(mccEquipment(row)||mccPerson(row)||'')+'</td><td>'+mccQuantityDisplay(row)+'</td><td><label class="mcc-allocation"><input class="mcc-allocation-input" type="number" min="0" max="100" step="1" value="'+attr(percent)+'" aria-label="Work group allocation percent"><span>%</span></label></td><td class="work-note">'+esc(workDescription(row))+'</td><td>'+(row.unit_rate!=null?cur(row.unit_rate):'--')+'</td><td class="allocated-cost">'+(row.line_cost!=null?cur(allocated):'--')+allocationNote+'</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
+  activityBody.querySelectorAll('.mcc-workgroup-select').forEach(control=>control.addEventListener('change',()=>saveMccWorkGroup(control)));
+  activityBody.querySelectorAll('.mcc-hole-select:not(:disabled)').forEach(control=>control.addEventListener('change',()=>saveMccPlannedHole(control)));
+  activityBody.querySelectorAll('.mcc-allocation-input').forEach(control=>{
+    control.addEventListener('change',()=>saveMccAllocation(control));
+    control.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();control.blur();}});
+  });
+}
+function normaliseMccCrewRole(value){
+  return String(value||'').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/[^a-z0-9]+/g,' ').trim().replace(/s$/,'');
+}
+function mccCrewRate(role){
+  const key=normaliseMccCrewRole(role);
+  if(!key)return null;
+  const match=hourlyRates.find(rate=>{
+    if(String(rate.unit||'').toLowerCase()!=='hour')return false;
+    const description=String(rate.description||'').split(' (')[0];
+    return normaliseMccCrewRole(description)===key;
+  });
+  return match?num(match.rate):null;
+}
+function mccCrewCost(row){
+  const rate=mccCrewRate(row.role);
+  if(rate==null||row.hours==null||row.hours==='')return null;
+  return num(row.hours)*rate;
+}
+function mccCrewMatchKey(date,name,role,hours){
+  return [date,name,role,num(hours).toFixed(4)].map(value=>String(value||'').trim().toLowerCase()).join('|');
+}
+function mccExplorationCrew(crew,rows){
+  const allowed=new Map(),seen=new Set();
+  (rows||[]).filter(row=>/\bARG-005\b/i.test([row.location,row.contract,row.project,row.notes].join(' '))||String(row.program||'').toLowerCase()==='exploration').forEach(row=>{
+    const name=noteField(row,'Created by'),role=noteField(row,'Role'),hours=parseDurationHours(row.total_time);
+    if(!name)return;
+    const key=mccCrewMatchKey(row.date,name,role,hours);
+    const signature=[key,row.time_from||'',row.time_to||'',workDescription(row),mccEquipment(row)].map(value=>String(value||'').trim().toLowerCase()).join('|');
+    if(seen.has(signature))return;
+    seen.add(signature);
+    allowed.set(key,(allowed.get(key)||0)+1);
+  });
+  return (crew||[]).filter(row=>{
+    const key=mccCrewMatchKey(row.date,row.name,row.role,row.hours),remaining=allowed.get(key)||0;
+    if(!remaining)return false;
+    allowed.set(key,remaining-1);
+    return true;
+  });
+}
+async function saveReportEquipmentEdit(cell){
+  const tr=cell.closest('tr');
+  const id=tr.dataset.id;
+  const row=reportRows.find(r=>Number(r.id)===Number(id))||{};
+  const col=cell.dataset.col;
+  const patch=equipmentRowPatch(row,col,cell.textContent);
+  tr.classList.add('saving');
+  try{
+    const res=await fetch(API+'/activities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    if(!res.ok)throw new Error(await res.text());
+    updateCachedActivity(id,patch);
+    const fresh=reportRows.find(r=>Number(r.id)===Number(id))||Object.assign({},row,patch);
+    broadcastActivityUpdate(fresh);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(e){
+    alert('Could not save equipment row: '+e.message);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }finally{
+    tr.classList.remove('saving');
+  }
+}
+async function fetchJson(url){const res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw new Error('HTTP '+res.status);return res.json();}
+async function openSourcePdf(){
+  if(!source)return;
+  const button=document.getElementById('pdf-btn');
+  const original=button.textContent;
+  const workbook=/\.xlsx$/i.test(source);
+  const tab=workbook?null:window.open('about:blank','_blank');
+  if(!workbook&&!tab){alert('Allow pop-ups for DrillOps to open the source PDF.');return;}
+  if(tab)tab.opener=null;
+  button.disabled=true;
+  button.textContent=workbook?'Downloading...':'Opening...';
+  try{
+    const url=API+'/source_files/'+encodeURIComponent(source)+'?contractor='+encodeURIComponent(contractor);
+    const response=await fetch(url);
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const objectUrl=URL.createObjectURL(await response.blob());
+    if(workbook){
+      const link=document.createElement('a');
+      link.href=objectUrl;
+      link.download=source;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }else{
+      tab.location.replace(objectUrl);
+    }
+    setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+  }catch(error){
+    if(tab)tab.close();
+    alert('Could not open the attached source file: '+error.message);
+  }finally{
+    button.disabled=false;
+    button.textContent=original;
+  }
+}
+function reportNavigationDateKey(value){
+  const text=String(value||'').trim();
+  const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return Date.UTC(parseInt(dm[3]),parseInt(dm[2])-1,parseInt(dm[1]));
+  const parsed=Date.parse(text);
+  return Number.isFinite(parsed)?parsed:0;
+}
+function isoReportDate(value){
+  const text=String(value||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(text))return text;
+  const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0');
+  const parsed=new Date(text);
+  return isNaN(parsed)?'':parsed.toISOString().slice(0,10);
+}
+function displayReportDate(value){
+  const text=String(value||'').trim();
+  const iso=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dayFirst=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if(!iso&&!dayFirst)return '';
+  const [year,month,day]=iso?[+iso[1],+iso[2],+iso[3]]:[+dayFirst[3],+dayFirst[2],+dayFirst[1]];
+  const date=new Date(Date.UTC(year,month-1,day));
+  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)return '';
+  return String(day).padStart(2,'0')+'/'+String(month).padStart(2,'0')+'/'+year;
+}
+function updateStoredNavigationDate(newDate){
+  if(!navigationToken)return;
+  const storageKey='drillops-report-navigation:'+navigationToken;
+  try{
+    const saved=JSON.parse(localStorage.getItem(storageKey)||'null');
+    if(!saved||!Array.isArray(saved.reports))return;
+    saved.reports.forEach(function(report){
+      const matches=source
+        ? report.source===source&&report.date===reportDate
+        : !report.source&&report.date===reportDate&&String(report.hole||'')===String(hole||'');
+      if(matches){
+        report.date=newDate;
+        report.key=report.source
+          ? [report.contractor||contractor,newDate,report.source].join('|')
+          : [report.contractor||contractor,newDate,report.hole||'','Manual entry'].join('|');
+      }
+    });
+    localStorage.setItem(storageKey,JSON.stringify(saved));
+  }catch(e){}
+}
+async function saveReportDate(){
+  const input=document.getElementById('report-date-input');
+  const button=document.getElementById('report-date-save');
+  const newDate=displayReportDate(input&&input.value);
+  if(!newDate){alert('Enter a valid report date as DD/MM/YYYY.');return;}
+  input.value=newDate;
+  if(newDate===displayReportDate(reportDate))return;
+  if(!confirm('Change this report date from '+displayReportDate(reportDate)+' to '+newDate+' for all associated line items?'))return;
+  button.disabled=true;
+  button.textContent='Saving...';
+  try{
+    const res=await fetch(API+'/activity-reports/date',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor,date:reportDate,new_date:isoReportDate(newDate),hole,source})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const result=await res.json();
+    const savedDate=result.new_date||newDate;
+    updateStoredNavigationDate(savedDate);
+    const msg={contractor,date:savedDate,old_date:reportDate,source_file:source,hole_num:hole,report_date_updated:true,at:Date.now()};
+    try{if(activityBroadcast)activityBroadcast.postMessage(msg);}catch(e){}
+    try{localStorage.setItem('drillops-activity-updated',JSON.stringify(msg));}catch(e){}
+    const nextParams=new URLSearchParams(window.location.search);
+    nextParams.set('date',savedDate);
+    window.location.replace('report.html?'+nextParams.toString());
+  }catch(e){
+    alert('Could not update report date: '+e.message);
+    button.disabled=false;
+    button.textContent='Save date';
+  }
+}
+function navigationReportsFromRows(rows){
+  const reports=new Map();
+  (rows||[]).forEach(function(row){
+    if(row.contractor&&row.contractor!==contractor)return;
+    if(program&&row.program&&row.program!==program)return;
+    const rowSource=String(row.source_file||'');
+    const rowHole=String(row.hole_num||'');
+    const key=rowSource
+      ? [row.contractor||contractor,row.date||'',rowSource].join('|')
+      : [row.contractor||contractor,row.date||'',rowHole,'Manual entry'].join('|');
+    if(!reports.has(key)){
+      reports.set(key,{
+        key:key,
+        contractor:row.contractor||contractor,
+        program:row.program||program,
+        date:row.date||'',
+        hole:rowSource?'':rowHole,
+        displayHole:rowHole,
+        source:rowSource,
+        title:rowSource?rowSource.replace(/\.[^.]+$/,'').slice(0,34):('Daily report '+(row.date||rowHole||''))
+      });
+    }
+  });
+  return [...reports.values()].sort(function(a,b){
+    return reportNavigationDateKey(b.date)-reportNavigationDateKey(a.date)
+      ||String(a.displayHole||a.hole).localeCompare(String(b.displayHole||b.hole));
+  });
+}
+function storedNavigationReports(){
+  if(!navigationToken)return [];
+  try{
+    const saved=JSON.parse(localStorage.getItem('drillops-report-navigation:'+navigationToken)||'null');
+    return saved&&Array.isArray(saved.reports)?saved.reports:[];
+  }catch(e){return [];}
+}
+function currentNavigationIndex(reports){
+  return reports.findIndex(function(report){
+    if(source)return report.source===source&&report.date===reportDate;
+    return !report.source&&report.date===reportDate&&String(report.hole||'')===String(hole||'');
+  });
+}
+function reportNavigationUrl(report){
+  const nextParams=new URLSearchParams({
+    contractor:report.contractor||contractor,
+    program:report.program||program,
+    date:report.date||'',
+    hole:report.hole||'',
+    source:report.source||'',
+    title:report.title||'Daily report'
+  });
+  if(navigationToken)nextParams.set('nav',navigationToken);
+  return 'report.html?'+nextParams.toString();
+}
+function renderReportNavigation(reports){
+  const back=document.getElementById('report-back-btn');
+  const next=document.getElementById('report-next-btn');
+  const position=document.getElementById('report-nav-position');
+  const index=currentNavigationIndex(reports);
+  const hasCurrent=index>=0;
+  back.disabled=!hasCurrent||index===0;
+  next.disabled=!hasCurrent||index===reports.length-1;
+  position.textContent=hasCurrent?(index+1)+' of '+reports.length:'1 of 1';
+  back.onclick=back.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index-1]);};
+  next.onclick=next.disabled?null:function(){window.location.href=reportNavigationUrl(reports[index+1]);};
+}
+async function loadMccPlannedHoles(rows){
+  if(contractor!=='MCC Group'||plannedHolesState!=='idle')return;
+  plannedHolesState='loading';
+  const query=new URLSearchParams({contractor:'Company'});
+  const reportIso=isoReportDate(reportDate);
+  if(/^\d{4}/.test(reportIso))query.set('planned_year',reportIso.slice(0,4));
+  if(program)query.set('program',program);
+  const rowProject=(rows||[]).map(row=>String(row.project||'').trim()).find(value=>value&&!/^ARG-00[2-5]\b/i.test(value));
+  if(rowProject)query.set('project',rowProject);
+  try{
+    let choices=await fetchJson(API+'/boreholes/options?'+query.toString());
+    if(!choices.length&&query.has('project')){
+      query.delete('project');
+      choices=await fetchJson(API+'/boreholes/options?'+query.toString());
+    }
+    reportPlannedHoles=choices||[];
+    plannedHolesState='loaded';
+  }catch(error){
+    reportPlannedHoles=[];
+    plannedHolesState='failed';
+  }
+  if(reportRows.some(isMccWeeklyRow))renderMccSiteServiceLineItems(reportRows);
+}
+async function initReportNavigation(){
+  if(isMccWeeklySource){
+    const back=document.getElementById('report-back-btn');
+    const next=document.getElementById('report-next-btn');
+    back.style.display='none';
+    next.style.display='none';
+    document.getElementById('report-nav-position').textContent='Weekly report';
+    return;
+  }
+  let reports=storedNavigationReports();
+  if(currentNavigationIndex(reports)<0){
+    try{
+      const allRows=await fetchJson(API+'/activities?contractor='+encodeURIComponent(contractor));
+      reports=navigationReportsFromRows(allRows);
+    }catch(e){reports=[];}
+  }
+  renderReportNavigation(reports);
+}
+async function loadReportData(){
+  const actParams=new URLSearchParams({contractor});
+  if(reportDate)actParams.set('dates',reportDate);
+  if(hole&&!source)actParams.set('holes',hole);
+  const relatedParams=new URLSearchParams({contractor});
+  if(reportDate)relatedParams.set('dates',reportDate);
+  try{
+    let rows=await fetchJson(API+'/activities?'+actParams.toString());
+    rows=rows.filter(belongsToThisReport);
+    await loadReportContractCodes(rows);
+    drillingRates=await fetchJson(API+'/rates/drilling?contractor='+encodeURIComponent(contractor)).catch(()=>[]);
+    hourlyRates=contractor==='MCC Group'?await fetchJson(API+'/rates/hourly?contractor='+encodeURIComponent(contractor)+'&year=2026').catch(()=>[]):[];
+    const consumables=contractor==='MCC Group'?[]:await fetchJson(API+'/consumables?'+relatedParams.toString()).catch(()=>[]);
+    const crew=await fetchJson(API+'/crew?'+relatedParams.toString()).catch(()=>[]);
+    reportRows=rows;
+    reportConsumables=consumables;
+    reportCrew=crew;
+    if(contractor==='MCC Group')loadMccPlannedHoles(rows);
+    renderReport(reportRows,reportConsumables,reportCrew);
+  }catch(e){
+    document.getElementById('activity-body').innerHTML='<tr><td colspan="8" class="empty">Could not load report: '+esc(e.message)+'</td></tr>';
+  }
+}
+async function resolveReassignedDepcoReport(){
+  // Old register tabs can retain the original contractor after a corrected import.
+  // Resolve only an exact source/date/program match before changing the link.
+  if(contractor!=='Allianz Drilling'||!/(^|[^a-z0-9])depco(?=$|[^a-z0-9])/i.test(source))return false;
+  const query=new URLSearchParams({contractor:'DEPCO Drilling'});
+  if(reportDate)query.set('dates',reportDate);
+  try{
+    const candidates=await fetchJson(API+'/activities?'+query.toString());
+    const match=candidates.find(function(row){
+      return row.contractor==='DEPCO Drilling'&&row.source_file===source
+        &&isoReportDate(row.date)===isoReportDate(reportDate)
+        &&(!program||row.program===program);
+    });
+    if(!match)return false;
+    const corrected=new URLSearchParams(window.location.search);
+    corrected.set('contractor',match.contractor);
+    corrected.set('date',match.date);
+    corrected.delete('nav');
+    window.location.replace('report.html?'+corrected.toString());
+    return true;
+  }catch(error){return false;}
+}
+async function loadReport(){
+  document.getElementById('title').textContent=title;
+  document.title=title+' | DrillOps';
+  if(await resolveReassignedDepcoReport())return;
+  await initApprovalControls();
+  await initLockControls();
+  await initMinimumShiftControls();
+  await loadReportData();
+  await initReportNavigation();
+}
+function emptyApprovalRecord(){return {status:'',reason:'',log:[]};}
+function approvalParams(){
+  return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
+}
+function lockParams(){
+  return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
+}
+function minimumShiftParams(){
+  return new URLSearchParams({contractor:contractor,date:reportDate,hole:hole,source:source});
+}
+async function getMinimumShiftPreference(){
+  try{
+    const res=await fetch(API+'/minimum-shift-topups/preference?'+minimumShiftParams().toString());
+    if(res.ok)return await res.json();
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(minimumShiftKey)||'null')||{include_topup:true,reason:''};}
+  catch(e){return {include_topup:true,reason:''};}
+}
+async function initMinimumShiftControls(){
+  minimumShiftPreference=await getMinimumShiftPreference();
+}
+async function toggleMinimumShiftTopup(box){
+  const include=!!box.checked;
+  const previous=!!minimumShiftPreference.include_topup;
+  let reason=minimumShiftPreference.reason||'';
+  if(!include){
+    reason=prompt('Optional note for excluding this minimum shift top-up',reason)||'';
+  }
+  box.disabled=true;
+  try{
+    const res=await fetch(API+'/minimum-shift-topups/preference',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor,date:reportDate,hole,source,include_topup:include,reason})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const saved=await res.json();
+    minimumShiftPreference=saved.preference||{include_topup:include,reason};
+    localStorage.setItem(minimumShiftKey,JSON.stringify(minimumShiftPreference));
+    await loadReportData();
+  }catch(e){
+    alert('Could not update minimum shift top-up option: '+e.message);
+    box.checked=previous;
+    minimumShiftPreference.include_topup=previous;
+  }finally{
+    box.disabled=false;
+  }
+}
+async function getSheetLock(){
+  try{
+    const res=await fetch(API+'/activity-sheet-locks?'+lockParams().toString());
+    if(res.ok)return await res.json();
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(lockKey)||'null')||{locked:false,reason:''};}
+  catch(e){return {locked:false,reason:''};}
+}
+async function initLockControls(){
+  const btn=document.getElementById('lock-btn');
+  sheetLock=await getSheetLock();
+  renderSheetLock(sheetLock);
+  btn.addEventListener('click',toggleSheetLock);
+}
+function renderSheetLock(record){
+  sheetLock=record||{locked:false,reason:''};
+  document.querySelectorAll('.report-code-select').forEach(control=>{
+    const row=reportRows.find(r=>String(r.id)===control.closest('tr').dataset.id);
+    control.disabled=!!sheetLock.locked||savingReportCodes.size>0||!row||!(reportContractCodes.get(contractCodeKey(row))||[]).length;
+  });
+  const btn=document.getElementById('lock-btn');
+  const badge=document.getElementById('approval-status');
+  btn.classList.toggle('locked',!!sheetLock.locked);
+  btn.textContent=sheetLock.locked?'Unlock sheet':'Lock sheet';
+  btn.title=sheetLock.locked?'Locked sheets are skipped by all recalculations.':'Lock this sheet so recalculations skip it.';
+  if(sheetLock.locked){
+    badge.style.display='inline-flex';
+    badge.className='approval-status locked';
+    badge.textContent='Locked';
+  }else{
+    renderApprovalStatus(approvalRecord);
+  }
+}
+async function toggleSheetLock(){
+  const btn=document.getElementById('lock-btn');
+  const next=!sheetLock.locked;
+  const reason=next?prompt('Optional lock note',sheetLock.reason||'')||'':'';
+  btn.disabled=true;
+  btn.textContent=next?'Locking...':'Unlocking...';
+  try{
+    const res=await fetch(API+'/activity-sheet-locks',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contractor,date:reportDate,hole,source,locked:next,reason})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const record=await res.json();
+    localStorage.setItem(lockKey,JSON.stringify(record));
+    renderSheetLock(record);
+  }catch(e){
+    alert('Could not update sheet lock: '+e.message);
+    renderSheetLock(sheetLock);
+  }finally{
+    btn.disabled=false;
+  }
+}
+async function getApprovalRecord(){
+  try{
+    const res=await fetch(API+'/report-approvals?'+approvalParams().toString());
+    if(res.ok)return await res.json();
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(approvalKey)||'null')||emptyApprovalRecord();}
+  catch(e){return emptyApprovalRecord();}
+}
+async function initApprovalControls(){
+  const select=document.getElementById('approval-select');
+  const reasonWrap=document.getElementById('approval-reason-wrap');
+  const reason=document.getElementById('approval-reason');
+  const save=document.getElementById('approval-save');
+  const record=await getApprovalRecord();
+  approvalRecord=record;
+  select.value=record.status||'';
+  reason.value=record.reason||'';
+  reasonWrap.classList.toggle('open',select.value==='rejected'||select.value==='query');
+  document.getElementById('approval-lock-wrap').style.display=select.value==='approved'?'flex':'none';
+  select.addEventListener('change',function(){
+    const needsReason=select.value==='rejected'||select.value==='query';
+    reasonWrap.classList.toggle('open',needsReason);
+    document.getElementById('approval-lock-wrap').style.display=select.value==='approved'?'flex':'none';
+    reason.placeholder=select.value==='query'?'Enter the query':'Enter why this report is rejected';
+    if(needsReason)reason.focus();
+  });
+  save.addEventListener('click',saveApprovalDecision);
+  renderApprovalStatus(record);
+  renderApprovalLog(record);
+}
+async function saveApprovalDecision(){
+  const select=document.getElementById('approval-select');
+  const reason=document.getElementById('approval-reason');
+  const save=document.getElementById('approval-save');
+  const lockOnApprove=document.getElementById('approval-lock-on-approve');
+  const status=select.value;
+  const why=reason.value.trim();
+  if(!status){alert('Select approve, query, or reject first.');return;}
+  if((status==='rejected'||status==='query')&&!why){alert('Enter a reason or query before saving.');reason.focus();return;}
+  const label=status==='approved'?'Approved':status==='query'?'Queried':'Rejected';
+  save.disabled=true;
+  save.textContent='Saving...';
+  try{
+    const res=await fetch(API+'/report-approvals',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contractor:contractor,
+        date:reportDate,
+        hole:hole,
+        source:source,
+        status:status,
+        reason:why,
+        by:'Client',
+        lock_on_approval:status==='approved'&&!!lockOnApprove.checked,
+        lock_reason:'Locked on client approval to protect reviewed/custom changes.'
+      })
+    });
+    if(!res.ok)throw new Error(await res.text());
+    const record=await res.json();
+    approvalRecord=record;
+    localStorage.removeItem(approvalKey);
+    if(record.lock){
+      localStorage.setItem(lockKey,JSON.stringify(record.lock));
+      renderSheetLock(record.lock);
+    }
+    renderApprovalStatus(record);
+    renderApprovalLog(record);
+    reason.value='';
+    reason.placeholder=status==='approved'?'Approved. Select reject or query if this changes.':label+' reason saved. Add another note if needed.';
+  }catch(e){
+    alert('Could not save client decision: '+e.message);
+  }finally{
+    save.disabled=false;
+    save.textContent='Save';
+  }
+}
+function renderApprovalStatus(record){
+  if(sheetLock&&sheetLock.locked)return;
+  const badge=document.getElementById('approval-status');
+  if(!record.status){badge.style.display='none';badge.textContent='';badge.className='approval-status';return;}
+  badge.style.display='inline-flex';
+  badge.className='approval-status '+record.status;
+  badge.textContent=record.status==='approved'?'Approved':record.status==='query'?'Query':'Rejected';
+  document.getElementById('approval-select').value=record.status;
+}
+function renderApprovalLog(record){
+  const log=document.getElementById('approval-log');
+  const items=record.log||[];
+  if(!items.length){log.innerHTML='<div class="empty" style="padding:8px 0;">No approval decisions recorded.</div>';return;}
+  log.innerHTML=items.map(function(item){
+    const approved=item.status==='approved';
+    const queried=item.status==='query';
+    const icon=approved?'✓':queried?'?':'✕';
+    const action=approved?'Approved':queried?'Queried':'Rejected';
+    const when=new Date(item.at).toLocaleString('en-AU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return '<div class="log-item">'
+      +'<div class="log-icon" style="color:'+(approved?'#147a39':queried?'#a05a00':'#b42335')+'">'+icon+'</div>'
+      +'<div><strong>'+esc(item.by||'Client')+'</strong> '+action.toLowerCase()+' the report.</div>'
+      +'<div class="log-time">'+esc(when)+'</div>'
+      +(item.reason?'<div class="log-note">'+esc(item.reason||'')+'</div>':'')
+      +'</div>';
+  }).join('');
+}
+function noteField(row,label){
+  const parts=String(row.notes||'').split('|').map(p=>p.trim());
+  const prefix=label.toLowerCase()+':';
+  const found=parts.find(p=>p.toLowerCase().startsWith(prefix));
+  return found?found.slice(found.indexOf(':')+1).trim():'';
+}
+function workDescription(row){return String(row.notes||'').split('|')[0].trim();}
+function isMccWeeklyRow(row){
+  const text=[row.contractor,row.source_file,row.rate_basis,row.notes,row.code].join(' ').toLowerCase();
+  return text.includes('mcc')&&(text.includes('.xlsx')||text.includes('weekly eos')||text.includes('mcc schedule')||String(row.code||'').startsWith('MCC_'));
+}
+function groupByKey(rows,keyFn){
+  const map=new Map();
+  rows.forEach(r=>{const key=keyFn(r);if(!map.has(key))map.set(key,[]);map.get(key).push(r);});
+  return [...map.entries()];
+}
+function mccPerson(row){
+  return noteField(row,'Operator')||noteField(row,'Tradesperson/Labourer')||noteField(row,'Supervisor')||noteField(row,'Created by');
+}
+function mccEquipment(row){return noteField(row,'Equipment')||row.drill_rig||'';}
+function mccDecimalHours(row){
+  const hours=row.quantity!=null&&String(row.rate_basis||'').toLowerCase().includes('/hour')?num(row.quantity):parseDurationHours(row.total_time);
+  return hours.toFixed(2);
+}
+function mccQuantityDisplay(row){
+  const basis=String(row.rate_basis||'').toLowerCase();
+  if(row.quantity!=null&&basis.includes('(day)'))return num(row.quantity).toFixed(2)+' day';
+  if(row.quantity!=null&&basis.includes('/hour'))return num(row.quantity).toFixed(2)+' h';
+  return mccDecimalHours(row)+' h';
+}
+function reportDateKey(value){
+  const text=String(value||'').trim();
+  const dm=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(dm)return Date.UTC(parseInt(dm[3]),parseInt(dm[2])-1,parseInt(dm[1]));
+  const parsed=Date.parse(text);
+  return Number.isFinite(parsed)?parsed:0;
+}
+function mccWeeklyPeriod(rows){
+  const dates=[...new Set((rows||[]).map(r=>r.date).filter(Boolean))].sort((a,b)=>reportDateKey(a)-reportDateKey(b));
+  if(!dates.length)return'Period not recorded';
+  if(dates.length===1)return dates[0];
+  return dates[0]+' – '+dates[dates.length-1];
+}
+function weeklyDateParts(value){
+  const text=String(value||'').trim();
+  const match=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!match)return{day:'Day',date:text};
+  const date=new Date(Date.UTC(parseInt(match[3]),parseInt(match[2])-1,parseInt(match[1])));
+  return{day:date.toLocaleDateString('en-AU',{weekday:'short',timeZone:'UTC'}),date:String(parseInt(match[1])).padStart(2,'0')+'/'+String(parseInt(match[2])).padStart(2,'0')};
+}
+function weeklyDates(rows){
+  return [...new Set((rows||[]).map(row=>row.date).filter(Boolean))].sort((a,b)=>reportDateKey(a)-reportDateKey(b));
+}
+function renderWeeklyDayStrip(auditRows){
+  const dates=weeklyDates((weeklyOverviewContext&&weeklyOverviewContext.rows)||reportRows);
+  const byDate=new Map();
+  (auditRows||[]).forEach(row=>{if(!byDate.has(row.date))byDate.set(row.date,[]);byDate.get(row.date).push(row);});
+  let evidenced=0,required=0;
+  document.getElementById('weekly-day-strip').innerHTML=dates.map(date=>{
+    const dayRows=byDate.get(date)||[];
+    const ignoredOnly=dayRows.length&&dayRows.every(row=>row.status==='ignored_daily');
+    const notRequired=dayRows.length&&dayRows.every(row=>['not_required','ignored_daily','accepted_rule'].includes(row.status));
+    const hasDaily=dayRows.some(row=>num(row.daily_rows)>0);
+    const exceptions=dayRows.filter(row=>!['match','accepted_rule','not_required','ignored_daily'].includes(row.status)).length;
+    if(auditRows&&!notRequired)required++;
+    if(hasDaily&&!notRequired)evidenced++;
+    const state=!auditRows?'pending':notRequired?'not-required':!hasDaily?'missing':exceptions?'review':'verified';
+    const label=!auditRows?'Checking…':ignoredOnly?'Construction Trade ignored':notRequired?'Daily not required':!hasDaily?'No daily report':exceptions?(exceptions+' issue'+(exceptions===1?'':'s')):'Verified';
+    const parts=weeklyDateParts(date);
+    return '<div class="week-day '+state+'"><div class="week-day-name">'+esc(parts.day)+'</div><div class="week-day-date">'+esc(parts.date)+'</div><div class="week-day-status">'+esc(label)+'</div></div>';
+  }).join('')||'<div class="empty">No workdays recorded.</div>';
+  document.getElementById('weekly-evidence-score').textContent=auditRows?(required?evidenced+'/'+required+' required days':'Starts 10 Aug'):(dates.length+' workday'+(dates.length===1?'':'s'));
+  return{evidenced,total:required,represented:dates.length};
+}
+function updateWeeklyReadiness(auditRows,totals){
+  if(!weeklyOverviewContext)return;
+  const hero=document.getElementById('weekly-hero');
+  const unpriced=weeklyOverviewContext.unpriced;
+  const exceptions=(auditRows||[]).filter(row=>!['match','accepted_rule','not_required','ignored_daily'].includes(row.status)).length;
+  const matched=(auditRows||[]).filter(row=>row.status==='match').length;
+  const accepted=(auditRows||[]).filter(row=>row.status==='accepted_rule').length;
+  const notRequired=(auditRows||[]).filter(row=>row.status==='not_required').length;
+  const ignored=(auditRows||[]).filter(row=>row.status==='ignored_daily').length;
+  const evidence=renderWeeklyDayStrip(auditRows);
+  const coverage=[];
+  if(matched)coverage.push(matched+' matched line'+(matched===1?'':'s'));
+  if(accepted)coverage.push(accepted+' Light Vehicle line'+(accepted===1?'':'s')+' accepted by rule');
+  if(notRequired)coverage.push(notRequired+' pre-start line'+(notRequired===1?' requires':'s require')+' no daily report');
+  if(ignored)coverage.push(ignored+' Construction Trade line'+(ignored===1?' is':'s are')+' ignored from the daily audit');
+  const coverageText=coverage.join(', ');
+  hero.className='weekly-hero '+(unpriced?'blocked':exceptions?'review':'');
+  document.getElementById('weekly-readiness-title').textContent=unpriced
+    ?unpriced+' unpriced line'+(unpriced===1?'':'s')+' must be resolved'
+    :exceptions
+      ?exceptions+' exception'+(exceptions===1?'':'s')+' need review'
+      :'Ready for client decision';
+  document.getElementById('weekly-readiness-copy').textContent=unpriced
+    ?'The weekly cost is incomplete. Resolve the unpriced lines before approving or reconciling an invoice.'
+    :exceptions
+      ?(coverageText?coverageText+'. ':'')+'Daily evidence exists for '+evidence.evidenced+' of '+evidence.total+' required workdays.'
+      :'All required comparisons agree.'+(coverageText?' '+coverageText+'.':'');
+  document.getElementById('weekly-readiness-kicker').textContent=unpriced?'Pricing incomplete':exceptions?'Review required':'Invoice ready';
+}
+function weeklyCostHoursItems(rows){
+  const grouped=new Map();
+  (rows||[]).forEach(row=>{
+    const priced=row.unit_rate!=null&&row.unit_rate!==''&&row.line_cost!=null&&row.line_cost!=='';
+    const labour=/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(row.code||''));
+    const section=priced?(labour?'Labour':'Equipment'):'Unpriced';
+    const label=noteField(row,'Schedule item')||noteField(row,'Role')||mccEquipment(row)||String(row.code||'Unpriced').replace(/^MCC_/,'').replaceAll('_',' ');
+    const basis=String(row.rate_basis||'').toLowerCase();
+    // Only a stated billing rate makes this a day item. Phrases such as
+    // "SMU/day evidence" describe the source evidence, not the charge unit.
+    const unit=/\(\s*day\s*\)/.test(basis)||/\$\s*[\d,.]+\s*\/\s*day\b/.test(basis)?'day':'hour';
+    const rawQuantity=row.quantity!=null&&row.quantity!==''?num(row.quantity):parseDurationHours(row.total_time);
+    const quantity=rawQuantity*mccAllocationPercent(row)/100;
+    const rate=priced?num(row.unit_rate):null;
+    const key=[section,label,rate==null?'':rate.toFixed(4),unit].join('|');
+    if(!grouped.has(key))grouped.set(key,{section,label,unit,rate,quantity:0,amount:0,lines:0});
+    const item=grouped.get(key);
+    item.quantity+=quantity;
+    item.amount+=priced?mccAllocatedCost(row):0;
+    item.lines++;
+  });
+  const order={Labour:0,Equipment:1,Unpriced:2};
+  return [...grouped.values()].sort((a,b)=>order[a.section]-order[b.section]||a.label.localeCompare(b.label)||(a.rate||0)-(b.rate||0));
+}
+function renderWeeklyCostHoursSummary(context){
+  const items=weeklyCostHoursItems(context.rows),sections=['Labour','Equipment','Unpriced'];
+  const labourHours=items.filter(item=>item.section==='Labour'&&item.unit==='hour').reduce((sum,item)=>sum+item.quantity,0);
+  document.getElementById('weekly-cost-hours-total').textContent=cur(context.totalCost);
+  document.getElementById('weekly-cost-hours-meta').textContent=labourHours.toFixed(2)+' labour hours · '+context.workdays+' represented workday'+(context.workdays===1?'':'s')+' · '+context.unpriced+' unpriced line'+(context.unpriced===1?'':'s');
+  let html='';
+  sections.forEach(section=>{
+    const sectionItems=items.filter(item=>item.section===section);
+    if(!sectionItems.length)return;
+    html+='<tr class="weekly-cost-section"><td colspan="4">'+esc(section)+'</td></tr>';
+    sectionItems.forEach(item=>{
+      const quantity=item.quantity.toFixed(2)+' '+(item.unit==='day'?(Math.abs(item.quantity-1)<0.005?'day':'days'):'h');
+      html+='<tr><td>'+esc(item.label)+'</td><td>'+esc(quantity)+'</td><td>'+(item.rate==null?'--':cur(item.rate)+' / '+(item.unit==='day'?'day':'h'))+'</td><td>'+(item.rate==null?'--':cur(item.amount))+'</td></tr>';
+    });
+    if(section!=='Unpriced'){
+      const subtotal=sectionItems.reduce((sum,item)=>sum+item.amount,0);
+      html+='<tr class="weekly-cost-subtotal"><td colspan="3">'+esc(section)+' subtotal</td><td>'+cur(subtotal)+'</td></tr>';
+    }
+  });
+  html+='<tr class="weekly-cost-grand-total"><td colspan="3">Weekly total</td><td>'+cur(context.totalCost)+'</td></tr>';
+  document.getElementById('weekly-cost-hours-body').innerHTML=html;
+}
+function renderWeeklyOverview(context){
+  weeklyOverviewContext=context;
+  document.getElementById('weekly-overview').style.display='block';
+  document.getElementById('weekly-hero-total').textContent=cur(context.totalCost);
+  document.getElementById('weekly-cost-total').textContent=cur(context.totalCost);
+  renderWeeklyCostHoursSummary(context);
+  const pricedTotal=Math.max(context.labourCost+context.equipmentCost,1);
+  const pct=value=>Math.max(0,(value/pricedTotal)*100);
+  document.getElementById('weekly-cost-mix').innerHTML='<div class="cost-bar" aria-label="Cost composition">'
+    +'<span class="labour" style="width:'+pct(context.labourCost).toFixed(2)+'%"></span>'
+    +'<span class="equipment" style="width:'+pct(context.equipmentCost).toFixed(2)+'%"></span></div>'
+    +'<div class="cost-legend">'
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#315d49"></span>Labour<b>'+cur(context.labourCost)+'</b></div>'
+    +'<div class="cost-legend-item"><span class="cost-swatch" style="background:#e59a3a"></span>Equipment<b>'+cur(context.equipmentCost)+'</b></div></div>';
+  renderWeeklyDayStrip(null);
+  const hero=document.getElementById('weekly-hero');
+  hero.className='weekly-hero review';
+  document.getElementById('weekly-readiness-kicker').textContent='Invoice readiness';
+  document.getElementById('weekly-readiness-title').textContent='Checking daily evidence…';
+  document.getElementById('weekly-readiness-copy').textContent='Comparing weekly quantities with the available daily Site Services reports.';
+}
+function setWeeklyAuditView(showAll){
+  weeklyAuditShowAll=!!showAll;
+  document.getElementById('audit-exceptions-btn').classList.toggle('active',!weeklyAuditShowAll);
+  document.getElementById('audit-all-btn').classList.toggle('active',weeklyAuditShowAll);
+  renderWeeklyAuditTable();
+}
+function renderWeeklyAuditTable(){
+  const body=document.getElementById('weekly-audit-body');
+  const labels={match:'Match',accepted_rule:'Accepted rule',not_required:'Daily not required',ignored_daily:'Ignored from daily',unexpected_charge:'Unexpected weekly charge',variance:'Variance',missing_daily:'Missing daily',missing_weekly:'Missing weekly'};
+  const resolved=row=>['match','accepted_rule','not_required','ignored_daily'].includes(row.status);
+  const ordered=weeklyAuditRows.slice().sort((a,b)=>resolved(a)-resolved(b)||reportDateKey(a.date)-reportDateKey(b.date)||String(a.description||a.code||'').localeCompare(String(b.description||b.code||'')));
+  const visible=weeklyAuditShowAll?ordered:ordered.filter(row=>!resolved(row));
+  body.innerHTML=visible.map(row=>{
+    const ok=resolved(row);
+    const charged=row.status==='unexpected_charge';
+    return '<tr class="'+(ok?'':charged?'audit-row-danger':'audit-row-warning')+'"><td>'+esc(row.date||'--')+'</td><td>'+esc(row.description||row.code||'--')+'</td>'
+      +'<td>'+num(row.daily_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+num(row.weekly_quantity).toFixed(2)+' '+esc(row.unit||'')+'</td>'
+      +'<td>'+num(row.quantity_variance).toFixed(2)+'</td><td>'+cur(row.weekly_cost||0)+'</td>'
+      +'<td><span class="audit-status '+(ok?'ok':charged?'bad':'warn')+'">'+esc(labels[row.status]||row.status||'Review')+'</span></td></tr>';
+  }).join('')||'<tr><td colspan="7" class="empty">'+(weeklyAuditShowAll?'No comparable lines were found.':'No exceptions — all compared lines match.')+'</td></tr>';
+}
+async function renderFocusedMccWeeklyAudit(){
+  const section=document.getElementById('weekly-audit-section');
+  if(!section||!isMccWeeklySource)return;
+  section.style.display='block';
+  const body=document.getElementById('weekly-audit-body');
+  body.innerHTML='<tr><td colspan="7" class="empty">Loading the daily comparison…</td></tr>';
+  try{
+    const query=new URLSearchParams({source:source,program:program||''});
+    const response=await fetch(API+'/mcc/weekly-audit?'+query.toString());
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const data=await response.json();
+    const totals=data.totals||{};
+    const rows=data.comparison||[];
+    weeklyAuditRows=rows;
+    document.getElementById('weekly-audit-kpis').innerHTML='<span><strong>'+(totals.daily_files||0)+'</strong> daily report'+((totals.daily_files||0)===1?'':'s')+'</span>'
+      +'<span><strong>'+(totals.matched||0)+'</strong> matched lines</span>'
+      +'<span><strong>'+(totals.accepted||0)+'</strong> accepted by rule</span>'
+      +'<span><strong>'+(totals.not_required||0)+'</strong> before daily start</span>'
+      +'<span><strong>'+(totals.ignored_daily||0)+'</strong> daily roles ignored</span>'
+      +'<span><strong>'+(totals.exceptions||0)+'</strong> exceptions</span>'
+      +'<span><strong>'+cur(totals.cost_variance||0)+'</strong> unexplained difference</span>';
+    updateWeeklyReadiness(rows,totals);
+    renderWeeklyAuditTable();
+  }catch(error){
+    body.innerHTML='<tr><td colspan="7" class="empty">Could not load the focused audit: '+esc(error.message)+'</td></tr>';
+    const hero=document.getElementById('weekly-hero');
+    hero.className='weekly-hero blocked';
+    document.getElementById('weekly-readiness-kicker').textContent='Audit unavailable';
+    document.getElementById('weekly-readiness-title').textContent='Daily evidence could not be checked';
+    document.getElementById('weekly-readiness-copy').textContent='The weekly cost detail is still available below. Refresh to retry the daily comparison.';
+  }
+}
+function renderMccSiteServicesReport(rows,consumables,crew){
+  rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const weekly=isMccWeeklySource||rows.some(r=>String(r.source_file_type||'')==='mcc_weekly_xlsx');
+  weeklyAuditRows=[];
+  weeklyAuditShowAll=false;
+  document.getElementById('audit-exceptions-btn').classList.add('active');
+  document.getElementById('audit-all-btn').classList.remove('active');
+  const relatedConsumables=[];
+  const totalCost=rows.reduce((s,r)=>s+mccAllocatedCost(r),0);
+  const labourRows=rows.filter(r=>/LABOUR|TRADE|OPERATOR|SUPERVISOR|MANAGER/.test(String(r.code||'')));
+  const equipmentRows=rows.filter(r=>!labourRows.includes(r));
+  const unpricedRows=rows.filter(r=>r.line_cost==null||r.line_cost==='');
+  const totalHours=rows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  const workGroups=[...new Set(rows.map(r=>(mccWorkGroupForRow(r)||{}).label||r.program||'').filter(Boolean))];
+  const siteIds=[...new Set(rows.flatMap(r=>String(r.site_name||'').split(',').map(v=>v.trim())).filter(Boolean))];
+  const equipmentCost=equipmentRows.reduce((s,r)=>s+mccAllocatedCost(r),0);
+  const labourCost=labourRows.reduce((s,r)=>s+mccAllocatedCost(r),0);
+  const materialCost=relatedConsumables.reduce((s,r)=>s+num(r.line_cost),0);
+  const allocatedRows=rows.filter(r=>mccAllocationPercent(r)<100);
+  const supportGrid=document.getElementById('support-detail-grid');
+  supportGrid.classList.add('personnel-only');
+  document.getElementById('consumables-section').style.display='none';
+  document.getElementById('kpi-consumable-card').style.display='none';
+  document.body.classList.toggle('weekly-mode',weekly);
+  document.getElementById('weekly-overview').style.display=weekly?'block':'none';
+  const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10" value="'+attr(displayReportDate(reportDate))+'" aria-label="Report date (DD/MM/YYYY)"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
+  const reportTitle=weekly?'MCC Weekly Timesheet':'MCC Earthworks & Site Services';
+  document.getElementById('title').textContent=reportTitle;
+  document.title=reportTitle+' | DrillOps';
+  const dateMeta=weekly?'<span>'+esc(mccWeeklyPeriod(rows))+'</span>':dateEditor;
+  document.getElementById('meta').innerHTML=[dateMeta].concat([
+    program?program+' workstream':'All workstreams',
+    siteIds.join(', '),
+    source
+  ].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>')).join('');
+  document.getElementById('flags').innerHTML=(unpricedRows.length?'<span class="flag">'+unpricedRows.length+' unpriced row(s)</span>':'')
+    +(allocatedRows.length?'<span class="flag">'+allocatedRows.length+' allocated row(s)</span>':'');
+  document.getElementById('kpi-depth-label').textContent='Work Groups';
+  document.getElementById('kpi-duration-label').textContent='Total Hours';
+  document.getElementById('kpi-cost-label').textContent='Total Cost';
+  document.getElementById('kpi-drilling-cost-label').textContent='Equipment Cost';
+  document.getElementById('kpi-support-cost-label').textContent='Labour Cost';
+  document.getElementById('kpi-consumable-cost-label').textContent='Materials Cost';
+  document.getElementById('kpi-costm-label').textContent='Planned Holes';
+  document.getElementById('kpi-activities-label').textContent='Service Lines';
+  document.getElementById('kpi-depth').textContent=workGroups.length;
+  document.getElementById('kpi-duration').textContent=totalHours.toFixed(2)+' h';
+  document.getElementById('kpi-cost').textContent=cur(totalCost);
+  document.getElementById('kpi-drilling-cost').textContent=cur(equipmentCost);
+  document.getElementById('kpi-support-cost').textContent=cur(labourCost);
+  document.getElementById('kpi-consumable-cost').textContent=cur(materialCost);
+  document.getElementById('kpi-costm').textContent=siteIds.length;
+  document.getElementById('kpi-activities').textContent=rows.length;
+  if(weekly)renderWeeklyOverview({rows,totalCost,labourCost,equipmentCost,materialCost,totalHours,unpriced:unpricedRows.length,workdays:weeklyDates(rows).length});
+  document.getElementById('allocation-title').textContent=weekly?'Weekly Workstream & Planned Hole Allocation':'Work Group & Planned Hole Allocation';
+  const allocationTable=document.getElementById('metres-drilled-body').closest('table');
+  allocationTable.querySelector('thead').innerHTML='<tr><th>Work Group</th><th>Planned Hole</th><th>Service Lines</th><th>Allocated Hours</th><th>Allocated Total</th></tr>';
+  document.getElementById('metres-drilled-body').innerHTML=groupByKey(rows,r=>[(mccWorkGroupForRow(r)||{}).label||r.program||'Unassigned',r.site_name||'Unassigned'].join('|')).map(([key,items])=>{
+    const parts=key.split('|'),cost=items.reduce((s,r)=>s+mccAllocatedCost(r),0),hours=items.reduce((s,r)=>s+parseDurationHours(r.total_time)*mccAllocationPercent(r)/100,0);
+    return '<tr><td>'+esc(parts[0])+'</td><td>'+esc(parts[1])+'</td><td>'+items.length+'</td><td>'+hours.toFixed(2)+' h</td><td>'+cur(cost)+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="empty">No weekly activity allocation found.</td></tr>';
+  document.getElementById('timeline-title').style.display='none';
+  document.getElementById('timeline-title').textContent='';
+  document.getElementById('timeline').style.display='none';
+  document.getElementById('timeline').innerHTML='';
+  document.getElementById('notes-title').textContent='Report Notes & Work Completed';
+  const descriptions=[...new Set(rows.map(workDescription).filter(Boolean))];
+  const reportNotes=[...new Set(rows.map(r=>noteField(r,'Report note')).filter(Boolean))];
+  document.getElementById('notes').innerHTML=(reportNotes.length?'<p><strong>Notes / Delays</strong></p><ul>'+reportNotes.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')
+    +(descriptions.length?'<p><strong>Work completed</strong></p><ul>'+descriptions.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'')
+    ||'No report notes or work descriptions recorded.';
+  document.getElementById('activities-title').textContent=weekly?'Weekly Cost Line Items':'Site Services Line Items';
+  renderMccSiteServiceLineItems(rows);
+  document.getElementById('equipment-title').textContent='Equipment Detail';
+  const equipmentTable=document.getElementById('equipment-body').closest('table');
+  equipmentTable.querySelector('thead').innerHTML='<tr><th>Equipment</th><th>Operator</th><th>Work Group</th><th>Site ID</th><th>Hours / Qty</th><th>Rate</th><th>Total</th></tr>';
+  document.getElementById('equipment-body').innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'"><td>'+esc(mccEquipment(r)||equipmentName(r))+'</td><td>'+esc(mccPerson(r)||'')+'</td><td>'+esc((mccWorkGroupForRow(r)||{}).label||r.program||'')+'</td><td>'+esc(r.site_name||'')+'</td><td>'+mccQuantityDisplay(r)+'</td><td>'+((r.unit_rate!=null)?cur(r.unit_rate):'--')+'</td><td style="font-weight:800;color:#19201d;">'+(r.line_cost!=null?cur(mccAllocatedCost(r)):'--')+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">No equipment lines recorded.</td></tr>';
+  const reportCrewRows=crew.filter(belongsToThisReport);
+  const relatedCrew=(weekly?mccExplorationCrew(reportCrewRows,rows):reportCrewRows).slice().sort((a,b)=>reportDateKey(a.date)-reportDateKey(b.date)||(a.name||'').localeCompare(b.name||''));
+  document.getElementById('personnel-title').textContent=weekly?'Personnel — ARG-005 Exploration':'Personnel';
+  const crewTable=document.getElementById('crew-body').closest('table');
+  crewTable.querySelector('thead').innerHTML='<tr><th>Date</th><th>Name</th><th>Role</th><th>Hours Worked</th><th>Cost</th></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>{const cost=mccCrewCost(c);return '<tr><td>'+esc(c.date||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+(c.hours!==''&&c.hours!=null?num(c.hours).toFixed(2):'')+'</td><td>'+(cost!=null?cur(cost):'--')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="empty">No personnel recorded</td></tr>';
+  const pdf=document.getElementById('pdf-btn');
+  pdf.style.display=source?'inline-flex':'none';
+  pdf.textContent=weekly?'Download source XLSX':'Source PDF';
+  pdf.onclick=openSourcePdf;
+  const auditSection=document.getElementById('weekly-audit-section');
+  if(auditSection)auditSection.style.display=weekly?'block':'none';
+  if(weekly)renderFocusedMccWeeklyAudit();
+}
+function renderReport(rows,consumables,crew){
+  rows=(rows||[]).slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  if(rows.some(isMccWeeklyRow))return renderMccSiteServicesReport(rows,consumables,crew);
+  document.getElementById('support-detail-grid').classList.remove('personnel-only');
+  document.getElementById('personnel-title').textContent='Personnel';
+  document.getElementById('consumables-section').style.display='block';
+  document.getElementById('kpi-consumable-card').style.display='block';
+  document.getElementById('crew-body').closest('table').querySelector('thead').innerHTML='<tr><th>Name</th><th>Role</th><th>Hours</th></tr>';
+  document.body.classList.remove('weekly-mode');
+  document.getElementById('weekly-overview').style.display='none';
+  weeklyOverviewContext=null;
+  const relatedConsumables=(consumables||[]).filter(belongsToThisReport);
+  const equipmentRows=rows.filter(isEquipmentRow);
+  const activityRows=rows.filter(r=>!isEquipmentRow(r));
+  const activityCost=rows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const equipmentCost=equipmentRows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const supportCost=rows.filter(isSupportCostRow).reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0)+equipmentCost;
+  const drillingCost=activityCost-supportCost;
+  const consumableCost=relatedConsumables.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const cost=activityCost+consumableCost;
+  const metres=rows.reduce((s,r)=>s+(parseFloat(r.total_metres)||0),0);
+  const hours=activityRows.reduce((s,r)=>s+parseDurationHours(r.total_time),0);
+  const first=rows[0]||{};
+  const relatedCrew=crew.filter(belongsToThisReport);
+  const driller=relatedCrew.filter(c=>String(c.role||'').toLowerCase().includes('drill')).map(c=>c.name)[0]||'';
+  const reportHoles=[...new Set(rows.map(rowHoleLabel).filter(Boolean))];
+  const holeText=reportHoles.length>1?reportHoles.length+' holes':(reportHoles[0]?'Hole '+reportHoles[0]:(hole?'Hole '+hole:''));
+  const dateEditor='<span class="report-date-editor"><input id="report-date-input" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10" value="'+attr(displayReportDate(reportDate))+'" aria-label="Report date (DD/MM/YYYY)"><button id="report-date-save" type="button" onclick="saveReportDate()">Save date</button></span>';
+  document.getElementById('meta').innerHTML=[dateEditor].concat([holeText,first.drill_rig?'Rig '+first.drill_rig:'',first.shift||'',driller].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>')).join('');
+  const notes=rows.map(r=>r.notes).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  const flags=[];
+  if(metres===0&&cost>0)flags.push('Cost with zero metres');
+  if(notes.join(' ').toLowerCase().match(/lost|fatigue|no access|breakdown|repair|standby/))flags.push('Operational note');
+  if(hours>=12)flags.push('Long shift');
+  document.getElementById('flags').innerHTML=flags.map(f=>'<span class="flag">'+esc(f)+'</span>').join('');
+  document.getElementById('kpi-depth').textContent=metres.toFixed(2)+' m';
+  document.getElementById('kpi-duration').textContent=hours.toFixed(2)+' h';
+  document.getElementById('kpi-cost').textContent=cur(cost);
+  document.getElementById('kpi-drilling-cost').textContent=cur(drillingCost);
+  document.getElementById('kpi-support-cost').textContent=cur(supportCost);
+  document.getElementById('kpi-consumable-cost').textContent=cur(consumableCost);
+  document.getElementById('kpi-costm').textContent=metres>0?cur(cost/metres):'--';
+  document.getElementById('kpi-activities').textContent=rows.length;
+  document.getElementById('notes').innerHTML=notes.length?notes.map(n=>'<p>'+esc(n)+'</p>').join(''):'No notes recorded.';
+  const drilled=metresDrilledSummary(rows);
+  document.getElementById('metres-drilled-body').innerHTML=drilled.map(d=>'<tr><td>'+esc(d.item)+'</td><td>'+cur(d.rate)+'</td><td>'+d.metres.toFixed(2)+'</td><td>10%</td><td>'+cur(d.cost)+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No drilled metres recorded.</td></tr>';
+  renderTimeline(activityRows,hours);
+  const activityBody=document.getElementById('activity-body');
+  activityBody.innerHTML=activityRows.map(r=>{
+    const depth=(r.metres_from||r.metres_to)?fmt(r.metres_from)+' - '+fmt(r.metres_to):fmt(r.total_metres);
+    const chargeHr=rowChargePerHour(r);
+    const chargeM=rowChargePerMetre(r);
+    return '<tr data-id="'+attr(r.id)+'">'
+      +'<td contenteditable="true" data-col="time">'+esc((r.time_from||'')+' - '+(r.time_to||''))+'</td>'
+      +reportCodeCell(r)
+      +'<td contenteditable="true" data-col="total_time">'+esc(r.total_time||'')+'</td>'
+      +'<td contenteditable="true" data-col="depth">'+esc(depth)+'</td>'
+      +'<td contenteditable="true" data-col="notes">'+esc(r.notes||'')+'</td>'
+      +'<td>'+((chargeHr!=null)?cur(chargeHr):'--')+'</td>'
+      +'<td>'+((chargeM!=null)?cur(chargeM):'--')+'</td>'
+      +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
+      +'</tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">No activities found</td></tr>';
+  activityBody.querySelectorAll('.report-code-select').forEach(control=>control.addEventListener('change',()=>saveReportCode(control)));
+  activityBody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',()=>saveReportActivityEdit(cell));
+    cell.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();cell.blur();}
+    });
+  });
+  const equipmentSubtotal=equipmentRows.reduce((s,r)=>s+(parseFloat(r.line_cost)||0),0);
+  const equipmentBody=document.getElementById('equipment-body');
+  equipmentBody.innerHTML=equipmentRows.map(r=>'<tr data-id="'+attr(r.id)+'">'
+    +'<td>'+esc(rowHoleLabel(r)||'--')+'</td>'
+    +'<td contenteditable="true" data-col="notes">'+esc(equipmentName(r))+'</td>'
+    +'<td contenteditable="true" data-col="equipment_unit">'+esc(equipmentUnit(r))+'</td>'
+    +'<td contenteditable="true" data-col="total_time">'+esc(r.total_time||'')+'</td>'
+    +'<td contenteditable="true" data-col="rate_basis">'+esc(r.rate_basis||'')+'</td>'
+    +'<td contenteditable="true" data-col="unit_rate">'+((r.unit_rate!=null)?cur(r.unit_rate):'')+'</td>'
+    +'<td contenteditable="true" data-col="line_cost">'+cur(r.line_cost)+'</td>'
+    +'</tr>').join('')
+    +(equipmentRows.length?'<tr><td colspan="5"></td><td style="font-weight:800;color:#19201d;">Sub-total</td><td style="font-weight:800;color:#19201d;">'+cur(equipmentSubtotal)+'</td></tr>':'<tr><td colspan="7" class="empty">No equipment recorded.</td></tr>');
+  equipmentBody.querySelectorAll('[contenteditable]').forEach(cell=>{
+    cell.addEventListener('blur',()=>saveReportEquipmentEdit(cell));
+    cell.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();cell.blur();}
+    });
+  });
+  document.getElementById('consumables-body').innerHTML=relatedConsumables.map(c=>'<tr><td>'+esc(c.consumable||c.type||'')+'</td><td>'+esc(c.quantity||'')+'</td><td>'+esc(c.unit||'')+'</td><td>'+cur(c.line_cost)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No consumables recorded</td></tr>';
+  document.getElementById('crew-body').innerHTML=relatedCrew.map(c=>'<tr><td>'+esc(c.name||'')+'</td><td>'+esc(c.role||'')+'</td><td>'+esc(c.hours||'')+'</td></tr>').join('')||'<tr><td colspan="3" class="empty">No personnel recorded</td></tr>';
+  const pdf=document.getElementById('pdf-btn');
+  pdf.style.display=source?'inline-flex':'none';
+  pdf.textContent='Source PDF';
+  pdf.onclick=openSourcePdf;
+}
+function renderTimeline(rows,totalHours){
+  const target=document.getElementById('timeline');
+  const sorted=rows.slice().sort((a,b)=>(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
+  const starts=sorted.map(r=>parseClockMinutes(r.time_from)).filter(v=>v!=null);
+  const ends=sorted.map(r=>{const explicit=parseClockMinutes(r.time_to);if(explicit!=null)return explicit;const start=parseClockMinutes(r.time_from);return start==null?null:start+Math.round(parseDurationHours(r.total_time)*60);}).filter(v=>v!=null);
+  target.style.display=starts.length&&ends.length?'':'none';
+  document.getElementById('timeline-title').style.display=starts.length&&ends.length?'':'none';
+  if(!starts.length||!ends.length){target.innerHTML='';return;}
+  let min=Math.min(...starts),max=Math.max(...ends);
+  if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
+  const span=Math.max(60,max-min);
+  const timelineWidth=Math.max(1400,Math.ceil(span/60)*170);
+  const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
+  const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
+  const laneMap=new Map();
+  sorted.forEach(r=>{const lane=rowHoleLabel(r);if(!laneMap.has(lane))laneMap.set(lane,[]);laneMap.get(lane).push(r);});
+  const lanes=[...laneMap.entries()].map(([lane,laneRows])=>{
+    const blocks=laneRows.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(lane+' | '+label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
+    return '<div class="timeline-lane"><div class="timeline-lane-label" title="'+attr(lane)+'">'+esc(lane)+'</div><div class="timeline-track">'+blocks+'</div></div>';
+  }).join('');
+  const hasMinimumShiftOption=['Allianz Drilling','Mitchells Drilling'].includes(contractor);
+  const toggle=hasMinimumShiftOption
+    ? '<label class="minimum-shift-toggle" title="Untick this when the daily minimum shift top-up is not appropriate for this report."><input id="minimum-shift-toggle" type="checkbox" '+(minimumShiftPreference.include_topup!==false?'checked':'')+' onchange="toggleMinimumShiftTopup(this)">Include daily minimum top-up <small>review option</small></label>'
+    : '<span></span>';
+  target.innerHTML='<div class="timeline-tools">'+toggle+'<div><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div></div>'
+    +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
+    +scale+'<div class="timeline-lanes">'+lanes+'</div></div></div>';
+}
+function scrollTimelineBy(amount){
+  const el=document.getElementById('timeline-scroll');
+  if(el)el.scrollBy({left:amount,behavior:'smooth'});
+}
+loadReport();
+</script>
+</body>
+</html>

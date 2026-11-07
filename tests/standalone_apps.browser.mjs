@@ -16,6 +16,7 @@ await context.route('http://localhost:8000/**',async route=>{
  :path==='/projects'?[{id:1,client_id:1,name:'Test Project',program:'Exploration',year:2026,status:'Active'}]
  :path==='/contractors'?[{id:1,name:'Test Supplier',program:'Exploration',sites:'Test Project',active:true}]
  :path==='/invoices'?[{id:1,contractor:'Test Supplier',project:'Test Project',program:'Exploration',invoice_number:'TEST-1',subtotal:100}]
+ :path==='/training/state'?{revision:1,contractors:['Test Supplier'],people:[],roles:{},columns:[],sections:[]}
  :path==='/activity-report-data'?{activities:[{id:1,contractor:'Test Supplier',project:'Test Project',program:'Exploration',date:'2026-11-07',shift:'Day',drill_rig:'Rig 1',hole_num:'TEST-01',source_file:'test-shift.pdf',total_metres:24,total_time:'12:00',line_cost:2000,code:'DRILL',category:'active'}],consumables:[],crew:[],report_approvals:[],activity_sheet_locks:[]}:path==='/stats'?{}:[];
  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
 });
@@ -45,6 +46,25 @@ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('drillops_s
 await page.waitForFunction(()=>document.getElementById('ledger-count')?.textContent.startsWith('1 of 1'));
 assert.equal(await page.locator('#inv-kpi-total').innerText(),'$100.00');
 assert.equal(await page.locator('#inv-status-filter').count(),0);
+// The retained portal stays usable, with its own old navigation and shared login.
+errors=[];
+await page.goto(base+'OLD/');
+await page.waitForFunction(()=>document.getElementById('login-screen')?.style.display==='none');
+assert.equal(await page.locator('#page-invoices').count(),1);
+assert.equal(await page.locator('#page-activities').count(),1);
+assert.equal(await page.locator('#page-project-budgets').count(),1);
+await page.locator('#hamburger-btn').click();
+await page.locator('.drawer-nav-item[data-page="invoices"]').click();
+await page.waitForFunction(()=>document.getElementById('ledger-count')?.textContent.startsWith('1 of 1'));
+assert.equal(await page.locator('#inv-kpi-total').innerText(),'$100.00');
+assert.deepEqual(errors,[],'old portal runtime');
+await page.goto(base+'OLD/training.html?contractor=Test%20Supplier');
+await page.waitForFunction(()=>document.querySelector('#people-count')?.textContent==='0');
+assert.equal(await page.locator('.site-tag').evaluate(link=>new URL(link.href).pathname),'/OLD/index.html');
+await page.locator('.site-tag').click();
+await page.waitForFunction(()=>document.getElementById('login-screen')?.style.display==='none');
+assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('drillops_supabase_session')).access_token),'test-session');
+console.log('PASS retained OLD portal, invoice ledger, training return and shared session');
 await page.setViewportSize({width:390,height:844});
 for(const app of ['index','eos','account','project']){
  await page.goto(base+app+'.html');
