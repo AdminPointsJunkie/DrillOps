@@ -23,7 +23,11 @@
     console.error('Portal startup error:',error);
     var gateError=document.getElementById('workspace-gate-error');
     if(gateError)gateError.textContent='DrillOps could not finish loading. Refresh to retry; your sign-in and workspace have been kept.';
-    document.getElementById('workspace-gate').classList.add('open');
-    document.body.classList.add('workspace-locked');
+    if(WORKSPACE_APP==='eos'){
+      document.getElementById('workspace-gate').classList.remove('open');document.body.classList.remove('workspace-locked');
+      showAppHome();
+    }else{
+      document.getElementById('workspace-gate').classList.add('open');document.body.classList.add('workspace-locked');
+    }
   }
 })();

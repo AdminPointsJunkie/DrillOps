@@ -11,7 +11,7 @@ const functions=names.map(name=>{
   return html.slice(start,html.indexOf('\nfunction ',start+1));
 }).join('\n');
 function context(project){
-  return vm.createContext({activeProjectName:project,activeProgram:'Exploration',activeContractor:'Allianz Drilling'});
+  return vm.createContext({WORKSPACE_APP:'project',activeProjectName:project,activeProgram:'Exploration',activeContractor:'Allianz Drilling'});
 }
 test('Round 2 register excludes original-project DDRs in both directions',()=>{
   for(const project of ['Carborough Downs','Carborough Downs - Round 2']){

@@ -22,7 +22,7 @@ function showAppHome(){
  document.getElementById('workspace-gate').classList.remove('open');
  document.body.classList.remove('workspace-locked');
  updateContractorSwitcherVisibility('app-home');
- if(WORKSPACE_APP==='eos')loadEosOverview();
+ if(WORKSPACE_APP==='eos'){syncEosRoute('app-home');loadEosOverview();}
 }
 function openInitialAppPage(){
  const requested=new URLSearchParams(location.search).get('view');
@@ -32,3 +32,23 @@ function openInitialAppPage(){
   if(button)drawerNav(button);
  }else showAppHome();
 }
+
+function syncEosRoute(page,replace=false){
+ if(WORKSPACE_APP!=='eos')return;
+ const url=new URL('./eos.html',location.href);if(page!=='app-home')url.searchParams.set('view',page);
+ if(url.pathname+url.search!==location.pathname+location.search)history[replace?'replaceState':'pushState']({},'',url);
+ document.querySelectorAll('.app-local-nav a,.drawer-nav-item').forEach(el=>{
+  const target=el.dataset.page||(el.href?new URL(el.href).searchParams.get('view')||'app-home':'');
+  el.classList.toggle('active',target===page);if(target===page)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
+ });
+}
+document.addEventListener('click',event=>{
+ if(WORKSPACE_APP!=='eos'||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+ const link=event.target.closest('a[href]');if(!link||link.target||link.hasAttribute('download')||document.getElementById('login-screen').style.display!=='none')return;
+ const url=new URL(link.href);if(url.origin!==location.origin||!url.pathname.endsWith('/eos.html'))return;
+ const view=url.searchParams.get('view')||'app-home';if(view!=='app-home'&&!WORKSPACE_PAGES.eos.includes(view))return;
+ event.preventDefault();
+ if(view==='app-home'){syncEosRoute(view);showAppHome();closeDrawer();}
+ else drawerNav(document.querySelector('.drawer-nav-item[data-page="'+view+'"]'));
+});
+window.addEventListener('popstate',()=>{if(WORKSPACE_APP==='eos'&&document.getElementById('login-screen').style.display==='none')openInitialAppPage();});
