@@ -77,12 +77,17 @@
     "tag": "Plan the program. Keep it moving.",
     "copy": "Projects, borehole planning, maps and budget allocations.",
     "panels": [
+      "project-dashboard",
       "project-budgets",
       "budget",
       "boreholes",
       "admin"
     ],
     "nav": [
+      [
+        "project-dashboard",
+        "Dashboard"
+      ],
       [
         "project-budgets",
         "Projects"
