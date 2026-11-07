@@ -12,7 +12,7 @@ The shared session key, API origin and client/project/program selection keys are
 
 ## Editing
 
-Edit `panels/*.html`, `shell.html`, `runtime.js`, `navigation.js` or `navigation.css`, then run:
+Edit `panels/*.html`, `shell.html`, `runtime.js`, `navigation.js`, `navigation.css` or the shared `app-style.css`, then run:
 
 ```
 python3 scripts/build_workspaces.py
@@ -40,3 +40,5 @@ EOS uses the existing daily-report bundle and approval records to show report co
 Design references (reviewed 8 November 2026): CorePlan's public contractor/plod workflow (https://help.coreplan.io/en/articles/12888261-using-the-coreplan-driller-contractor-portal and https://www.coreplan.io/drilling) and Felt's interface (https://felt.com/). EOS retains its own name and assets; the implementation does not embed either vendor's screenshots or branding, nor claim feature parity with their platforms.
 
 Account opens straight into its invoice ledger; Project opens straight into its project register. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.
+
+All three apps share the approved EOS visual style: a white sidebar and compact header, neutral background, light panels, subdued blue actions and consistent tables. Training Matrix uses the same palette while preserving its evidence colours and adjustable text sizes.

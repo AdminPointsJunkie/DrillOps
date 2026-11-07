@@ -52,7 +52,9 @@ for area,cfg in APPS.items():
    value=value.replace('grid-template-columns:1fr 1fr 1fr','grid-template-columns:repeat(auto-fit,minmax(280px,1fr))')
   return value
  s=re.sub(r'\{\{panel:([^}]+)\}\}',panel,s)
- if area=='eos':s=s.replace('</head>','<link rel="stylesheet" href="./workspace/eos.css?v=20261108">\n</head>').replace('<script src="./workspace/start.js', '<script src="./workspace/eos-overview.js?v=20261108"></script>\n<script src="./workspace/start.js').replace('<div class="drawer-title">DrillOps</div>','<div class="drawer-title">EOS</div>').replace('<div class="drawer-subtitle">EOS</div>','<div class="drawer-subtitle">Drilling operations</div>')
+ s=s.replace('</head>','<link rel="stylesheet" href="./workspace/app-style.css?v=20261108">\n</head>')
+ s=s.replace('<div class="drawer-title">DrillOps</div>',f'<div class="drawer-title">{title}</div>').replace(f'<div class="drawer-subtitle">{title}</div>','<div class="drawer-subtitle">'+{'eos':'Drilling operations','account':'Invoices &amp; purchase orders','project':'Planning &amp; people'}[area]+'</div>')
+ if area=='eos':s=s.replace('<script src="./workspace/start.js', '<script src="./workspace/eos-overview.js?v=20261108"></script>\n<script src="./workspace/start.js').replace('<div class="drawer-title">DrillOps</div>','<div class="drawer-title">EOS</div>').replace('<div class="drawer-subtitle">EOS</div>','<div class="drawer-subtitle">Drilling operations</div>')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
  if area!='home':
