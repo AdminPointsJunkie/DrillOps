@@ -1,5 +1,10 @@
 /* App boundaries and navigation. Authentication and project selection stay shared. */
 const WORKSPACE_APP = document.body.dataset.workspaceArea || 'eos';
+const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling','MCC Group']);
+function contractorsForApp(rows, field='name'){
+ const list=Array.isArray(rows)?rows:[];
+ return WORKSPACE_APP==='eos'?list.filter(row=>EOS_CONTRACTOR_NAMES.has(row[field])):list;
+}
 const WORKSPACE_PAGES = {
  eos:['reports','activities','production','costing','rates','cost-contracts','importer'],
  account:['invoices','purchase-orders','contractors','importer'],

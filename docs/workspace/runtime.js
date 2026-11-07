@@ -271,6 +271,7 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'GEOGAS',short_code:'GEO',category:'Lab Testing'},{name:'Geochempet',short_code:'GCP',category:'Lab Testing'},
    {name:'STANTEC',short_code:'STN',category:'Lab Testing'},{name:'SIGRA',short_code:'SIG',category:'Lab Testing'},
    {name:'Earth Works',short_code:'EW',category:'Earthworks'}];
+CONTRACTORS=contractorsForApp(CONTRACTORS);
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
 const CONTRACTOR_SITES = ['Ironbark','Carborough Downs'];
@@ -408,7 +409,7 @@ async function loadProjectContractors(){
   if(!activeProjectName)return projectContractorsData;
   try{
     const response=await fetch(API+'/project-contractors?project='+encodeURIComponent(activeProjectName)+'&program='+encodeURIComponent(activeProgram||'')+'&_='+Date.now(),{cache:'no-store'});
-    if(response.ok)projectContractorsData=await response.json();
+    if(response.ok)projectContractorsData=contractorsForApp(await response.json(),'contractor');
   }catch(error){
     console.warn('Could not load project suppliers',error);
   }
@@ -419,7 +420,7 @@ async function fetchContractors(){
   try{
     const data=await fetch(`${API}/contractors`).then(r=>r.json());
     if(data&&data.length){
-      CONTRACTORS=data;
+      CONTRACTORS=contractorsForApp(data);
       sessionStorage.setItem('drillops_contractors',JSON.stringify(data));
     }
   }catch(e){console.warn('Could not fetch contractors from API, using cached list');}
