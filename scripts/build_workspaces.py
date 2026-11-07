@@ -3,27 +3,44 @@ Run python3 scripts/build_workspaces.py after editing docs/workspace sources.
 """
 from pathlib import Path
 import re, json, html
+from site_brand import navigation, footer, wordmark
 ROOT=Path(__file__).resolve().parents[1]; DOCS=ROOT/'docs'; SRC=DOCS/'workspace'
 APPS={
  'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','production','costing','rates','cost-contracts','importer'],'nav':[('activities','Plods'),('reports','Period reports'),('production','Production'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports')]},
  'account':{'name':'Account','tag':'Your books. Clear and connected.','copy':'Actual invoices, credit notes and purchase orders in one place.','panels':['invoices','purchase-orders','contractors','importer'],'nav':[('invoices','Invoice ledger'),('purchase-orders','Purchase orders'),('contractors','Suppliers'),('importer','Import invoices')]},
  'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-dashboard','project-budgets','budget','boreholes','admin'],'nav':[('project-dashboard','Dashboard'),('project-budgets','Projects'),('boreholes','Borehole planning & map'),('budget','Budget planning'),('admin','Users & change log')]}}
 shell=(SRC/'shell.html').read_text()
+shell=re.sub(r'<nav class="site-nav".*?</nav>',navigation(),shell,flags=re.S)
+shell=re.sub(r'<footer class="site-footer".*?</footer>',footer(),shell,flags=re.S)
+shell=shell.replace('{{company-home}}',(DOCS/'website/home.html').read_text())
+# Same simple line icons used in FieldMaps' navigation.
+ICONS={'overview':'M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z',
+ 'report':'M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6',
+ 'table':'M3 4h18v16H3zM3 9h18M9 9v11M15 9v11',
+ 'layers':'M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5',
+ 'upload':'M12 16V3M7 8l5-5 5 5M4 15v6h16v-6',
+ 'settings':'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+ 'chart':'M4 3v17h17M8 15v-4M13 15V7M18 15V4',
+ 'people':'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9'}
+PAGE_ICONS={'activities':'report','reports':'report','production':'chart','costing':'chart','rates':'table','cost-contracts':'report','importer':'upload','invoices':'table','purchase-orders':'report','contractors':'people','project-dashboard':'overview','project-budgets':'layers','boreholes':'layers','budget':'chart','admin':'settings','training':'people'}
+def icon(name):
+ return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+ICONS[name]+'"/></svg>'
 def link(area,page,label,css='app-task'):
  return f'<a class="{css}" href="./{area}.html?view={page}">{html.escape(label)}<span aria-hidden="true">↗</span></a>'
 for area,cfg in APPS.items():
- title=cfg['name'];nav='<div class="drawer-section"><div class="drawer-section-title">'+title+'</div>'
- if area=='eos':nav+='<a class="drawer-nav-item" href="./eos.html">Overview</a>'
- for page,label in cfg['nav']:nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">{label}</button>'
- if area=='project':nav+='<a class="drawer-nav-item" href="./training.html">Training matrix</a>'
+ title=cfg['name'];nav='<div class="drawer-section"><div class="drawer-section-title">'+{'eos':'Operations','account':'Accounting','project':'Project management'}[area]+'</div>'
+ if area=='eos':nav+='<a class="drawer-nav-item" href="./eos.html">'+icon('overview')+'<span>Overview</span></a>'
+ for page,label in cfg['nav']:nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">'+icon(PAGE_ICONS[page])+f'<span>{label}</span></button>'
+ if area=='project':nav+='<a class="drawer-nav-item" href="./training.html">'+icon('people')+'<span>Training matrix</span></a>'
  nav+='</div>'
  home=(SRC/'eos-home.html').read_text() if area=='eos' else ''
  s=shell.replace('{{navigation}}',nav).replace('{{area}}',area).replace('{{label}}',title).replace('{{home}}',home)
+ s=s.replace('{{app-wordmark}}',wordmark(title,'./'+area+'.html',stacked=True))
  local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'])
  if area=='project':local_links+='<a href="./training.html">Training matrix</a>'
  if area=='eos':local_links='<a href="./eos.html">Overview</a>'+local_links
  s=s.replace('{{area-navigation}}','<nav class="app-local-nav" aria-label="'+title+' navigation">'+local_links+'</nav>')
- s=s.replace('<a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">'+title+'</span>',f'<a class="workspace-area-name" href="./{area}.html" aria-label="{title} home">{title}</a>')
+ s=s.replace('<a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">'+title+'</span>',f'<a class="workspace-area-name" href="./{area}.html" aria-label="{title} home"><span class="mobile-company">DrillOps </span>{title}</a>')
 
  def panel(m):
   name=m[1]
@@ -55,13 +72,17 @@ for area,cfg in APPS.items():
  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/app-style.css?v=20261108">\n</head>')
  if area=='project':
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-1">\n</head>')
-  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-1"></script>\n<script src="./workspace/start.js')
+  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-fieldmaps1"></script>\n<script src="./workspace/start.js')
  s=s.replace('<div class="drawer-title">DrillOps</div>',f'<div class="drawer-title">{title}</div>').replace(f'<div class="drawer-subtitle">{title}</div>','<div class="drawer-subtitle">'+{'eos':'Drilling operations','account':'Invoices &amp; purchase orders','project':'Planning &amp; people'}[area]+'</div>')
  if area=='eos':s=s.replace('<script src="./workspace/start.js', '<script src="./workspace/eos-overview.js?v=20261108"></script>\n<script src="./workspace/start.js').replace('<div class="drawer-title">DrillOps</div>','<div class="drawer-title">EOS</div>').replace('<div class="drawer-subtitle">EOS</div>','<div class="drawer-subtitle">Drilling operations</div>')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
  if area!='home':
   s=s.replace('<div id="login-screen" class="site">','<div id="login-screen" class="site signin-mode">').replace('Sign in to your workspace.',f'Sign in to {title}.').replace('Operations workspace',title).replace('>DO</div>',f'>{title[:1]}</div>')
+ s=s.replace('<div class="login-copy"><div class="kicker">DrillOps</div>', '<div class="login-copy">'+wordmark(title,'./'+area+'.html'))
+ s=s.replace('Access your DrillOps workspace',f'Access your {title} workspace')
+ s=s.replace('Sign in to review daily reports and manage your drilling program.',cfg['copy'])
+ s=s.replace('</head>','<link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">\n</head>')
  (DOCS/(area+'.html')).write_text('<!-- Generated by scripts/build_workspaces.py. Edit docs/workspace sources. -->\n'+'\n'.join(line.rstrip() for line in s.splitlines())+'\n')
 # Keep the homepage public until explicit sign-in or recovery.
 homepage=(DOCS/'eos.html').read_text().replace('class="site signin-mode"','class="site"',1)

@@ -1,6 +1,6 @@
 /* Mastt-informed project overview, using the existing authenticated APIs. */
 let projectDashboardRequest = 0;
-const pmColours = {Complete:'#36a58b','In Progress':'#36b4e8',Planned:'#bdd3ed',Other:'#a4acb6'};
+const pmColours = {Complete:'#315d49','In Progress':'#86a88b',Planned:'#dce6dc',Other:'#a9b4ae'};
 const pmMoney = value => value === null ? 'Not set' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(value);
 const pmDate = time => new Intl.DateTimeFormat('en-AU',{day:'numeric',month:'short',timeZone:'UTC'}).format(time);
 const pmEmpty = message => '<p class="pm-empty">'+esc(message)+'</p>';
