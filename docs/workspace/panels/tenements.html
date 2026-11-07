@@ -1,0 +1,55 @@
+<section class="page" id="page-tenements" hidden aria-hidden="true">
+      <h2 class="section-title">Tenement Management</h2>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Total Tenements</div><div class="kpi-value" id="ten-kpi-total">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Granted</div><div class="kpi-value" id="ten-kpi-granted">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Due 90 Days</div><div class="kpi-value" id="ten-kpi-due">—</div></div>
+        <div class="kpi crit"><div class="kpi-label">Overdue</div><div class="kpi-value" id="ten-kpi-overdue">—</div></div>
+        <div class="kpi"><div class="kpi-label">Spend Variance</div><div class="kpi-value" id="ten-kpi-variance">—</div></div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-toggle" id="ten-add-toggle" onclick="this.classList.toggle('open');document.getElementById('ten-add-body').classList.toggle('open');">Add Tenement <span class="arrow">▼</span></button>
+        <div class="filter-body" id="ten-add-body" style="grid-template-columns:repeat(4,1fr);">
+          <div class="filter-group"><label>Tenement ID *</label><input id="ten-id" placeholder="EPC 1234"/></div>
+          <div class="filter-group"><label>Name</label><input id="ten-name" placeholder="Ironbark North"/></div>
+          <div class="filter-group"><label>Workspace project</label><input id="ten-project" readonly/></div>
+          <div class="filter-group"><label>Status</label><select id="ten-status"><option>Granted</option><option>Application</option><option>Renewal Due</option><option>Suspended</option><option>Surrendered</option></select></div>
+          <div class="filter-group"><label>Holder</label><input id="ten-holder" placeholder="Entity / JV"/></div>
+          <div class="filter-group"><label>Area ha</label><input id="ten-area" type="number" placeholder="0" step="0.01"/></div>
+          <div class="filter-group"><label>Expiry</label><input id="ten-expiry" placeholder="dd/mm/yyyy"/></div>
+          <div class="filter-group"><label>Renewal Due</label><input id="ten-renewal" placeholder="dd/mm/yyyy"/></div>
+          <div class="filter-group"><label>Min Spend $</label><input id="ten-min-spend" type="number" placeholder="0" step="100"/></div>
+          <div class="filter-group"><label>Actual Spend $</label><input id="ten-actual-spend" type="number" placeholder="0" step="100"/></div>
+          <div class="filter-group"><label>Next Obligation</label><input id="ten-obligation" placeholder="Annual report / rent / renewal"/></div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="addTenement()">Save Tenement</button>
+            <button class="btn-ghost" onclick="clearTenementForm()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tenement-grid">
+        <div class="chart-card">
+          <div class="chart-title">Tenement Footprint</div>
+          <div class="tenement-map" id="tenement-map"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Compliance Watchlist</div>
+          <div class="tenement-alert-list" id="tenement-alerts"></div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="ten-count">—</span> tenements</div>
+          <button class="btn-csv" onclick="downloadCSV('tenements')">CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="ten-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Project</th><th>Status</th><th>Holder</th><th>Area ha</th><th>Expiry</th><th>Renewal Due</th><th>Min Spend</th><th>Actual Spend</th><th>Variance</th><th>Next Obligation</th><th></th></tr></thead>
+            <tbody id="ten-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>

@@ -44,7 +44,7 @@ test('saved scenarios cannot leak across clients, projects, programs or report p
   }
 });
 
-const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../docs/eos.html',import.meta.url),'utf8')+'<script>'+fs.readFileSync(new URL('../docs/workspace/runtime.js',import.meta.url),'utf8')+'</script>';
 test('all portal scripts compile',()=>{
   for(const [,attributes,source] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){
     if(!attributes.includes('application/ld+json'))new vm.Script(source);

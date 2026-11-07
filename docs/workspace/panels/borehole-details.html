@@ -1,0 +1,42 @@
+<section class="page" id="page-borehole-details" hidden aria-hidden="true">
+      <div class="details-toolbar">
+        <div>
+          <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Details</h2>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Detailed borehole register. Editable cells save back to the borehole database.</div>
+        </div>
+        <div class="details-controls">
+          <span class="workspace-scope-note" id="details-project-context">Selected at entry</span>
+          <select id="details-project-filter" onchange="renderBoreholeDetails()" hidden><option value=""></option></select>
+          <label for="details-status-filter">Status</label>
+          <select id="details-status-filter" onchange="renderBoreholeDetails()">
+            <option value="">All Status</option>
+            <option value="Planned">Planned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <input id="details-search" placeholder="Search hole, site, purpose..." oninput="renderBoreholeDetails()"/>
+          <button class="btn-primary" id="schedule-update-btn" onclick="updateDrillingSchedule()">Update Schedule</button>
+          <button class="btn-csv" onclick="downloadCSV('borehole_details')">Export CSV</button>
+        </div>
+      </div>
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Rows</div><div class="kpi-value" id="details-kpi-rows">—</div></div>
+        <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="details-kpi-projects">—</div></div>
+        <div class="kpi"><div class="kpi-label">Area</div><div class="kpi-value" id="details-kpi-depth">—</div></div>
+        <div class="kpi"><div class="kpi-label">Inspected</div><div class="kpi-value" id="details-kpi-budget">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="details-kpi-complete">—</div></div>
+      </div>
+      <div class="table-wrap details-table">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="details-count">—</span> boreholes</div>
+          <div style="font-size:11px;color:var(--muted);">Click editable cells to update values</div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="details-table">
+            <thead><tr id="details-head"></tr></thead>
+            <tbody id="details-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>

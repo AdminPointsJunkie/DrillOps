@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../docs/eos.html',import.meta.url),'utf8')+'<script>'+fs.readFileSync(new URL('../docs/workspace/runtime.js',import.meta.url),'utf8')+'</script>';
 const names=['normalizeProjectName','projectNamesMatch','rowMatchesActiveProgram','filterRowsForActiveProgram','filterWorkspaceActivities','rowMatchesPeriodProject'];
 const functions=names.map(name=>{
   const start=html.indexOf('function '+name+'(');

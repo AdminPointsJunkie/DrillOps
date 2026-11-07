@@ -1,0 +1,55 @@
+<section class="page" id="page-costing">
+      <h2 class="section-title">💰 Costing Summary</h2>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">Editable cost register. Manual line edits save immediately and refresh the summaries below.</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn-primary" id="cost-reprice-btn" onclick="repriceCosting()">Reprice from Rates</button>
+          <button class="btn-ghost" onclick="loadCosting()">Refresh</button>
+        </div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Grand Total</div><div class="kpi-value" id="cost-grand">—</div></div>
+        <div class="kpi"><div class="kpi-label">Drilling Cost</div><div class="kpi-value" id="cost-drilling">—</div></div>
+        <div class="kpi"><div class="kpi-label">Non-Drilling Cost</div><div class="kpi-value" id="cost-nondrilling">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total Metres</div><div class="kpi-value" id="cost-metres">—</div></div>
+        <div class="kpi"><div class="kpi-label">Cost per Metre</div><div class="kpi-value" id="cost-per-m">—</div></div>
+      </div>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">By Hole</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="cost-hole-count">—</span> holes</div><button class="btn-csv" onclick="downloadCSV('costing_holes')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="cost-hole-table">
+          <thead><tr><th>Hole #</th><th>Total Cost</th><th>Drilling $</th><th>Non-Drilling $</th><th>Metres</th><th>$/m</th><th>Activities</th></tr></thead>
+          <tbody id="cost-hole-body"></tbody>
+        </table></div>
+      </div>
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">By Day</h3>
+      <div class="table-wrap">
+        <div class="table-toolbar"><div class="table-count"><span id="cost-date-count">—</span> days</div><button class="btn-csv" onclick="downloadCSV('costing_dates')">⬇ CSV</button></div>
+        <div class="tbl-scroll"><table id="cost-date-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Daily Cost</th><th>Metres</th></tr></thead>
+          <tbody id="cost-date-body"></tbody>
+        </table></div>
+      </div>
+      <div class="filter-bar">
+        <button class="filter-toggle" id="cost-filter-toggle">🔍 &nbsp;Filter Line Items <span class="arrow">▼</span></button>
+        <div class="filter-body" id="cost-filter-body">
+          <div class="filter-group"><label>Hole #</label><select id="f-cost-holes" multiple></select></div>
+          <div class="filter-group"><label>Date</label><select id="f-cost-dates" multiple></select></div>
+          <div class="filter-actions">
+            <button class="btn-primary" onclick="loadCostingLines()">Apply</button>
+            <button class="btn-ghost" onclick="selectAll('f-cost-holes');selectAll('f-cost-dates');loadCostingLines()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count">Showing <span id="cost-line-count">—</span> priced rows · click yellow/cost cells to edit</div>
+          <button class="btn-csv" onclick="downloadCSV('costing_lines')">⬇ CSV</button>
+        </div>
+        <div class="tbl-scroll"><table id="cost-line-table">
+          <thead><tr><th>Date</th><th>Hole</th><th>Code</th><th>Notes</th><th>Metres</th><th>Rate Basis</th><th>Unit Rate</th><th>Qty</th><th>Line Cost</th></tr></thead>
+          <tbody id="cost-line-body"></tbody>
+        </table></div>
+      </div>
+    </section>

@@ -1,0 +1,104 @@
+<section class="page" id="page-invoices">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text);margin:0;">Invoice Register</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="inv-contractor-filter" onchange="loadInvoices()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:160px;">
+            <option value="">All Contractors</option>
+          </select>
+          <select id="inv-status-filter" onchange="loadInvoices()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:120px;">
+            <option value="">All Status</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Paid">Paid</option>
+            <option value="Query">Query</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Approved">Approved</option>
+            <option value="Not Approved">Not Approved</option>
+          </select>
+          <button class="btn-csv" onclick="downloadCSV('invoices')">⬇ CSV</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Total Invoiced</div><div class="kpi-value" id="inv-kpi-total">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Paid</div><div class="kpi-value" id="inv-kpi-paid">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">Outstanding</div><div class="kpi-value" id="inv-kpi-due">—</div></div>
+        <div class="kpi"><div class="kpi-label">Invoices</div><div class="kpi-value" id="inv-kpi-count">—</div></div>
+        <div class="kpi"><div class="kpi-label">In Query</div><div class="kpi-value" id="inv-kpi-query">—</div></div>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom:16px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Manual invoice line</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Add invoice data without importing a PDF.</div>
+          </div>
+          <button class="btn-primary" type="button" onclick="createManualInvoice()">Add manual line</button>
+        </div>
+        <div class="filter-body open" style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:14px;">
+          <div class="filter-group"><label>Contractor</label><select id="manual-inv-contractor"></select></div>
+          <div class="filter-group"><label>Program</label><select id="manual-inv-program" onchange="populateManualInvoiceForm(true)"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select></div>
+          <div class="filter-group"><label>Workspace project</label><select id="manual-inv-project" disabled><option value=""></option></select></div>
+          <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
+          <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
+          <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
+          <div class="filter-group"><label>Status</label><select id="manual-inv-status"><option>Unpaid</option><option>Paid</option><option>Query</option><option>Rejected</option><option>Approved</option><option>Not Approved</option></select></div>
+          <div class="filter-group" style="grid-column:span 2;"><label>Description</label><input id="manual-inv-description" placeholder="Line description"></div>
+          <div class="filter-group"><label>Category</label><select id="manual-inv-category"><option value="">Auto</option><option>labour</option><option>equipment</option><option>active</option><option>standby</option><option>travel</option><option>setup</option><option>consumable</option><option>other</option></select></div>
+          <div class="filter-group"><label>Qty</label><input id="manual-inv-qty" type="number" step="0.01" value="1" oninput="updateManualInvoiceTotals()"></div>
+          <div class="filter-group"><label>Unit Price</label><input id="manual-inv-unit" type="number" step="0.01" oninput="updateManualInvoiceTotals()"></div>
+          <div class="filter-group"><label>Subtotal</label><input id="manual-inv-amount" type="number" step="0.01" oninput="updateManualInvoiceTotals(true)"></div>
+          <div class="filter-group"><label>GST</label><input id="manual-inv-gst" type="number" step="0.01"></div>
+          <div class="filter-group"><label>Total AUD</label><input id="manual-inv-total" type="number" step="0.01"></div>
+        </div>
+      </div>
+
+      <!-- Main table -->
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="inv-count">—</span> invoices</div>
+          <div style="font-size:11px;color:var(--muted);">Click any cell to edit · Changes save automatically</div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="inv-table">
+            <thead><tr>
+              <th>Invoice #</th><th>Contractor</th><th>Project</th><th>Invoice Date</th><th>Invoice Month</th>
+              <th>PO Number</th><th>Subtotal</th><th>GST</th><th>Total AUD</th>
+              <th>Amount Paid</th><th>Amount Due</th><th>Status</th><th>Query Notes</th>
+              <th>Version</th><th>Actions</th><th></th>
+            </tr></thead>
+            <tbody id="inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="invoice-breakdown-panel">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="invoice-breakdown-title">Invoice breakdown</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">MCC invoices are matched to the service week's report quantities and the contract schedule. Invoice rates never replace contract rates.</div>
+          </div>
+          <button class="btn-csv" onclick="downloadInvoiceBreakdownCSV()">CSV</button>
+        </div>
+        <div class="invoice-breakdown-summary">
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Lines</div><div class="invoice-breakdown-value" id="invbd-lines">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Cleared</div><div class="invoice-breakdown-value" id="invbd-accounted">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Errors / Evidence</div><div class="invoice-breakdown-value" id="invbd-missing">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoice ex GST</div><div class="invoice-breakdown-value" id="invbd-invoiced">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Contract Supported</div><div class="invoice-breakdown-value" id="invbd-eos">—</div></div>
+          <div class="invoice-breakdown-card"><div class="invoice-breakdown-label">Invoice Difference</div><div class="invoice-breakdown-value" id="invbd-variance">—</div></div>
+        </div>
+        <div class="tbl-scroll" style="max-height:390px;">
+          <table id="invoice-breakdown-table">
+            <thead><tr>
+              <th>Service period</th><th>Code</th><th>Invoice qty</th><th>Weekly qty</th><th>Unit</th>
+              <th>Invoice rate</th><th>Contract rate</th><th>Invoice ex GST</th><th>Contract supported</th>
+              <th>Difference</th><th>Status</th><th>Evidence / error</th>
+            </tr></thead>
+            <tbody id="invoice-breakdown-body">
+              <tr><td colspan="12" style="padding:20px;color:var(--muted);text-align:center;">Select an invoice breakdown to inspect matched and unmatched task lines.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>

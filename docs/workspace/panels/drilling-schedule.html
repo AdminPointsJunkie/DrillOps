@@ -1,0 +1,66 @@
+<section class="page" id="page-drilling-schedule" hidden aria-hidden="true">
+      <div class="schedule-toolbar">
+        <div>
+          <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Rig Scheduler</h2>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Rig calendar for planned holes. Click a hole block to edit rig, dates, status, and notes.</div>
+        </div>
+        <div class="schedule-controls">
+          <span class="workspace-scope-note" id="schedule-project-context">Selected at entry</span>
+          <select id="schedule-project-filter" onchange="renderDrillingSchedule()" hidden><option value=""></option></select>
+          <label for="schedule-rig-filter">Rig</label>
+          <select id="schedule-rig-filter" onchange="renderDrillingSchedule()">
+            <option value="">All Rigs</option>
+          </select>
+          <label for="schedule-status-filter">Status</label>
+          <select id="schedule-status-filter" onchange="renderDrillingSchedule()">
+            <option value="">All Status</option>
+            <option value="Planned">Planned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <label for="schedule-from">From</label>
+          <input id="schedule-from" type="date" onchange="renderDrillingSchedule()"/>
+          <label for="schedule-to">To</label>
+          <input id="schedule-to" type="date" onchange="renderDrillingSchedule()"/>
+          <button class="btn-ghost" onclick="loadBoreholes(true)">Refresh</button>
+        </div>
+      </div>
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Scheduled Holes</div><div class="kpi-value" id="schedule-kpi-holes">—</div></div>
+        <div class="kpi"><div class="kpi-label">Rigs</div><div class="kpi-value" id="schedule-kpi-rigs">—</div></div>
+        <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="schedule-kpi-projects">—</div></div>
+        <div class="kpi"><div class="kpi-label">Scheduled Days</div><div class="kpi-value" id="schedule-kpi-days">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="schedule-kpi-complete">—</div></div>
+      </div>
+      <div class="schedule-layout">
+        <div class="schedule-wrap">
+          <div class="schedule-scroll">
+            <div class="schedule-grid" id="schedule-grid"></div>
+          </div>
+        </div>
+        <aside class="schedule-side" id="schedule-detail">
+          <div class="schedule-side-head">
+            <div class="schedule-side-title" id="schedule-detail-title">Select a scheduled hole</div>
+            <div class="schedule-side-sub" id="schedule-detail-sub">Rig and date changes save to the borehole database.</div>
+          </div>
+          <div class="schedule-side-body">
+            <div class="schedule-field"><label>Rig</label><input id="schedule-detail-rig" placeholder="e.g. ADR001"/></div>
+            <div class="schedule-field"><label>Start Date</label><input id="schedule-detail-start" type="date"/></div>
+            <div class="schedule-field"><label>End Date</label><input id="schedule-detail-end" type="date"/></div>
+            <div class="schedule-field"><label>Budgeted Days</label><input id="schedule-detail-days" type="number" min="0.25" step="0.25"/></div>
+            <div class="schedule-field"><label>Status</label>
+              <select id="schedule-detail-status">
+                <option>Planned</option>
+                <option>In Progress</option>
+                <option>Complete</option>
+                <option>Cancelled</option>
+              </select>
+            </div>
+            <div class="schedule-field"><label>Notes</label><textarea id="schedule-detail-notes" placeholder="Scheduler notes"></textarea></div>
+            <button class="btn-primary" onclick="saveScheduleDetail()">Save Schedule</button>
+            <button class="btn-ghost" onclick="openSelectedScheduleBorehole()">Open Borehole Details</button>
+          </div>
+        </aside>
+      </div>
+    </section>

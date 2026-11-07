@@ -1,0 +1,171 @@
+<section class="page" id="page-activities">
+      <div class="report-register-filters">
+        <input class="report-search" id="report-search" type="text" placeholder="Search by plod name or driller" oninput="filterDailyReportRows()"/>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Status</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Shift</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Rig</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
+        <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
+        <input class="range-date" id="range-from" type="date" title="Report start date"/>
+        <input class="range-date" id="range-to" type="date" title="Report end date"/>
+        <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
+        <button class="btn-ghost" id="bulk-assign-project-btn" type="button" onclick="bulkAssignReportsToWorkspace()" disabled>Assign to workspace</button>
+        <button class="btn-ghost" id="bulk-lock-btn" type="button" onclick="bulkSetReportLocks(true)" disabled>Lock selected</button>
+        <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
+        <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
+        <span class="table-count" id="bulk-report-count">0 selected</span>
+        <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
+        <button class="btn-ghost" type="button" onclick="clearDarReportFilters()">Clear report filters</button>
+      </div>
+      <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
+        <button class="filter-toggle" id="act-filter-toggle">🔍 &nbsp;Filters &amp; Search <span class="arrow">▼</span></button>
+        <div class="filter-body" id="act-filter-body">
+          <div class="filter-group"><label>Date</label><select id="f-dates" multiple></select></div>
+          <div class="filter-group"><label>Hole #</label><select id="f-holes" multiple></select></div>
+          <div class="filter-group"><label>Site</label><select id="f-sites" multiple></select></div>
+          <div class="filter-group"><label>Code</label><select id="f-codes" multiple></select></div>
+          <div class="filter-group" style="grid-column:1/-1"><label>Keyword (notes/code)</label><input type="text" id="f-search" placeholder="search…"/></div>
+          <div class="filter-actions" style="grid-column:1/-1">
+            <button class="btn-primary" onclick="loadActivities()">Apply</button>
+            <button class="btn-ghost" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:none;">
+        <span id="report-total">--</span><span id="report-cost">--</span><span id="report-metres">--</span><span id="report-hours">--</span><span id="report-review">--</span>
+      </div>
+      <div class="table-wrap report-register" id="mcc-weekly-report-panel" style="display:none;">
+        <div class="table-toolbar" style="align-items:flex-start;">
+          <div>
+            <div class="table-count" style="font-weight:800;color:var(--text);">MCC Weekly Reports <span id="mcc-weekly-report-count">--</span></div>
+            <div id="mcc-weekly-report-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">Invoice-source workbooks. Open a report to review its lines, project allocation, costing and comparison with the daily reports.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:280px;">
+          <table id="mcc-weekly-report-table">
+            <thead><tr><th>Weekly report</th><th>Period</th><th>Workstreams</th><th>Lines</th><th>Weekly cost</th><th>Unpriced</th><th></th></tr></thead>
+            <tbody id="mcc-weekly-report-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap" id="mcc-personnel-panel" style="display:none;">
+        <div class="table-toolbar" style="align-items:flex-start;gap:14px;flex-wrap:wrap;">
+          <div style="min-width:240px;flex:1;">
+            <div class="table-count" style="font-weight:800;color:var(--text);">MCC Personnel</div>
+            <div id="mcc-personnel-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">Search submitted hours and verify them against Site Log swipe history.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+            <input class="report-search" id="mcc-personnel-search" type="search" placeholder="Find name, role or Person ID" oninput="filterMccPersonnel()" style="min-width:240px;"/>
+            <button class="btn-csv" type="button" onclick="downloadMccPersonnelCSV()">Download CSV</button>
+            <label class="btn-csv" id="mcc-swipe-upload-label" style="cursor:pointer;">
+              <span id="mcc-swipe-upload-text">Import swipe CSV</span>
+              <input id="mcc-swipe-input" type="file" accept=".csv,text/csv" onchange="importMccSwipeHistory(this.files[0])" style="display:none;"/>
+            </label>
+          </div>
+        </div>
+        <div id="mcc-personnel-kpis" style="display:flex;gap:18px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);background:#fbfcfd;font-size:11px;color:var(--muted);"></div>
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table id="mcc-personnel-table">
+            <thead><tr><th>Person</th><th>Role</th><th>Submitted</th><th>Swipe</th><th>Submitted − swipe</th><th>Days</th><th>Status</th><th></th></tr></thead>
+            <tbody id="mcc-personnel-body"><tr><td colspan="8" style="padding:18px;color:var(--muted);">MCC personnel will load with the report register.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="mcc-personnel-detail" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fbfcfd;"></div>
+      </div>
+      <div class="table-wrap" id="mcc-weekly-audit-panel" style="display:none;">
+        <div class="table-toolbar" style="align-items:flex-start;">
+          <div>
+            <div class="table-count" style="font-weight:800;color:var(--text);">Combined Daily / Weekly Reconciliation</div>
+            <div id="mcc-weekly-audit-summary" style="font-size:11px;color:var(--muted);margin-top:4px;">A combined exception summary across the selected MCC reports.</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <div id="mcc-weekly-audit-kpis" style="display:flex;gap:18px;flex-wrap:wrap;text-align:right;"></div>
+            <button class="btn-csv" id="mcc-weekly-audit-toggle" type="button" onclick="toggleMccCombinedAudit()">Show combined exceptions</button>
+          </div>
+        </div>
+        <div class="tbl-scroll" id="mcc-weekly-audit-content" style="display:none;max-height:320px;">
+          <table id="mcc-weekly-audit-table">
+            <thead><tr><th>Date</th><th>Rate item</th><th>Daily qty</th><th>Weekly qty</th><th>Variance</th><th>Weekly cost</th><th>Status</th></tr></thead>
+            <tbody id="mcc-weekly-audit-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap report-register">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="report-register-title">Daily Reports</span> <span id="report-count">--</span></div>
+          <button class="btn-csv" onclick="downloadDailyReportsCSV()">CSV</button>
+        </div>
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table id="report-table">
+            <thead><tr>
+              <th class="select-cell"><input class="row-check" type="checkbox" onclick="toggleAllReportRows(this)"/></th>
+              <th class="report-sort-header" data-report-sort="id" tabindex="0" onclick="sortDailyReports('id')" onkeydown="sortDailyReportsFromKey(event,'id')">Plod <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="status" tabindex="0" onclick="sortDailyReports('status')" onkeydown="sortDailyReportsFromKey(event,'status')">Status <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="lock" tabindex="0" onclick="sortDailyReports('lock')" onkeydown="sortDailyReportsFromKey(event,'lock')">Lock <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="date" tabindex="0" onclick="sortDailyReports('date')" onkeydown="sortDailyReportsFromKey(event,'date')">Plod date <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="shift" tabindex="0" onclick="sortDailyReports('shift')" onkeydown="sortDailyReportsFromKey(event,'shift')">Shift <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="rig" tabindex="0" onclick="sortDailyReports('rig')" onkeydown="sortDailyReportsFromKey(event,'rig')">Rig <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="hole" tabindex="0" onclick="sortDailyReports('hole')" onkeydown="sortDailyReportsFromKey(event,'hole')">Hole <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="project" tabindex="0" onclick="sortDailyReports('project')" onkeydown="sortDailyReportsFromKey(event,'project')">Project <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="driller" tabindex="0" onclick="sortDailyReports('driller')" onkeydown="sortDailyReportsFromKey(event,'driller')">Driller <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="metres" tabindex="0" onclick="sortDailyReports('metres')" onkeydown="sortDailyReportsFromKey(event,'metres')">Depth (m) <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="hours" tabindex="0" onclick="sortDailyReports('hours')" onkeydown="sortDailyReportsFromKey(event,'hours')">Duration (h) <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header mcc-drilling-only" data-report-sort="cost" tabindex="0" onclick="sortDailyReports('cost')" onkeydown="sortDailyReportsFromKey(event,'cost')">Total Cost <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th>
+              <th class="report-sort-header" data-report-sort="notes" tabindex="0" onclick="sortDailyReports('notes')" onkeydown="sortDailyReportsFromKey(event,'notes')">Notes <span class="report-sort-indicator" aria-hidden="true">&#8597;</span></th><th></th>
+            </tr></thead>
+            <tbody id="report-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap collapsible-table collapsed" id="activity-log-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Raw activity log · Showing <span id="act-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="toggleActivityLog()"><span class="collapse-arrow">▶</span><span id="activity-log-toggle-label">Show rows</span></button>
+            <button class="btn-csv" id="missing-code-btn" onclick="toggleMissingCodeRows()">Missing codes</button>
+            <button class="btn-csv" onclick="addActivityRow()">+ Add row</button>
+            <button class="btn-csv" onclick="downloadCSV('activities')">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="act-table">
+            <thead><tr>
+              <th>Date</th><th>Hole #</th><th>Work Group</th><th>Site ID</th>
+              <th>Time From</th><th>Time To</th><th>Duration</th>
+              <th>Bit Type</th><th>Ø</th>
+              <th>From m</th><th>To m</th><th>Metres</th>
+              <th>Code</th><th>Notes</th>
+              <th>Unit Rate</th><th>Qty</th><th>Line Cost</th><th>Rate Basis</th><th>Source</th>
+            </tr></thead>
+            <tbody id="act-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap collapsible-table collapsed" id="consumables-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Consumables · <span id="con-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="togglePanel('consumables-panel','consumables-toggle-label')"><span class="collapse-arrow">▶</span><span id="consumables-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('consumables')">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-scroll"><table id="con-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Consumable</th><th>Type</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Line Cost</th></tr></thead>
+          <tbody id="con-body"></tbody>
+        </table></div>
+      </div>
+      <div class="table-wrap collapsible-table collapsed" id="crew-panel">
+        <div class="table-toolbar">
+          <div class="table-count">Crew · <span id="crew-count">—</span> rows</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv collapse-btn" onclick="togglePanel('crew-panel','crew-toggle-label')"><span class="collapse-arrow">▶</span><span id="crew-toggle-label">Show rows</span></button>
+            <button class="btn-csv" onclick="downloadCSV('crew')">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-scroll"><table id="crew-table">
+          <thead><tr><th>Date</th><th>Hole #</th><th>Site</th><th>Role</th><th>Name</th><th>Hours</th></tr></thead>
+          <tbody id="crew-body"></tbody>
+        </table></div>
+      </div>
+    </section>
