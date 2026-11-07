@@ -364,6 +364,7 @@ function contractorInProgram(c, program) {
 }
 
 function filteredContractors() {
+  if(WORKSPACE_APP==='eos')return contractorsForApp(CONTRACTORS);
   const programContractors=CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
   if(!activeProjectName||!projectContractorsData.length)return programContractors;
   const linkedNames=new Set(projectContractorsData.map(function(row){return String(row.contractor||'').toLowerCase();}));
@@ -640,6 +641,7 @@ function drawerNav(btn){
   document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
   pageEl.classList.add('active');
   localStorage.setItem(workspacePageStorageKey(),page);
+  if(WORKSPACE_APP==='eos')syncEosRoute(page);
   triggerPageLoad(page);
   // Update drawer nav highlight
   document.querySelectorAll('.drawer-nav-item').forEach(b=>b.classList.remove('active'));
@@ -1012,7 +1014,7 @@ function numberFromAny(){
 function getSelVals(id){const s=document.getElementById(id);return s?[...s.selectedOptions].map(o=>o.value):[];}
 function selectAll(id){const s=document.getElementById(id);if(s)[...s.options].forEach(o=>o.selected=true);}
 function isPageActive(page){return document.getElementById('page-'+page)?.classList.contains('active');}
-function pageUsesContractorSwitcher(page){return page==='activities';}
+function pageUsesContractorSwitcher(page){return WORKSPACE_APP!=='eos'&&page==='activities';}
 function updateContractorSwitcherVisibility(page){
   if(typeof document==='undefined'||!document.body)return;
   document.body.classList.toggle('hide-contractor-switcher', !pageUsesContractorSwitcher(page));
@@ -1042,6 +1044,7 @@ function filterBoreholesForActiveProgram(rows){
   return (rows||[]).filter(boreholeMatchesActiveProgram);
 }
 function rowMatchesActiveProgram(row){
+  if(WORKSPACE_APP==='eos')return EosProduction.scopeMatch(row||{},eosScope);
   if(activeProjectName && row && row.project && !projectNamesMatch(row.project, activeProjectName)) return false;
   if(!activeProgram)return true;
   if(row&&row.program)return String(row.program).split(',').map(function(p){return p.trim();}).includes(activeProgram);
@@ -1056,10 +1059,12 @@ function rowMatchesActiveProgram(row){
   return !!(bh&&boreholeMatchesActiveProgram(bh));
 }
 function filterRowsForActiveProgram(rows){
+  if(WORKSPACE_APP==='eos'&&typeof filterEosRows==='function')return filterEosRows(rows);
   if(activeContractor==='MCC Group')return rows||[];
   return (rows||[]).filter(rowMatchesActiveProgram);
 }
 function filterWorkspaceActivities(rows){
+  if(WORKSPACE_APP==='eos'&&typeof filterEosRows==='function')return filterEosRows(rows);
   return filterRowsForActiveProgram(rows).filter(function(row){
     return !activeProjectName||projectNamesMatch(row.project,activeProjectName);
   });
@@ -1178,6 +1183,7 @@ function activityCategory(row){
   return 'Other';
 }
 function reportKeyFor(row){
+  if(typeof WORKSPACE_APP!=='undefined'&&WORKSPACE_APP==='eos')return JSON.stringify([row.contractor||activeContractor,row.project||'',row.date||'',row.source_file||'',row.source_file?'':row.hole_num||'']);
   if(row.source_file){
     return [row.contractor||activeContractor||'No contractor',row.date||'No date',row.source_file].join('|');
   }
@@ -1191,7 +1197,11 @@ function relatedDailyReportGroup(row,groups,groupsByKey){
   // the report detail correctly treats them as part of that day's report.
   // Fall back only when the date/hole identifies one report, so an unlinked
   // cost is never duplicated across multiple reports from the same shift.
-  if(row.source_file)return null;
+  if(row.source_file){
+    if(typeof WORKSPACE_APP==='undefined'||WORKSPACE_APP!=='eos')return null;
+    const matching=groups.filter(g=>g.sourceFile===row.source_file&&g.date===row.date&&(!row.contractor||g.contractor===row.contractor)&&(!row.project||g.project===row.project));
+    return matching.length===1?matching[0]:null;
+  }
   let candidates=groups.filter(function(group){
     return (!row.contractor||row.contractor===group.contractor)
       && (!row.date||row.date===group.date);
@@ -1525,7 +1535,7 @@ function looksLikeInvoice(filename){
 function populateImportScopeOptions(){
   const select=document.getElementById('import-client-select');
   if(!select)return;
-  const current=Number(select.value||activeClientId||0);
+  const current=Number(select.value||(WORKSPACE_APP==='eos'?0:activeClientId)||0);
   select.innerHTML='<option value="">Select client</option>'+clients.filter(function(client){
     return client.status!=='Inactive';
   }).map(function(client){
@@ -2362,7 +2372,10 @@ function renderMccWeeklyAudit(data){
   makeTableSortable('mcc-weekly-audit-table');
 }
 
+let activitiesRequestSequence=0;
 async function loadActivities(){
+  const requestSequence=++activitiesRequestSequence,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
+  if(WORKSPACE_APP==='eos'){renderDailyReportSummary([]);document.getElementById('report-body').innerHTML='<tr><td colspan="9">Loading plods…</td></tr>';}
   var dates=activityFilterParam('f-dates');
   var holes=activityFilterParam('f-holes');
   var sites=activityFilterParam('f-sites','|||');
@@ -2380,7 +2393,10 @@ async function loadActivities(){
   try{
     const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
     if(!response.ok)throw new Error('HTTP '+response.status);
-    applyActivityReportBundle(await response.json());
+    const bundle=await response.json();
+    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
+    applyActivityReportBundle(bundle);
+    if(WORKSPACE_APP==='eos')rememberEosProjects(bundle.activities);
     activitiesData=filterWorkspaceActivities(activitiesData);
     consumablesData=filterRowsForActiveProgram(consumablesData);
     crewData=filterRowsForActiveProgram(crewData);
@@ -2391,6 +2407,7 @@ async function loadActivities(){
     renderConsumablesTable();
     renderCrewTable();
   }catch(e){
+    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     renderDailyReportSummary([]);
     document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
@@ -3462,6 +3479,7 @@ function fitPeriodMapToBounds(printMode){
 
 if(typeof window!=='undefined'){
   window.addEventListener('beforeprint',function(){
+    if(WORKSPACE_APP==='eos')return;
     if(document&&document.body)document.body.classList.add('period-print-prep');
     fitPeriodMapToBounds(true);
     renderPeriodPrintMap();
@@ -3469,6 +3487,7 @@ if(typeof window!=='undefined'){
     setTimeout(function(){fitPeriodMapToBounds(true);renderPeriodPrintMap();},320);
   });
   window.addEventListener('afterprint',function(){
+    if(WORKSPACE_APP==='eos')return;
     if(document&&document.body)document.body.classList.remove('period-print-prep');
     setTimeout(function(){fitPeriodMapToBounds(false);},120);
   });
@@ -5192,11 +5211,16 @@ async function repriceCosting(){
   }
 }
 
+let costingRequest=0,costingLinesRequest=0;
 async function loadCosting(){
+  const request=++costingRequest,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
+  if(WORKSPACE_APP==='eos'){for(const id of ['cost-grand','cost-drilling','cost-nondrilling','cost-metres','cost-per-m'])document.getElementById(id).textContent='—';for(const id of ['cost-hole-body','cost-date-body','cost-line-body'])document.getElementById(id).innerHTML='';}
   try{
     const url=`${API}/costing?contractor=${encodeURIComponent(activeContractor)}`;
-    const d=await fetch(url).then(r=>r.json());
-    await ensureReportBoreholes();
+    const response=await fetch(url);if(!response.ok)throw Error('Could not load associated charges.');
+    const d=await response.json();
+    if(WORKSPACE_APP!=='eos')await ensureReportBoreholes();
+    if(request!==costingRequest||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     costingHolesData=Array.isArray(d.by_hole)?d.by_hole:[];
     costingDatesData=Array.isArray(d.by_date)?d.by_date:[];
     costingHolesData=costingHolesData.filter(function(r){return rowMatchesActiveProgram(r);});
@@ -5227,22 +5251,25 @@ async function loadCosting(){
     // Populate cost line item filters without blowing away the user's current filter.
     const selectedCostHoles=getSelVals('f-cost-holes');
     const selectedCostDates=getSelVals('f-cost-dates');
-    fillSelect('f-cost-holes',filterOpts.holes||[],selectedCostHoles.length===0);
-    fillSelect('f-cost-dates',filterOpts.dates||[],selectedCostDates.length===0);
+    fillSelect('f-cost-holes',[...new Set(costingHolesData.map(r=>r.hole_num))],selectedCostHoles.length===0);
+    fillSelect('f-cost-dates',[...new Set(costingDatesData.map(r=>r.date))],selectedCostDates.length===0);
     if(selectedCostHoles.length)document.querySelectorAll('#f-cost-holes option').forEach(o=>o.selected=selectedCostHoles.includes(o.value));
     if(selectedCostDates.length)document.querySelectorAll('#f-cost-dates option').forEach(o=>o.selected=selectedCostDates.includes(o.value));
     await loadCostingLines();
     ['cost-hole-table','cost-date-table'].forEach(id=>makeTableSortable(id));
-  }catch(e){console.error('Costing error:',e);}
+  }catch(e){if(request===costingRequest&&(typeof eosScopeVersion==='undefined'||scopeVersion===eosScopeVersion))toast(e.message||'Could not load associated charges.','err');}
 }
 
 async function loadCostingLines(){
+  const request=++costingLinesRequest,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
   const holes=getSelVals('f-cost-holes').join(',');
   const dates=getSelVals('f-cost-dates').join(',');
   const p=new URLSearchParams({contractor:activeContractor,dates,holes});
   try{
-    await ensureReportBoreholes();
-    const all=await fetch(`${API}/activities?${p}`).then(r=>r.json());
+    if(WORKSPACE_APP!=='eos')await ensureReportBoreholes();
+    const response=await fetch(`${API}/activities?${p}`);if(!response.ok)throw Error('Could not load charge lines.');
+    const all=await response.json();
+    if(request!==costingLinesRequest||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     costingLinesData=filterRowsForActiveProgram(all).filter(r=>r.line_cost!=null&&r.is_cost_source!==false);
     document.getElementById('cost-line-count').textContent=costingLinesData.length;
     document.getElementById('cost-line-body').innerHTML=costingLinesData.map(r=>`<tr data-id="${r.id}">
@@ -5537,20 +5564,26 @@ function buildRateYearSelector(years){
   if(years.length){activeRateYear=years[0];loadRates(years[0]);}
 }
 
+let rateRequest=0;
 async function initRatesTab(){
+  const scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion,contractor=activeContractor;
+  if(WORKSPACE_APP==='eos'){drillingRatesData=[];hourlyRatesData=[];consumableRatesData=[];renderDrillingRates([]);renderHourlyRates([]);renderConsumableRates([]);}
   try{
     const d=await fetch(`${API}/rates/years?contractor=${encodeURIComponent(activeContractor)}`).then(r=>r.json());
-    buildRateYearSelector(d.years);
+    if(contractor!==activeContractor||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
+    buildRateYearSelector(d.years||[]);
   }catch(e){}
 }
 
 async function loadRates(year){
+  const request=++rateRequest,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
   try{
     const [dr,hr,cr]=await Promise.all([
       fetch(`${API}/rates/drilling?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
       fetch(`${API}/rates/hourly?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
       fetch(`${API}/rates/consumables?contractor=${encodeURIComponent(activeContractor)}&year=${year}`).then(r=>r.json()),
     ]);
+    if(request!==rateRequest||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     drillingRatesData=dr;hourlyRatesData=hr;consumableRatesData=cr;
     renderDrillingRates(dr);renderHourlyRates(hr);renderConsumableRates(cr);
   }catch(e){}
@@ -8299,10 +8332,12 @@ function activeWorkspaceProgramLabel() {
 }
 
 function workspaceScopeLabel() {
+  if(WORKSPACE_APP==='eos'&&typeof eosScopeLabel==='function')return eosScopeLabel();
   return [activeProjectName, activeWorkspaceProgramLabel()].filter(Boolean).join(' / ');
 }
 
 function updateWorkspaceContextLabel() {
+  if(WORKSPACE_APP==='eos'&&typeof renderEosScopeControls==='function'){renderEosScopeControls();return;}
   var label = document.getElementById('workspace-context-label');
   if(!label) return;
   var client = clientById(activeClientId);
@@ -8311,6 +8346,7 @@ function updateWorkspaceContextLabel() {
 }
 
 function saveWorkspaceSelection() {
+  if(WORKSPACE_APP==='eos'&&typeof persistEosScope==='function'){persistEosScope();return;}
   var values = {};
   values[WORKSPACE_CLIENT_KEY] = String(activeClientId || '');
   values[WORKSPACE_PROJECT_KEY] = activeProjectName || '';
@@ -8457,8 +8493,10 @@ function syncWorkspaceControls() {
   if(budgetProject) budgetProject.value = activeProjectName;
   var importClient = document.getElementById('import-client-select');
   var importProject = document.getElementById('import-project-select');
-  if(importClient) importClient.value = activeClientId ? String(activeClientId) : '';
-  if(importProject) importProject.value = '';
+  if(WORKSPACE_APP!=='eos'){
+    if(importClient) importClient.value = activeClientId ? String(activeClientId) : '';
+    if(importProject) importProject.value = '';
+  }
   populateImportScopeOptions();
 }
 
@@ -8498,6 +8536,7 @@ async function confirmWorkspaceSelection() {
 }
 
 async function changeWorkspace() {
+  if(WORKSPACE_APP==='eos'){document.getElementById('eos-project-filter')?.focus();return;}
   if(!clients.length || !projects.length) await fetchProjects();
   await showWorkspaceGate();
   if(!workspaceStarted) return;
@@ -8679,36 +8718,40 @@ function populateCostContractProjectOptions(){
   const filter=document.getElementById('cost-contract-project-filter');
   const dialog=document.getElementById('cost-contract-project');
   const workspaceProject=activeWorkspaceProject();
-  const scopedProjects=workspaceProject?[workspaceProject]:[];
+  const scopedProjects=WORKSPACE_APP==='eos'?projects.filter(p=>EosProduction.scopeMatch({project:p.name,program:projectProgram(p)},eosScope)):(workspaceProject?[workspaceProject]:[]);
   const options=scopedProjects.map(function(project){
     const client=clientById(project.client_id);
-    return '<option value="'+Number(project.id)+'">'+esc((client?client.name+' / ':'')+project.name)+'</option>';
+    return '<option value="'+Number(project.id)+'">'+esc((client?client.name+' / ':'')+project.name+(WORKSPACE_APP==='eos'?' / '+projectProgram(project):''))+'</option>';
   }).join('');
   if(filter){
     filter.innerHTML=options||'<option value=""></option>';
     filter.value=workspaceProject?String(workspaceProject.id):'';
   }
   if(dialog){
-    dialog.innerHTML=options||'<option value="">No workspace project</option>';
+    dialog.innerHTML=(WORKSPACE_APP==='eos'?'<option value="">Select project and program</option>':'')+(options||'<option value="">No workspace project</option>');
     dialog.value=workspaceProject?String(workspaceProject.id):'';
   }
 }
 
+let costContractsRequest=0;
 async function loadCostContracts(){
+  const request=++costContractsRequest,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
   const body=document.getElementById('cost-contract-body');
   if(body)body.innerHTML='<tr><td colspan="8" class="contract-empty">Loading cost contracts...</td></tr>';
   if(!projects.length)await fetchProjects();
   populateCostContractProjectOptions();
   try{
     const workspaceProject=activeWorkspaceProject();
-    const projectQuery=workspaceProject?'&project_id='+encodeURIComponent(workspaceProject.id):'';
+    const projectQuery=WORKSPACE_APP!=='eos'&&workspaceProject?'&project_id='+encodeURIComponent(workspaceProject.id):'';
     const responses=await Promise.all([
       fetch(API+'/cost-contracts?_='+Date.now()+projectQuery,{cache:'no-store'}),
       fetch(API+'/rate-library-summary?_='+Date.now(),{cache:'no-store'})
     ]);
     if(!responses[0].ok)throw new Error(await responses[0].text());
-    costContractsData=await responses[0].json();
-    rateLibrarySummaryData=responses[1].ok?await responses[1].json():[];
+    const contracts=await responses[0].json(),library=responses[1].ok?await responses[1].json():[];
+    if(request!==costContractsRequest||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
+    costContractsData=WORKSPACE_APP==='eos'?contracts.filter(c=>c.contractor===activeContractor):contracts;
+    rateLibrarySummaryData=library;
     if(selectedCostContractId&&!costContractsData.some(function(contract){return Number(contract.id)===Number(selectedCostContractId);})){
       selectedCostContractId=null;
       costContractRatesData=[];
@@ -8717,6 +8760,7 @@ async function loadCostContracts(){
     renderCostContracts();
     if(selectedCostContractId)await openCostContract(selectedCostContractId,false);
   }catch(error){
+    if(request!==costContractsRequest||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
     costContractsData=[];
     if(body)body.innerHTML='<tr><td colspan="8" class="contract-empty">Cost contracts could not be loaded.</td></tr>';
   }
@@ -8726,7 +8770,7 @@ function renderRateLibrarySummary(){
   const body=document.getElementById('rate-library-summary-body');
   if(!body)return;
   const linkedNames=new Set(filteredContractors().map(function(item){return item.name;}));
-  const visibleRows=rateLibrarySummaryData.filter(function(row){return linkedNames.has(row.contractor);});
+  const visibleRows=rateLibrarySummaryData.filter(function(row){return WORKSPACE_APP==='eos'?row.contractor===activeContractor:linkedNames.has(row.contractor);});
   const totalLines=visibleRows.reduce(function(sum,row){
     return sum+Number(row.drilling_rates||0)+Number(row.hourly_rates||0)+Number(row.consumable_rates||0);
   },0);
@@ -8766,8 +8810,9 @@ function renderCostContracts(){
   if(!body)return;
   const search=String(document.getElementById('cost-contract-search')?.value||'').trim().toLowerCase();
   const workspaceProject=activeWorkspaceProject();
-  const projectId=workspaceProject?String(workspaceProject.id):'';
+  const projectId=WORKSPACE_APP!=='eos'&&workspaceProject?String(workspaceProject.id):'';
   const rows=costContractsData.filter(function(contract){
+    if(WORKSPACE_APP==='eos'){const project=projects.find(p=>Number(p.id)===Number(contract.project_id));if(contract.contractor!==activeContractor||!EosProduction.scopeMatch({project:project?.name||contract.project_name,program:project?projectProgram(project):contract.program},eosScope))return false;}
     const text=[contract.name,contract.project_name,contract.client_name,contract.contractor,contract.rate_year].join(' ').toLowerCase();
     return (!activeCostContractStatus||contract.status===activeCostContractStatus)
       &&(!projectId||String(contract.project_id)===projectId)
@@ -8799,7 +8844,7 @@ function showCostContractDialog(preferredProjectId,preferredContractor,preferred
   document.getElementById('cost-contract-year').innerHTML='<option value="">Loading schedules...</option>';
   document.getElementById('cost-contract-notes').value='';
   const contractor=document.getElementById('cost-contract-contractor');
-  const availableContractors=filteredContractors().filter(function(item){return item.active!==false;});
+  const availableContractors=filteredContractors().filter(function(item){return item.active!==false&&(WORKSPACE_APP!=='eos'||item.name===activeContractor);});
   contractor.innerHTML=availableContractors.map(function(item){
     return '<option value="'+attr(item.name)+'">'+esc(item.name)+'</option>';
   }).join('');
@@ -10160,7 +10205,8 @@ async function initializePortal(){
   portalInitialized=true;
   await fetchContractors();
   await fetchProjects();
-  if(!restoreWorkspaceSelection()) await showWorkspaceGate();
+  if(WORKSPACE_APP==='eos')initializeEosScope();
+  else if(!restoreWorkspaceSelection()) await showWorkspaceGate();
   workspaceStarted = true;
   await loadProjectContractors();
   ensureActiveContractorInProgram();

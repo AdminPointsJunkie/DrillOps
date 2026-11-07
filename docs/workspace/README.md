@@ -8,9 +8,9 @@ Entry points:
 
 Each app document contains only its own page panels and its own navigation. Cross-app links navigate to the owning app. They are independent documents, not tabs around the old all-in-one page. Shared dialogs and authentication remain in `shell.html`; the existing business functions and API/auth client remain in `runtime.js`. `start.js` runs after optional app enhancements, including Account's invoice ledger.
 
-The shared session key, API origin and client/project/program selection keys are unchanged. No database copies, schema changes or new access privileges are introduced. Management access is still verified before app initialization; non-management accounts retain their field portal route. Never put tokens in app links.
+The shared session key and API origin are unchanged. Account and Project keep their client/project/program selection keys. EOS saves optional viewing filters separately in sessionStorage.drillops_eos_view_scope; imports require an explicit destination project ID and program. No database copies, schema changes or new access privileges are introduced. Management access is still verified before app initialization; non-management accounts retain their field portal route. Never put tokens in app links.
 
-EOS's contractor choices are restricted to Mitchells Drilling, DEPCO Drilling and MCC Group, with the existing project/program filters still applied. Both cached contractor choices and project-linked contractor responses are scoped for EOS; the full supplier cache remains available to Account and Project. No supplier records are deleted.
+EOS's contractor choices are restricted to Mitchells Drilling, DEPCO Drilling and MCC Group, with one contractor selected at a time. EOS defaults to all projects and can filter project and program without changing contractor. Both cached contractor choices and project-linked contractor responses are scoped for EOS; the full supplier cache remains available to Account and Project. No supplier records are deleted.
 
 ## Editing
 
@@ -37,13 +37,21 @@ Browser integration tests mock API data and sessions locally. They do not use re
 
 ## EOS design and reporting
 
-EOS uses the existing daily-report bundle and approval records to show report counts, metres, hours, priced charges, recent plods and recorded time usage. These are recorded shifts, not sensor telemetry. Unknown pricing is flagged as incomplete. The selected contractor, client, project and program scope the overview. The plod register offers functional approval, shift and rig filters.
+EOS uses the existing daily-report bundle and approval records to show report counts, metres, hours, priced charges, recent plods and recorded time usage. These are recorded shifts, not sensor telemetry. Unknown pricing is flagged as incomplete. One selected contractor scopes Overview, Plods, Production, Period Reports, Associated Charges, rates and contracts. Overview and other EOS links navigate inside the current session; back/forward navigation retains filters. The plod register offers functional approval, shift and rig filters.
 
 Design references (reviewed 8 November 2026): CorePlan's public contractor/plod workflow (https://help.coreplan.io/en/articles/12888261-using-the-coreplan-driller-contractor-portal and https://www.coreplan.io/drilling) and Felt's interface (https://felt.com/). EOS retains its own name and assets; the implementation does not embed either vendor's screenshots or branding, nor claim feature parity with their platforms.
 
 Account opens straight into its invoice ledger; Project opens straight into its project dashboard, with the register available from Projects. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.
 
 All three apps share the approved navigation and base components: a white sidebar and compact header, light panels and consistent tables. Project adds the Mastt-informed dashboard styling described below. Training Matrix preserves its evidence colours and adjustable text sizes.
+
+## EOS production and period operations report
+
+Production and Period Reports use recorded activities for the selected contractor only. Both include zero-metre standby entries and keep other/unclassified metres visible. Cored/chipped metres use codes and bit types; time uses valid recorded durations or valid start/end times. Neither assumes shift length, planned metres or costs. MCC weekly charge sheets are excluded from operational totals to avoid duplicating daily records. Project and rig totals reconcile to the same filtered rows.
+
+The Period Report is a printable operations document with rig activity, project breakdowns, standby reasons and a source shift register. It does not fetch budgets, forecasts or support invoices. Associated Charges remains its own page. Record-level filters do not change API authorization; no data or auth schema changes are required. Stale responses are discarded after contractor or viewing-scope changes.
+
+Checks: `node --test tests/eos_production.test.mjs` and `CHROME_PATH=/path/to/chrome node tests/eos_operations.browser.mjs`. Optional `CAPTURE_EOS` saves labelled sample screenshots and print PDFs.
 
 ## Previous portal
 

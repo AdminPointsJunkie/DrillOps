@@ -45,7 +45,7 @@
 
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-production1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="eos">
 
@@ -305,11 +305,18 @@
 
 
   <main>
+<section class="eos-scope-bar" aria-label="EOS project filters">
+ <label>Contractor<select id="eos-contractor-filter" onchange="switchContractor(this.value)"></select></label>
+ <label>Project<select id="eos-project-filter"><option value="">All projects</option></select></label>
+ <label>Program<select id="eos-program-filter"><option value="">All programs</option></select></label>
+ <button class="btn-ghost" type="button" id="eos-clear-scope">All projects</button>
+ <span class="eos-scope-note">Imports use their own project destination.</span>
+</section>
 <nav class="app-local-nav" aria-label="EOS navigation"><a href="./eos.html">Overview</a><a class="app-nav-link" href="./eos.html?view=activities">Plods<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=reports">Period reports<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=production">Production<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=costing">Associated charges<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=rates">Rate library<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=cost-contracts">Contracts<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./eos.html?view=importer">Import reports<span aria-hidden="true">↗</span></a></nav>
 <section class="page active eos-dashboard" id="page-app-home">
   <div class="eos-breadcrumb">EOS <span>/</span> Operations overview</div>
-  <div class="eos-page-heading"><div><h1>Drilling overview</h1><p id="eos-scope">Reports and charges for your selected project.</p></div><a class="eos-primary" href="./eos.html?view=importer">Import plods</a></div>
-  <div class="eos-controls"><label>Contractor<select id="eos-overview-contractor" onchange="switchContractor(this.value)"></select></label><span>All recorded shifts · selected project and program</span><button class="btn-ghost" onclick="loadEosOverview()">Refresh</button></div>
+  <div class="eos-page-heading"><div><h1>Drilling overview</h1><p id="eos-scope">Reports and charges for the selected contractor.</p></div><a class="eos-primary" href="./eos.html?view=importer">Import plods</a></div>
+  <div class="eos-controls"><strong id="eos-overview-contractor-name"></strong><span>All recorded shifts · current project filters</span><button class="btn-ghost" onclick="loadEosOverview()">Refresh</button></div>
   <p id="eos-overview-message" role="status">Loading recorded shifts…</p>
   <div class="eos-metrics">
     <div><span>Plods recorded</span><strong id="eos-total">—</strong><small>Daily shift reports</small></div>
@@ -319,7 +326,7 @@
   </div>
   <div class="eos-workspace-grid"><section class="eos-panel"><div class="eos-panel-heading"><h2>Recent plods</h2><a href="./eos.html?view=activities">Open plod register ↗</a></div>
     <div class="eos-report-tabs" role="group" aria-label="Plod review status"><button data-eos-status="all" aria-pressed="true">All plods</button><button data-eos-status="pending" aria-pressed="false">Awaiting approval</button><button data-eos-status="approved" aria-pressed="false">Approved</button><button data-eos-status="rejected" aria-pressed="false">Rejected</button><button data-eos-status="query" aria-pressed="false">Queries</button></div>
-    <div class="tbl-scroll"><table class="eos-recent-table"><thead><tr><th>Plod</th><th>Date / shift</th><th>Rig / hole</th><th>Status</th><th class="num">Metres</th><th class="num">Charge</th></tr></thead><tbody id="eos-recent-body"></tbody></table></div><p class="eos-footnote">Latest 12 matching reports. Open a plod to inspect activities, crew, consumables and supporting records.</p>
+    <div class="tbl-scroll"><table class="eos-recent-table"><thead><tr><th>Plod</th><th>Date / shift</th><th>Project / rig / hole</th><th>Status</th><th class="num">Metres</th><th class="num">Charge</th></tr></thead><tbody id="eos-recent-body"></tbody></table></div><p class="eos-footnote">Latest 12 matching reports. Open a plod to inspect activities, crew, consumables and supporting records.</p>
   </section><aside class="eos-panel"><div class="eos-panel-heading"><h2>Time usage</h2></div><div id="eos-time-usage"></div><p class="eos-footnote">Hours grouped by the categories recorded in your reports.</p><a class="eos-insight-link" href="./eos.html?view=production">Production & rig performance ↗</a><a class="eos-insight-link" href="./eos.html?view=costing">Detailed charge breakdown ↗</a></aside></div>
 </section>
 
@@ -333,12 +340,12 @@
           <div class="chart-title">Daily Operational Reports</div>
           <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Drilling report PDFs, Weatherford GDB logging PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace client
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Import client
               <select id="import-client-select" disabled style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
                 <option value="">Select client</option>
               </select>
             </label>
-            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace project
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Project / program
               <select id="import-project-select" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);" disabled>
                 <option value="">Select client first</option>
               </select>
@@ -469,166 +476,62 @@
 
 
     <!-- Daily Drill Production -->
-    <section class="page production-page" id="page-production">
-      <div class="production-head">
-        <div>
-          <div class="production-title">Daily Drill Production</div>
-          <div class="production-subtitle">Daily drilled metres, cumulative progress and production detail for the selected project.</div>
-        </div>
-        <div class="production-context" id="production-context">Project workspace</div>
-      </div>
+    <section class="page production-page eos-production" id="page-production">
+ <div class="production-head"><div><div class="eos-breadcrumb">EOS <span>/</span> Production</div><h1>Drilling production</h1><p>Cored metres, chipped metres and recorded standby time.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button><button class="btn-primary" id="production-print" type="button" onclick="printProductionReport()">Print report</button></div></div>
+ <div class="production-filters">
+  <label>Rig<select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select></label>
+  <label>Bit type<select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All bit types</option></select></label>
+  <label>Date range<select id="production-date-preset" onchange="setProductionDatePreset(this.value)"><option value="latest-month">Latest month</option><option value="last-30">30 days to latest record</option><option value="year">Latest year</option><option value="all">All dates</option><option value="custom">Custom</option></select></label>
+  <label>From<input id="production-from" type="date" onchange="setProductionCustomRange()"></label>
+  <label>To<input id="production-to" type="date" onchange="setProductionCustomRange()"></label>
+ </div>
+ <label class="eos-table-toggle"><input type="checkbox" id="production-show-tables" onchange="toggleProductionTables()"> Show summary tables</label>
+ <p class="production-message" id="production-message" role="status"></p>
+ <div id="production-report">
+  <div class="production-print-heading"><strong>DrillOps <span>EOS</span></strong><h1>Drilling production report</h1></div>
+  <p id="production-context" class="production-context"></p><p id="production-report-filters" class="production-report-filters"></p>
+  <div class="production-kpis">
+   <div class="production-kpi"><span>Total recorded metres</span><strong id="production-kpi-metres">—</strong><small id="production-unclassified">Recorded drilling intervals</small></div>
+   <div class="production-kpi"><span>Cored metres</span><strong id="production-kpi-core">—</strong><small id="production-core-hours">Core drilling</small></div>
+   <div class="production-kpi"><span>Chipped metres</span><strong id="production-kpi-chip">—</strong><small>Chip / open hole / PCD / hammer</small></div>
+   <div class="production-kpi production-standby"><span>Standby</span><strong id="production-kpi-standby">—</strong><small id="production-standby-share">Recorded standby hours</small></div>
+  </div>
+  <div class="production-statline"><div><span>Production days</span><strong id="production-kpi-days">—</strong></div><div><span>Metres / production day</span><strong id="production-kpi-average">—</strong></div><div><span>Drilling hours</span><strong id="production-kpi-drilling-hours">—</strong></div><div><span>Reports / rigs / holes drilled</span><strong id="production-kpi-counts">—</strong></div><div><span>Best production day</span><strong id="production-kpi-best">—</strong><small id="production-kpi-best-date"></small></div></div>
+  <p id="production-quality" class="production-quality"></p>
+  <section class="production-panel production-chart-panel"><div class="production-panel-heading"><h2>Metres over time</h2><span id="production-chart-status"></span></div><div class="production-legend"><span><i class="core"></i>Cored</span><span><i class="chip"></i>Chipped / open hole</span><span><i class="other"></i>Other / unclassified</span></div><div id="production-chart" class="production-svg"></div></section>
+  <section class="production-panel"><div class="production-panel-heading"><h2>By project</h2><span>Selected contractor, dates and rigs</span></div><div id="production-project-chart" class="eos-chart-box"></div><div class="tbl-scroll production-data-table" hidden><table class="production-summary-table"><thead><tr><th>Project</th><th class="num">Cored m</th><th class="num">Chipped m</th><th class="num">Other m</th><th class="num">Total m</th><th class="num">Standby h</th><th class="num">Recorded h</th></tr></thead><tbody id="production-projects"></tbody></table></div></section>
+  <section class="production-panel"><div class="production-panel-heading"><h2>By rig</h2><span>All rigs for the selected contractor</span></div><div id="production-rig-chart" class="eos-chart-box"></div><div class="tbl-scroll production-data-table" hidden><table class="production-summary-table"><thead><tr><th>Contractor / rig</th><th class="num">Cored m</th><th class="num">Chipped m</th><th class="num">Other m</th><th class="num">Total m</th><th class="num">Standby h</th><th class="num">Recorded h</th></tr></thead><tbody id="production-rigs"></tbody></table></div></section>
+  <section class="production-panel"><div class="production-panel-heading"><h2>Standby breakdown</h2><span id="production-standby-context"></span></div><div class="eos-time-grid"><div id="production-time-chart"></div><div id="production-standby-chart" class="eos-chart-box"></div></div><div class="tbl-scroll production-data-table" hidden><table class="production-summary-table"><thead><tr><th>Recorded reason</th><th class="num">Hours</th><th class="num">Share of standby</th><th class="num">Entries</th></tr></thead><tbody id="production-standby-reasons"></tbody></table></div><p class="production-footnote">Includes chargeable and non-chargeable standby.</p></section>
+  <div class="production-detail-controls"><label><input id="production-show-detail" type="checkbox" onchange="toggleProductionDetail()"> Include activity detail in report</label><button class="btn-secondary" type="button" onclick="downloadProductionCsv()">Export filtered activities</button></div>
+  <section id="production-detail" class="production-panel" hidden><div class="production-panel-heading"><h2>Activity detail</h2><span><span id="production-row-count">0</span> recorded entries</span></div><div class="tbl-scroll"><table id="production-table" class="production-detail-table"><thead><tr><th>Project / contractor</th><th>Date / shift</th><th>Rig / hole</th><th>Source plod / code</th><th>Type</th><th class="num">Metres</th><th class="num">Hours</th><th>Standby</th></tr></thead><tbody id="production-body"></tbody></table></div></section>
+  <p class="production-footnote">Recorded activity totals. Unclassified metres are shown separately; missing durations are excluded.</p>
+  <div class="production-report-footer"><span id="production-generated"></span><span>DrillOps EOS · Recorded production</span></div>
+ </div>
+</section>
 
-      <div class="production-filters">
-        <div class="production-filter">
-          <label for="production-contractor">Drilling contractor</label>
-          <select id="production-contractor" onchange="loadDailyProduction()"></select>
-        </div>
-        <div class="production-filter">
-          <label for="production-rig">Rig</label>
-          <select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select>
-        </div>
-        <div class="production-filter">
-          <label for="production-drill-type">Drill type</label>
-          <select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All drill types</option></select>
-        </div>
-        <div class="production-filter">
-          <label for="production-date-preset">Date range</label>
-          <select id="production-date-preset" onchange="setProductionDatePreset(this.value)">
-            <option value="latest-month">Latest month</option>
-            <option value="last-30">Last 30 days</option>
-            <option value="year">Latest year</option>
-            <option value="all">All dates</option>
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-        <div class="production-filter">
-          <label for="production-from">From</label>
-          <input id="production-from" type="date" onchange="setProductionCustomRange()"/>
-        </div>
-        <div class="production-filter">
-          <label for="production-to">To</label>
-          <input id="production-to" type="date" onchange="setProductionCustomRange()"/>
-        </div>
-        <button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button>
-      </div>
-
-      <div class="production-kpis">
-        <div class="production-kpi"><div class="production-kpi-label">Metres drilled</div><div class="production-kpi-value" id="production-kpi-metres">--</div><div class="production-kpi-sub" id="production-kpi-period">Selected period</div></div>
-        <div class="production-kpi"><div class="production-kpi-label">Production days</div><div class="production-kpi-value" id="production-kpi-days">--</div><div class="production-kpi-sub">Days with recorded metres</div></div>
-        <div class="production-kpi"><div class="production-kpi-label">Average per day</div><div class="production-kpi-value" id="production-kpi-average">--</div><div class="production-kpi-sub">Across production days</div></div>
-        <div class="production-kpi"><div class="production-kpi-label">Best day</div><div class="production-kpi-value" id="production-kpi-best">--</div><div class="production-kpi-sub" id="production-kpi-best-date">No production loaded</div></div>
-      </div>
-
-      <div class="chart-card production-chart-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
-          <div>
-            <div class="chart-title" style="margin-bottom:3px;">Metres by day</div>
-            <div style="font-size:11px;color:var(--muted);">Daily metres with cumulative production and a trailing 7-day average.</div>
-          </div>
-          <div id="production-chart-status" style="font-size:11px;color:var(--muted);"></div>
-        </div>
-        <div class="production-chart-wrap"><canvas id="production-chart"></canvas></div>
-      </div>
-
-      <div class="table-wrap production-table">
-        <div class="table-toolbar">
-          <div>
-            <div class="table-count"><span id="production-row-count">0</span> production intervals</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Every row is traceable to its source plod.</div>
-          </div>
-          <button class="btn-csv" type="button" onclick="downloadProductionCsv()">CSV</button>
-        </div>
-        <div class="tbl-scroll">
-          <table id="production-table">
-            <thead><tr><th>Hole</th><th>Date</th><th>Shift</th><th>Plod</th><th>Rig</th><th>Drill type</th><th>Depth from (m)</th><th>Depth to (m)</th><th>Total (m)</th></tr></thead>
-            <tbody id="production-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
 
     <!-- Reports -->
-    <section class="page" id="page-reports">
-      <div class="period-report">
-        <div class="period-report-head">
-          <div>
-            <div class="period-report-eyebrow">Operations / Period report</div>
-            <div class="period-report-title">Period Drilling Report</div>
-            <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
-          </div>
-          <div class="period-report-actions">
-            <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
-            <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
-            <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
-            <button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button>
-            <button class="btn-secondary" type="button" onclick="printPeriodReport()">Print PDF</button>
-          </div>
-        </div>
-        <div class="period-report-body">
-          <div class="period-print-header">
-            <div>
-              <div class="period-print-title" id="period-print-title">Period Drilling Report</div>
-              <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
-            </div>
-            <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
-          </div>
-          <div class="period-section-title">Boreholes In Drilling Period</div>
-          <div class="period-map-card">
-            <div id="period-map" class="period-map"></div>
-            <div id="period-map-print" class="period-map-print" aria-hidden="true"></div>
-            <div id="period-map-empty" class="period-map-empty" style="display:none;">No mapped boreholes in this period.</div>
-          </div>
-          <div class="period-section-title">Headline Figures</div>
-          <div class="period-kpis">
-            <div class="period-kpi"><div class="label">Holes Completed</div><div class="value" id="period-holes-completed">--</div><div class="sub" id="period-holes-completed-sub">Completed during selected period</div></div>
-            <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
-            <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
-            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
-            <div class="period-kpi"><div class="label">Recorded Support</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Invoices / support records received</div></div>
-            <div class="period-kpi"><div class="label">Recorded Spend</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + recorded support costs</div></div>
-            <div class="period-kpi"><div class="label">Recorded Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs recorded actuals</div></div>
-            <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
-            <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
-            <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
-          </div>
-          <div class="period-reconciliation" id="period-reconciliation" aria-live="polite"></div>
-          <div id="period-drilling-providers" aria-live="polite"></div>
-          <div class="period-section-title period-print-section-start" id="exploration-metres-title">Program Drilling Metres</div>
-          <div class="exploration-metres-grid" id="exploration-metres-summary">
-            <div class="exploration-metres-card">Loading annual drilling metres...</div>
-          </div>
-          <div class="exploration-metres-note" id="exploration-metres-note">Annual actuals are sourced from exploration drilling activity reports; remaining metres are sourced from Borehole Planning.</div>
-          <div class="period-layout">
-            <div>
-              <div class="period-section-title">Cost Breakdown</div>
-              <div id="period-cost-breakdown"></div>
-            </div>
-          </div>
-          <div class="period-section-title period-print-section-start">Project Budget by Contractor</div>
-          <div id="period-support-invoices"></div>
-          <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-            <span>Standby Reasons</span>
-            <button class="btn-csv collapse-btn" type="button" onclick="togglePanel('period-standby-panel','period-standby-toggle-label','detail')"><span class="collapse-arrow">▶</span><span id="period-standby-toggle-label">Show detail</span></button>
-          </div>
-          <div class="collapsible-table collapsed" id="period-standby-panel">
-            <div class="tbl-scroll" style="max-height:260px;">
-              <div id="period-standby-reasons"></div>
-            </div>
-          </div>
-          <div class="period-section-title period-print-section-start">Cost Per Hole &amp; Drilling Performance</div>
-          <div class="period-visual-grid" id="period-hole-graphics"></div>
-          <div class="period-section-title">Hole Detail Table</div>
-          <div class="tbl-scroll" style="max-height:320px;">
-            <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Purpose</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
-              <tbody id="period-hole-body"></tbody>
-            </table>
-          </div>
-          <div class="period-section-title">Exceptions</div>
-          <div class="period-issues" id="period-progress-issues">No period report generated yet.</div>
-        </div>
-      </div>
-    </section>
+    <section class="page eos-period" id="page-reports">
+ <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Period reports</div><h1>Operations period report</h1><p>Production, rigs and standby.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadReportsPage()">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
+ <div class="production-filters eos-period-controls">
+  <label>Period<select id="eos-period-preset" onchange="setEosPeriodRange(this.value)"><option value="month">Latest month</option><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
+  <label>From<input id="eos-period-from" type="date" onchange="setEosPeriodRange('custom')"></label>
+  <label>To<input id="eos-period-to" type="date" onchange="setEosPeriodRange('custom')"></label>
+  <label>Rig<select id="eos-period-rig" onchange="renderEosPeriodReport()"><option value="">All rigs</option></select></label>
+ </div>
+ <label class="eos-table-toggle"><input type="checkbox" id="eos-period-show-tables" onchange="toggleEosPeriodTables()"> Include detailed tables &amp; shift register</label>
+ <p id="eos-period-message" class="production-message" role="status"></p>
+ <article id="eos-period-document" class="eos-operations-document" aria-label="Operations period report">
+  <header class="eos-document-heading"><div><div class="eos-document-wordmark">DrillOps <span>EOS</span></div><p class="eos-document-kicker">Contractor operations / Period report</p><h2 id="eos-period-contractor">—</h2><p id="eos-period-context"></p></div><div class="eos-document-dates"><span>Reporting period</span><strong id="eos-period-dates">—</strong><small id="eos-period-rigs-label">All rigs</small></div></header>
+  <section class="eos-document-section"><h3><span>01</span> Work recorded</h3><p id="eos-period-narrative" class="eos-document-summary"></p><div class="eos-document-metrics" id="eos-period-metrics"></div><p id="eos-period-quality" class="production-quality"></p><div id="eos-period-production-chart"><div class="eos-chart-caption"><strong>Production through the period</strong><span id="eos-period-chart-status"></span></div><div class="production-legend"><span><i class="core"></i>Cored</span><span><i class="chip"></i>Chipped / open hole</span><span><i class="other"></i>Other / unclassified</span></div><div id="eos-period-chart" class="production-svg"></div></div></section>
+  <section class="eos-document-section"><h3><span>02</span> Rig production</h3><div id="eos-period-rig-chart"></div><div class="tbl-scroll eos-period-data-table" hidden><table><thead><tr><th>Rig</th><th class="num">Cored m</th><th class="num">Chipped m</th><th class="num">Other m</th><th class="num">Total m</th><th class="num">Standby h</th><th class="num">Recorded h</th></tr></thead><tbody id="eos-period-rigs"></tbody></table></div></section>
+  <section class="eos-document-section"><h3><span>03</span> Production by project</h3><div id="eos-period-project-chart"></div><div class="tbl-scroll eos-period-data-table" hidden><table><thead><tr><th>Project</th><th class="num">Cored m</th><th class="num">Chipped m</th><th class="num">Other m</th><th class="num">Total m</th><th class="num">Standby h</th><th class="num">Recorded h</th></tr></thead><tbody id="eos-period-projects"></tbody></table></div></section>
+  <section class="eos-document-section"><h3><span>04</span> Time &amp; standby</h3><div class="eos-time-grid"><div id="eos-period-time-chart"></div><div id="eos-period-standby-chart"></div></div><p id="eos-period-standby-summary"></p><div class="tbl-scroll eos-period-data-table" hidden><table><thead><tr><th>Recorded reason</th><th class="num">Hours</th><th class="num">Entries</th></tr></thead><tbody id="eos-period-standby"></tbody></table></div><p class="eos-document-note">Includes chargeable and non-chargeable standby.</p></section>
+  <section class="eos-document-section eos-period-register eos-period-data-table" hidden><h3><span>05</span> Shift register</h3><p class="eos-document-note">By plod, project, rig and shift.</p><div class="tbl-scroll eos-period-data-table" hidden><table><thead><tr><th>Date / shift</th><th>Project / rig</th><th>Plod / holes</th><th class="num">Cored m</th><th class="num">Chipped m</th><th class="num">Other m</th><th class="num">Standby h</th><th class="num">Recorded h</th></tr></thead><tbody id="eos-period-register"></tbody></table></div></section>
+  <footer class="eos-document-footer"><p id="eos-period-methodology">Recorded activity totals. Unclassified metres are shown separately; missing durations are excluded. MCC weekly cost summaries are excluded.</p><div><span id="eos-period-generated"></span><span>DrillOps EOS · Operations record</span></div></footer>
+ </article>
+</section>
+
 
     <!-- Activities -->
     <section class="page" id="page-activities">
@@ -932,10 +835,14 @@
 
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=20261108-home-eos1"></script>
-<script src="./workspace/runtime.js?v=20261108-home-eos1"></script>
+<script src="./workspace/navigation.js?v=20261108-production1"></script>
+<script src="./workspace/eos-production-model.js?v=20261108-production1"></script>
+<script src="./workspace/runtime.js?v=20261108-production1"></script>
 
-<script src="./workspace/eos-overview.js?v=20261108"></script>
-<script src="./workspace/start.js?v=20261108-home1"></script>
+<script src="./workspace/eos-scope.js?v=20261108-production1"></script>
+<script src="./workspace/eos-production.js?v=20261108-production1"></script>
+<script src="./workspace/eos-period.js?v=20261108-production1"></script>
+<script src="./workspace/eos-overview.js?v=20261108-production1"></script>
+<script src="./workspace/start.js?v=20261108-production1"></script>
 </body>
 </html>
