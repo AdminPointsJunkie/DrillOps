@@ -45,7 +45,7 @@
 
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-production1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-speed1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body data-public-home="true" class="workspace-locked" data-workspace-area="eos">
 
@@ -316,7 +316,7 @@
 <section class="page eos-dashboard" id="page-app-home">
   <div class="eos-breadcrumb">EOS <span>/</span> Operations overview</div>
   <div class="eos-page-heading"><div><h1>Drilling overview</h1><p id="eos-scope">Reports and charges for the selected contractor.</p></div><a class="eos-primary" href="./eos.html?view=importer">Import plods</a></div>
-  <div class="eos-controls"><strong id="eos-overview-contractor-name"></strong><span>All recorded shifts · current project filters</span><button class="btn-ghost" onclick="loadEosOverview()">Refresh</button></div>
+  <div class="eos-controls"><strong id="eos-overview-contractor-name"></strong><span>All recorded shifts · current project filters</span><button class="btn-ghost" onclick="refreshEosPage('app-home')">Refresh</button></div>
   <p id="eos-overview-message" role="status">Loading recorded shifts…</p>
   <div class="eos-metrics">
     <div><span>Plods recorded</span><strong id="eos-total">—</strong><small>Daily shift reports</small></div>
@@ -477,7 +477,7 @@
 
     <!-- Daily Drill Production -->
     <section class="page production-page eos-production" id="page-production">
- <div class="production-head"><div><div class="eos-breadcrumb">EOS <span>/</span> Production</div><h1>Drilling production</h1><p>Cored metres, chipped metres and recorded standby time.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button><button class="btn-primary" id="production-print" type="button" onclick="printProductionReport()">Print report</button></div></div>
+ <div class="production-head"><div><div class="eos-breadcrumb">EOS <span>/</span> Production</div><h1>Drilling production</h1><p>Cored metres, chipped metres and recorded standby time.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="refreshEosPage('production')">Refresh</button><button class="btn-primary" id="production-print" type="button" onclick="printProductionReport()">Print report</button></div></div>
  <div class="production-filters">
   <label>Rig<select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select></label>
   <label>Bit type<select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All bit types</option></select></label>
@@ -512,7 +512,7 @@
 
     <!-- Reports -->
     <section class="page eos-period" id="page-reports">
- <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Period reports</div><h1>Operations period report</h1><p>Production, rigs and standby.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadReportsPage()">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
+ <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Period reports</div><h1>Operations period report</h1><p>Production, rigs and standby.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="refreshEosPage('reports')">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
  <div class="production-filters eos-period-controls">
   <label>Period<select id="eos-period-preset" onchange="setEosPeriodRange(this.value)"><option value="month">Latest month</option><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
   <label>From<input id="eos-period-from" type="date" onchange="setEosPeriodRange('custom')"></label>
@@ -551,7 +551,7 @@
         <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
         <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
         <span class="table-count" id="bulk-report-count">0 selected</span>
-        <button class="btn-ghost" onclick="loadActivities()">Refresh</button>
+        <button class="btn-ghost" onclick="refreshEosPage('activities')">Refresh</button>
         <button class="btn-ghost" type="button" onclick="clearDarReportFilters()">Clear report filters</button>
       </div>
       <div class="filter-bar" style="display:none;" id="activity-advanced-filters">
@@ -717,7 +717,7 @@
         <p style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">Editable cost register. Manual line edits save immediately and refresh the summaries below.</p>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <button class="btn-primary" id="cost-reprice-btn" onclick="repriceCosting()">Reprice from Rates</button>
-          <button class="btn-ghost" onclick="loadCosting()">Refresh</button>
+          <button class="btn-ghost" onclick="refreshEosPage('costing')">Refresh</button>
         </div>
       </div>
       <div class="kpi-row">
@@ -835,14 +835,15 @@
 
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=20261108-production1"></script>
-<script src="./workspace/eos-production-model.js?v=20261108-production1"></script>
-<script src="./workspace/runtime.js?v=20261108-production1"></script>
+<script src="./workspace/navigation.js?v=20261108-speed1"></script>
+<script src="./workspace/eos-production-model.js?v=20261108-speed1"></script>
+<script src="./workspace/runtime.js?v=20261108-speed1"></script>
 
-<script src="./workspace/eos-scope.js?v=20261108-production1"></script>
-<script src="./workspace/eos-production.js?v=20261108-production1"></script>
-<script src="./workspace/eos-period.js?v=20261108-production1"></script>
-<script src="./workspace/eos-overview.js?v=20261108-production1"></script>
-<script src="./workspace/start.js?v=20261108-production1"></script>
+<script src="./workspace/eos-data-cache.js?v=20261108-speed1"></script>
+<script src="./workspace/eos-scope.js?v=20261108-speed1"></script>
+<script src="./workspace/eos-production.js?v=20261108-speed1"></script>
+<script src="./workspace/eos-period.js?v=20261108-speed1"></script>
+<script src="./workspace/eos-overview.js?v=20261108-speed1"></script>
+<script src="./workspace/start.js?v=20261108-speed1"></script>
 </body>
 </html>

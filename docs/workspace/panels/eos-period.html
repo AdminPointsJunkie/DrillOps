@@ -1,5 +1,5 @@
 <section class="page eos-period" id="page-reports">
- <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Period reports</div><h1>Operations period report</h1><p>Production, rigs and standby.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadReportsPage()">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
+ <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Period reports</div><h1>Operations period report</h1><p>Production, rigs and standby.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="refreshEosPage('reports')">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
  <div class="production-filters eos-period-controls">
   <label>Period<select id="eos-period-preset" onchange="setEosPeriodRange(this.value)"><option value="month">Latest month</option><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
   <label>From<input id="eos-period-from" type="date" onchange="setEosPeriodRange('custom')"></label>

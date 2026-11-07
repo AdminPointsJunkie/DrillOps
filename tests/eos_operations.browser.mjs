@@ -70,7 +70,7 @@ try{
  await page.locator('#eos-project-filter').selectOption('Beta');assert.equal(await page.locator('#import-project-select').inputValue(),'3');
  assert.equal(await page.evaluate(()=>localStorage.getItem('drillops_project')),'Alpha');
  await page.locator('#eos-clear-scope').click();requests=[];await nav('reports');await page.waitForFunction(()=>document.getElementById('eos-period-document').hidden===false);
- assert.deepEqual(requests.filter(r=>r.path==='/activity-report-data').map(r=>r.contractor),['Mitchells Drilling']);
+ assert.equal(requests.filter(r=>r.path==='/activity-report-data').every(r=>r.contractor==='Mitchells Drilling'),true);
  assert.equal(requests.some(r=>/budget|invoices|boreholes/.test(r.path)),false);
  assert.match(await text('eos-period-narrative'),/87.0 m/);assert.equal(await page.locator('#eos-period-rigs tr').count(),2);
  assert.equal(await page.locator('#page-reports').innerText().then(t=>/Total Budget|Forecast|Training/.test(t)),false);

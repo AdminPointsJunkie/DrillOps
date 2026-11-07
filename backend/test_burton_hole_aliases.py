@@ -8,7 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TREE = ast.parse((ROOT / 'backend/main.py').read_text(encoding='utf-8'))
 NAMES = {'burton_borehole_activity_aliases', 'BURTON_BOREHOLE_ACTIVITY_MATCH_SQL',
-         'COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL'}
+         'COMPANY_BOREHOLE_ACTIVITY_MATCH_SQL', 'IRONBARK_NORMALIZED_ACTIVITY_MATCH_SQL'}
 NODES = [node for node in TREE.body if getattr(node, 'name', '') in NAMES or
          isinstance(node, ast.Assign) and any(getattr(t, 'id', '') in NAMES for t in node.targets)]
 NS = {}
@@ -25,14 +25,9 @@ class BurtonHoleAliasesTests(unittest.TestCase):
         self.assertEqual(link(row)['activity_hole_ids'], ['existing', 'ESPNG08', 'ESPNG8', 'ESPGN8'])
 
     def test_all_query_modes_expand_the_scoped_match_and_preserve_date_regex(self):
-        fn = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == 'get_boreholes')
-        queries = [node.args[0] for node in ast.walk(fn) if isinstance(node, ast.Call)
-                   and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute'
-                   and node.args and isinstance(node.args[0], ast.JoinedStr)]
-        env = {**NS, 'ACTIVITY_REPORT_DATE_AS_ISO_SQL': 'a.date'}
-        self.assertEqual(len(queries), 3)
-        for expr in queries:
-            query = eval(compile(ast.Expression(expr), '<query>', 'eval'), env)
+        from borehole_reads import borehole_actuals_query
+        for contractor in ['Company', 'Mitchells Drilling', None]:
+            query, _ = borehole_actuals_query(contractor, 'a.date')
             self.assertIn("a.project='BCC Fugitive Emissions'", query)
             self.assertIn("a.contractor='Mitchells Drilling'", query)
             self.assertIn("WHEN 'ESPGN8' THEN 'ESPNG08'", query)
@@ -47,7 +42,7 @@ class BurtonHoleAliasesTests(unittest.TestCase):
                   ('ESPNG8', 'ESPNG8', 89)]
         holes = [NS['burton_borehole_activity_aliases']({'project': 'BCC Fugitive Emissions', 'hole_id': h})
                  for h in ['ESPNG06', 'ESPNG08', 'ESPNG10', 'ESPNG11', 'ESPNG13']]
-        html = (ROOT / 'docs/index.html').read_text(encoding='utf-8')
+        html = (ROOT / 'docs/workspace/runtime.js').read_text(encoding='utf-8')
         functions = []
         for name in ['rowHole', 'reportIdentity', 'boreholeMatchValues', 'rowMatchesBorehole',
                      'normalizeProjectName', 'projectNamesMatch', 'rowMatchesPeriodProject', 'periodFilteredConsumables']:
@@ -56,6 +51,7 @@ class BurtonHoleAliasesTests(unittest.TestCase):
         script = '\n'.join(functions) + '\nconst holes=' + json.dumps(holes) + ';'
         script += '\nconst groups=' + json.dumps(groups) + ';'
         script += """
+const activeProgram='Exploration';
 let linked=0;
 for(const [hole_num,site_name,count] of groups){
   const matches=holes.filter(h=>rowMatchesBorehole({hole_num,site_name},h));
@@ -78,7 +74,8 @@ const consumables=periodFilteredConsumables();
 if(consumables.length!==1||consumables[0].source_file!=='burton.csv')throw new Error('Cross-project consumable leak');
 console.log(linked);
 """
-        result = subprocess.run(['node', '-'], input=script, text=True, capture_output=True, check=True)
+        result = subprocess.run(['node', '-'], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), '466')
 
 

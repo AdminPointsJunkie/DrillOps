@@ -1,5 +1,5 @@
 <section class="page production-page eos-production" id="page-production">
- <div class="production-head"><div><div class="eos-breadcrumb">EOS <span>/</span> Production</div><h1>Drilling production</h1><p>Cored metres, chipped metres and recorded standby time.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button><button class="btn-primary" id="production-print" type="button" onclick="printProductionReport()">Print report</button></div></div>
+ <div class="production-head"><div><div class="eos-breadcrumb">EOS <span>/</span> Production</div><h1>Drilling production</h1><p>Cored metres, chipped metres and recorded standby time.</p></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="refreshEosPage('production')">Refresh</button><button class="btn-primary" id="production-print" type="button" onclick="printProductionReport()">Print report</button></div></div>
  <div class="production-filters">
   <label>Rig<select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select></label>
   <label>Bit type<select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All bit types</option></select></label>
