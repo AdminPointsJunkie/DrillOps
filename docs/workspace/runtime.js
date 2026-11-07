@@ -1485,6 +1485,7 @@ function triggerPageLoad(page){
   if(page==='boreholes')    loadBoreholes();
   if(page==='production')   loadDailyProduction();
   if(page==='project-budgets') renderClientProjectHierarchy();
+  if(page==='project-dashboard') loadProjectDashboard();
   if(page==='budget')       loadProjectBudgets();
   if(page==='cost-contracts') loadCostContracts();
   if(page==='reports')      loadReportsPage();

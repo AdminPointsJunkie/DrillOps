@@ -22,9 +22,9 @@ await context.route('http://localhost:8000/**',async route=>{
 });
 const page=await context.newPage();let errors=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource:'))errors.push(m.text())});
-for(const [app,views] of Object.entries({index:[''],eos:['','reports','activities','production','costing','rates','cost-contracts','importer'],account:['','invoices','purchase-orders','contractors','importer'],project:['','project-budgets','budget','boreholes','admin']})){
+for(const [app,views] of Object.entries({index:[''],eos:['','reports','activities','production','costing','rates','cost-contracts','importer'],account:['','invoices','purchase-orders','contractors','importer'],project:['','project-dashboard','project-budgets','budget','boreholes','admin']})){
  for(const view of views){errors=[];await page.goto(base+app+'.html'+(view?'?view='+view:''));await page.waitForTimeout(650);
- assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+view:({account:'page-invoices',project:'page-project-budgets'}[app]||'page-app-home'));
+ assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+view:({account:'page-invoices',project:'page-project-dashboard'}[app]||'page-app-home'));
  assert.deepEqual(errors,[],app+' '+view);
  assert.equal(await page.locator('#login-screen').isVisible(),false);
  assert.equal(await page.locator('.app-chooser,.app-choice,.app-tasks,.app-switch').count(),0);

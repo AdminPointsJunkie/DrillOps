@@ -45,6 +45,7 @@
 
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
+<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
 
@@ -106,7 +107,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Project</div><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)">Projects</button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)">Borehole planning & map</button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)">Budget planning</button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)">Users & change log</button><a class="drawer-nav-item" href="./training.html">Training matrix</a></div>
+    <div class="drawer-section"><div class="drawer-section-title">Project</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)">Dashboard</button><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)">Projects</button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)">Borehole planning & map</button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)">Budget planning</button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)">Users & change log</button><a class="drawer-nav-item" href="./training.html">Training matrix</a></div>
 
   </div>
 </div>
@@ -299,7 +300,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a></nav>
+<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-dashboard">Dashboard<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a></nav>
 
 
     <!-- Importer -->
@@ -463,6 +464,29 @@
 
 
     <!-- Rig Scheduler -->
+    <section class="page" id="page-project-dashboard">
+  <div class="pm-breadcrumb">Project <span>/</span> Dashboard</div>
+  <div class="pm-heading">
+    <div><p class="pm-eyebrow">PROJECT OVERVIEW</p><h1 id="pm-title">Project dashboard</h1><p id="pm-scope">Select a project to see its plan.</p></div>
+    <div class="pm-actions"><button class="btn-secondary" onclick="loadProjectDashboard()">Refresh</button><button class="btn-primary" onclick="window.print()">Print dashboard</button></div>
+  </div>
+  <div id="pm-message" role="status" aria-live="polite"></div>
+  <div class="pm-metrics">
+    <article class="pm-metric pm-metric-budget"><span>Allocated budget</span><strong id="pm-budget">—</strong><small id="pm-budget-note">Recorded project allocations · AUD</small></article>
+    <article class="pm-metric pm-metric-plan"><span>Boreholes in plan</span><strong id="pm-total">—</strong><small>Selected project, program and year</small></article>
+    <article class="pm-metric"><span>Completed boreholes</span><strong id="pm-complete">—</strong><small id="pm-complete-note">Recorded completion status</small></article>
+    <article class="pm-metric"><span>Scheduled boreholes</span><strong id="pm-scheduled">—</strong><small>Saved start and finish dates</small></article>
+  </div>
+  <div class="pm-grid">
+    <article class="pm-panel"><div class="pm-panel-heading"><h2>Program progress</h2><span class="pm-caption">Borehole status</span></div><div id="pm-progress" class="pm-progress"></div><p class="pm-footnote">Share of boreholes marked Complete in the current plan.</p></article>
+    <article class="pm-panel"><div class="pm-panel-heading"><h2>Budget allocation</h2><a href="./project.html?view=budget">View budget ↗</a></div><div id="pm-budget-chart" class="pm-budget-chart"></div><p class="pm-footnote">Planning allocations by category. These are not expenditure totals.</p></article>
+    <article class="pm-panel"><div class="pm-panel-heading"><h2>Planning readiness</h2><span class="pm-caption">Record coverage</span></div><div id="pm-readiness"></div><a class="pm-panel-link" href="./project.html?view=boreholes">Open borehole planning ↗</a></article>
+    <article class="pm-panel pm-schedule-panel"><div class="pm-panel-heading"><div><h2>Drilling schedule</h2><p>Saved start and finish dates</p></div><a href="./project.html?view=boreholes">Open plan ↗</a></div><div id="pm-schedule"></div></article>
+    <article class="pm-panel pm-workspace-panel"><div class="pm-panel-heading"><h2>Project details</h2><a href="./project.html?view=project-budgets">Edit ↗</a></div><dl id="pm-details"></dl><a class="pm-training-link" href="./training.html"><span class="pm-training-icon" aria-hidden="true">▦</span><span><strong>Training matrix</strong><small>People, competencies and evidence</small></span><span aria-hidden="true">↗</span></a></article>
+  </div>
+  <div class="pm-report-footer"><span id="pm-updated">Waiting for project records</span><span>Project · DrillOps</span></div>
+</section>
+
 
 
     <!-- Borehole Planning -->
@@ -645,9 +669,11 @@
 
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=20261108"></script>
-<script src="./workspace/runtime.js?v=20261108"></script>
+<script src="./workspace/navigation.js?v=20261108-project1"></script>
+<script src="./workspace/runtime.js?v=20261108-project1"></script>
 
+<script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>
+<script src="./workspace/project-dashboard.js?v=20261108-1"></script>
 <script src="./workspace/start.js?v=20261108"></script>
 </body>
 </html>

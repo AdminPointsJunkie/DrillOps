@@ -39,12 +39,20 @@ EOS uses the existing daily-report bundle and approval records to show report co
 
 Design references (reviewed 8 November 2026): CorePlan's public contractor/plod workflow (https://help.coreplan.io/en/articles/12888261-using-the-coreplan-driller-contractor-portal and https://www.coreplan.io/drilling) and Felt's interface (https://felt.com/). EOS retains its own name and assets; the implementation does not embed either vendor's screenshots or branding, nor claim feature parity with their platforms.
 
-Account opens straight into its invoice ledger; Project opens straight into its project register. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.
+Account opens straight into its invoice ledger; Project opens straight into its project dashboard, with the register available from Projects. EOS opens its operational overview. There is no chooser or app-switching control. Training Matrix belongs to Project and returns there.
 
-All three apps share the approved EOS visual style: a white sidebar and compact header, neutral background, light panels, subdued blue actions and consistent tables. Training Matrix uses the same palette while preserving its evidence colours and adjustable text sizes.
+All three apps share the approved navigation and base components: a white sidebar and compact header, light panels and consistent tables. Project adds the Mastt-informed dashboard styling described below. Training Matrix preserves its evidence colours and adjustable text sizes.
 
 ## Previous portal
 
 `/OLD/` retains the combined portal that was published immediately before this release, from commit `cfb28bf4858f841cb3cc2622e7406dbab0b759ce`. Its documents, scripts, styles and training pages are preserved by `scripts/snapshot_legacy_site.py`. Shared images and the separate FieldMaps app keep their unchanged root URLs. The old portal retains its existing login and uses the same live API data; it is not a backup database. Normal workspace generation does not overwrite this snapshot.
 
 The snapshot includes one compatibility guard: the old startup timer skips its retired analytics panel when that panel is absent.
+
+## Project dashboard
+
+Project's dashboard uses Mastt's public product reference (https://www.mastt.com/product/project-dashboard-software, reviewed 8 November 2026) for its navy header, summary tiles, progress breakdown and schedule presentation. It uses DrillOps branding and contains no Mastt assets. Training retains its evidence colours and text-size controls.
+
+`project-dashboard-model.js` scopes saved allocations and boreholes to the selected project and program, plus the borehole plan year. Cancelled and superseded plan rows are excluded. Allocations are planning amounts, never labelled expenditure or remaining budget. Progress means the count of boreholes marked Complete, not physical completion by metres. Schedule bars require valid saved start/end dates. Missing amounts, unavailable requests and empty records are distinct; no seed/fallback records are used. Name-based records are suppressed if the same project/program belongs to multiple clients. The dashboard refreshes on navigation, workspace changes or Refresh; Print dashboard uses the browser's print/PDF flow.
+
+Validation: `node --test tests/project_dashboard.test.mjs` and `CHROME_PATH=/path/to/chrome node tests/project_dashboard.browser.mjs`, alongside the existing app integration checks.
