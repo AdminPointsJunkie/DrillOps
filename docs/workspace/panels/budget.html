@@ -1,0 +1,39 @@
+<section class="page management-page" id="page-budget">
+      <div class="management-head">
+        <div>
+          <div class="management-title">Budget</div>
+          <div class="management-subtitle">Set the contractor budget for the selected project and use it across reporting, forecasting and cost control.</div>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
+      </div>
+      <div class="kpi-row budget-kpi-row" style="margin-bottom:14px;">
+        <div class="kpi"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div><div class="kpi-sub">Selected workspace total</div></div>
+        <div class="kpi"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div><div class="kpi-sub">Drilling contractor allocation</div></div>
+        <div class="kpi"><div class="kpi-label">Support / Other</div><div class="kpi-value" id="budget-kpi-support">--</div><div class="kpi-sub">All non-drilling allocations</div></div>
+        <div class="kpi"><div class="kpi-label">Budget Lines</div><div class="kpi-value" id="budget-kpi-rows">--</div><div class="kpi-sub">Editable allocation rows</div></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:14px;">
+        <div class="budget-toolbar">
+          <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()" disabled></select></div>
+          <div class="filter-group"><label>Workspace project</label><span class="workspace-scope-note" id="budget-project-context">Selected at entry</span><select id="budget-project-filter" onchange="renderProjectBudgets()" hidden></select></div>
+          <button class="btn-primary" type="button" onclick="addProjectBudgetRow()">Add budget line</button>
+          <button class="btn-secondary" type="button" onclick="document.getElementById('project-budget-csv').click()">Import CSV</button>
+          <button class="btn-ghost" type="button" onclick="downloadProjectBudgetTemplate()">Download template</button>
+          <input id="project-budget-csv" type="file" accept=".csv,text/csv" onchange="importProjectBudgetCSV(this)" style="display:none;"/>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="budget-row-count">0</span> budget lines</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Click a value in the table to edit it. Changes save automatically.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:560px;">
+          <table>
+            <thead><tr><th>Program</th><th>Project</th><th>Section</th><th>Contractor</th><th>Category</th><th>Budget</th><th>Allocation</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="project-budget-body"><tr><td colspan="9"><div class="empty-state">Open Budget to load the selected project.</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>

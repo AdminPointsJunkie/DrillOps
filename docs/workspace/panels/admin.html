@@ -1,0 +1,21 @@
+<section class="page" id="page-admin">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
+        <div><h2 class="section-title" style="margin-bottom:4px;">Users &amp; Change Log</h2><p style="font-size:12px;color:var(--muted);">Invite accounts, grant project roles, and see who imported or changed operational data.</p></div>
+        <div style="display:flex;gap:8px;"><button class="btn-ghost" type="button" onclick="loadAdminPage()">Refresh</button><button class="btn-primary" type="button" onclick="openUserAccessDialog()">Invite user</button></div>
+      </div>
+      <div class="admin-grid">
+        <div class="chart-card">
+          <div class="chart-title" style="display:flex;justify-content:space-between;gap:12px;"><span>User accounts</span><span id="admin-user-count" style="color:var(--muted);font-weight:500;"></span></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>User</th><th>Account type</th><th>Project access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="admin-users-body"><tr><td colspan="6">Open this page to load users.</td></tr></tbody></table></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Import history</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">One row per file or import batch, including its owner and the records created.</p>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Imported</th><th>By</th><th>File</th><th>Type</th><th>Workspace</th><th>Rows</th></tr></thead><tbody id="admin-imports-body"><tr><td colspan="6">No import history loaded.</td></tr></tbody></table></div>
+        </div>
+        <div class="chart-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;"><div><div class="chart-title">Change log</div><p style="font-size:12px;color:var(--muted);">Edits and deletions include field-level before/after values.</p></div><div style="display:flex;gap:8px;"><select class="drawer-input" id="admin-audit-filter" onchange="loadAdminAudit()"><option value="">All changes</option><option value="import.">Imports</option><option value="activities.">Activities</option><option value="invoices.">Invoices</option><option value="boreholes.">Boreholes</option><option value="user.">Users</option></select><input class="drawer-input" id="admin-audit-search" placeholder="Search" onkeydown="if(event.key==='Enter')loadAdminAudit()"/><button class="btn-ghost" type="button" onclick="loadAdminAudit()">Search</button></div></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Changed</th><th>By</th><th>Action</th><th>Item</th><th>What changed</th></tr></thead><tbody id="admin-audit-body"><tr><td colspan="5">No changes loaded.</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </section>

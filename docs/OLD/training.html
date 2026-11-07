@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18535443929"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-18535443929');
+</script>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name="theme-color" content="#19201d"><title>Training needs analysis · DrillOps</title>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="./drillops-theme.css">
+ <link rel="stylesheet" href="./training/style.css?v=20260911-all-contractors-pdf">
+ <link rel="stylesheet" href="./training/readability.css?v=20260911-evidence">
+ <script src="./config.js"></script><script src="./auth-guard.js"></script>
+</head>
+<body data-text-size="large">
+<header class="topbar">
+ <a class="logo" href="./index.html" aria-label="Back to DrillOps">Drill<span>Ops</span></a>
+ <span class="topbar-context">Training needs analysis</span>
+ <a class="site-tag" href="./index.html">← Back to DrillOps</a>
+</header>
+<aside class="sidebar">
+ <label class="workspace-label" for="contractor-select">CONTRACTOR WORKSPACE</label><select id="contractor-select" aria-label="Site contractor" disabled></select>
+ <div class="section-label">PEOPLE & SAFETY</div>
+ <nav aria-label="Training navigation"><button data-view="matrix" class="nav active" aria-current="page"><span aria-hidden="true">▦</span> Training matrix</button><button data-view="roles" class="nav"><span aria-hidden="true">☷</span> Role requirements</button><button data-view="library" class="nav"><span aria-hidden="true">▤</span> Training library</button><button data-view="imports" class="nav"><span aria-hidden="true">↥</span> PDF reports <b id="report-count">0</b></button></nav>
+ <div class="sidebar-bottom"><span class="local-dot"></span> Shared workspace<p>Administrator access</p></div>
+</aside>
+<div class="shell"><div class="breadcrumb">People & safety <span class="slash">/</span> <strong id="breadcrumb">Training matrix</strong></div>
+<main>
+ <div class="page-heading"><div><div class="eyebrow">WORKFORCE READINESS</div><h1 id="page-title">Training matrix</h1><p id="page-description">One view of your people, their training and what comes next.</p></div><div class="heading-actions"><button class="button" id="export-pdf" title="Print the filtered matrix; choose Save as PDF">Export PDF</button><button class="button" id="export">↓ Export CSV</button><button class="button primary" id="import-open">＋ Import / update PDFs</button></div></div>
+ <div id="notice" role="status" aria-live="polite"></div>
+ <section id="matrix-view">
+  <section class="matrix-card"><div class="matrix-toolbar"><div><h2>People & competencies <span id="people-count" class="count"></span></h2><p>Evidence from cardholder reports and individual documents</p></div><div class="filters"><input id="search" type="search" placeholder="Search people…" aria-label="Search people"><select id="role-filter" aria-label="Filter by role"></select><select id="status-filter" aria-label="Filter by attention"><option value="all">All personnel</option><option value="gaps">Minimum gaps</option><option value="soon">Expiring soon</option><option value="unassigned">Unassigned roles</option></select></div></div>
+  <div class="table-controls"><div class="section-controls"><div class="category-bar" id="categories" aria-label="Training sections"></div><div class="section-actions"><button class="button" id="new-section">＋ Add section</button><button class="button" id="manage-sections">Manage sections</button></div></div><div class="readability-controls"><label>Text size <select id="text-size" aria-label="Table text size"><option value="standard">Standard</option><option value="large" selected>Large</option><option value="extra">Extra large</option></select></label><button class="button" id="expand-table" aria-pressed="false">Expand table</button></div></div>
+  <div id="empty-section" class="empty-section" hidden><h3 id="empty-section-name"></h3><p>This section has no training columns yet. Add a new column or edit an existing column’s section in the training library.</p><div class="section-actions"><button class="button primary" id="empty-section-add">＋ Add training</button><button class="button" id="empty-section-move">Open training library</button></div></div>
+  <div id="matrix-scroll" class="matrix-scroll" tabindex="0" aria-label="Training matrix; scroll horizontally to see more training"><table id="matrix"></table></div>
+  <div class="matrix-footer"><div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot soon"></i>Due soon</span><span><i class="dot expired"></i>Expired</span><span class="minimum-gap-key">⚑ Minimum unmet</span><span>— No record</span><span>◇ Unmapped</span><span><b class="required-dot">●</b> Minimum</span></div><label>Due within <select id="horizon" aria-label="Expiry warning period"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></div>
+  </section><p class="footnote">Click a person’s name for all records and documents, or a cell for mapped evidence. Status considers recorded expiry and renewal dates; an unrecorded expiry does not establish a lifetime qualification.</p>
+ </section>
+ <section id="roles-view" hidden></section><section id="library-view" hidden></section><section id="imports-view" hidden></section>
+</main><footer class="app-footer"><span>DRILLOPS <span class="slash">/</span> Training needs analysis</span><span id="as-of"></span></footer></div>
+<div id="pdf-output" aria-hidden="true"></div>
+<dialog id="dialog"><div id="dialog-body"></div></dialog>
+<script type="module" src="./training/app.mjs?v=20260911-all-contractors-pdf"></script>
+</body></html>

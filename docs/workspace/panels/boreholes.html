@@ -1,0 +1,169 @@
+<section class="page active" id="page-boreholes">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Borehole Planning</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="display:none;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Client</label>
+            <select id="bh-client-select" onchange="filterBoreholesByClient()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:150px;">
+              <option value="">All Clients</option>
+            </select>
+            <button onclick="showNewClientDialog()" style="background:var(--bg3);color:var(--text);border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:600;" title="New Client">+</button>
+          </div>
+          <div style="display:none;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Program</label>
+            <select id="bh-program-select" onchange="switchProgram(this.value)" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:130px;">
+              <option value="">All Programs</option>
+              <option value="Exploration" selected>Exploration</option>
+              <option value="Gas Riser">Gas Riser</option>
+              <option value="SIS">SIS</option>
+            </select>
+          </div>
+          <div style="display:none;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Project</label>
+            <select id="bh-project-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:180px;">
+              <option value="">All Projects</option>
+            </select>
+            <button onclick="showNewProjectDialog()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:600;" title="New Project">+</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);">Year</label>
+            <select id="bh-year-select" onchange="filterBoreholesByProject()" style="background:#fff;border:1.5px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;outline:none;color:var(--text);min-width:90px;">
+              <option value="">All</option>
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
+        <div class="kpi"><div class="kpi-label">Active Holes</div><div class="kpi-value" id="bh-kpi-total">—</div></div>
+        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="bh-kpi-complete">—</div></div>
+        <div class="kpi warn"><div class="kpi-label">In Progress</div><div class="kpi-value" id="bh-kpi-inprog">—</div></div>
+        <div class="kpi"><div class="kpi-label">Planned</div><div class="kpi-value" id="bh-kpi-planned">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total Budget</div><div class="kpi-value" id="bh-kpi-budget">—</div><div class="kpi-sub" id="bh-kpi-days">— days</div></div>
+        <div class="kpi"><div class="kpi-label">Drilling Spend</div><div class="kpi-value" id="bh-kpi-actual">—</div><div class="kpi-sub" id="bh-kpi-variance" style="font-weight:600;"></div></div>
+      </div>
+
+      <!-- Map + controls row -->
+      <div style="display:grid;grid-template-columns:1fr 260px;gap:14px;margin-bottom:16px;">
+        <div class="chart-card" style="padding:0;overflow:hidden;min-height:640px;">
+          <div id="bh-map" style="width:100%;height:640px;"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="chart-card" style="padding:14px;">
+            <div class="chart-title">Legend</div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text2);">
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#315d49;display:inline-block;flex-shrink:0"></span>Core PQ — Coal Quality</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#7c3aed;display:inline-block;flex-shrink:0"></span>Core HQ — Geotech/Gas</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#0891b2;display:inline-block;flex-shrink:0"></span>Core HQ — Spon Com</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:3px;background:#d97706;display:inline-block;flex-shrink:0"></span>Chip — Structure</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#16a34a;display:inline-block;flex-shrink:0"></span>Complete</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#dc2626;display:inline-block;flex-shrink:0"></span>In Progress</div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border-radius:50%;background:#9b2c2c;display:inline-block;flex-shrink:0"></span>Cancelled</div>
+            </div>
+          </div>
+          <div class="chart-card" style="padding:14px;">
+            <div class="chart-title">Map Filter</div>
+            <div style="display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--text2);">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-core" checked onchange="filterBoreholesByProject()"> Core holes</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-chip" checked onchange="filterBoreholesByProject()"> Chip holes</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="bh-filter-labels" checked onchange="filterBoreholesByProject()"> Show labels</label>
+            </div>
+          </div>
+          <button class="btn-primary" onclick="exportKML()" style="width:100%;font-size:12px;">Export KML</button>
+          <div id="map-overlay-status" style="font-size:11px;color:var(--muted);line-height:1.35;padding:2px 1px;">Mine drawings loading...</div>
+          <button class="btn-ghost" onclick="importBudgetToDb()" style="width:100%;font-size:12px;">💾 Save All to Database</button>
+        </div>
+      </div>
+
+      <!-- Toolbar: Add, CSV import, filter -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn-primary" onclick="showAddBhForm()">+ Add Borehole</button>
+        <div style="position:relative;">
+          <input type="file" id="bh-csv-input" accept=".csv" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;" onchange="importBhCSV(this)"/>
+          <button class="btn-ghost">📥 Import CSV Budget</button>
+        </div>
+        <a id="bh-csv-template-link" href="#" onclick="downloadBhCsvTemplate(event)" style="font-size:12px;color:var(--accent);text-decoration:none;">⬇ CSV Template</a>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <select id="bh-status-filter" onchange="filterBhTable()" style="background:#fff;border:1.5px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;outline:none;color:var(--text2);">
+            <option value="" selected>All boreholes</option>
+            <option value="current">Active plan only</option>
+            <option value="Planned">Planned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <button class="btn-csv" onclick="downloadCSV('boreholes')">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Add borehole form (hidden by default) -->
+      <div id="bh-add-form" style="display:none;" class="table-wrap" style="margin-bottom:14px;">
+        <div style="padding:16px;border-bottom:1px solid var(--border);background:var(--bg3);">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Add New Borehole</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px;">
+            <div class="filter-group"><label>Workspace project</label><select id="add-bh-project" disabled><option value="">Select project</option></select></div>
+            <div class="filter-group"><label>Year</label><input type="text" id="add-bh-year" placeholder="2026" value="2026"/></div>
+            <div class="filter-group"><label>Site ID</label><input type="text" id="add-bh-site" placeholder="CD-26-004"/></div>
+            <div class="filter-group"><label>Hole ID *</label><input type="text" id="add-bh-id" placeholder="26-062"/></div>
+            <div class="filter-group"><label>Type</label>
+              <select id="add-bh-type"><option>Core</option><option>Chip</option></select></div>
+            <div class="filter-group"><label>Bit</label>
+              <select id="add-bh-bit"><option>HQ</option><option>PQ</option><option>NQ</option></select></div>
+            <div class="filter-group"><label>Purpose</label><input type="text" id="add-bh-purpose" placeholder="Geotech"/></div>
+            <div class="filter-group"><label>Planned Days</label><input type="number" id="add-bh-days" placeholder="3.5" step="0.5"/></div>
+            <div class="filter-group"><label>Easting (MGA55)</label><input type="number" id="add-bh-east" placeholder="620000"/></div>
+            <div class="filter-group"><label>Northing (MGA55)</label><input type="number" id="add-bh-north" placeholder="7594000"/></div>
+            <div class="filter-group"><label>RL (m)</label><input type="number" id="add-bh-rl" placeholder="320" step="0.01"/></div>
+            <div class="filter-group"><label>Chip Depth (m)</label><input type="number" id="add-bh-depth" placeholder="200" step="0.01"/></div>
+            <div class="filter-group"><label>EOH Depth (m)</label><input type="number" id="add-bh-eoh" placeholder="250" step="0.01"/></div>
+            <div class="filter-group"><label>Total Core (m)</label><input type="number" id="add-bh-core" placeholder="25" step="0.01"/></div>
+            <div class="filter-group"><label>Seam Tk (m)</label><input type="number" id="add-bh-seam" placeholder="5.0" step="0.1"/></div>
+            <div class="filter-group"><label>Total Budget $</label><input type="number" id="add-bh-budget" placeholder="0" step="100"/></div>
+            <div class="filter-group"><label>Drilling Budget $</label><input type="number" id="add-bh-drilling-budget" placeholder="0" step="100"/></div>
+            <div class="filter-group"><label>Status</label>
+              <select id="add-bh-status"><option>Planned</option><option>In Progress</option><option>Complete</option><option>Cancelled</option></select></div>
+            <div class="filter-group"><label>Notes</label><input type="text" id="add-bh-notes" placeholder="Optional"/></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" onclick="addBorehole()">Add Borehole</button>
+            <button class="btn-ghost" onclick="document.getElementById('bh-add-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main table -->
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="table-count"><span id="bh-count">—</span> boreholes</div>
+          <div style="font-size:11px;color:var(--muted);">✏️ Click any cell to edit · Changes save automatically</div>
+        </div>
+        <div class="tbl-scroll">
+          <table id="bh-table">
+            <thead><tr>
+              <th>#</th><th>Project</th><th>Year</th><th>Site ID</th><th>Hole ID</th><th>Type</th><th>Bit</th><th>Purpose</th>
+              <th>Easting</th><th>Northing</th><th>RL</th><th>Chip Depth</th><th>EOH Depth</th><th>Total Core</th><th>Seam Tk</th>
+              <th>Days</th><th>Status</th><th>Total Budget $</th><th>Drilling Budget $</th><th>Drilling Spend $</th><th>Total EOS $</th><th>Drilling Variance</th><th>Notes</th><th></th>
+            </tr></thead>
+            <tbody id="bh-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Budget summary bar -->
+      <div class="chart-card" style="padding:16px;margin-top:4px;">
+        <div class="chart-title">Budget Summary by Purpose</div>
+        <div id="bh-budget-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px;"></div>
+      </div>
+
+      <div class="chart-card" style="padding:16px;margin-top:14px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div class="chart-title" style="margin:0;">Holes Completed by Month</div>
+          <div id="bh-completion-status" style="font-size:11px;color:var(--muted);"></div>
+        </div>
+        <div style="height:240px;margin-top:10px;"><canvas id="bh-completions-chart"></canvas></div>
+      </div>
+    </section>

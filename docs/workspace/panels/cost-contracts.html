@@ -1,0 +1,52 @@
+<section class="page management-page" id="page-cost-contracts">
+      <div class="management-head">
+        <div>
+          <div class="management-title">Cost Contracts</div>
+          <div class="management-subtitle">Commercial schedules linked to a client, project and contractor.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-primary" type="button" onclick="showCostContractDialog()">Add cost contract</button>
+        </div>
+      </div>
+      <div class="rate-library-panel">
+        <div class="rate-library-head">
+          <div>
+            <div style="font-size:14px;font-weight:780;color:var(--text);">Reusable Rate Library</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Choose a contractor schedule to create a project contract with its drilling, activity and consumable rates already copied in.</div>
+            <div class="rate-library-metrics">
+              <span><strong id="rate-library-schedule-count">0</strong> schedules</span>
+              <span><strong id="rate-library-contractor-count">0</strong> contractors</span>
+              <span><strong id="rate-library-line-count">0</strong> rate lines</span>
+            </div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:260px;">
+          <table>
+            <thead><tr><th>Contractor</th><th>Schedule</th><th>Drilling</th><th>Time activities</th><th>Consumables</th><th>Linked contracts</th><th></th></tr></thead>
+            <tbody id="rate-library-summary-body"><tr><td colspan="7" class="contract-empty">Loading rate library...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="management-tabs" id="cost-contract-tabs">
+        <button class="management-tab active" data-status="Active" onclick="setCostContractStatus(this)">Active</button>
+        <button class="management-tab" data-status="Pending Approval" onclick="setCostContractStatus(this)">Pending approval</button>
+        <button class="management-tab" data-status="Draft" onclick="setCostContractStatus(this)">Draft</button>
+        <button class="management-tab" data-status="Ended" onclick="setCostContractStatus(this)">Ended</button>
+        <button class="management-tab" data-status="" onclick="setCostContractStatus(this)">All</button>
+      </div>
+      <div class="management-toolbar">
+        <input class="management-search" id="cost-contract-search" placeholder="Search by contract, project or contractor" oninput="renderCostContracts()"/>
+        <span class="workspace-scope-note" id="cost-contract-project-context">Selected at entry</span>
+        <select id="cost-contract-project-filter" class="range-date" onchange="renderCostContracts()" hidden><option value=""></option></select>
+        <button class="btn-secondary" type="button" onclick="loadCostContracts()">Refresh</button>
+      </div>
+      <div class="management-table" id="cost-contract-register">
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table>
+            <thead><tr><th>Contract name</th><th>Status</th><th>Contractor</th><th>Start date</th><th>End date</th><th>Project</th><th>Rate lines</th><th></th></tr></thead>
+            <tbody id="cost-contract-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="cost-contract-detail"></div>
+    </section>

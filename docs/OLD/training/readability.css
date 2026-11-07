@@ -1,0 +1,24 @@
+/* Retain accessible table sizes independently of the portal chrome. */
+body { --training-font: 16px; --training-detail: 14px; --training-col: 166px; }
+body[data-text-size="standard"] { --training-font: 14px; --training-detail: 13px; --training-col: 150px; }
+body[data-text-size="extra"] { --training-font: 19px; --training-detail: 17px; --training-col: 195px; }
+#matrix .person-head, #matrix .person-cell { min-width: 290px; width: 290px; }
+#matrix .person-head { font-size: 16px; }
+#matrix .course-head { min-width: var(--training-col); width: var(--training-col); }
+#matrix .course-head button { width: var(--training-col); font-size: var(--training-font); }
+.person-name { font-size: calc(var(--training-font) + 2px); }
+.cell-button { font-size: var(--training-font); }
+.cell-button small { font-size: var(--training-detail); }
+.matrix-expanded .sidebar, .matrix-expanded .topbar, .matrix-expanded .breadcrumb,
+.matrix-expanded .page-heading, .matrix-expanded .app-footer, .matrix-expanded .footnote { display: none; }
+.matrix-expanded .shell { margin-left: 0; }
+.matrix-expanded main { padding: 16px; min-height: 100vh; }
+.matrix-expanded .matrix-scroll { max-height: calc(100dvh - 220px); }
+@media (max-width: 900px) {
+  .matrix-expanded .matrix-scroll { max-height: calc(100dvh - 300px); }
+}
+@media (max-width: 760px) {
+  #matrix .person-head, #matrix .person-cell { min-width: 210px; width: 210px; }
+  .person-name { font-size: var(--training-font); }
+  .person-meta { padding-left: 0; }
+}

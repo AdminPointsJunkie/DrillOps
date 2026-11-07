@@ -1,0 +1,61 @@
+<section class="page" id="page-cost-centre-forecast" hidden aria-hidden="true">
+      <div class="ccf-head">
+        <div>
+          <h2 class="section-title" style="margin-bottom:0;">Ironbark Exploration Forecast</h2>
+          <p>Ironbark-only TECEXP view for GL 4200 Consulting Services, 4250 Contractors and 4350 Drilling Services. Carborough Downs is excluded.</p>
+        </div>
+        <div class="ccf-head-actions">
+          <span class="ccf-badge">Ironbark only &middot; GL 4200 / 4250 / 4350</span>
+          <button class="btn-primary" type="button" onclick="loadCostCentreForecast()">Refresh actuals</button>
+        </div>
+      </div>
+      <div class="kpi-row ccf-kpi-row" style="margin-bottom:14px;">
+        <div class="kpi"><div class="kpi-label">Version 5.4 Program Budget</div><div class="kpi-value" id="ccf-f07-total">--</div><div class="kpi-sub">28 Jul 2026 per-hole baseline</div></div>
+        <div class="kpi"><div class="kpi-label" id="ccf-current-accrued-label">Current Month Accrued to Date</div><div class="kpi-value" id="ccf-current-accrued">--</div><div class="kpi-sub" id="ccf-asof">Invoices + unbilled activity reports</div></div>
+        <div class="kpi"><div class="kpi-label">Remaining Workbook Program</div><div class="kpi-value" id="ccf-plan-total">--</div><div class="kpi-sub" id="ccf-plan-sub">All hole-linked contractors</div></div>
+        <div class="kpi"><div class="kpi-label">2026 Reforecast</div><div class="kpi-value" id="ccf-reforecast-total">--</div><div class="kpi-sub">Actuals + accrual + remaining forecast</div></div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Finance accrual and reforecast entry</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Detailed F07 commentary lines in the Finance workbook format. Click any data cell to edit; edits save in this browser.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn-csv" id="ccf-empty-rows-btn" type="button" onclick="toggleCostCentreEmptyRows()">Hide empty rows</button>
+            <button class="btn-csv" type="button" onclick="copyCostCentreSpreadsheetRows()">Copy rows for Excel</button>
+          </div>
+        </div>
+        <div class="ccf-finance-scroll">
+          <table class="ccf-finance-table">
+            <thead><tr id="ccf-finance-header"></tr></thead>
+            <tbody id="ccf-sheet-body"></tbody>
+          </table>
+        </div>
+        <div class="ccf-finance-note">Each row is a contractor or a clearly named workbook cost line. Monthly actuals use Invoices Received plus unbilled drilling Activity Reports. Weatherfords and Epiroc are combined as one Geophysical Logging line: completed holes accrue the Version 5.4 per-hole budget until an invoice from either supplier is received. Remaining forecast values are matched to Borehole Planning by hole ID, with drill order as a fallback, spread over each hole's drill days and stop when that hole finishes. Live Borehole Planning statuses preserve later operational changes. The current-month column is actual-only. Rest of Month is forecast-only and is already included once in the 2026 Reforecast total; do not add it to that total again.</div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:14px;">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count">Drilling spend schedule</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Forecast dates calculated from Borehole Planning drill order, assigned rig and remaining drill days.</div>
+          </div>
+        </div>
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table class="period-mini-table">
+            <thead><tr><th>Order</th><th>Hole</th><th>Rig</th><th>Status</th><th>Budgeted days</th><th>Remaining drill days</th><th>Forecast start</th><th>Forecast end</th><th>Remaining drilling</th><th>All contractors</th></tr></thead>
+            <tbody id="ccf-drill-schedule-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:14px;">
+        <div class="chart-title">Monthly F07 Baseline vs Reforecast ($)</div>
+        <div class="ccf-chart-scroll">
+          <div class="ccf-chart-canvas">
+            <div class="ccf-legend"><span class="baseline">F07 baseline</span><span class="reforecast">Current reforecast</span><span class="negative">Negative value</span></div>
+            <div class="ccf-visual-row ccf-visual-head"><span>Month</span><span></span><span>F07 baseline</span><span>Reforecast</span></div>
+            <div id="ccf-month-visual"></div>
+          </div>
+        </div>
+      </div>
+    </section>

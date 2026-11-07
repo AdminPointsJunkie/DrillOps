@@ -1,0 +1,28 @@
+<section class="page management-page" id="page-project-budgets">
+      <div class="management-head">
+        <div>
+          <div class="management-title">Projects</div>
+          <div class="management-subtitle">Manage every client and project from one register. The active workspace still controls operational data.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" type="button" onclick="showNewClientDialog()">Add client</button>
+          <button class="btn-primary" type="button" onclick="showNewProjectDialog()">Add project / program</button>
+        </div>
+      </div>
+      <div class="management-toolbar">
+        <input class="management-search" id="project-register-search" placeholder="Search by client or project" oninput="renderClientProjectHierarchy()"/>
+        <select id="project-register-status" class="range-date" onchange="renderClientProjectHierarchy()">
+          <option value="">All status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="management-table">
+        <div class="tbl-scroll" style="max-height:360px;">
+          <table id="client-project-table">
+            <thead><tr><th>Client</th><th>Project</th><th>Status</th><th>Program</th><th>Rate source</th><th>Year</th><th></th></tr></thead>
+            <tbody id="client-project-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>

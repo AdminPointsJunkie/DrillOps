@@ -1,0 +1,58 @@
+<section class="page" id="page-importer">
+      <h2 class="section-title">Import Data</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+        <!-- EOS Daily Reports -->
+        <div class="chart-card" style="padding:24px;">
+          <div class="chart-title">Daily Operational Reports</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Drilling report PDFs, Weatherford GDB logging PDFs, CorePlan plod CSV exports, and MCC weekly sheets.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace client
+              <select id="import-client-select" disabled style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
+                <option value="">Select client</option>
+              </select>
+            </label>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace project
+              <select id="import-project-select" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);" disabled>
+                <option value="">Select client first</option>
+              </select>
+            </label>
+          </div>
+          <div class="upload-zone" id="drop-zone" style="margin-bottom:10px;position:relative;">
+            <input type="file" id="file-input" multiple accept=".pdf,.csv,.xlsx" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
+            <div class="up-icon" style="font-size:28px;">&#x1F4C4;</div>
+            <p>Drop operational PDFs / CSVs / XLSX sheets or click</p>
+          </div>
+          <button id="import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Reports</button>
+          <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
+        </div>
+        <!-- Handwritten OCR -->
+        <div class="chart-card" style="padding:24px;border:1.5px solid var(--accent);">
+          <div class="chart-title" style="color:var(--accent);">Handwritten Drill Logs (AI OCR)</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Scanned handwritten logs (DEPCO etc). Uses OpenAI vision to read handwriting.</p>
+          <div class="upload-zone" id="ocr-drop-zone" style="margin-bottom:10px;border-color:var(--accent);position:relative;">
+            <input type="file" id="ocr-file-input" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
+            <div style="font-size:28px;margin-bottom:4px;">&#x1F916;</div>
+            <p>Drop handwritten PDFs</p>
+          </div>
+          <button id="ocr-import-btn" disabled style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">AI Read &amp; Preview</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+            <button id="ocr-audit-btn" type="button" style="padding:8px;background:#fff;color:var(--accent);border:1px solid var(--accent);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Audit imported OCR</button>
+            <button id="ocr-safe-fix-btn" type="button" style="padding:8px;background:#fff;color:var(--accent);border:1px solid var(--accent);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Apply safe fixes</button>
+          </div>
+          <div id="ocr-import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:160px;overflow-y:auto;"></div>
+        </div>
+        <!-- Tax Invoices -->
+        <div class="chart-card" style="padding:24px;">
+          <div class="chart-title">Tax Invoices</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Contractor invoice PDFs. Stored for viewing and reconciliation.</p>
+          <div class="upload-zone" id="inv-drop-zone-sidebar" style="margin-bottom:10px;position:relative;">
+            <input type="file" id="inv-file-input-sidebar" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
+            <div class="up-icon" style="font-size:28px;">&#x1F9FE;</div>
+            <p>Drop Invoice PDFs or click</p>
+          </div>
+          <button id="inv-import-btn-sidebar" disabled style="width:100%;padding:10px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);">Import Invoices</button>
+          <div id="inv-import-log-sidebar" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
+        </div>
+      </div>
+      <div id="ocr-preview-panel" style="display:none;margin-top:14px;"></div>
+    </section>

@@ -1,0 +1,16 @@
+<section class="page active eos-dashboard" id="page-app-home">
+  <div class="eos-breadcrumb">EOS <span>/</span> Operations overview</div>
+  <div class="eos-page-heading"><div><h1>Drilling overview</h1><p id="eos-scope">Reports and charges for your selected project.</p></div><a class="eos-primary" href="./eos.html?view=importer">Import plods</a></div>
+  <div class="eos-controls"><label>Contractor<select id="eos-overview-contractor" onchange="switchContractor(this.value)"></select></label><span>All recorded shifts · selected project and program</span><button class="btn-ghost" onclick="loadEosOverview()">Refresh</button></div>
+  <p id="eos-overview-message" role="status">Loading recorded shifts…</p>
+  <div class="eos-metrics">
+    <div><span>Plods recorded</span><strong id="eos-total">—</strong><small>Daily shift reports</small></div>
+    <div><span>Metres drilled</span><strong id="eos-metres">—</strong><small>Reported drilling progress</small></div>
+    <div><span>Recorded hours</span><strong id="eos-hours">—</strong><small>From activity entries</small></div>
+    <div><span>Recorded charges</span><strong id="eos-cost">—</strong><small id="eos-cost-note">Calculated report charges · AUD</small></div>
+  </div>
+  <div class="eos-workspace-grid"><section class="eos-panel"><div class="eos-panel-heading"><h2>Recent plods</h2><a href="./eos.html?view=activities">Open plod register ↗</a></div>
+    <div class="eos-report-tabs" role="group" aria-label="Plod review status"><button data-eos-status="all" aria-pressed="true">All plods</button><button data-eos-status="pending" aria-pressed="false">Awaiting approval</button><button data-eos-status="approved" aria-pressed="false">Approved</button><button data-eos-status="rejected" aria-pressed="false">Rejected</button><button data-eos-status="query" aria-pressed="false">Queries</button></div>
+    <div class="tbl-scroll"><table class="eos-recent-table"><thead><tr><th>Plod</th><th>Date / shift</th><th>Rig / hole</th><th>Status</th><th class="num">Metres</th><th class="num">Charge</th></tr></thead><tbody id="eos-recent-body"></tbody></table></div><p class="eos-footnote">Latest 12 matching reports. Open a plod to inspect activities, crew, consumables and supporting records.</p>
+  </section><aside class="eos-panel"><div class="eos-panel-heading"><h2>Time usage</h2></div><div id="eos-time-usage"></div><p class="eos-footnote">Hours grouped by the categories recorded in your reports.</p><a class="eos-insight-link" href="./eos.html?view=production">Production & rig performance ↗</a><a class="eos-insight-link" href="./eos.html?view=costing">Detailed charge breakdown ↗</a></aside></div>
+</section>

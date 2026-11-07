@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../docs/account.html',import.meta.url),'utf8');
 const section=html.slice(html.indexOf('<section class="page" id="page-invoices">'),html.indexOf('<!-- Borehole Details -->'));
 const js=fs.readFileSync(new URL('../docs/invoice-ledger.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../docs/invoice-ledger.css',import.meta.url),'utf8');

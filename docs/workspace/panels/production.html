@@ -1,0 +1,77 @@
+<section class="page production-page" id="page-production">
+      <div class="production-head">
+        <div>
+          <div class="production-title">Daily Drill Production</div>
+          <div class="production-subtitle">Daily drilled metres, cumulative progress and production detail for the selected project.</div>
+        </div>
+        <div class="production-context" id="production-context">Project workspace</div>
+      </div>
+
+      <div class="production-filters">
+        <div class="production-filter">
+          <label for="production-contractor">Drilling contractor</label>
+          <select id="production-contractor" onchange="loadDailyProduction()"></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-rig">Rig</label>
+          <select id="production-rig" onchange="renderDailyProduction()"><option value="">All rigs</option></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-drill-type">Drill type</label>
+          <select id="production-drill-type" onchange="renderDailyProduction()"><option value="">All drill types</option></select>
+        </div>
+        <div class="production-filter">
+          <label for="production-date-preset">Date range</label>
+          <select id="production-date-preset" onchange="setProductionDatePreset(this.value)">
+            <option value="latest-month">Latest month</option>
+            <option value="last-30">Last 30 days</option>
+            <option value="year">Latest year</option>
+            <option value="all">All dates</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="production-filter">
+          <label for="production-from">From</label>
+          <input id="production-from" type="date" onchange="setProductionCustomRange()"/>
+        </div>
+        <div class="production-filter">
+          <label for="production-to">To</label>
+          <input id="production-to" type="date" onchange="setProductionCustomRange()"/>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadDailyProduction()">Refresh</button>
+      </div>
+
+      <div class="production-kpis">
+        <div class="production-kpi"><div class="production-kpi-label">Metres drilled</div><div class="production-kpi-value" id="production-kpi-metres">--</div><div class="production-kpi-sub" id="production-kpi-period">Selected period</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Production days</div><div class="production-kpi-value" id="production-kpi-days">--</div><div class="production-kpi-sub">Days with recorded metres</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Average per day</div><div class="production-kpi-value" id="production-kpi-average">--</div><div class="production-kpi-sub">Across production days</div></div>
+        <div class="production-kpi"><div class="production-kpi-label">Best day</div><div class="production-kpi-value" id="production-kpi-best">--</div><div class="production-kpi-sub" id="production-kpi-best-date">No production loaded</div></div>
+      </div>
+
+      <div class="chart-card production-chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+          <div>
+            <div class="chart-title" style="margin-bottom:3px;">Metres by day</div>
+            <div style="font-size:11px;color:var(--muted);">Daily metres with cumulative production and a trailing 7-day average.</div>
+          </div>
+          <div id="production-chart-status" style="font-size:11px;color:var(--muted);"></div>
+        </div>
+        <div class="production-chart-wrap"><canvas id="production-chart"></canvas></div>
+      </div>
+
+      <div class="table-wrap production-table">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-count"><span id="production-row-count">0</span> production intervals</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Every row is traceable to its source plod.</div>
+          </div>
+          <button class="btn-csv" type="button" onclick="downloadProductionCsv()">CSV</button>
+        </div>
+        <div class="tbl-scroll">
+          <table id="production-table">
+            <thead><tr><th>Hole</th><th>Date</th><th>Shift</th><th>Plod</th><th>Rig</th><th>Drill type</th><th>Depth from (m)</th><th>Depth to (m)</th><th>Total (m)</th></tr></thead>
+            <tbody id="production-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>

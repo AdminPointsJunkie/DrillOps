@@ -1,0 +1,104 @@
+{
+  "eos": {
+    "name": "EOS",
+    "tag": "Record the work. Understand the charges.",
+    "copy": "Daily reports, production and charges from work completed.",
+    "panels": [
+      "reports",
+      "activities",
+      "production",
+      "costing",
+      "rates",
+      "cost-contracts",
+      "importer"
+    ],
+    "nav": [
+      [
+        "activities",
+        "Plods"
+      ],
+      [
+        "reports",
+        "Period reports"
+      ],
+      [
+        "production",
+        "Production"
+      ],
+      [
+        "costing",
+        "Associated charges"
+      ],
+      [
+        "rates",
+        "Rate library"
+      ],
+      [
+        "cost-contracts",
+        "Contracts"
+      ],
+      [
+        "importer",
+        "Import reports"
+      ]
+    ]
+  },
+  "account": {
+    "name": "Account",
+    "tag": "Your books. Clear and connected.",
+    "copy": "Actual invoices, credit notes and purchase orders in one place.",
+    "panels": [
+      "invoices",
+      "purchase-orders",
+      "contractors",
+      "importer"
+    ],
+    "nav": [
+      [
+        "invoices",
+        "Invoice ledger"
+      ],
+      [
+        "purchase-orders",
+        "Purchase orders"
+      ],
+      [
+        "contractors",
+        "Suppliers"
+      ],
+      [
+        "importer",
+        "Import invoices"
+      ]
+    ]
+  },
+  "project": {
+    "name": "Project",
+    "tag": "Plan the program. Keep it moving.",
+    "copy": "Projects, borehole planning, maps and budget allocations.",
+    "panels": [
+      "project-budgets",
+      "budget",
+      "boreholes",
+      "admin"
+    ],
+    "nav": [
+      [
+        "project-budgets",
+        "Projects"
+      ],
+      [
+        "boreholes",
+        "Borehole planning & map"
+      ],
+      [
+        "budget",
+        "Budget planning"
+      ],
+      [
+        "admin",
+        "Users & change log"
+      ]
+    ]
+  }
+}
