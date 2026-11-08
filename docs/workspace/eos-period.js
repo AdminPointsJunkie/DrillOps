@@ -67,7 +67,7 @@ function renderEosPeriodReport(){
  prepareEosWeather(s);
  document.getElementById('eos-period-chart').innerHTML=productionChart(s,'eos-period-chart-status');
  for(const [id,rows,keys,unit] of [['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
- document.getElementById('eos-period-time-chart').innerHTML=eosTimeChart(s);
+ document.getElementById('eos-period-time-chart').innerHTML=eosDailyTimeChart(s);
  document.getElementById('eos-period-standby-chart').innerHTML=eosStandbyChart(s);
  renderEosStandbyDetails(s,showCharges);
  document.getElementById('eos-period-performance').innerHTML=eosPerformanceFigures(s);document.getElementById('eos-period-rate-chart').innerHTML=eosRateChart(s);document.getElementById('eos-period-daily').innerHTML=showTables?eosDailyRows(s):'';
