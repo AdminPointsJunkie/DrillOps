@@ -6,13 +6,12 @@
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
           <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/></div>
-          <div class="filter-group"><label>PO Value ($)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
+          <div class="filter-group"><label>PO Value ($, ex GST)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
           <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Status</label>
             <select id="po-status"><option>Active</option><option>Completed</option><option>On Hold</option><option>Cancelled</option></select>
           </div>
-          <div class="filter-group"><label>Notes</label><input type="text" id="po-notes" placeholder="Optional"/></div>
           <div class="filter-actions" style="grid-column:1/-1">
             <button class="btn-primary" onclick="addPO()">Create Purchase Order</button>
           </div>
@@ -21,7 +20,7 @@
       <div class="table-wrap">
         <div class="table-toolbar"><div class="table-count"><span id="po-count">—</span> purchase orders</div><button class="btn-csv" onclick="downloadCSV('pos')">⬇ CSV</button></div>
         <div class="tbl-scroll"><table id="po-table">
-          <thead><tr><th>PO Number</th><th>Project</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value</th><th>Spent</th><th>Remaining</th><th>% Used</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>PO Number</th><th>Project</th><th>Description</th><th>Issue Date</th><th>Expiry Date</th><th>PO Value · ex GST</th><th>Invoiced · ex GST</th><th>Remaining · ex GST</th><th>% Used</th><th>Status</th><th></th></tr></thead>
           <tbody id="po-body"></tbody>
         </table></div>
       </div>

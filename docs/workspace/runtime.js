@@ -1508,6 +1508,7 @@ function triggerPageLoad(page){
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='purchase-orders') loadPOs();
   if(page==='invoices')     loadInvoices();
+  if(page==='reconciliation') loadMonthlyReconciliation();
   if(page==='rates')        initRatesTab();
 }
 
@@ -5349,12 +5350,12 @@ async function loadPOs(){
 function renderPOs(rows){
   document.getElementById('po-count').textContent=rows.length;
   const tbody=document.getElementById('po-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders recorded for '+esc(activeProjectName||'this project')+'</div></td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state"><div class="big">🧾</div>No purchase orders recorded for '+esc(activeProjectName||'this project')+'</div></td></tr>';return;}
   tbody.innerHTML=rows.map(r=>{
     const spent=parseFloat(r.spent_to_date)||0;
     const value=parseFloat(r.po_value)||0;
     const rem=value-spent;
-    const pct=value>0?Math.min(spent/value*100,100).toFixed(1):'0.0';
+    const pct=value>0&&!r.missing_invoice_amounts?(spent/value*100).toFixed(1):null;
     const bc=parseFloat(pct)>90?'var(--red)':parseFloat(pct)>70?'var(--yellow)':'var(--green)';
     const sc=r.status==='Active'?'var(--green)':r.status==='Completed'?'var(--blue)':'var(--muted)';
     return`<tr data-id="${r.id}">
@@ -5366,9 +5367,8 @@ function renderPOs(rows){
       <td contenteditable="true" data-col="po_value" data-numeric="true">${cur(value)}</td>
       <td style="color:var(--accent)">${cur(spent)}</td>
       <td style="color:${rem<0?'var(--red)':'var(--green)'}">${cur(rem)}</td>
-      <td><div style="display:flex;align-items:center;gap:5px;"><div style="flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};"></div></div><span style="font-family:var(--font-mono);font-size:9px;color:${bc}">${pct}%</span></div></td>
+      <td><div style="display:flex;align-items:center;gap:5px;"><div style="flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="width:${pct===null?0:Math.max(0,Math.min(100,Number(pct)))}%;height:100%;background:${bc};"></div></div><span style="font-family:var(--font-mono);font-size:9px;color:${bc}">${pct===null?'—':pct+'%'}</span></div></td>
       <td contenteditable="true" data-col="status" style="color:${sc}">${esc(r.status||'Active')}</td>
-      <td contenteditable="true" data-col="notes" class="multiline-cell">${esc(r.notes||'')}</td>
       <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
   }).join('');
@@ -5398,7 +5398,6 @@ async function addPO(){
       issue_date:document.getElementById('po-issue-date').value,
       expiry_date:document.getElementById('po-expiry-date').value,
       status:document.getElementById('po-status').value,
-      notes:document.getElementById('po-notes').value,
     };
     console.log('Saving PO:', payload);
     const res=await fetch(`${API}/purchase_orders`,{
@@ -5409,7 +5408,7 @@ async function addPO(){
     const d=await res.json();
     console.log('PO response:', res.status, d);
     if(!res.ok){toast(d.detail||'Failed to save PO — see console','err');return;}
-    ['po-number','po-description','po-value','po-issue-date','po-expiry-date','po-notes'].forEach(id=>document.getElementById(id).value='');
+    ['po-number','po-description','po-value','po-issue-date','po-expiry-date'].forEach(id=>document.getElementById(id).value='');
     toast('✓ Purchase order saved');
     loadPOs();
   }catch(e){toast('Network error: '+e.message,'err');console.error('addPO error:',e);}
@@ -5867,7 +5866,7 @@ function downloadCSV(type){
     boreholes:[boreholesCsvData,'boreholes_2026.csv'],borehole_details:[boreholeDetailsCsvData,'borehole_details.csv'],tenements:[tenementsData,'tenements.csv']};
   const [rows,filename]=map[type]||[null,null];
   if(!rows||!rows.length)return;
-  const keys=Object.keys(rows[0]);
+  const keys=Object.keys(rows[0]).filter(k=>type!=='pos'||k!=='notes');
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
 }
