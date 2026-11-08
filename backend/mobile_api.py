@@ -493,7 +493,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
         if not cur.fetchone():
             raise HTTPException(404, "Report not found in this project")
 
-    @router.get("/me")
+    @router.get("/me", description="Unified DrillOps account and application access.")
     def me(request: Request):
         auth = current_auth_user(request)
         with get_conn() as conn:
@@ -528,10 +528,12 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
             "name": user_profile["display_name"] or auth.email.split("@")[0],
             "email": auth.email,
             "role": ROLE_LABELS[primary],
-            "management_portal_access": user_profile["system_role"] == "system_admin",
+            "management_portal_access": bool(set(auth.apps) & {"eos","account","project"}),
+            "apps": list(auth.apps),
+            "owner": auth.owner,
             "default_portal": (
                 "management"
-                if user_profile["system_role"] == "system_admin"
+                if set(auth.apps) & {"eos", "account", "project"}
                 else "field"
             ),
             "permissions": [],

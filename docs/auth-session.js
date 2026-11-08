@@ -33,7 +33,8 @@
   return {url:String(c.supabaseUrl).replace(/\/$/,''),key:c.supabasePublishableKey};
  }
  async function request(grant,payload){
-  const c=config();
+  let c=config();
+  if(grant==='refresh_token'&&root.DRILLOPS_CONFIG?.legacyUrl){try{const issuer=JSON.parse(atob(load().access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).iss;if(issuer===root.DRILLOPS_CONFIG.legacyUrl+'/auth/v1')c={url:root.DRILLOPS_CONFIG.legacyUrl,key:root.DRILLOPS_CONFIG.legacyKey};}catch{}}
   const response=await fetcher(c.url+'/auth/v1/token?grant_type='+encodeURIComponent(grant),{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await response.json().catch(()=>({}));
   if(!response.ok){
@@ -88,5 +89,6 @@
   return response;
  }
  root.DrillOpsSession={load,save,token,authenticate,fetch:apiFetch};
+ if(root.DrillOpsUnifiedSession)root.DrillOpsSession=root.DrillOpsUnifiedSession(root.DrillOpsSession);
  root.addEventListener('storage',event=>{if(event.key===key){memory=null;root.dispatchEvent(new Event('drillops-session-change'));}});
 })(window);

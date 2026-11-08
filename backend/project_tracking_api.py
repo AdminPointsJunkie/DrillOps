@@ -130,7 +130,7 @@ def create_tracking_router(get_conn):
     def access(cur,request,project_id=None):
         auth=current_auth_user(request)
         cur.execute("SELECT 1 FROM user_profiles WHERE user_id=%s AND active=TRUE AND system_role='system_admin'",(auth.user_id,))
-        if not cur.fetchone():raise HTTPException(403,'System administrator access is required.')
+        if not cur.fetchone() and not (getattr(auth,'owner',False) or set(getattr(auth,'apps',())) & {'eos','project'}):raise HTTPException(403,'App access is required.')
         if project_id is not None:
             cur.execute('SELECT id,name,program FROM projects WHERE id=%s',(project_id,));project=cur.fetchone()
             if not project:raise HTTPException(404,'Project not found.')
