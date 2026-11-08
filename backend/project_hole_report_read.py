@@ -41,5 +41,6 @@ SELECT COALESCE((SELECT jsonb_agg(d ORDER BY date,id) FROM worked_days d WHERE l
        COALESCE((SELECT jsonb_agg(m ORDER BY date,id) FROM material_scope m WHERE scope_count=1),'[]'::jsonb) consumables,
        COALESCE((SELECT jsonb_agg(m ORDER BY date,id) FROM material_scope m WHERE scope_count<>1),'[]'::jsonb) ambiguous_consumables,
        COALESCE((SELECT jsonb_agg(i ORDER BY invoice_date,id) FROM ledger i),'[]'::jsonb) invoices,
-       COALESCE((SELECT jsonb_agg(l ORDER BY invoice_id,id) FROM lines l),'[]'::jsonb) invoice_lines
+       COALESCE((SELECT jsonb_agg(l ORDER BY invoice_id,id) FROM lines l),'[]'::jsonb) invoice_lines,
+       COALESCE((SELECT jsonb_agg(x) FROM (SELECT a.*,p.name project,p.program,p.year FROM account_accruals a JOIN projects p ON p.id=a.project_id WHERE a.status='Open' AND lower(trim(p.name))=lower(trim(%(project)s)) AND lower(trim(p.program))=lower(trim(%(program)s))) x),'[]'::jsonb) accruals
 """

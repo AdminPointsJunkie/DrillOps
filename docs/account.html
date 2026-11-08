@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/accruals.css?v=20261108-accruals1"><link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 <link rel="stylesheet" href="./workspace/suite-style.css?v=20261108-suite1"><script src="./workspace/report-design.js?v=20261108-suite1"></script></head>
 <body class="workspace-locked" data-workspace-area="account">
 
@@ -118,7 +118,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Accounting</div><button class="drawer-nav-item" data-page="accounts-overview" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Overview</span></button><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Invoice ledger</span></button><button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Reconciliation</span></button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6"/></svg><span>Purchase orders</span></button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Suppliers</span></button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3M7 8l5-5 5 5M4 15v6h16v-6"/></svg><span>Import invoices</span></button></div>
+    <div class="drawer-section"><div class="drawer-section-title">Accounting</div><button class="drawer-nav-item" data-page="accounts-overview" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Overview</span></button><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Invoice ledger</span></button><button class="drawer-nav-item" data-page="accruals" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Estimated accruals</span></button><button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Reconciliation</span></button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6"/></svg><span>Purchase orders</span></button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Suppliers</span></button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3M7 8l5-5 5 5M4 15v6h16v-6"/></svg><span>Import invoices</span></button></div>
 
   </div>
 </div>
@@ -308,7 +308,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Account navigation"><a class="app-nav-link" href="./account.html?view=accounts-overview">Overview<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=reconciliation">Reconciliation<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
+<nav class="app-local-nav" aria-label="Account navigation"><a class="app-nav-link" href="./account.html?view=accounts-overview">Overview<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=accruals">Estimated accruals<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=reconciliation">Reconciliation<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
 
 
     <!-- Importer -->
@@ -472,6 +472,19 @@
         </table></div>
       </div>
     </section>
+    <section class="page" id="page-accruals">
+ <header class="ledger-heading"><div><div class="ledger-eyebrow">Accounts</div><h2>Estimated accruals</h2></div><div class="ledger-actions"><button class="ledger-button" id="ac-refresh">Refresh</button><button class="ledger-button" id="ac-new">Add accrual</button></div></header>
+ <div class="ledger-filters"><label>Project<select id="ac-project"><option value="">All projects</option></select></label><label>Month<input id="ac-month" type="month"></label><label>Status<select id="ac-status"><option>Open</option><option>Cleared</option><option value="">All</option></select></label></div>
+ <p id="ac-message" role="status"></p><div class="ledger-cards" id="ac-totals"></div>
+ <div class="tbl-scroll"><table class="ac-table"><thead><tr><th>Month</th><th>Supplier</th><th>Project</th><th>PO</th><th>Description</th><th>Estimated amount</th><th>Status</th><th></th></tr></thead><tbody id="ac-rows"></tbody></table></div>
+ <dialog id="ac-dialog"><form id="ac-form"><div class="ledger-heading"><h3 id="ac-title">Add accrual</h3><button id="ac-close" type="button" aria-label="Close">×</button></div>
+ <label>Project<select name="project_id" required></select></label><label>Month<input name="period" type="month" required></label>
+ <label>Allocate to<select name="kind"><option value="supplier">Supplier</option><option value="po">Open purchase order</option></select></label>
+ <label id="ac-po-label" hidden>Purchase order<select name="po_id"></select></label><label>Supplier<select name="supplier" required></select></label>
+ <label>Uninvoiced amount · AUD<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Description<input name="description" maxlength="2000"></label><label>Status<select name="status"><option>Open</option><option>Cleared</option></select></label>
+ <p id="ac-error" role="alert"></p><button id="ac-save" type="submit">Save accrual</button></form></dialog>
+</section>
+
     <section class="page" id="page-reconciliation">
  <header class="ledger-heading"><div><div class="ledger-eyebrow">Account / EOS</div><h2>Monthly reconciliation</h2><p>Loaded EOS charges against invoiced actuals · AUD, ex GST</p></div><button class="ledger-button" onclick="loadMonthlyReconciliation()">Refresh</button></header>
  <div class="ledger-filters"><label>Project<select id="recon-project"><option value="">All projects</option></select></label><label>Contractor<select id="recon-contractor"><option value="">All EOS contractors</option></select></label><label>Month<select id="recon-month"><option value="">All months</option></select></label></div>
@@ -503,6 +516,7 @@
   </section>
   <section id="ao-detail" class="ao-panel" hidden aria-live="polite"></section>
   <div class="ao-charts"><section class="ao-panel"><h3>Monthly invoice actuals</h3><p class="ao-note">Net of credit notes · AUD, ex GST</p><div id="ao-monthly"></div></section><section class="ao-panel"><h3>Invoiced by supplier</h3><div id="ao-suppliers"></div></section></div>
+  <section class="ao-panel"><div class="ao-section-title"><h3>Open estimated accruals</h3><a href="./account.html?view=accruals">Manage accruals</a></div><div id="ao-accruals"></div></section>
   <details class="ao-panel ao-methods"><summary>What these figures mean</summary><p>Actuals come from the invoice ledger, excluding accruals and opening budget adjustments. The net total is not the amount deducted from the annual budget. Credits reduce actuals but do not count as a received invoice. Blank dates and missing amounts are flagged, not treated as evidence of receipt.</p><p>Priced EOS charges comes from the monthly reconciliation summary. A missing invoice means no matching invoice is recorded for that contractor, project, program and month; billing delays or incomplete records may explain it. Invoice dates are not upload dates.</p><p id="ao-quality"></p></details>
  </div>
 </section>
@@ -633,13 +647,14 @@
 
 <script src="./config.js?v=20261108-account1"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=20261108-tracking2"></script>
+<script src="./workspace/navigation.js?v=accruals-20261108-tracking2"></script>
 <script src="./auth/unified-client.bundle.js?v=20261108-account1"></script><script src="./auth-session.js?v=20261108-account1"></script>
 <script src="./workspace/runtime.js?v=20261108-account1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/accounts-overview-model.js?v=20261108-1"></script>
-<script src="./workspace/accounts-overview.js?v=20261108-suite1"></script>
+<script src="./workspace/accruals.js?v=20261108-accruals1"></script>
+<script src="./workspace/accounts-overview-model.js?v=20261108-accruals1"></script>
+<script src="./workspace/accounts-overview.js?v=20261108-accruals1"></script>
 <script src="./workspace/reconciliation-model.js?v=20261108-1"></script>
 <script src="./workspace/reconciliation.js?v=20261108-fortem1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>

@@ -1,0 +1,5 @@
+import {createRequire} from 'node:module';import {test} from 'node:test';import assert from 'node:assert/strict';
+const M=createRequire(import.meta.url)('../docs/workspace/accounts-overview-model.js');
+const invoice={invoice_number:'1',contractor:'Fortem',project:'Ironbark',program:'Exploration',billing_month:'2026-11',subtotal:1000};
+const accrual={supplier:'Fortem',project:'Ironbark',program:'Exploration',period:'2026-11-01',status:'Open',amount:500};
+test('only open in-scope accruals add to invoice actuals; clearing removes estimated exposure',()=>{const build=accruals=>M.build([invoice],[],{year:'2026',today:'2026-11-08',project:M.scope(invoice),accruals});const m=build([accrual,{...accrual,status:'Cleared',amount:999},{...accrual,project:'Other',amount:888},{...accrual,period:'2027-11-01',amount:777}]);assert.equal(m.net,1000);assert.equal(m.accrualTotal,500);assert.equal(m.combined,1500);assert.equal(m.totals[10].combined,1500);assert.equal(build([{...accrual,status:'Cleared'}]).combined,1000);assert.equal(build(null).combined,null);});

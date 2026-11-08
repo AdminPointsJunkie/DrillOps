@@ -60,6 +60,7 @@
     "panels": [
       "accounts-overview",
       "invoices",
+      "accruals",
       "reconciliation",
       "purchase-orders",
       "contractors",
@@ -73,6 +74,10 @@
       [
         "invoices",
         "Invoice ledger"
+      ],
+      [
+        "accruals",
+        "Estimated accruals"
       ],
       [
         "reconciliation",

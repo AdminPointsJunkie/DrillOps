@@ -66,3 +66,8 @@ test('support without a unique site remains project-level; dates exclude other p
  const m=run({evidence:{...evidence,day_rates:[support]}});assert.equal(m.unallocatedEos,1600);assert.equal(m.metrics[0].eos,run().metrics[0].eos);
  assert.equal(run({evidence:{...evidence,day_rates:[support]}},{from:'2026-04-01',to:'2026-04-30'}).dayRateTotal,0);
 });
+test('open accruals add to invoiced exposure without changing actual EOS or invoices',()=>{
+ const a={status:'Open',supplier:'Fortem',project:'Example',program:'Exploration',period:'2026-03-01',amount:100};
+ const m=run({evidence:{...evidence,accruals:[a,{...a,status:'Cleared',amount:900},{...a,status:'Voided',amount:800},{...a,project:'Other',amount:700},{...a,period:'2027-03-01',amount:600}]}});
+ assert.equal(m.accrualTotal,100);assert.equal(m.invoicedAndAccruals,450);assert.equal(m.eosTotal,450);assert.equal(m.invoiced,350);assert.equal(m.contractors.find(c=>c.name==='Fortem').combined,100);assert.equal(m.monthly.find(r=>r.month==='2026-03').accruals,100);assert.equal(m.accrualRows.length,1);
+});

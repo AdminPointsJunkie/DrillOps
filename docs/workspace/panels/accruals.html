@@ -1,0 +1,12 @@
+<section class="page" id="page-accruals">
+ <header class="ledger-heading"><div><div class="ledger-eyebrow">Accounts</div><h2>Estimated accruals</h2></div><div class="ledger-actions"><button class="ledger-button" id="ac-refresh">Refresh</button><button class="ledger-button" id="ac-new">Add accrual</button></div></header>
+ <div class="ledger-filters"><label>Project<select id="ac-project"><option value="">All projects</option></select></label><label>Month<input id="ac-month" type="month"></label><label>Status<select id="ac-status"><option>Open</option><option>Cleared</option><option value="">All</option></select></label></div>
+ <p id="ac-message" role="status"></p><div class="ledger-cards" id="ac-totals"></div>
+ <div class="tbl-scroll"><table class="ac-table"><thead><tr><th>Month</th><th>Supplier</th><th>Project</th><th>PO</th><th>Description</th><th>Estimated amount</th><th>Status</th><th></th></tr></thead><tbody id="ac-rows"></tbody></table></div>
+ <dialog id="ac-dialog"><form id="ac-form"><div class="ledger-heading"><h3 id="ac-title">Add accrual</h3><button id="ac-close" type="button" aria-label="Close">×</button></div>
+ <label>Project<select name="project_id" required></select></label><label>Month<input name="period" type="month" required></label>
+ <label>Allocate to<select name="kind"><option value="supplier">Supplier</option><option value="po">Open purchase order</option></select></label>
+ <label id="ac-po-label" hidden>Purchase order<select name="po_id"></select></label><label>Supplier<select name="supplier" required></select></label>
+ <label>Uninvoiced amount · AUD<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Description<input name="description" maxlength="2000"></label><label>Status<select name="status"><option>Open</option><option>Cleared</option></select></label>
+ <p id="ac-error" role="alert"></p><button id="ac-save" type="submit">Save accrual</button></form></dialog>
+</section>
