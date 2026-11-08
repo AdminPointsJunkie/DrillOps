@@ -4,7 +4,7 @@
     <div class="phr-actions"><label>From<input id="period-range-from" type="date" onchange="renderPeriodReport()"></label><label>To<input id="period-range-to" type="date" onchange="renderPeriodReport()"></label><button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button><button class="btn-secondary" id="project-hole-print" type="button" onclick="printPeriodReport()" disabled>Print PDF</button></div>
   </div>
   <div class="period-report-body phr-content" hidden>
-    <div class="phr-kpis" id="phr-budget-kpis"></div>
+    <div class="phr-section-controls"><button class="btn-secondary" type="button" data-phr-expand="false">Collapse all</button><button class="btn-secondary" type="button" data-phr-expand="true">Expand all</button></div><section class="phr-panel"><div class="phr-title"><h2>Budget summary</h2></div><div class="phr-kpis" id="phr-budget-kpis"></div></section>
     <section class="phr-panel"><div class="phr-title"><h2>EOS production &amp; monthly costs</h2><span id="phr-production-meta"></span></div><div class="phr-production" id="phr-production-kpis"></div><div id="phr-monthly-chart"></div></section>
     <section class="phr-panel"><div class="phr-title"><h2>Contractor reconciliation</h2><span>AUD · excluding GST</span></div><p class="phr-note">Planned budgets exclude cancelled holes. EOS charges and Accounts invoices are separate comparisons; they are never added together.</p><div class="phr-scroll" id="phr-contractors"></div></section>
     <section class="phr-panel"><div class="phr-title"><h2>Production against the hole plan</h2><span>Holes with EOS work in the selected period</span></div><div id="period-hole-graphics"></div></section>
