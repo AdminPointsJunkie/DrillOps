@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>FieldMaps 3D verification</title><link rel="stylesheet" href="../cesium/Widgets/widgets.css"><style>#scene{height:600px;width:900px}</style><pre id="results">Running…</pre><div id="scene"></div><script type="module">
+globalThis.CESIUM_BASE_URL='/maps/cesium/';
+const output=document.querySelector('#results'),assert=(v,message)=>{if(!v)throw Error(message);};let engine;
+try{
+ const {createScene3D}=await import('../src/scene3d-renderer.js'),C=await import('cesium');
+ const feature=(mode,z)=>({type:'Feature',properties:{Name:mode,'KML altitude mode':mode},geometry:{type:'Point',coordinates:z===undefined?[148.17,-21.75]:[148.17,-21.75,z]}});
+ const layer={id:'height-test',name:'Height verification',kind:'vector',color:'#ff0000',opacity:1,metadata:{kml_import:{},style:{useKMLStyle:true}},fc:{type:'FeatureCollection',features:[feature('clampToGround'),feature('relativeToGround',50),feature('absolute',300)]}};
+ const errors=[];engine=await createScene3D(document.querySelector('#scene'),{onError:message=>errors.push(message)});engine.basemap({type:'solid',color:'#cccccc'});await engine.sync([layer]);
+ assert(!errors.length,errors.join('; '));assert(engine.stats[0].features===3,'height-mode features missing');
+ const root=engine.viewer.scene.primitives.get(engine.viewer.scene.primitives.length-1),points=root.get(0),heights=[0,1,2].map(i=>C.Cartographic.fromCartesian(points.get(i).position).height);
+ assert(Math.abs(heights[1]-heights[0]-50)<.01,'relative height does not follow ground');assert(Math.abs(heights[2]-300)<.01,'absolute source height changed');assert(heights[0]>100&&heights[0]<1000,'ground height missing');
+ await engine.sync([layer],{heightOffset:10});const shifted=engine.viewer.scene.primitives.get(engine.viewer.scene.primitives.length-1).get(0);assert(Math.abs(C.Cartographic.fromCartesian(shifted.get(2).position).height-310)<.01,'display offset failed');assert(layer.fc.features[2].geometry.coordinates[2]===300,'offset changed saved coordinates');
+ await engine.sync([]);assert(engine.stats.length===0,'removed layers remain in 3D');engine.destroy();engine=null;
+ output.textContent='PASS ground, relative and absolute heights; display-only offset; layer removal; resource cleanup.\nTerrain height: '+heights[0].toFixed(2)+' m';document.title='PASSED 3D verification';
+}catch(error){output.textContent='FAIL '+error.stack;document.title='FAILED 3D verification';engine?.destroy();}
+</script>

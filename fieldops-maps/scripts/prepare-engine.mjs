@@ -1,4 +1,4 @@
-import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,cp} from 'node:fs/promises';
 import {gzipSync} from 'node:zlib';
 await mkdir('public',{recursive:true});
 await writeFile('public/gdal-engine.bin',gzipSync(await readFile('node_modules/gdal3.js/dist/package/gdal3WebAssembly.wasm'),{level:9}));
@@ -11,3 +11,8 @@ await writeFile('public/gdal-worker.js',worker.replace(needle,'u||"http"===t.sub
 // Archive workers are same-origin and loaded only when an archive is imported.
 await mkdir('public/archive',{recursive:true});
 for(const file of ['worker-bundle.js','libarchive.wasm'])await writeFile('public/archive/'+file,await readFile('node_modules/libarchive.js/dist/'+file));
+
+// Serve Cesium workers, terrain decoders and widget assets from our own origin.
+for(const name of ['Workers','Assets','ThirdParty','Widgets'])await cp('node_modules/cesium/Build/Cesium/'+name,'public/cesium/'+name,{recursive:true});
+await cp('node_modules/cesium/LICENSE.md','public/cesium/LICENSE.md');
+for(const name of ['ThirdParty.json','ThirdParty.extra.json'])await cp('node_modules/cesium/'+name,'public/cesium/'+name);
