@@ -6046,7 +6046,7 @@ function renderOcrPreview() {
   var data = ocrCurrentData || {};
   var depcoPricing = (ocrPreviewContractor||ocrImportScope.contractor)==='DEPCO Drilling' || /(^|[^a-z0-9])depco(?=$|[^a-z0-9])/i.test(ocrCurrentFile.name);
   var fields = [
-    ['hole_num', 'Hole number'], ['date', 'Date (DD/MM/YYYY)'], ['client', 'Client'],
+    ['hole_num', 'Hole(s) on source report'], ['date', 'Date (DD/MM/YYYY)'], ['client', 'Client'],
     ['location', 'Location'], ['rig_no', 'Rig'], ['shift', 'Shift'], ['driller', 'Driller']
   ];
   var html = '<div style="border:1.5px solid var(--accent);border-radius:var(--radius-sm);padding:14px;background:#fff;">'
@@ -6059,9 +6059,12 @@ function renderOcrPreview() {
       + '<input type="text" data-ocr-header="' + item[0] + '"'+(item[0]==='date'?' placeholder="DD/MM/YYYY" inputmode="numeric"':'')+' value="' + attr(data[item[0]] == null ? '' : data[item[0]]) + '" style="display:block;width:100%;margin-top:3px;padding:7px;border:1px solid var(--border);border-radius:4px;font:12px var(--font);"></label>';
   });
   html += '</div>' + renderOcrIntegrityCheck(ocrCurrentIntegrityCheck) + (depcoPricing?depcoOcrContractWarning(data,ocrContractRates):'') + '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">Activities (' + ((data.activities || []).length) + ')</div>'
-    + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Comments</th>'+ (depcoPricing?'<th>Contract code &amp; price (ex GST)</th>':'') +'<th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th>Bit / core</th><th>Diameter</th><th></th></tr></thead><tbody>';
+    + '<p style="font-size:11px;color:var(--muted);">Check the hole for each activity, especially when finishing one hole and moving to another. Completion notes must match the source.</p>'
+    + '<div style="overflow-x:auto;"><table style="width:100%;min-width:760px;font-size:11px;"><thead><tr><th>Hole</th><th>Comments / completion evidence</th>'+ (depcoPricing?'<th>Contract code &amp; price (ex GST)</th>':'') +'<th>From</th><th>To</th><th>Total</th><th>m From</th><th>m To</th><th>Total m</th><th>Bit / core</th><th>Diameter</th><th></th></tr></thead><tbody>';
   (data.activities || []).forEach(function(activity, index) {
-    html += '<tr data-ocr-activity="' + index + '"><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index) + '</td>'
+    var activityHole=Object.prototype.hasOwnProperty.call(activity,'hole_num')?activity.hole_num:(/[,;/&\n]|\s+(?:and|to)\s+/i.test(data.hole_num||'')?'':data.hole_num);
+    html += '<tr data-ocr-activity="' + index + '"><td>' + ocrInput(activityHole, 'hole_num', index) + '</td><td style="min-width:220px;">' + ocrInput(activity.comments, 'comments', index)
+      + '<details'+(activity.completion_note?' open':'')+'><summary>Source completion note</summary>'+ocrInput(activity.completion_note,'completion_note',index)+'</details></td>'
       + (depcoPricing?'<td style="min-width:260px;max-width:300px;white-space:normal;overflow-wrap:anywhere;"><label>Suggested code — change if needed<select aria-label="Activity '+(index+1)+' contract code" data-ocr-field="code" style="display:block;width:100%;max-width:260px;"><option value="">Suggest automatically</option>'+groupedImportCodeOptions(ocrContractRates,activity.code)+'</select></label><div data-ocr-pricing>'+renderDepcoOcrPrice(activity.pricing)+'</div>'
       + '<details><summary>Quantity (days/items)</summary>'+ocrInput(activity.quantity, 'quantity', index)+'</details></td>':'')
       + '<td>' + ocrInput(activity.time_from, 'time_from', index) + '</td><td>' + ocrInput(activity.time_to, 'time_to', index) + '</td>'

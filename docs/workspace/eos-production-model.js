@@ -85,14 +85,34 @@
   return {rows:out,duplicates};
  }
  function completionEvents(source){
-  const events=new Map(),marker='(?:end[ -]+of[ -]+hole|eoh|hole[ -]+complet(?:ed|e))';
+  const events=new Map(),groups=new Map(),marker='(?:end[ -]+of[ -]+hole|eoh|hole[ -]+complet(?:ed|e))';
   const positive=new RegExp('\\b'+marker+'\\b','i');
   const negative=new RegExp('\\b(?:no|not|before|until|planned|expected|target|awaiting)\\b[^.;\\n]{0,45}\\b'+marker+'\\b|\\b'+marker+'\\b\\s+(?:not|pending|tomorrow)','i');
+  const order=r=>date(r.date)+'|'+(/night/i.test(text(r.shift))?'1':'0')+'|'+text(r.time_from).padStart(5,'0')+'|'+String(r.id??'').padStart(12,'0');
   for(const row of cleanRows(source).rows){
    const d=date(row.date),hole=text(row.hole_num),notes=text(row.notes);
-   if(!d||!hole||!positive.test(notes)||negative.test(notes))continue;
+   if(!d||!hole||/^(?:n\/?a|none|unknown|not recorded|-+)$/i.test(hole)||/[,;/&\n]|\s+(?:and|to)\s+/i.test(hole))continue;
    const key=JSON.stringify([row.contractor,row.project,hole].map(v=>text(v).toUpperCase()));
-   if(!events.has(key)||d<date(events.get(key).date))events.set(key,row);
+   if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);
+   if(positive.test(notes)&&!negative.test(notes)&&!(/\babandon(?:ed|ment)?\b/i.test(notes))&&(!events.has(key)||order(row)<order(events.get(key))))events.set(key,row);
+  }
+  // DEPCO exploration logs often close a hole with logging and whole-hole
+  // cementing, without writing EOH. Require that sequence for this same hole.
+  // A move, pack-up, logging alone, casing cement or an abandoned hole is not completion.
+  // Resolve against all available history before date/rig filters are applied.
+  for(const [key,history] of groups){
+   if(events.has(key))continue;
+   const rows=history.slice().sort((a,b)=>order(a).localeCompare(order(b)));
+   if(text(rows[0].contractor).toLowerCase()!=='depco drilling')continue;
+   if(rows.some(r=>/\babandon(?:ed|ment)?\b/i.test(text(r.notes))))continue;
+   const drilled=rows.filter(r=>Number(r.total_metres)>0&&['core','chip'].includes(method(r))).at(-1);
+   if(!drilled)continue;
+   const logged=rows.find(r=>order(r)>=order(drilled)&&(/_STANDBY_LOGGER_/.test(text(r.code))||/\b(?:logging|loggers?|geophysical)\b/i.test(text(r.notes)))&&!/\b(?:no|not|cancelled|planned|tomorrow)\b/i.test(text(r.notes)));
+   if(!logged)continue;
+   const closed=rows.find(r=>order(r)>order(logged)&&/^DEPCO_A_RIG_CEMENTING_/.test(text(r.code))&&
+    /^(?:cement(?:ing|ed)|grout(?:ing|ed))\s+(?:the\s+)?hole\b|^hole\s+(?:fully\s+)?(?:cemented|grouted)\b/i.test(text(r.notes))&&
+    !/\b(?:not|no|planned|tomorrow|partial|partially|casing|collar|plug|repair|lost circulation|awaiting|waiting)\b/i.test(text(r.notes)));
+   if(closed)events.set(key,closed);
   }
   return [...events.values()];
  }
