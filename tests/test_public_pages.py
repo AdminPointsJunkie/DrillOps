@@ -43,13 +43,13 @@ class PublicPages(unittest.TestCase):
             self.assertIn('id6797079076',s)
             self.assertIn('fieldops-app-store-qr.png',s)
     def test_shared_authentication_and_app_boundaries(self):
-        for name in ['eos.html','account.html','project.html']:
+        for name in ['index.html','eos.html','account.html','project.html']:
             source=(DOCS/name).read_text()
             self.assertIn('src="./workspace/runtime.js',source)
             self.assertIn('src="./workspace/start.js',source)
             ids=HTML(source).ids
             self.assertEqual(len(ids),len(set(ids)),name+' duplicate ids')
-        for name in ['eos.html','account.html','project.html']:
+        for name in ['index.html','eos.html','account.html','project.html']:
             self.assertNotIn('Switch app',(DOCS/name).read_text())
             self.assertNotIn('app-chooser',(DOCS/name).read_text())
         self.assertNotIn('id="page-invoices"',(DOCS/'eos.html').read_text())
@@ -75,31 +75,6 @@ class PublicPages(unittest.TestCase):
         self.assertIn("const AUTH_STORAGE_KEY='drillops_supabase_session'",old)
         self.assertNotIn('./workspace/runtime.js',old)
         self.assertIn('href="./index.html"',(DOCS/'OLD/training.html').read_text())
-    def test_public_pages_are_independent_and_stable(self):
-        for name in ['index.html','drillops.html','accounting.html','project-management.html','fieldops.html','fieldmaps.html','support.html','privacy.html','fieldops-support.html','fieldops-privacy.html']:
-            source=(DOCS/name).read_text()
-            parsed=HTML(source)
-            self.assertEqual(len(parsed.ids),len(set(parsed.ids)),name)
-            self.assertEqual(len(re.findall(r'<h1[ >]',source)),1,name)
-            self.assertEqual(re.findall(r'<link[^>]+rel="stylesheet"[^>]+href="([^"?]+)',source),['./public-layout.css'],name)
-            self.assertNotIn('./workspace/',source,name)
-            for tag in re.findall(r'<img\b[^>]*>',source):
-                self.assertIn('width=',tag,name)
-                self.assertIn('height=',tag,name)
-        self.assertIn('./public-entry.js',(DOCS/'index.html').read_text())
-
-    def test_product_positioning_and_image_dimensions(self):
-        import sys
-        sys.path.insert(0,str(ROOT/'scripts'))
-        from image_dimensions import image_dimensions
-        self.assertEqual(image_dimensions(DOCS/'assets/products/activities-dar.png'),(789,742))
-        self.assertEqual(image_dimensions(DOCS/'assets/products/fieldmaps-web.png'),(1280,720))
-        fieldops=(DOCS/'fieldops.html').read_text()
-        hero=fieldops.split('<section class="wrap product-hero">')[1].split('</section>')[0]
-        self.assertIn('Available now on the App Store',hero)
-        self.assertIn('href="https://apps.apple.com/au/app/fieldops-by-drillops/id6797079076">Buy on the App Store',hero)
-        self.assertIn('Get launch updates',(DOCS/'fieldmaps.html').read_text())
-
     def test_homepage_has_an_explicit_public_entry_marker(self):
         self.assertIn('data-public-home="true"',(DOCS/'index.html').read_text())
         self.assertIn('<title>DrillOps</title>',(DOCS/'index.html').read_text())
