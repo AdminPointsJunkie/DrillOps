@@ -211,6 +211,7 @@ async function saveStatus(){
   const status=document.getElementById('status-select').value;
   const res=await fetch(API+'/boreholes/'+encodeURIComponent(currentBorehole.hole_id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({contractor,status})});
   if(!res.ok){alert('Status save failed: '+await res.text());return;}
+  try{localStorage.setItem('drillops_borehole_status_changed',String(Date.now()));}catch(error){}
   currentBorehole.status=status;
   renderBorehole(currentBorehole,currentActivities);
 }

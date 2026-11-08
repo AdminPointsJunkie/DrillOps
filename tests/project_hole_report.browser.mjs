@@ -16,7 +16,7 @@ try{
  await page.goto('http://localhost:8766/project.html?view=budget');await page.waitForFunction(()=>document.querySelectorAll('.budget-hole-ledger tbody tr').length===2);
  assert.match(await page.locator('.budget-hole-ledger tfoot').innerText(),/2,000.00/);assert.equal(await page.locator('#budget-manual-section').getAttribute('open'),null);
  await page.locator('#budget-ledger-search').fill('TEST-B');assert.equal(await page.locator('.budget-hole-ledger tbody tr').count(),1);assert.match(await page.locator('.budget-hole-ledger tfoot').innerText(),/500.00/);
- await page.locator('#budget-ledger-search').fill('');await page.locator('#budget-ledger-status').selectOption('Drilled');assert.equal(await page.locator('.budget-hole-ledger tbody tr').count(),1);
+ await page.locator('#budget-ledger-search').fill('');await page.locator('#budget-ledger-status').selectOption('Complete');assert.equal(await page.locator('.budget-hole-ledger tbody tr').count(),1);
  await page.locator('#budget-ledger-status').selectOption('');await page.locator('#budget-ledger-details').check();assert.match(await page.locator('.budget-hole-ledger thead').innerText(),/Depth/);
  const downloadPromise=page.waitForEvent('download');await page.locator('#budget-ledger-export').click();const download=await downloadPromise;assert.match(download.suggestedFilename(),/hole-budget.csv/);
  await page.screenshot({path:'../project-hole-budget-test.png',fullPage:true});
