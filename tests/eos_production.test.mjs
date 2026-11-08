@@ -128,3 +128,11 @@ test('rig shifts count zero-drilling shifts and do not double-count split projec
  assert.equal(counts.get(JSON.stringify(['Mitchells Drilling','Rig 1'])).size,2);
  assert.equal(counts.get(JSON.stringify(['Mitchells Drilling','Rig 2'])).size,1);
 });
+
+test('detailed time categories reconcile daily totals and exclude unpaid standby',()=>{
+ const s=m.summarise([row({id:1,code:'Drill_Core',total_time:'2:00',total_metres:20}),row({id:2,code:'H_Standby_Wet_Weath',total_time:'1:00',unit_rate:550}),row({id:3,code:'H_Standby_Fatigue',total_time:'4:00',line_cost:0,unit_rate:0}),row({id:4,code:'H_Tripping_Rods',total_time:'0:30'})]);
+ assert.equal(s.timeCategories['Cored drilling'],2);assert.equal(s.timeCategories['Standby · Wet weather'],1);assert.equal(s.timeCategories['Tripping rods'],0.5);
+ assert.equal(Object.values(s.timeCategories).reduce((a,b)=>a+b,0),s.displayedHours);
+ assert.deepEqual(s.daily[0].timeCategories,s.timeCategories);
+ assert.equal(Object.keys(s.timeCategories).some(k=>k.includes('Fatigue')),false);
+});
