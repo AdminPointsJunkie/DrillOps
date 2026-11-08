@@ -33,3 +33,38 @@ for name in ['fieldops.html','fieldmaps.html','support.html','privacy.html','fie
  s=re.sub(r'<footer class="site-footer".*?</footer>',footer(),s,flags=re.S)
  if './brand.css?' not in s:s=s.replace('</head>','<link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1"></head>')
  path.write_text(s)
+
+# One public presentation layer; never import workspace/global brand overrides.
+from public_home import build_home
+build_home()
+PUBLIC_PAGES = ['index.html', *PRODUCTS, 'fieldops.html', 'fieldmaps.html',
+                'support.html', 'privacy.html', 'fieldops-support.html', 'fieldops-privacy.html']
+for name in PUBLIC_PAGES:
+    path = DOCS / name
+    source = path.read_text()
+    source = re.sub(r'<link[^>]+rel="stylesheet"[^>]*>', '', source)
+    source = re.sub(r'<style>.*?</style>', '', source, flags=re.S)
+    source = re.sub(r'<script[^>]+src="\./public-(?:site|navigation)\.js[^" ]*"[^>]*></script>', '', source)
+    source = source.replace('</head>', '<link rel="stylesheet" href="./public-layout.css?v=20261108-layout1">'
+                            '<script defer src="./public-navigation.js?v=20261108-layout1"></script></head>')
+    # PNG dimensions reserve space before images load, including lazy screenshots.
+    def dimensions(match):
+        tag = match[0]
+        src = re.search(r'src="([^"?]+)', tag)
+        if not src: return tag
+        asset = DOCS / src[1].removeprefix('./')
+        if asset.suffix == '.png' and asset.exists():
+            from image_dimensions import image_dimensions
+            width, height = image_dimensions(asset)
+            tag = re.sub(r'\s(?:width|height)="[^"]*"', '', tag)
+            tag = tag.replace('<img', f'<img width="{width}" height="{height}"', 1)
+        return tag
+    source = re.sub(r'<img\b[^>]*>', dimensions, source)
+    if name == 'fieldmaps.html' and 'Project information,<br>ready for the field.' not in source:
+        # Keep the intro concise; detailed product information belongs below it.
+        a = source.index('<p>Turn your project data')
+        b = source.index('<div class="actions">', a)
+        detail = source[a:b]
+        source = source[:a] + source[b:]
+        source = source.replace('<nav class="section-nav wrap"', '<section class="wrap section"><div class="section-head"><h2>Project information,<br>ready for the field.</h2><div>' + detail + '</div></div></section><nav class="section-nav wrap"', 1) if 'Project information,<br>ready for the field.' not in source else source
+    path.write_text(source)

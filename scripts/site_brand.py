@@ -18,7 +18,7 @@ def wordmark(product='', href='./index.html', stacked=False):
 def navigation(current=''):
     links = ''.join(f'<a href="./{path}"'+(' aria-current="page"' if path == current else '')+f'>{name}</a>' for path, name in PRODUCTS)
     action = (f'<a class="button" href="{SIGN_IN[current]}">Sign in <span aria-hidden="true">↗</span></a>'
-              if current in SIGN_IN else '<a class="text-link" href="./support.html">Support ↗</a>')
+              if current in SIGN_IN else '<a class="button store-nav" href="https://apps.apple.com/au/app/fieldops-by-drillops/id6797079076">App Store</a>' if current == 'fieldops.html' else '<a class="text-link" href="./support.html">Support ↗</a>')
     return ('<nav class="site-nav" aria-label="Main navigation">'+wordmark()
             +'<div class="nav-links">'+links+'</div><details class="mobile-menu"><summary>Products</summary><div>'
             +links+'<a href="./support.html">Support</a></div></details><div class="nav-action">'+action+'</div></nav>')
