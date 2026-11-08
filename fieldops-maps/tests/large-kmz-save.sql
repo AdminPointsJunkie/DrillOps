@@ -14,6 +14,8 @@ begin
  jsonb_build_array(148.0+i*0.0001,-21,300),jsonb_build_array(148.00005+i*0.0001,-21,310),
  jsonb_build_array(148.00005+i*0.0001,-21.00005,320),jsonb_build_array(148.0+i*0.0001,-21.00005,330),
  jsonb_build_array(148.0+i*0.0001,-21,300)))))) into geom from generate_series(0,37) i;
+ -- Match the failing KMZ: MultiGeometry nested inside another collection.
+ geom:=jsonb_build_object('type','GeometryCollection','geometries',jsonb_build_array(geom));
  select jsonb_agg(jsonb_build_object('type','Feature','geometry',geom,'properties',jsonb_build_object('Name','Fixture '||i,'_fieldmaps_kml_original_geometry',geom,'notes',repeat('n',6500)))) into features from generate_series(1,499) i;
  if octet_length(features::text)<9000000 then raise exception 'Fixture is too small: % bytes',octet_length(features::text);end if;
  started:=clock_timestamp();
