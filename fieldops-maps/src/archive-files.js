@@ -1,5 +1,5 @@
 import {zipSync} from 'fflate';
-export const archivePattern=/\.(zip|7z|rar|tar|gz|tgz|lpk|lpkx|mpk|mpkx)$/i;
+export const archivePattern=/\.(zip|kmz|7z|rar|tar|gz|tgz|lpk|lpkx|mpk|mpkx)$/i;
 const limit=300*1024*1024;
 export function safeArchivePath(path){
  const value=path.replaceAll('\\','/');
