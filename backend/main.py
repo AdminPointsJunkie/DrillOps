@@ -8646,6 +8646,7 @@ def delete_invoice_attachment(invoice_id: int, attachment_id: int):
 
 @app.patch("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: int, request: Request):
+    """Update invoice fields, rejecting stale versions supplied by ledger editing."""
     payload = await request.json()
     safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","project","program","service_start","service_end","invoice_date","subtotal","gst","total_aud","invoice_number"}
     u = {k:v for k,v in payload.items() if k in safe and k != "version"}
@@ -8653,9 +8654,13 @@ async def update_invoice(invoice_id: int, request: Request):
     # Auto-increment version on any edit
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT version FROM invoices WHERE id=%s", (invoice_id,))
+            cur.execute("SELECT version FROM invoices WHERE id=%s FOR UPDATE", (invoice_id,))
             row = cur.fetchone()
-            current_version = int(row["version"] or 1) if row else 1
+            if not row:
+                raise HTTPException(404, "Invoice no longer exists.")
+            current_version = int(row["version"] or 1)
+            if payload.get("version") is not None and int(payload["version"]) != current_version:
+                raise HTTPException(409, "Invoice changed since it was loaded.")
             u["version"] = current_version + 1
             set_clause = ", ".join(f"{k}=%s" for k in u)
             vals = list(u.values()) + [invoice_id]
