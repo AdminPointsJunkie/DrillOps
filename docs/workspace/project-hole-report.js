@@ -15,6 +15,11 @@
   const ticks=[low,(low+high)/2,high].map(v=>'<line class="grid" x1="'+pad+'" y1="'+y(v)+'" x2="980" y2="'+y(v)+'"/><text x="70" y="'+(y(v)+4)+'" text-anchor="end">'+(Math.max(Math.abs(low),high)>=1000?'$'+n(v/1000,1)+'k':'$'+n(v,0))+'</text>').join('');
   return '<div class="phr-legend"><span><i style="background:#237a65"></i>EOS charges</span><span><i style="background:#758bb3"></i>Accounts invoices · all contractors</span></div><svg class="phr-chart" role="img" aria-label="Monthly EOS charges and Accounts invoice actuals, excluding GST" viewBox="0 0 '+width+' '+height+'">'+ticks+m.monthly.map((r,i)=>{const x=pad+i*step+step*.18,w=step*.25;return ['eos','invoices'].map((key,j)=>'<rect class="'+(j?'invoice':'eos')+'" x="'+(x+j*(w+3))+'" y="'+Math.min(base,y(r[key]))+'" width="'+w+'" height="'+Math.abs(y(r[key])-base)+'"><title>'+esc(r.month+' '+key+' '+money(r[key]))+'</title></rect>').join('')+'<text x="'+(x+w)+'" y="210" text-anchor="middle">'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(r.month.slice(5))-1]+'</text>';}).join('')+'</svg>';
  }
+ function holeCostChart(rows){
+  if(!rows.length)return '';
+  const max=Math.max(1,...rows.flatMap(h=>[Math.abs(h.plannedBudget||0),Math.abs(h.eos||0)])),scale=620/max;
+  return '<h3 class="phr-chart-heading">Planned vs actual hole costs</h3><div class="phr-legend"><span><i style="background:#d9e4dc"></i>Planned hole budget</span><span><i style="background:#237a65"></i>Actual · recorded EOS charges</span></div><svg class="phr-chart" role="img" aria-label="EOS charges against planned budgets per hole" viewBox="0 0 1000 '+(rows.length*42+26)+'">'+rows.map((h,i)=>{const y=i*42+14;return '<text x="120" y="'+(y+12)+'" text-anchor="end">'+esc(h.id)+'</text><rect class="plan" x="135" y="'+y+'" width="'+Math.max(0,(h.plannedBudget||0)*scale)+'" height="8"/><rect class="eos" x="135" y="'+(y+12)+'" width="'+Math.max(0,(h.eos||0)*scale)+'" height="10"/><text class="value" x="780" y="'+(y+15)+'">'+money(h.eos)+' / '+money(h.plannedBudget)+'</text>';}).join('')+'</svg><p class="phr-note">EOS covers loaded drilling work and consumables; full hole budgets also include support contractors.</p>';
+ }
  function render(){
   if(!data||loadedScope!==scopeKey(currentScope()))return;
   const scope=currentScope(),from=el('period-range-from').value,to=el('period-range-to').value;
@@ -25,6 +30,7 @@
   el('phr-production-meta').textContent=m.production.reportCount+' EOS reports · '+m.production.completedHoles+' holes completed in EOS';
   el('phr-production-kpis').innerHTML=kpi('Total metres',n(m.production.metres)+' m',n(m.production.other)+' m other / unclassified')+kpi('Cored',n(m.production.core)+' m','Recorded EOS production')+kpi('Chipped',n(m.production.chip)+' m','Recorded EOS production')+kpi('Penetration',n(m.production.penetration,2)+' m/h',n(m.production.drillingHours)+' drilling hours');
   el('phr-monthly-chart').innerHTML=monthlyChart(m);
+  el('phr-hole-cost-chart').innerHTML=holeCostChart(m.metrics);
   el('phr-contractors').innerHTML=table(contractorHeaders,contractorRows(m.contractors));
   el('phr-source-note').textContent='Budget: '+m.source+'. EOS: loaded production reports. Accounts: current invoice ledger, excluding GST. Budgets cover the full project plan; EOS uses the selected dates and invoices use the selected billing months. No forecasts or accruals.';
   el('page-reports').querySelector('.phr-content').hidden=false;el('project-hole-print').disabled=false;
@@ -50,6 +56,7 @@
   const win=window.open('','_blank');if(!win){toast('Allow the print report to open in a new tab.','warn');return;}
   const m=model,pages=[],chunk=(rows,size)=>Array.from({length:Math.max(1,Math.ceil(rows.length/size))},(_,i)=>rows.slice(i*size,(i+1)*size));
   pages.push('<h1>Project performance</h1>'+el('phr-budget-kpis').outerHTML+'<h2>EOS production <small>'+esc(el('phr-production-meta').textContent)+'</small></h2>'+el('phr-production-kpis').outerHTML+monthlyChart(m));
+  for(const rows of chunk(m.metrics,10))pages.push('<h1>Planned vs actual hole costs</h1>'+holeCostChart(rows));
   for(const rows of chunk(m.contractors,14))pages.push('<h1>Contractor reconciliation</h1><p class="phr-note">Planned budgets, EOS charges and invoice actuals are separate comparisons. All amounts exclude GST.</p>'+table(contractorHeaders,contractorRows(rows)));
   if(periodMapPrintHoles.length){const map=el('period-map-print'),old=map.getAttribute('style');map.style.cssText='display:block;position:absolute;visibility:hidden;width:1000px;height:420px';renderPeriodPrintMap();pages.unshift('<h1>Project hole locations</h1><div class="print-location-map">'+map.innerHTML+'</div>');if(old===null)map.removeAttribute('style');else map.setAttribute('style',old);}
   const header='<header><div class="brand">Drill<span>Ops</span><small>PROJECT</small></div><div><b>'+esc(m.scope.project)+' · '+esc(m.scope.program)+'</b><small>'+esc(m.from+' to '+m.to)+'</small></div></header>';
