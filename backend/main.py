@@ -7124,12 +7124,17 @@ def get_pos(
                 # Add spent from invoices matched to this PO
                 for po in pos:
                     cur.execute("""
-                        SELECT COALESCE(SUM(total_aud),0) AS spent
+                        SELECT COALESCE(SUM(subtotal),0) AS spent,
+                               COUNT(*) FILTER (WHERE subtotal IS NULL) AS missing_amounts
                         FROM invoices
-                        WHERE po_reference LIKE %s AND contractor=%s
-                          AND (%s='' OR COALESCE(program,'')=%s)
-                    """, (f"%{po['po_number']}%", po["contractor"], po.get("program") or "", po.get("program") or ""))
-                    spent = float(cur.fetchone()["spent"] or 0)
+                        WHERE LOWER(TRIM(po_reference))=LOWER(TRIM(%s))
+                          AND LOWER(TRIM(contractor))=LOWER(TRIM(%s))
+                          AND LOWER(TRIM(COALESCE(project,'')))=LOWER(TRIM(%s))
+                          AND LOWER(TRIM(COALESCE(program,'')))=LOWER(TRIM(%s))
+                    """, (po['po_number'], po["contractor"], po.get("project") or "", po.get("program") or ""))
+                    spend_row = cur.fetchone()
+                    spent = float(spend_row["spent"] or 0)
+                    po["missing_invoice_amounts"] = int(spend_row["missing_amounts"] or 0)
                     po["spent_to_date"] = spent
                     po["remaining"] = (po["po_value"] or 0) - spent
 
@@ -8692,6 +8697,16 @@ def delete_invoice(invoice_id: int):
             cur.execute("DELETE FROM invoices WHERE id=%s", (invoice_id,))
         conn.commit()
     return {"status":"deleted"}
+
+
+@app.get("/reconciliation/monthly")
+def get_monthly_eos_reconciliation():
+    """Compare monthly loaded EOS charges with invoice actuals, ex GST, by project and rig."""
+    from eos_reconciliation import MONTHLY_SQL
+    with get_conn(read_only=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(MONTHLY_SQL)
+            return dict(cur.fetchone())
 
 
 @app.get("/reconciliation")

@@ -54,6 +54,7 @@
     "copy": "Actual invoices, credit notes and purchase orders in one place.",
     "panels": [
       "invoices",
+      "reconciliation",
       "purchase-orders",
       "contractors",
       "importer"
@@ -62,6 +63,10 @@
       [
         "invoices",
         "Invoice ledger"
+      ],
+      [
+        "reconciliation",
+        "Reconciliation"
       ],
       [
         "purchase-orders",

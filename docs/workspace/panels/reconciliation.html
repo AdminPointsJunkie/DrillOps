@@ -1,0 +1,8 @@
+<section class="page" id="page-reconciliation">
+ <header class="ledger-heading"><div><div class="ledger-eyebrow">Account / EOS</div><h2>Monthly reconciliation</h2><p>Loaded EOS charges against invoiced actuals · AUD, ex GST</p></div><button class="ledger-button" onclick="loadMonthlyReconciliation()">Refresh</button></header>
+ <div class="ledger-filters"><label>Project<select id="recon-project"><option value="">All projects</option></select></label><label>Contractor<select id="recon-contractor"><option value="">All EOS contractors</option></select></label><label>Month<select id="recon-month"><option value="">All months</option></select></label></div>
+ <p id="recon-message" class="ledger-notice" role="status">Open reconciliation to load charges.</p>
+ <div class="ledger-cards" id="recon-totals"></div>
+ <p class="ledger-notice">Charges reflect reports loaded, not a full-month forecast. Invoice totals include credits and use the billing month (invoice month when unavailable). Invoices without rig allocation are compared at contractor level. Differences may reflect billing timing or incomplete reports.</p>
+ <div id="recon-results"></div>
+</section>
