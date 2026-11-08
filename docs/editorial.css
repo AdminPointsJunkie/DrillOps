@@ -25,3 +25,9 @@ body{margin:0}button{color:inherit}p{margin:0 0 1em}h3{margin:1em 0}img{vertical
 /* Full-width banner surfaces share FieldMaps’ treatment; content keeps its responsive gutters. */
 .dd-homehero,.dd-producthero{width:100%;max-width:none;margin-left:0;margin-right:0}
 .dd-homehero+.dd-business{background:transparent}
+/* All product banners use the same image stage, regardless of screenshot shape. */
+.dd-productvisual,.dd-productvisual.portrait{padding:0;background:transparent;align-self:center}
+.dd-productvisual>a{height:480px;display:flex;align-items:center;justify-content:center;padding:24px;background:#e9ede5;border:1px solid #d8ddd7;box-sizing:border-box}
+.dd-productvisual img,.dd-productvisual.portrait img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;margin:0;box-shadow:0 12px 28px #21302215}
+.dd-productvisual figcaption{min-height:32px;margin-top:16px;align-items:flex-start}
+@media(max-width:900px){.dd-productvisual>a{height:360px;padding:18px}}
