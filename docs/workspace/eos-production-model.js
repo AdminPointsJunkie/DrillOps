@@ -175,6 +175,14 @@
   const displayedHours=Math.max(0,total.hours-total.excludedStandbyHours);
   return {...finish(total),displayedHours,includeNonChargeable:options.includeNonChargeable===true,rows,moves,otherActivities:[...otherActivities.values()].sort((a,b)=>b.hours-a.hours),completedRows:rows.filter(r=>completed.has(r)),projects:[...projects.values()].sort((a,b)=>a.label.localeCompare(b.label)).map(finish),rigs:[...rigs.values()].sort((a,b)=>a.contractor.localeCompare(b.contractor)||a.label.localeCompare(b.label)).map(finish),reasons:[...reasons.values()].sort((a,b)=>b.hours-a.hours),daily,recordedDays:daily.length,productionDays:productionDays.length,productionRigDays:productionRigDays.size,average:productionDays.length?total.metres/productionDays.length:0,averageCore:productionDays.length?total.core/productionDays.length:0,averageChip:productionDays.length?total.chip/productionDays.length:0,averagePerRigDay:productionRigDays.size?total.metres/productionRigDays.size:0,standbyPerDay:daily.length?total.standbyHours/daily.length:0,movingPerDay:daily.length?total.movingHours/daily.length:0,best,reportCount:reports.size,holeCount:holes.size,standbyPercent:displayedHours?total.standbyHours/displayedHours*100:null};
  }
+ function rigShiftCounts(rows){
+  const rigs=new Map();
+  for(const r of cleanRows(rows).rows){const rig=text(r.drill_rig)||'Not recorded',contractor=text(r.contractor)||'Not recorded',key=JSON.stringify([contractor,rig]);
+   if(!rigs.has(key))rigs.set(key,new Set());
+   rigs.get(key).add(JSON.stringify([date(r.date)||text(r.date),text(r.shift)||text(r.source_file)||'Unspecified shift']));
+  }
+  return rigs;
+ }
  function scopeMatch(row,scope){
   const norm=v=>text(v).toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ');
   if(scope.project==='__unassigned__'&&text(row.project))return false;
@@ -182,6 +190,6 @@
   if(scope.program&&!text(row.program).split(',').some(p=>norm(p)===norm(scope.program)))return false;
   return true;
  }
- const api={date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,cleanRows,summarise,scopeMatch};
+ const api={rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,cleanRows,summarise,scopeMatch};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosProduction=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

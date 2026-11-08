@@ -26,7 +26,7 @@ function productionChart(summary,statusId='production-chart-status'){
 }
 function productionSummaryRows(rows,rigs=false){return rows.map(r=>'<tr><td>'+esc(rigs?r.contractor+' / '+r.label:r.label)+'</td>'+['core','chip','other','metres','completedHoles','standbyHours','hours'].map(k=>'<td class="num">'+productionNumber(r[k],k==='completedHoles'?0:1)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="8" class="production-empty">No recorded activities for these filters.</td></tr>';}
 function eosBarChart(rows,keys=['core','chip','other'],unit='m'){
- const names={chargeableHours:'Chargeable',nonChargeableHours:'Non-chargeable',moveOnlyHours:'Site move',combinedMoveHours:'Move + setup'};
+ const names={averageDrilling:'Average drilling',core:'Cored',chip:'Chipped / open hole',other:'Other',chargeableHours:'Chargeable',nonChargeableHours:'Non-chargeable',moveOnlyHours:'Site move',combinedMoveHours:'Move + setup'};
  const total=r=>keys.reduce((sum,k)=>sum+(Number(r[k])||0),0),max=Math.max(0,...rows.map(total));
  if(!rows.length)return '<p class="production-empty">No records for these filters.</p>';
  return '<div class="eos-bars">'+rows.map(r=>'<div class="eos-bar-row"><div class="eos-bar-label"><span>'+esc(r.label)+'</span><strong>'+productionNumber(total(r))+' <small>'+unit+'</small></strong></div><div class="eos-bar-track" role="img" aria-label="'+attr(r.label+': '+keys.map(k=>(names[k]||k)+' '+productionNumber(r[k])+' '+unit).join(', '))+'">'+keys.map(k=>'<span class="eos-bar-'+k+'" style="width:'+(max?Math.max(0,Number(r[k])||0)/max*100:0)+'%" title="'+attr((names[k]||k)+': '+productionNumber(r[k])+' '+unit)+'"></span>').join('')+'</div></div>').join('')+'</div>';

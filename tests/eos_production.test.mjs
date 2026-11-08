@@ -122,3 +122,9 @@ test('explicit completion and final cementing do not double count, placeholders 
  assert.deepEqual(m.completionEvents([...seq,explicit]).map(r=>r.id),[300]);
  for(const hole_num of ['NA','N/A','Unknown','-','TEST-A, TEST-B','TEST-A / TEST-B'])assert.equal(m.summarise([row({hole_num,notes:'EOH'})]).completedHoles,0,hole_num);
 });
+
+test('rig shifts count zero-drilling shifts and do not double-count split project plods',()=>{
+ const counts=m.rigShiftCounts([row({id:1,shift:'Day'}),row({id:2,shift:'Day',project:'Beta',source_file:'second.pdf'}),row({id:3,shift:'Night',total_metres:0}),row({id:4,shift:'Day',drill_rig:'Rig 2'})]);
+ assert.equal(counts.get(JSON.stringify(['Mitchells Drilling','Rig 1'])).size,2);
+ assert.equal(counts.get(JSON.stringify(['Mitchells Drilling','Rig 2'])).size,1);
+});

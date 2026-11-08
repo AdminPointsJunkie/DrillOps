@@ -56,6 +56,7 @@ function renderEosPeriodReport(){
  const drilling=contractorCategory(contractorByName(activeContractor))==='Drilling';
  productionSet('eos-period-narrative',rows.length?(drilling?n(s.metres)+' m · '+s.holeCount+' holes · ':n(s.hours)+' h · ')+s.reportCount+' plods · '+s.projects.length+' projects':'No records for these filters.');
  renderEosCostTimeInsights(s,rows,charges,drilling);
+ renderEosRigSummary(s,rows,charges,drilling);
  const metrics=drilling?[['Cored',n(s.core),'m'],['Chipped / open hole',n(s.chip),'m'],['Holes completed',s.completedHoles,''],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Drilling time',n(s.drillingHours),'h'],['Source plods',s.reportCount,'']]:[['Recorded activity',n(s.hours),'h'],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Source plods',s.reportCount,'']];
  document.getElementById('eos-period-metrics').innerHTML=metrics.map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+' <small>'+unit+'</small></strong></div>').join('');
  document.getElementById('eos-completed-holes').hidden=!drilling;
@@ -111,4 +112,12 @@ function renderEosCostTimeInsights(s,rows,charges,drilling){
  const cost=EosShiftCharges.periodCost(rows,charges,s.metres),active=s.drillingHours,inactive=Math.max(0,s.displayedHours-active),pct=s.displayedHours>0?active/s.displayedHours*100:null;
  const money=v=>v==null?'—':v.toLocaleString('en-AU',{style:'currency',currency:'AUD'}),n=productionNumber;
  el.innerHTML='<div class="eos-cost-per-m"><span>Cost per metre'+(cost.partial?' · partial':'')+'</span><strong>'+money(cost.perMetre)+' <small>/ m</small></strong><small>EOS charges + consumables · ex GST</small></div><div class="eos-drilling-time"><div class="eos-time-labels"><strong>Active drilling '+(pct==null?'—':n(pct)+'%')+'</strong><span>Inactive '+(pct==null?'—':n(100-pct)+'%')+'</span></div><div class="eos-utilisation-bar" role="img" aria-label="'+(pct==null?'No recorded activity time':'Active drilling '+n(pct)+' percent; inactive '+n(100-pct)+' percent')+'"><i style="width:'+(pct||0)+'%"></i></div><div class="eos-time-labels"><span>'+n(active)+' h drilling</span><span>'+n(inactive)+' h other included activity</span></div><small>Uses displayed activity time and current standby exclusions.</small></div>'+(cost.partial?'<p class="eos-document-note">Cost per metre is partial: some charges are missing or cannot be uniquely allocated.</p>':'');
+}
+
+function renderEosRigSummary(s,rows,charges,drilling){
+ const el=document.getElementById('eos-high-summary');el.hidden=!drilling;if(!drilling)return;
+ const cost=EosShiftCharges.periodCost(rows,charges,s.metres),n=productionNumber,counts=EosProduction.rigShiftCounts(rows),money=v=>v.toLocaleString('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0});
+ const metrics=[['Active rigs',s.rigs.filter(r=>r.label!=='Not recorded').length,'with reports'],['Total metres',n(s.metres),'m'],['Drilling hours',n(s.drillingHours),'h'],['Metres / drilling hour',s.penetration==null?'—':n(s.penetration),'m / h'],['Total PLOD cost'+(cost.partial?' · partial':''),rows.length?money(cost.total):'—','ex GST · includes consumables']];
+ const averages=s.rigs.map(r=>({...r,averageDrilling:r.drillingHours/(counts.get(JSON.stringify([r.contractor,r.label]))?.size||1)}));
+ el.innerHTML='<h4>High-level summary</h4><div class="eos-summary-kpis">'+metrics.map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+'</strong><small>'+unit+'</small></div>').join('')+'</div><div class="eos-rig-comparisons"><div><h4>Metres drilled by rig</h4><div class="production-legend"><span><i class="core"></i>Cored</span><span><i class="chip"></i>Chipped / open hole</span><span><i class="other"></i>Other</span></div>'+eosBarChart(s.rigs)+'</div><div><h4>Average drilling hours per shift</h4>'+eosBarChart(averages,['averageDrilling'],'h / shift')+'</div></div><p class="eos-document-note">Averages include reported shifts with no drilling. Active rigs means rigs with reports in this selection. Missing rig names are excluded from the rig count.</p>';
 }
