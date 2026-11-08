@@ -14,6 +14,10 @@
     ],
     "nav": [
       [
+        "activities",
+        "PLODs / Activity Reports"
+      ],
+      [
         "reports",
         "Production Report"
       ],

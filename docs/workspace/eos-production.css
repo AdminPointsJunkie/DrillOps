@@ -79,3 +79,4 @@ body[data-workspace-area=eos] .eos-period-toolbar{display:flex;justify-content:s
 @media print{
  body.eos-period-print .eos-document-heading{display:none!important}
 }
+body[data-workspace-area=eos]:not(.eos-raw-logs-enabled) :is(#activity-log-panel,#consumables-panel,#crew-panel,#mcc-personnel-panel,#mcc-weekly-audit-panel){display:none!important}

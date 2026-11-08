@@ -43,6 +43,11 @@ try{
  await page.goto(base+'eos.html');await page.waitForFunction(()=>document.getElementById('eos-total').textContent!=='—');
  assert.equal(await page.locator('#workspace-gate').evaluate(e=>e.classList.contains('open')),false);assert.equal(await page.locator('#eos-project-filter').inputValue(),'');assert.deepEqual(await page.locator('#eos-contractor-filter option').allTextContents(),contractors);
  assert.equal(await text('eos-metres'),'87 m');assert.equal(await text('eos-total'),'6');assert.equal(await page.locator('#report-body tr.report-row').count(),0);
+ await nav('activities');await page.waitForFunction(()=>document.querySelectorAll('#report-body tr.report-row').length===6);
+ assert.equal(await page.locator('#act-body tr').count(),0);assert.equal(await page.locator('#activity-log-panel').isVisible(),false);
+ await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>dailyReportsData.length===3&&dailyReportsData.every(r=>r.project==='Alpha'));
+ await page.locator('#eos-clear-scope').click();await page.waitForFunction(()=>dailyReportsData.length===6);
+ await page.locator('#drawer .drawer-nav-item[href="./eos.html"]').click();await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='87 m');
  await page.evaluate(()=>window.navigationMarker='kept');const docCount=documents;
  await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='50 m');
  await nav('reports');await waitReport('50.0 m');assert.match(await text('eos-period-metrics'),/Cored\s*30.0.*Chipped.*20.0/s);
@@ -61,6 +66,11 @@ try{
  assert.equal(await page.locator('#eos-period-projects tr').count(),0);await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-projects tr').length===3);
  await page.locator('#eos-contractor-filter').selectOption('DEPCO Drilling');await waitReport('900.0 m');assert.equal(await text('eos-period-contractor'),'DEPCO Drilling');
  await page.locator('#eos-contractor-filter').selectOption('MCC Group');await waitReport('8.0 h');assert.equal(await page.locator('#eos-period-register tr').count(),1);
+ await nav('activities');await page.waitForFunction(()=>document.querySelectorAll('#report-body tr.report-row').length===1&&document.querySelectorAll('#mcc-weekly-report-body tr').length===1);
+ assert.equal(await page.locator('#mcc-weekly-report-panel').isVisible(),true);assert.match(await text('report-register-title'),/MCC/);assert.equal(await page.locator('#act-body tr').count(),0);
+ await page.locator('#eos-contractor-filter').selectOption('DEPCO Drilling');await page.waitForFunction(()=>dailyReportsData.length===1&&dailyReportsData[0].metres===900);
+ assert.equal(await page.locator('#mcc-weekly-report-panel').isVisible(),false);
+ await nav('reports');await waitReport('900.0 m');
  await page.locator('#eos-contractor-filter').selectOption('Mitchells Drilling');await waitReport('87.0 m');
  delayNext=true;await page.locator('#page-reports').getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>document.getElementById('eos-period-message').textContent.includes('Preparing'));
  await page.locator('#eos-contractor-filter').selectOption('DEPCO Drilling');await waitReport('900.0 m');release();await page.waitForTimeout(150);assert.match(await text('eos-period-narrative'),/^900.0 m/);

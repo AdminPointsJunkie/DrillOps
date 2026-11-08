@@ -14,7 +14,6 @@ const WORKSPACE_PAGES = {
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}
 function routeWorkspacePage(page){
  if(page==='production'){if(WORKSPACE_APP==='eos')drawerNav(document.querySelector('.drawer-nav-item[data-page="reports"]'));else window.location.assign('./eos.html?view=reports');return true;}
- if(WORKSPACE_APP==='eos'&&page==='activities'&&!eosRawLogsEnabled){drawerNav(document.querySelector('.drawer-nav-item[data-page="settings"]'));return true;}
  if(page==='app-home'||WORKSPACE_PAGES[WORKSPACE_APP].includes(page))return false;
  const owner=Object.keys(WORKSPACE_PAGES).find(app=>WORKSPACE_PAGES[app].includes(page));
  if(owner){window.location.assign('./'+owner+'.html?view='+encodeURIComponent(page));return true;}
