@@ -75,3 +75,16 @@ test('other activity categories reconcile to time totals without excluded standb
  assert.deepEqual(s.otherActivities.filter(r=>r.hours>0).map(r=>r.label).sort(),['Crew travel to site','Repairs','Servicing / maintenance','Surface setup / pack-up']);
  assert.equal(s.otherActivities.find(r=>r.label==='New code').missing,1);
 });
+
+test('standby detail entries reconcile to included reasons without duplicate or unpaid rows',()=>{
+ const wet=row({id:1,code:'H_Standby_Wet_Weath',total_time:'1:15',unit_rate:550,line_cost:687.5});
+ const unknown=row({id:2,code:'H_Standby_Wet_Weath',unit_rate:550,line_cost:null});
+ const free=row({id:3,code:'H_Standby_Inspection',total_time:'2:00',unit_rate:0,line_cost:0});
+ const fatigue=row({id:4,code:'H_Standby_Fatigue',total_time:'32:45',line_cost:0});
+ const pending=row({id:5,code:'H_Standby_Water',total_time:'1:00'});
+ const s=m.summarise([wet,wet,unknown,free,fatigue,pending]);
+ assert.deepEqual(s.reasons[0].entries.map(r=>r.id),[1,2]);assert.equal(s.reasons[0].rows,2);assert.equal(s.reasons[0].missing,1);
+ assert.equal(s.reasons.reduce((n,r)=>n+r.hours,0),s.standbyHours);
+ const all=m.summarise([wet,unknown,free,fatigue,pending],{includeNonChargeable:true});
+ assert.deepEqual(all.reasons.flatMap(r=>r.entries).map(r=>r.id).sort(),[1,2,3]);
+});

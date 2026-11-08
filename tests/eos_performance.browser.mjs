@@ -1,6 +1,7 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});
 const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true});
 const common={contractor:'Mitchells Drilling',project:'Alpha',program:'Exploration',date:'2026-10-01',drill_rig:'Rig 1',hole_num:'A1',source_file:'sample-day-1.csv',shift:'Day',total_metres:0};
@@ -41,8 +42,13 @@ try{
  await page.locator('#eos-period-show-charges').check();assert.equal(await page.locator('.eos-shift-charge').count(),4);
  await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});
  assert.equal(await page.locator('.eos-period-register').isVisible(),true);assert.equal(await page.locator('#eos-period-charges-heading').isVisible(),true);
- assert.match(await page.locator('#eos-print-page-style').textContent(),/@top-left.*Production Report.*Mitchells Drilling.*@top-right/s);
- if(process.env.CAPTURE_EOS)await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-production-register.pdf',preferCSSPageSize:true,printBackground:true});
+ assert.equal(await page.locator('.eos-print-frame>thead .eos-document-heading').isVisible(),true);assert.equal(await page.locator('.eos-document-wordmark').innerText(),'DrillOps EOS');
+ if(process.env.CAPTURE_EOS){
+  const pdf=await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-production-register.pdf',preferCSSPageSize:true,printBackground:true});
+  const doc=await getDocument({data:new Uint8Array(pdf)}).promise;
+  for(let i=1;i<=doc.numPages;i++){const items=(await (await doc.getPage(i)).getTextContent()).items,logo=items.find(x=>x.str==='DrillOps');assert.ok(logo&&logo.transform[5]>750,'branded header stays at the top of printed page '+i);}
+  await doc.destroy();
+ }
  await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
  if(process.env.CAPTURE_EOS){
   await page.getByRole('button',{name:'Collapse all',exact:true}).filter({visible:true}).click();await page.getByRole('button',{name:'05 Shift register',exact:true}).click();
