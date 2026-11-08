@@ -53,11 +53,11 @@ assert.equal(await page.locator('.page.active').getAttribute('id'),'page-app-hom
 await page.goto(base+'index.html?return_to=.%2Faccount.html');
 await page.waitForURL('**/account.html');
 await page.waitForFunction(()=>document.getElementById('login-screen')?.style.display==='none');
-assert.equal(await page.locator('.page.active').getAttribute('id'),'page-invoices');
+assert.equal(await page.locator('.page.active').getAttribute('id'),'page-accounts-overview');
 console.log('PASS public homepage, expired session, explicit sign-in and app return link');
 for(const [app,views] of Object.entries({eos:['','reports','activities','settings','production','costing','rates','cost-contracts','importer'],account:['','invoices','purchase-orders','contractors','importer'],project:['','project-dashboard','project-budgets','budget','boreholes','admin']})){
  for(const view of views){errors=[];await page.goto(base+app+'.html'+(view?'?view='+view:''));await page.waitForTimeout(650);
- assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+(app==='eos'&&view==='production'?'reports':view):({account:'page-invoices',project:'page-project-dashboard'}[app]||'page-app-home'));
+ assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+(app==='eos'&&view==='production'?'reports':view):({account:'page-accounts-overview',project:'page-project-dashboard'}[app]||'page-app-home'));
  assert.deepEqual(errors,[],app+' '+view);
  assert.equal(await page.locator('#login-screen').isVisible(),false);
  assert.equal(await page.locator('.app-chooser,.app-choice,.app-tasks,.app-switch').count(),0);
@@ -77,7 +77,7 @@ for(const [app,views] of Object.entries({eos:['','reports','activities','setting
  }
 }
 await page.goto(base+'index.html');
-await page.goto(base+'account.html');
+await page.goto(base+'account.html?view=invoices');
 await page.waitForFunction(()=>document.getElementById('login-screen')?.style.display==='none');
 assert.equal(await page.evaluate(()=>localStorage.getItem('drillops_project')),'Test Project');
 assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('drillops_supabase_session')).access_token),'test-session');

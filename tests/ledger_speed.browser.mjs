@@ -9,7 +9,7 @@ try{
   const data=path==='/mobile/me'?{name:'Sample',role:'System Administrator',management_portal_access:true}:path==='/projects'?[{id:1,client_id:1,name:'Example',year:'2026',program:'Exploration'}]:path==='/clients'?[{id:1,name:'Client'}]:path==='/contractors'?Array.from({length:50},(_,i)=>({name:'Supplier '+i,program:'Exploration'})):path==='/invoice-ledger'?{invoices:[{id:1,invoice_number:'EX-1',project:'Example',program:'Exploration',contractor:'Supplier 0',subtotal:100}],purchase_orders:[]}:[];
   await route.fulfill({json:data});
  });
- const page=await context.newPage();await page.goto('http://localhost:8766/account.html');await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$100.00');
+ const page=await context.newPage();await page.goto('http://localhost:8766/account.html?view=invoices');await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$100.00');
  assert.equal(await page.locator('#workspace-context-btn').count(),0);
  assert.equal(await page.locator('#workspace-gate').isVisible(),false);
  assert.equal(paths.filter(p=>p==='/invoice-ledger').length,1);

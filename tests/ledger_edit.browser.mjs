@@ -15,7 +15,7 @@ try{
   const data=p==='/mobile/me'?{name:'Test',role:'System Administrator',management_portal_access:true}:p==='/projects'?[{id:1,name:'Example',client_id:1,program:'Exploration',year:'2026'}]:p==='/clients'?[{id:1,name:'Client'}]:p==='/contractors'?[{name:'Supplier',program:'Exploration'}]:p==='/invoice-ledger'?{invoices:[invoice],purchase_orders:[{id:1,po_number:'PO-1',project:'Example',program:'Exploration',contractor:'Supplier',po_value:1000}]}:[];
   await route.fulfill({json:data});
  });
- const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://localhost:8766/account.html');await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$100.00');
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://localhost:8766/account.html?view=invoices');await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$100.00');
  await page.locator('#ledger-edit').click();await page.locator('[data-edit=subtotal]').fill('250');await page.locator('[data-edit=gst]').fill('25');
  assert.equal(saves.length,0);assert.equal(await page.locator('#inv-kpi-total').innerText(),'$100.00');assert.equal(await page.locator('#ledger-refresh').isDisabled(),true);
  await page.locator('#ledger-edit').click();await page.waitForFunction(()=>document.querySelector('#inv-kpi-total').textContent==='$250.00');

@@ -53,6 +53,7 @@
     "tag": "Your books. Clear and connected.",
     "copy": "Actual invoices, credit notes and purchase orders in one place.",
     "panels": [
+      "accounts-overview",
       "invoices",
       "reconciliation",
       "purchase-orders",
@@ -60,6 +61,10 @@
       "importer"
     ],
     "nav": [
+      [
+        "accounts-overview",
+        "Overview"
+      ],
       [
         "invoices",
         "Invoice ledger"

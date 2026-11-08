@@ -1469,6 +1469,7 @@ function triggerPageLoad(page){
   if(page==='costing')      loadCosting();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='purchase-orders') loadPOs();
+  if(page==='accounts-overview')loadAccountsOverview();
   if(page==='invoices')     loadInvoices();
   if(page==='reconciliation') loadMonthlyReconciliation();
   if(page==='rates')        initRatesTab();
