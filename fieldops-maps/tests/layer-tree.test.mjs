@@ -48,3 +48,8 @@ test('deleting the final layer prunes its group only',async()=>{
 });
 
 test('loading saved groups removes deleted layer references and empty groups',()=>{assert.deepEqual(normaliseTree([{id:'empty',children:[]},{id:'gone',children:['deleted']},{id:'kept',children:['deleted','live']}],['live']),[{id:'kept',name:'Group',visible:true,collapsed:false,children:['live']}]);});
+
+test('models with labels off do not traverse geometry for point labels',()=>{
+ const layer={eachLayer(){throw Error('Unexpected full model traversal');}};
+ assert.equal(pointLabels(layer,{metadata:{style:{}}},{},{}),0);
+});
