@@ -97,7 +97,7 @@ renderDailyProduction=function(){
  document.getElementById('production-time-chart').innerHTML=unavailable?'':eosTimeChart(summary);
  document.getElementById('production-standby-chart').innerHTML=unavailable?'':eosStandbyChart(summary);
  for(const [id,html] of [['production-performance',eosPerformanceFigures(summary)],['production-rate-chart',eosRateChart(summary)],['production-daily',showTables?eosDailyRows(summary):'']])document.getElementById(id).innerHTML=unavailable?'':html;
- renderEosMoves('production',summary,unavailable);
+ renderEosMoves('production',summary,unavailable);renderEosOtherActivities('production',summary,unavailable);
  productionSet('production-row-count',productionFilteredData.length);renderProductionDetails();
  productionSet('production-generated','Prepared '+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST');
 };
@@ -124,7 +124,7 @@ function eosBarChart(rows,keys=['core','chip','other'],unit='m'){
 }
 function eosTimeChart(s){
  const chartHours=s.displayedHours??s.hours;
- const parts=[{label:'Drilling',hours:s.drillingHours,colour:'#315d49'},{label:'Standby',hours:s.standbyHours,colour:'#c5aa70'},{label:'Site moves',hours:s.movingHours||0,colour:'#7c98ad'},{label:'Other activity',hours:Math.max(0,chartHours-s.drillingHours-s.standbyHours-(s.movingHours||0)),colour:'#cbd2cc'}],circ=2*Math.PI*54;let offset=0;
+ const parts=[{label:'Drilling',hours:s.drillingHours,colour:'#315d49'},{label:'Standby',hours:s.standbyHours,colour:'#c5aa70'},{label:'Site moves',hours:s.movingHours||0,colour:'#7c98ad'},{label:'Other activity',hours:s.otherHours??Math.max(0,chartHours-s.drillingHours-s.standbyHours-(s.movingHours||0)),colour:'#cbd2cc'}],circ=2*Math.PI*54;let offset=0;
  const circles=parts.map(p=>{const length=chartHours?p.hours/chartHours*circ:0,svg='<circle cx="74" cy="74" r="54" fill="none" stroke="'+p.colour+'" stroke-width="17" stroke-dasharray="'+length+' '+(circ-length)+'" stroke-dashoffset="'+(-offset)+'" transform="rotate(-90 74 74)"/>';offset+=length;return svg;}).join('');
  return '<div class="eos-time-chart"><svg viewBox="0 0 148 148" role="img" aria-label="Displayed activity hours"><title>'+parts.map(p=>p.label+': '+productionNumber(p.hours)+' hours').join(', ')+'</title><circle cx="74" cy="74" r="54" fill="none" stroke="#edf1ed" stroke-width="17"/>'+circles+'<text x="74" y="73" text-anchor="middle" class="eos-time-total">'+productionNumber(chartHours)+'</text><text x="74" y="91" text-anchor="middle">displayed hours</text></svg><div>'+parts.map(p=>'<div class="eos-time-key"><i style="background:'+p.colour+'"></i><span>'+p.label+'</span><strong>'+productionNumber(p.hours)+' h</strong></div>').join('')+'</div></div>';
 }
@@ -167,4 +167,10 @@ function eosRateChart(s){
  data.forEach((d,i)=>{if(d.penetration!==null)svg+='<circle cx="'+x(i)+'" cy="'+y(d.penetration)+'" r="3.5" fill="#315d49"><title>'+esc(d.label+': '+productionNumber(d.penetration)+' m / drilling h')+'</title></circle>';if(i%Math.ceil(data.length/12)===0||i===data.length-1)svg+='<text x="'+x(i)+'" y="'+(h-12)+'" text-anchor="middle">'+esc(productionDisplayDate(d.label,true))+'</text>';});
  if(s.penetration!==null)svg+='<path class="eos-average-line" d="M'+left+' '+y(s.penetration)+'H'+(w-right)+'" stroke="#a57b35" stroke-width="2" stroke-dasharray="7 5"/><text class="eos-average-label" x="'+(w-right-4)+'" y="'+Math.max(12,y(s.penetration)-8)+'" text-anchor="end">Period: '+productionNumber(s.penetration)+' m / drilling h</text>';
  return svg+'</svg>';
+}
+
+function renderEosOtherActivities(prefix,summary,unavailable=false){
+ const host=document.getElementById(prefix+'-other-chart');if(!host)return;
+ host.innerHTML=unavailable?'':eosBarChart(summary.otherActivities.filter(r=>r.hours>0),['hours'],'h');
+ productionSet(prefix+'-other-summary',unavailable?'':productionNumber(summary.otherHours)+' h · by recorded activity code');
 }

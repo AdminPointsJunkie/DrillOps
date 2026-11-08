@@ -387,7 +387,7 @@ def get_conn(*, read_only=False):
 # Every non-public request must carry a valid Supabase JWT. The new /mobile
 # routes enforce project/organisation permissions; unscoped legacy routes are
 # restricted to DrillOps system administrators.
-app.include_router(create_eos_weather_router(get_conn))
+app.include_router(create_eos_weather_router())
 app.add_middleware(DrillOpsAuthMiddleware, get_conn=get_conn)
 app.add_middleware(
     CORSMiddleware,

@@ -5,7 +5,7 @@ function renderEosOverviewTime(){
  const summary=EosProduction.summarise(eosOverviewActivityRows,eosStandbyOptions());
  document.getElementById('eos-time-usage').innerHTML=eosTimeChart(summary);document.getElementById('eos-overview-standby').innerHTML=eosStandbyChart(summary);
  document.getElementById('eos-overview-production').innerHTML=productionChart(summary,'eos-overview-chart-status');document.getElementById('eos-overview-rigs').innerHTML=eosBarChart(summary.rigs);
- productionSet('eos-overview-standby-note',eosStandbyNote(summary));productionSet('eos-completed',summary.completedHoles);
+ renderEosOtherActivities('eos-overview',summary);productionSet('eos-overview-standby-note',eosStandbyNote(summary));productionSet('eos-completed',summary.completedHoles);
 }
 let eosOverviewRows=[],eosOverviewStatus='all',eosOverviewRequest=0;
 function eosApproval(report){return (getStoredReportApproval(report.date,reportRecordHole(report),report.sourceFile,report.contractor)||{}).status||'pending';}
@@ -16,7 +16,7 @@ async function loadEosOverview(){
  document.getElementById('eos-scope').textContent=eosScopeLabel();
  message.textContent='Loading recorded shifts…';
  for(const id of ['total','metres','completed','hours','cost'])document.getElementById('eos-'+id).textContent='—';
- document.getElementById('eos-overview-production').innerHTML='';document.getElementById('eos-overview-rigs').innerHTML='';document.getElementById('eos-time-usage').textContent='';eosOverviewActivityRows=[];eosOverviewReady=false;document.getElementById('eos-overview-standby').textContent='';productionSet('eos-overview-standby-note','');
+ document.getElementById('eos-overview-other-chart').innerHTML='';productionSet('eos-overview-other-summary','');document.getElementById('eos-overview-production').innerHTML='';document.getElementById('eos-overview-rigs').innerHTML='';document.getElementById('eos-time-usage').textContent='';eosOverviewActivityRows=[];eosOverviewReady=false;document.getElementById('eos-overview-standby').textContent='';productionSet('eos-overview-standby-note','');
  try{
   const response=await fetch(API+'/activity-report-data?contractor='+encodeURIComponent(activeContractor),{cache:'no-store'});
   if(!response.ok)throw new Error('Reports could not be loaded. Refresh to try again.');

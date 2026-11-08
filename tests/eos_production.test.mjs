@@ -67,3 +67,11 @@ test('fatigue requires a positive recorded charge, even when non-chargeable stan
  assert.equal(all.displayedHours,4);assert.equal(s.hours,38.75);
  for(const r of rows.slice(0,3))assert.equal(m.standbyIncluded(r,{includeNonChargeable:true}),false);
 });
+test('other activity categories reconcile to time totals without excluded standby or site moves',()=>{
+ const rows=[row({id:1,code:'Drill_Core',total_metres:20,total_time:'2:00'}),row({id:2,code:'H_Crew_Travel_On',total_time:'1:00'}),row({id:3,code:'H_Service_Maintenance',total_time:'0:30'}),row({id:4,code:'DEPCO_A_SETUP_PACKUP_SITE_014',total_time:'2:00'}),row({id:5,code:'H_Rig_Move',total_time:'1:30'}),row({id:6,code:'H_Standby_Fatigue',total_time:'3:00',line_cost:0}),row({id:7,code:'H_Standby_Wet_Weath',total_time:'4:00',line_cost:400}),row({id:8,code:'H_Repairs',total_time:'1:00'}),row({id:9,code:'H_New_Code'})];
+ const s=m.summarise(rows,{includeNonChargeable:true});
+ assert.equal(s.otherHours,4.5);assert.equal(s.otherActivities.reduce((a,r)=>a+r.hours,0),s.otherHours);
+ assert.equal(s.drillingHours+s.standbyHours+s.movingHours+s.otherHours,s.displayedHours);
+ assert.deepEqual(s.otherActivities.filter(r=>r.hours>0).map(r=>r.label).sort(),['Crew travel to site','Repairs','Servicing / maintenance','Surface setup / pack-up']);
+ assert.equal(s.otherActivities.find(r=>r.label==='New code').missing,1);
+});

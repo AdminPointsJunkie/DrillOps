@@ -61,12 +61,11 @@ function renderEosPeriodReport(){
  document.getElementById('eos-period-production-chart').hidden=!drilling;document.getElementById('eos-period-performance-section').hidden=!drilling;
  prepareEosWeather(s);
  document.getElementById('eos-period-chart').innerHTML=productionChart(s,'eos-period-chart-status');
- for(const [id,rows,keys,unit] of [['eos-period-rig-chart',s.rigs,drilling?undefined:['hours'],drilling?'m':'h'],['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
+ for(const [id,rows,keys,unit] of [['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
  document.getElementById('eos-period-time-chart').innerHTML=eosTimeChart(s);
  document.getElementById('eos-period-standby-chart').innerHTML=eosStandbyChart(s);
  document.getElementById('eos-period-performance').innerHTML=eosPerformanceFigures(s);document.getElementById('eos-period-rate-chart').innerHTML=eosRateChart(s);document.getElementById('eos-period-daily').innerHTML=showTables?eosDailyRows(s):'';
- productionSet('eos-period-standby-note',eosStandbyNote(s));renderEosMoves('eos-period',s);
- document.getElementById('eos-period-rigs').innerHTML=showTables?productionSummaryRows(s.rigs):'';
+ productionSet('eos-period-standby-note',eosStandbyNote(s));renderEosOtherActivities('eos-period',s);
  document.getElementById('eos-period-projects').innerHTML=showTables?productionSummaryRows(s.projects):'';
  productionSet('eos-period-standby-summary',n(s.standbyHours)+' hours'+(s.standbyPercent===null?'':', '+n(s.standbyPercent)+'% of displayed activity time')+'.'+(s.missingStandbyTime?' '+s.missingStandbyTime+' standby entries have no usable duration.':''));
  document.getElementById('eos-period-standby').innerHTML=!showTables?'':s.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+n(r.hours)+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="3">No standby recorded.</td></tr>';
