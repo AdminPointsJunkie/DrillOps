@@ -16,3 +16,10 @@ test('backdated alternating swings have one person on daily from May 19 and pres
  const a={...roster,effective_from:'2026-05-19',anchor_date:'2026-11-05'},b={...a,id:2,person:'Geo B',anchor_date:'2026-11-12'};
  for(const month of ['2026-05','2026-06','2026-11']){const m=days.build([a,b],[],month,'Fortem','');for(let i=0;i<m.dates.length;i++)assert.equal(m.people.reduce((sum,p)=>sum+p.cells[i].units,0),m.dates[i]<'2026-05-19'?0:1);}
 });
+test('historical allocations stay saved when rig records change and future days remain unallocated',()=>{
+ const r={...roster,allocation_default:'unallocated',follow_contractor:'',follow_rig:''};
+ const entry={...r,work_date:'2026-11-01',status:'Planned',units:1,allocation_locked:true,allocated_project_id:2,allocation_site:'Saved site'};
+ const m=days.build([r],[entry],'2026-11','Fortem','',[{date:'2026-11-01',contractor:'Mitchells Drilling',drill_rig:'1218',project_id:3,site:'Changed site'}]);
+ assert.equal(m.people[0].cells[0].allocation,2);assert.equal(m.people[0].cells[0].sites,'Saved site');assert.equal(m.people[0].cells[1].allocation,null);
+ assert.equal(days.build([r],[entry],'2026-11','Fortem',2).planned,1600);
+});

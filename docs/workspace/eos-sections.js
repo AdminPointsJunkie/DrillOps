@@ -21,7 +21,7 @@ for(const page of document.querySelectorAll('#page-app-home,#page-production,#pa
   const button=document.createElement('button');button.type='button';button.className='btn-ghost';button.textContent=expanded?'Expand all':'Collapse all';
   button.addEventListener('click',()=>sections.filter(s=>s.classList.contains('eos-collapsible')).forEach(s=>setEosSectionExpanded(s,expanded)));toolbar.append(button);
  }
- if(page.id!=='page-app-home'){const note=document.createElement('small');note.textContent='Print includes expanded sections.';toolbar.append(note);}
+
  const anchor=page.id==='page-reports'?page.querySelector('#eos-period-document'):page.id==='page-app-home'?page.querySelector('.eos-workspace-grid'):page.querySelector('.production-panel');
  anchor.before(toolbar);
 }

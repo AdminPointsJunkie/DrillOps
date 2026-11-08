@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS day_rate_days (
 CREATE UNIQUE INDEX IF NOT EXISTS day_rate_days_identity ON day_rate_days(project_id,lower(trim(contractor)),lower(trim(person)),work_date);
 ALTER TABLE day_rate_rosters ADD COLUMN IF NOT EXISTS follow_contractor TEXT NOT NULL DEFAULT '';
 ALTER TABLE day_rate_rosters ADD COLUMN IF NOT EXISTS follow_rig TEXT NOT NULL DEFAULT '';
+ALTER TABLE day_rate_rosters ADD COLUMN IF NOT EXISTS allocation_default TEXT NOT NULL DEFAULT 'project';
+ALTER TABLE day_rate_days ADD COLUMN IF NOT EXISTS allocation_locked BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE day_rate_days ADD COLUMN IF NOT EXISTS allocated_project_id INTEGER REFERENCES projects(id);
+ALTER TABLE day_rate_days ADD COLUMN IF NOT EXISTS allocation_site TEXT NOT NULL DEFAULT '';
 ALTER TABLE lab_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lab_samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE day_rate_rosters ENABLE ROW LEVEL SECURITY;
@@ -185,7 +189,7 @@ def create_tracking_router(get_conn):
                     v.update(project_id=pid,tests=Json(tests),projected_cost=total);row=persist(cur,'lab_samples',v,rid);audit(cur,row,'lab_sample');return row
         except UniqueViolation:raise HTTPException(409,'This sample ID already exists in the project.')
 
-    @router.get('/day-rate-tracking', description='Includes dated rig project and site allocations.')
+    @router.get('/day-rate-tracking', description='Includes editable daily project allocations and saved historical locations.')
     def day_rates(request:Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -206,6 +210,9 @@ def create_tracking_router(get_conn):
         p=await payload(request);pid=integer(p.get('project_id'));rid=integer(p['id']) if p.get('id') else None
         v={k:text(p,k,True,200) for k in ['contractor','person']}
         v.update(follow_contractor=text(p,'follow_contractor',False,200),follow_rig=text(p,'follow_rig',False,200))
+        if 'allocation_default' in p:
+            if p['allocation_default'] not in {'project','unallocated'}:raise HTTPException(400,'Invalid default allocation.')
+            v['allocation_default']=p['allocation_default']
         if bool(v['follow_contractor'])!=bool(v['follow_rig']):raise HTTPException(400,'Choose a contractor and rig to follow.')
         v.update(project_id=pid,effective_from=day(p.get('effective_from'),True),effective_to=day(p.get('effective_to')),anchor_date=day(p.get('anchor_date'),True),days_on=integer(p.get('days_on'),1,90),days_off=integer(p.get('days_off'),0,90),day_rate=amount(p.get('day_rate')).quantize(Decimal('0.01')))
         if v['effective_to'] and v['effective_to']<v['effective_from']:raise HTTPException(400,'End date must follow the effective date.')
@@ -227,10 +234,14 @@ def create_tracking_router(get_conn):
         if status not in {'Planned','Worked','Not working'}:raise HTTPException(400,'Choose a day status.')
         v.update(project_id=pid,status=status,work_date=day(p.get('work_date'),True),units=amount(p.get('units'),'2'),day_rate=amount(p.get('day_rate')).quantize(Decimal('0.01')),notes=text(p,'notes',False,4000))
         if status=='Not working':v['units']=Decimal(0)
+        if 'allocation_locked' in p:
+            if not isinstance(p['allocation_locked'],bool):raise HTTPException(400,'Invalid allocation setting.')
+            v.update(allocation_locked=p['allocation_locked'],allocated_project_id=integer(p['allocated_project_id']) if p.get('allocated_project_id') else None,allocation_site=text(p,'allocation_site',False,2000))
         try:
             with get_conn() as conn:
                 with conn.cursor() as cur:
                     access(cur,request,pid)
+                    if v.get('allocated_project_id'):access(cur,request,v['allocated_project_id'])
                     if rid:existing(cur,'day_rate_days',rid,p.get('revision'),pid)
                     row=persist(cur,'day_rate_days',v,rid);audit(cur,row,'day_rate_day');return row
         except UniqueViolation:raise HTTPException(409,'A day entry already exists. Refresh and edit that entry.')
