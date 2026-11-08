@@ -17,7 +17,7 @@ await context.route('http://localhost:8000/**',async route=>{
 const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 const nav=view=>page.locator('#drawer [data-page="'+view+'"]').click();
 const rawRows=()=>page.locator('#act-body tr,#con-body tr,#crew-body tr').count();
-const reportRows=()=>page.locator('#eos-period-document tbody:not(#eos-period-register) tr').count();
+const reportRows=()=>page.locator('#eos-period-document .eos-period-data-table tbody tr').count();
 try{
  // The core PLOD register opens directly; raw activity tables remain opt-in.
  await page.goto('http://localhost:8766/eos.html?view=activities');

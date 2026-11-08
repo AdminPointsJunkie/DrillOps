@@ -142,7 +142,7 @@
     if(status==='unconfirmed'){total.unconfirmedStandbyHours+=h||0;total.unconfirmedStandbyRows++;}
     if(!included)total.excludedStandbyHours+=h||0;
     else{
-     const item=add(reasons,reason,reason);item.hours+=h||0;item.rows++;item.missing=(item.missing||0)+(h===null?1:0);
+     const item=add(reasons,reason,reason);(item.entries??=[]).push(r);item.hours+=h||0;item.rows++;item.missing=(item.missing||0)+(h===null?1:0);
      const key=status==='chargeable'?'chargeableHours':'nonChargeableHours';item[key]=(item[key]||0)+(h||0);
     }
    }

@@ -18,7 +18,7 @@ function loadEosReportTables(){
 function unloadEosRawLogs(){
  eosRawLogsEnabled=false;activitiesRequestSequence++;
  document.getElementById('eos-period-show-tables').checked=false;
- document.querySelectorAll('#act-body,#con-body,#crew-body,#mcc-personnel-body,#mcc-weekly-audit-body,#eos-period-document tbody:not(#eos-period-register)').forEach(el=>el.replaceChildren());
+ document.querySelectorAll('#act-body,#con-body,#crew-body,#mcc-personnel-body,#mcc-weekly-audit-body,#eos-period-document .eos-period-data-table tbody').forEach(el=>el.replaceChildren());
  document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=true);
  document.getElementById('activity-log-panel')?.classList.add('collapsed');
  activityMissingCodesOnly=false;updateMissingCodeButton();

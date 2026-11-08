@@ -41,7 +41,7 @@ function renderEosPeriodReport(){
  productionSet('eos-period-message',eosPeriodLoading?'Preparing operations report…':error);
  document.getElementById('eos-period-print').disabled=!!unavailable;
  document.getElementById('eos-period-document').hidden=!!unavailable;
- if(unavailable){eosPeriodSummary=null;document.getElementById('eos-print-page-style')?.remove();clearEosWeather();return;}
+ if(unavailable){eosPeriodSummary=null;renderEosStandbyDetails(null,false);document.getElementById('eos-print-page-style')?.remove();clearEosWeather();return;}
  const rows=eosPeriodRows.filter(r=>{const date=EosProduction.date(r.date);return date&&(!from||date>=from)&&(!to||date<=to)&&(!rig||String(r.drill_rig||'Not recorded').trim()===rig);});
  const options={...eosStandbyOptions(eosPeriodRows),completionEvents:EosProduction.completionEvents(eosPeriodRows)};
  const s=EosProduction.summarise(rows,options);eosPeriodSummary=s;
@@ -65,6 +65,7 @@ function renderEosPeriodReport(){
  for(const [id,rows,keys,unit] of [['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
  document.getElementById('eos-period-time-chart').innerHTML=eosTimeChart(s);
  document.getElementById('eos-period-standby-chart').innerHTML=eosStandbyChart(s);
+ renderEosStandbyDetails(s,showCharges);
  document.getElementById('eos-period-performance').innerHTML=eosPerformanceFigures(s);document.getElementById('eos-period-rate-chart').innerHTML=eosRateChart(s);document.getElementById('eos-period-daily').innerHTML=showTables?eosDailyRows(s):'';
  productionSet('eos-period-standby-note',eosStandbyNote(s));renderEosOtherActivities('eos-period',s);
  document.getElementById('eos-period-projects').innerHTML=showTables?productionSummaryRows(s.projects):'';
@@ -74,9 +75,15 @@ function renderEosPeriodReport(){
  productionSet('eos-period-generated','Prepared '+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST');
 }
 printPeriodReport=function(){if(!eosPeriodSummary)return;prepareEosPrint();window.print();};
-function prepareEosPrint(){if(isPageActive('reports')&&eosPeriodSummary){document.body.classList.add('eos-period-print');updateEosPrintHeader();document.getElementById('eos-print-page-style').media='print';}}
+let eosPrintScroll=null;
+function prepareEosPrint(){if(isPageActive('reports')&&eosPeriodSummary){
+ const main=document.querySelector('main');
+ if(!eosPrintScroll)eosPrintScroll={x:window.scrollX,y:window.scrollY,mainX:main.scrollLeft,mainY:main.scrollTop};
+ main.scrollTo(0,0);window.scrollTo(0,0);
+ document.body.classList.add('eos-period-print');updateEosPrintHeader();document.getElementById('eos-print-page-style').media='print';
+}}
 window.addEventListener('beforeprint',prepareEosPrint);
-window.addEventListener('afterprint',()=>{document.body.classList.remove('eos-period-print');const style=document.getElementById('eos-print-page-style');if(style)style.media='not all';});
+window.addEventListener('afterprint',()=>{document.body.classList.remove('eos-period-print');const style=document.getElementById('eos-print-page-style');if(style)style.media='not all';if(eosPrintScroll){const position=eosPrintScroll;eosPrintScroll=null;document.querySelector('main').scrollTo(position.mainX,position.mainY);window.scrollTo(position.x,position.y);}});
 
 function toggleEosPeriodTables(){renderEosPeriodReport();document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=!document.getElementById('eos-period-show-tables').checked);}
 
@@ -88,14 +95,9 @@ function eosShiftChargeCell(charge){
  return '<td class="num eos-shift-charge">'+value+(notes.length?'<small>'+esc(notes.join(' · '))+'</small>':'')+'</td>';
 }
 
-// Page-margin content repeats without overlapping the report's flowing content.
-// Use the unnamed page rule for every continuation page; enable it only while printing this report.
-// https://developer.chrome.com/blog/print-margins
+// Repeat the actual branded HTML header through the print table's header group.
+// Page margins reserve paper space only; the header keeps its screen typography and layout.
 function updateEosPrintHeader(){
- const quote=value=>'"'+String(value).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\n\r\f]/g,' ')+'"';
- const text=id=>document.getElementById('eos-period-'+id).textContent;
- const lines=values=>values.map(quote).join(' "\\A " ');
  let style=document.getElementById('eos-print-page-style');if(!style){style=document.createElement('style');style.id='eos-print-page-style';style.media='not all';document.head.append(style);}
- const common='white-space:pre-line;vertical-align:middle;padding-bottom:2mm;margin-bottom:3mm;border-bottom:1px solid #315d49;color:#26352d;width:50%;';
- style.textContent='@page{size:A4 portrait;margin:30mm 12mm 14mm;@top-left{content:'+lines(['DrillOps EOS · Production Report',text('contractor'),text('context')])+';'+common+'font:600 10px/1.5 Arial,sans-serif;text-align:left;}@top-right{content:'+lines([text('dates'),text('rigs-label')])+';'+common+'font:400 9px/1.5 Arial,sans-serif;text-align:right;}}';
+ style.textContent='@page{size:A4 portrait;margin:12mm 12mm 14mm;}';
 }
