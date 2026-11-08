@@ -8489,6 +8489,16 @@ def get_invoice_ledger(project: str = Query(""), program: str = Query("")):
             return dict(cur.fetchone())
 
 
+@app.get("/project-hole-report-data")
+def get_project_hole_report_data(project: str = Query(..., min_length=1), program: str = Query(..., min_length=1)):
+    """Read project EOS production and Accounts invoice evidence for budget reconciliation."""
+    from project_hole_report_read import REPORT_SQL
+    with get_conn(read_only=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(REPORT_SQL, {"project": project, "program": program})
+            return dict(cur.fetchone())
+
+
 @app.get("/invoices")
 def get_invoices(
     contractor: str = Query(...),
