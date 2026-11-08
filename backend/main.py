@@ -36,6 +36,7 @@ from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
+from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from exploration_metres import summarize_exploration_metres
 from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
@@ -1437,6 +1438,7 @@ def init_db():
 init_db()
 ensure_dar_schema(get_conn)
 ensure_training_schema(get_conn)
+ensure_tracking_schema(get_conn)
 
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def note_field_value(text, label):
@@ -12042,3 +12044,4 @@ from mobile_api import create_mobile_router
 app.include_router(create_mobile_router(get_conn))
 app.include_router(create_admin_router(get_conn))
 app.include_router(create_training_router(get_conn))
+app.include_router(create_tracking_router(get_conn))

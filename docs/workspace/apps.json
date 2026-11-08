@@ -7,6 +7,7 @@
       "reports",
       "activities",
       "report-calendar",
+      "day-rates",
       "costing",
       "rates",
       "cost-contracts",
@@ -21,6 +22,10 @@
       [
         "report-calendar",
         "Report calendar"
+      ],
+      [
+        "day-rates",
+        "Day-rate contractors"
       ],
       [
         "reports",
@@ -97,6 +102,7 @@
       "budget",
       "boreholes",
       "drilling-schedule",
+      "labs",
       "reports",
       "admin"
     ],
@@ -116,6 +122,10 @@
       [
         "drilling-schedule",
         "Rig scheduler"
+      ],
+      [
+        "labs",
+        "Labs"
       ],
       [
         "budget",
