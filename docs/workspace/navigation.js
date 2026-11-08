@@ -1,7 +1,7 @@
 /* App boundaries and navigation. Authentication and project selection stay shared. */
 const WORKSPACE_APP = document.body.dataset.workspaceArea || 'eos';
 let eosRawLogsEnabled=false;
-const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling','MCC Group']);
+const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling']);
 function contractorsForApp(rows, field='name'){
  const list=Array.isArray(rows)?rows:[];
  return WORKSPACE_APP==='eos'?list.filter(row=>EOS_CONTRACTOR_NAMES.has(row[field])):list;

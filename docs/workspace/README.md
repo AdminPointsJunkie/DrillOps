@@ -10,7 +10,7 @@ Each app document contains only its own page panels and its own navigation. Cros
 
 The shared session key and API origin are unchanged. Account and Project keep their client/project/program selection keys. EOS saves optional viewing filters separately in sessionStorage.drillops_eos_view_scope; imports require an explicit destination project ID and program. No database copies, schema changes or new access privileges are introduced. Management access is still verified before app initialization; non-management accounts retain their field portal route. Never put tokens in app links.
 
-EOS's contractor choices are restricted to Mitchells Drilling, DEPCO Drilling and MCC Group, with one contractor selected at a time. EOS defaults to all projects and can filter project and program without changing contractor. Both cached contractor choices and project-linked contractor responses are scoped for EOS; the full supplier cache remains available to Account and Project. No supplier records are deleted.
+EOS's contractor choices are restricted to Mitchells Drilling and DEPCO Drilling, with one contractor selected at a time. EOS defaults to all projects and can filter project and program without changing contractor. Both cached contractor choices and project-linked contractor responses are scoped for EOS; a previously selected MCC session falls back to an allowed contractor before report requests start. The full supplier cache remains available to Account and Project. No supplier records are deleted.
 
 ## Editing
 

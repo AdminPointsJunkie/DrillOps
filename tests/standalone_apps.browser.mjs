@@ -65,11 +65,11 @@ for(const [app,views] of Object.entries({eos:['','reports','activities','setting
  if(app==='project')assert.equal(await page.locator('#drawer a[href="./training.html"]').count(),1);
  if(app==='account')assert.equal(await page.locator('#page-activities').count(),0);
  if(app==='eos'&&!view){
-  assert.deepEqual(await page.locator('#eos-contractor-filter option').allTextContents(),['Mitchells Drilling','DEPCO Drilling','MCC Group']);
+  assert.deepEqual(await page.locator('#eos-contractor-filter option').allTextContents(),['Mitchells Drilling','DEPCO Drilling']);
   assert.equal(await page.evaluate(()=>reportDrillingContractor()==='Allianz Drilling'),false);
   assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('drillops_contractors')).some(c=>c.name==='Test Supplier')),true);
  }
- if(app==='account'&&!view)assert.equal(await page.evaluate(()=>CONTRACTORS.some(c=>c.name==='Test Supplier')&&CONTRACTORS.some(c=>c.name==='Allianz Drilling')),true);
+ if(app==='account'&&!view)assert.equal(await page.evaluate(()=>CONTRACTORS.some(c=>c.name==='Test Supplier')&&CONTRACTORS.some(c=>c.name==='Allianz Drilling')&&CONTRACTORS.some(c=>c.name==='MCC Group')),true);
  if(app==='eos')assert.equal(await page.locator('#page-invoices').count(),0);
  if(app==='eos'&&!view){await page.waitForFunction(()=>document.getElementById('eos-total').textContent==='1');assert.equal(await page.locator('#eos-metres').innerText(),'24 m');}
  if(app==='eos'&&view==='activities'){await page.waitForFunction(()=>document.querySelectorAll('#report-body tr.report-row').length===1);assert.equal(await page.locator('#act-body tr').count(),0);assert.equal(await page.locator('#activity-log-panel').isVisible(),false);await page.locator('#eos-plod-status').selectOption('approved');assert.equal(await page.locator('#report-body tr.report-row:visible').count(),0);await page.locator('#eos-plod-status').selectOption('pending');assert.equal(await page.locator('#report-body tr.report-row:visible').count(),1);}
