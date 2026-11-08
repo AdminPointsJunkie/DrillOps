@@ -7,7 +7,30 @@ from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report, normalise_ocr_date
+from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report, normalise_ocr_date, normalise_depco_rig
+
+
+class DepcoRigTests(unittest.TestCase):
+    def test_confirmed_programs_override_missing_or_misread_rigs(self):
+        for program, expected in [('Exploration','DR17'),('Gas Riser','DR28'),(' gas  RISER ','DR28')]:
+            for rig in [None,'','11','17','20','23','25','26','28','33','38','DR17','DR28']:
+                self.assertEqual(normalise_depco_rig('DEPCO Drilling',program,rig),expected)
+
+    def test_other_contractors_and_unknown_programs_are_not_guessed(self):
+        self.assertEqual(normalise_depco_rig('Mitchells Drilling','Exploration','IB652C'),'IB652C')
+        for program in [None,'','SIS','Other']:
+            self.assertEqual(normalise_depco_rig('DEPCO Drilling',program,'28'),'28')
+
+    def test_import_scope_changes_rig_without_altering_activity_measures(self):
+        tree=ast.parse((Path(__file__).parent/'main.py').read_text(encoding='utf-8'))
+        scope=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='apply_import_activity_scope')
+        env={'normalise_depco_rig':normalise_depco_rig}
+        exec(compile(ast.Module(body=[scope],type_ignores=[]),'scope','exec'),env)
+        original={'drill_rig':'23','program':'Gas Riser','project':'Ironbark','total_metres':12.5,'total_time':'2:30','line_cost':1450,'code':'H_Active'}
+        result=env['apply_import_activity_scope']([dict(original)],'DEPCO Drilling','Gas Riser','Ironbark','')[0]
+        self.assertEqual(result,{**original,'drill_rig':'DR28'})
+        result=env['apply_import_activity_scope']([dict(original)],'Mitchells Drilling','Gas Riser','Ironbark','')[0]
+        self.assertEqual(result,original)
 
 
 class DepcoRatesTests(unittest.TestCase):
@@ -253,8 +276,11 @@ class DepcoSuggestionTests(unittest.TestCase):
 
     def test_preview_recomputes_posted_prices_and_selects_suggested_code(self):
         cur=MagicMock();cur.fetchall.side_effect=[[{'id':1}],catalogue('A')]
-        data={'date':'26/09/2026','activities':[{'comments':'Set up rig','total_time':2,'pricing':{'line_cost':99999}}]}
+        data={'date':'26/09/2026','rig_no':'11','drill_rig':'Trailer 5','activities':[{'comments':'Set up rig','total_time':2,'pricing':{'line_cost':99999}}]}
         result,_=preview_depco_ocr(cur,data,'DEPCO Drilling','CD','Exploration')
+        self.assertEqual(result['rig_no'],'DR17')
+        self.assertEqual(result['drill_rig'],'Trailer 5')
+        self.assertEqual(data['rig_no'],'11')
         self.assertEqual(result['activities'][0]['pricing']['line_cost'],1261)
         self.assertEqual(result['activities'][0]['code'],result['activities'][0]['pricing']['code'])
         self.assertFalse(any('UPDATE' in c.args[0] or 'INSERT' in c.args[0] for c in cur.execute.call_args_list))
@@ -335,8 +361,10 @@ class DepcoOcrImportTests(unittest.TestCase):
         cur=MagicMock();conn=MagicMock();conn.cursor.return_value.__enter__.return_value=cur
         get_conn=MagicMock();get_conn.return_value.__enter__.return_value=conn
         batch=MagicMock()
-        def scope(rows,contractor,program,project,client):
-            return [{**r,'program':program,'project':project,'client':client} for r in rows]
+        scope_node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='apply_import_activity_scope')
+        scope_env={'normalise_depco_rig':normalise_depco_rig}
+        exec(compile(ast.Module(body=[scope_node],type_ignores=[]),'scope','exec'),scope_env)
+        scope=scope_env['apply_import_activity_scope']
         def suggest(cur,rows,contractor):
             self.assertEqual(contractor,'DEPCO Drilling')
             return [{**r,**suggest_depco_activity(r,catalogue('A'))} for r in rows]
@@ -353,6 +381,7 @@ class DepcoOcrImportTests(unittest.TestCase):
         result=asyncio.run(env['import_ocr_pdf'](file,'Allianz Drilling','Exploration','CD','Argo',json.dumps(data)))
         saved=batch.call_args.args[2][0]
         self.assertEqual(saved['metres_from'],0)
+        self.assertEqual(saved['drill_rig'],'DR17')
         self.assertEqual(saved['line_cost'],380)
         self.assertEqual((saved['project'],saved['program'],saved['client']),('CD','Exploration','Argo'))
         self.assertTrue(saved['code'].startswith('DEPCO_A_'))

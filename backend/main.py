@@ -37,7 +37,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
-from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, SCOPES as DEPCO_SCOPES
+from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
     MCC_RATE_TABLE,
@@ -4272,6 +4272,8 @@ def apply_import_activity_scope(
             row["project"] = None
         if selected_client:
             row["client"] = selected_client
+        if contractor == "DEPCO Drilling":
+            row["drill_rig"] = normalise_depco_rig(contractor, program, row.get("drill_rig"))
     return rows
 
 
@@ -11663,6 +11665,7 @@ Extract ALL data from this image into a JSON object with these exact fields:
 }
 
 IMPORTANT RULES:
+- Rig No. and Rod Trailer No. are separate fields. Never use the trailer number as the rig number.
 - Read the DRILLING section table carefully - each row has: COMMENTS, TIME FROM, TIME TO, TOTAL TIME, METERS FROM, METERS TO, TOTAL METERS
 - Times are in 24hr format (e.g. 0530 means 05:30, 1415 means 14:15)
 - Total Time is usually in fractions like 2, 1/2, 3/4 etc. Convert: 1/2=0:30, 1/4=0:15, 3/4=0:45
@@ -11770,7 +11773,7 @@ async def import_ocr_pdf(
     client: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
-    """Import a handwritten drill log PDF using reviewed or fresh OpenAI OCR data."""
+    """Import a reviewed or fresh OCR drill log. DEPCO rig mapping: Exploration = DR17; Gas Riser = DR28."""
     filename = file.filename
     content = await file.read()
     if is_depco_report(filename):

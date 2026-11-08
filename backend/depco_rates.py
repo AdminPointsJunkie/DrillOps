@@ -16,6 +16,14 @@ def is_depco_report(filename):
     return bool(re.search(r'(^|[^a-z0-9])depco(?=$|[^a-z0-9])', str(filename or ''), re.I))
 
 
+def normalise_depco_rig(contractor, program, rig):
+    """Use the owner's confirmed program/rig mapping; leave unknown scopes alone."""
+    if str(contractor or '').strip().lower() != 'depco drilling':
+        return rig
+    program_key = ' '.join(str(program or '').lower().split())
+    return {'exploration': 'DR17', 'gas riser': 'DR28'}.get(program_key, rig)
+
+
 def normalise_ocr_date(value):
     """Interpret report dates day-first, and store a consistent display format."""
     text=str(value or '').strip()
@@ -291,6 +299,7 @@ async def enrich_depco_preview(data, lines, generate):
 
 def preview_depco_ocr(cur, data, contractor, project, program):
     """Recompute preview prices from current text; never trust posted prices."""
+    data = {**data, 'rig_no': normalise_depco_rig(contractor, program, data.get('rig_no'))}
     lines=contract_rates(cur,contractor,project,program) or []
     activities=[]
     for activity in data.get('activities',[]):
