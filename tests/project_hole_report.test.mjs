@@ -14,9 +14,9 @@ test('reconciles original active plan, EOS work and net invoice actuals independ
  const c=m.contractors.find(r=>r.name==='Mitchells Drilling');assert.equal(c.budget,600);assert.equal(c.eos,450);assert.equal(c.invoiced,350);assert.equal(c.invoiceLessEos,-100);
 });
 test('reinstatement restores the original hole allocation without changing actuals',()=>{const m=run({planner:planner.map(p=>({...p,status:'Planned',budget_total:99999}))});assert.equal(m.plannedBudget,2000);assert.equal(m.remainingBudget,-200);assert.equal(m.invoiced,350);});
-test('strict project, program and year isolation; billing month takes precedence',()=>{
+test('project invoice totals include older billing periods while EOS dates stay scoped',()=>{
  const m=run({evidence:{...evidence,activities:[row,{...row,id:3,project:'Other'},{...row,id:4,program:'Gas Riser'},{...row,id:5,date:'2025-03-01'}],invoices:[invoice,{...invoice,id:2,program:'Gas Riser'},{...invoice,id:3,project:'Other'},{...invoice,id:4,billing_month:'2025-12'}]}},{from:'2026-03-01',to:'2026-03-31'});
- assert.equal(m.eosTotal,450);assert.equal(m.invoiced,350);assert.equal(m.production.metres,40);assert.equal(run({}, {from:'2026-04-01',to:'2026-04-30'}).invoiced,0);
+ assert.equal(m.eosTotal,450);assert.equal(m.invoiced,700);assert.equal(m.production.metres,40);assert.equal(run({}, {from:'2026-04-01',to:'2026-04-30'}).invoiced,350);
 });
 test('unreconciled invoice lines stay project-wide and credits reduce actuals',()=>{
  const m=run({evidence:{...evidence,invoices:[invoice,{...invoice,id:2,subtotal:-50}],invoice_lines:[{invoice_id:1,hole_num:'HOLE-A',amount:9999},{invoice_id:2,hole_num:'HOLE-A',amount:-50}]}});
@@ -27,7 +27,7 @@ test('unmapped and ambiguous hole evidence is never duplicated or allocated by g
 });
 test('missing prices, missing invoice dates, and unknown program are visible',()=>{
  const m=run({evidence:{...evidence,activities:[{...row,line_cost:null}],invoices:[{...invoice,subtotal:null},{...invoice,id:2,invoice_date:'',billing_month:''},{...invoice,id:3,program:''}]}});
- assert.equal(m.unpriced,1);assert.equal(m.eosTotal,50);assert.equal(m.invoiceMissing,1);assert.equal(m.invoiced,0);assert.match(m.issues.join(' '),/no subtotal/);assert.match(m.issues.join(' '),/no usable billing month/);assert.match(m.issues.join(' '),/no program/);
+ assert.equal(m.unpriced,1);assert.equal(m.eosTotal,50);assert.equal(m.invoiceMissing,1);assert.equal(m.invoiced,350);assert.match(m.issues.join(' '),/no subtotal/);assert.match(m.issues.join(' '),/no usable billing month/);assert.match(m.issues.join(' '),/no program/);
 });
 test('source amounts and input records are not mutated',()=>{const data={source,planner,evidence},before=JSON.stringify(data);run();assert.equal(JSON.stringify(data),before);});
 test('identifier formatting is normalized, and a multi-hole line remains unallocated',()=>{
