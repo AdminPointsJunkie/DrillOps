@@ -2,8 +2,8 @@
       <div class="period-report">
         <div class="period-report-head">
           <div>
-            <div class="period-report-eyebrow">Operations / Period report</div>
-            <div class="period-report-title">Period Drilling Report</div>
+            <div class="period-report-eyebrow">Project / Hole-by-hole report</div>
+            <div class="period-report-title">Hole-by-hole report</div>
             <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
           </div>
           <div class="period-report-actions">
@@ -11,13 +11,13 @@
             <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
             <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
             <button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button>
-            <button class="btn-secondary" type="button" onclick="printPeriodReport()">Print PDF</button>
+            <button class="btn-secondary" type="button" id="project-hole-print" onclick="printPeriodReport()">Print PDF</button>
           </div>
         </div>
-        <div class="period-report-body">
+        <div class="period-report-body" hidden>
           <div class="period-print-header">
             <div>
-              <div class="period-print-title" id="period-print-title">Period Drilling Report</div>
+              <div class="period-print-title" id="period-print-title">Hole-by-hole report</div>
               <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
             </div>
             <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
@@ -32,7 +32,7 @@
           <div class="period-kpis">
             <div class="period-kpi"><div class="label">Holes Completed</div><div class="value" id="period-holes-completed">--</div><div class="sub" id="period-holes-completed-sub">Completed during selected period</div></div>
             <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
-            <div class="period-kpi"><div class="label">Total Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
+            <div class="period-kpi"><div class="label">Hole Plan Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
             <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
             <div class="period-kpi"><div class="label">Recorded Support</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Invoices / support records received</div></div>
             <div class="period-kpi"><div class="label">Recorded Spend</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + recorded support costs</div></div>

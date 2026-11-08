@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-approved1">
+<link rel="stylesheet" href="./workspace/project-budget-ledger.css?v=20261108-ledger1"><link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-report1">
 <link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
@@ -119,7 +119,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Project management</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Dashboard</span></button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Borehole planning & map</span></button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Budget planning</span></button><a class="drawer-nav-item" href="./training.html"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Training matrix</span></a></div><div class="drawer-section project-settings-section"><div class="drawer-section-title">Settings</div><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Projects</span></button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Users & change log</span></button></div>
+    <div class="drawer-section"><div class="drawer-section-title">Project management</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Dashboard</span></button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Borehole planning & map</span></button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Budget planning</span></button><button class="drawer-nav-item" data-page="reports" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6"/></svg><span>Hole-by-hole report</span></button><a class="drawer-nav-item" href="./training.html"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Training matrix</span></a></div><div class="drawer-section project-settings-section"><div class="drawer-section-title">Settings</div><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Projects</span></button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Users & change log</span></button></div>
 
   </div>
 <div class="project-switcher" id="project-switcher">
@@ -319,7 +319,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-dashboard">Dashboard<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a><details class="project-mobile-settings"><summary>Settings</summary><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a></details></nav>
+<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-dashboard">Dashboard<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=reports">Hole-by-hole report<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a><details class="project-mobile-settings"><summary>Settings</summary><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a></details></nav>
 
 
     <!-- Importer -->
@@ -390,13 +390,14 @@
         </div>
         <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
       </div>
-      <div id="project-workbook-budget" hidden></div>
       <div class="kpi-row budget-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div><div class="kpi-sub">Selected workspace total</div></div>
         <div class="kpi"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div><div class="kpi-sub">Drilling contractor allocation</div></div>
         <div class="kpi"><div class="kpi-label">Support / Other</div><div class="kpi-value" id="budget-kpi-support">--</div><div class="kpi-sub">All non-drilling allocations</div></div>
         <div class="kpi"><div class="kpi-label">Budget Lines</div><div class="kpi-value" id="budget-kpi-rows">--</div><div class="kpi-sub">Editable allocation rows</div></div>
       </div>
+      <div id="project-workbook-budget" hidden></div>
+      <details id="budget-manual-section"><summary>Manual project allocations</summary>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="budget-toolbar">
           <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()" disabled></select></div>
@@ -421,6 +422,7 @@
           </table>
         </div>
       </div>
+      </details>
     </section>
 
     <!-- Cost Contracts -->
@@ -458,7 +460,87 @@
 
 
     <!-- Reports -->
-
+    <section class="page" id="page-reports">
+      <div class="period-report">
+        <div class="period-report-head">
+          <div>
+            <div class="period-report-eyebrow">Project / Hole-by-hole report</div>
+            <div class="period-report-title">Hole-by-hole report</div>
+            <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
+          </div>
+          <div class="period-report-actions">
+            <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
+            <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
+            <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
+            <button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button>
+            <button class="btn-secondary" type="button" id="project-hole-print" onclick="printPeriodReport()">Print PDF</button>
+          </div>
+        </div>
+        <div class="period-report-body" hidden>
+          <div class="period-print-header">
+            <div>
+              <div class="period-print-title" id="period-print-title">Hole-by-hole report</div>
+              <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
+            </div>
+            <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
+          </div>
+          <div class="period-section-title">Boreholes In Drilling Period</div>
+          <div class="period-map-card">
+            <div id="period-map" class="period-map"></div>
+            <div id="period-map-print" class="period-map-print" aria-hidden="true"></div>
+            <div id="period-map-empty" class="period-map-empty" style="display:none;">No mapped boreholes in this period.</div>
+          </div>
+          <div class="period-section-title">Headline Figures</div>
+          <div class="period-kpis">
+            <div class="period-kpi"><div class="label">Holes Completed</div><div class="value" id="period-holes-completed">--</div><div class="sub" id="period-holes-completed-sub">Completed during selected period</div></div>
+            <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
+            <div class="period-kpi"><div class="label">Hole Plan Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
+            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
+            <div class="period-kpi"><div class="label">Recorded Support</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Invoices / support records received</div></div>
+            <div class="period-kpi"><div class="label">Recorded Spend</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + recorded support costs</div></div>
+            <div class="period-kpi"><div class="label">Recorded Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs recorded actuals</div></div>
+            <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
+            <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
+            <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
+          </div>
+          <div class="period-reconciliation" id="period-reconciliation" aria-live="polite"></div>
+          <div id="period-drilling-providers" aria-live="polite"></div>
+          <div class="period-section-title period-print-section-start" id="exploration-metres-title">Program Drilling Metres</div>
+          <div class="exploration-metres-grid" id="exploration-metres-summary">
+            <div class="exploration-metres-card">Loading annual drilling metres...</div>
+          </div>
+          <div class="exploration-metres-note" id="exploration-metres-note">Annual actuals are sourced from exploration drilling activity reports; remaining metres are sourced from Borehole Planning.</div>
+          <div class="period-layout">
+            <div>
+              <div class="period-section-title">Cost Breakdown</div>
+              <div id="period-cost-breakdown"></div>
+            </div>
+          </div>
+          <div class="period-section-title period-print-section-start">Project Budget by Contractor</div>
+          <div id="period-support-invoices"></div>
+          <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span>Standby Reasons</span>
+            <button class="btn-csv collapse-btn" type="button" onclick="togglePanel('period-standby-panel','period-standby-toggle-label','detail')"><span class="collapse-arrow">▶</span><span id="period-standby-toggle-label">Show detail</span></button>
+          </div>
+          <div class="collapsible-table collapsed" id="period-standby-panel">
+            <div class="tbl-scroll" style="max-height:260px;">
+              <div id="period-standby-reasons"></div>
+            </div>
+          </div>
+          <div class="period-section-title period-print-section-start">Cost Per Hole &amp; Drilling Performance</div>
+          <div class="period-visual-grid" id="period-hole-graphics"></div>
+          <div class="period-section-title">Hole Detail Table</div>
+          <div class="tbl-scroll" style="max-height:320px;">
+            <table class="period-mini-table">
+              <thead><tr><th>Hole ID</th><th>Purpose</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+              <tbody id="period-hole-body"></tbody>
+            </table>
+          </div>
+          <div class="period-section-title">Exceptions</div>
+          <div class="period-issues" id="period-progress-issues">No period report generated yet.</div>
+        </div>
+      </div>
+    </section>
 
     <!-- Activities -->
 
@@ -694,14 +776,16 @@
 
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=overview1-20261108-calendar1"></script>
+<script src="./workspace/navigation.js?v=20261108-projectreport1"></script>
 <script src="./auth-session.js?v=20261108-session1"></script>
-<script src="./workspace/runtime.js?v=20261108-projectbudget1"></script>
+<script src="./workspace/runtime.js?v=20261108-projectreport1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
+<script src="./workspace/project-budget-ledger-model.js?v=20261108-ledger1"></script>
+<script src="./workspace/project-budget-ledger.js?v=20261108-ledger1"></script>
 <script src="./workspace/project-dashboard-model.js?v=20261108-approved1"></script>
 <script src="./workspace/project-dashboard.js?v=20261108-approved1"></script>
-<script src="./workspace/project-budget-source.js?v=20261108-approved1"></script>
+<script src="./workspace/project-budget-source.js?v=20261108-ledger1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>

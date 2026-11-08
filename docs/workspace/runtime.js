@@ -2812,7 +2812,15 @@ function selectedPeriod(){
   return {from:from,to:to,project:activeProjectName||''};
 }
 
+let periodReportLoadRequest=0;
 async function loadReportsPage(preserveRange){
+  const request=++periodReportLoadRequest;
+  const reportScope=()=>JSON.stringify([activeProjectName,activeProgram,activeClientId,activeProjectYear()]);
+  const scope=reportScope();
+  const reportBody=document.querySelector('#page-reports .period-report-body');
+  const printButton=document.getElementById('project-hole-print');
+  if(WORKSPACE_APP==='project'){if(reportBody)reportBody.hidden=true;if(printButton)printButton.disabled=true;}
+  if(WORKSPACE_APP==='project'&&!activeWorkspaceProject()){setPeriodText('period-report-meta','Choose a project using the bottom-left sidebar selector.');return;}
   const shell=document.getElementById('period-report-meta');
   if(shell)shell.textContent='Loading report data...';
   if(!preserveRange){
@@ -2846,6 +2854,7 @@ async function loadReportsPage(preserveRange){
       fetch(API+'/exploration-metres-summary?year='+encodeURIComponent(reportYear)+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
       fetch(API+'/activities?contractor='+encodeURIComponent('MCC Group')+'&_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];})
     ]);
+    if(request!==periodReportLoadRequest||scope!==reportScope())return;
     applyActivityReportBundle(results[0]);
     periodReportActivitiesData=activitiesData;
     periodReportConsumablesData=consumablesData;
@@ -2859,9 +2868,12 @@ async function loadReportsPage(preserveRange){
     // A previous page may have loaded an older site-ID-only plan. Reloading
     // keeps this report aligned with the current operational-hole mapping.
     await ensureReportBoreholes(true);
+    if(request!==periodReportLoadRequest||scope!==reportScope())return;
     periodSupportInvoicesData=periodSupportInvoicesData.filter(function(r){return !r.project||rowMatchesActiveProgram(r);});
     renderPeriodReport();
+    if(WORKSPACE_APP==='project'){if(reportBody)reportBody.hidden=false;if(printButton)printButton.disabled=false;}
   }catch(e){
+    if(request!==periodReportLoadRequest||scope!==reportScope())return;
     if(shell)shell.textContent='Report data could not be loaded.';
     toast('Report load failed: '+(e.message||e),'err');
   }

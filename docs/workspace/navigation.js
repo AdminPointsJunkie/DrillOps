@@ -9,7 +9,7 @@ function contractorsForApp(rows, field='name'){
 const WORKSPACE_PAGES = {
  eos:['reports','activities','report-calendar','costing','rates','cost-contracts','importer','settings'],
  account:['accounts-overview','invoices','reconciliation','purchase-orders','contractors','importer'],
- project:['project-dashboard','project-budgets','budget','boreholes','admin']
+ project:['project-dashboard','project-budgets','budget','boreholes','reports','admin']
 };
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}
 function routeWorkspacePage(page){

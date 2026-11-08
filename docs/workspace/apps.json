@@ -96,6 +96,7 @@
       "project-budgets",
       "budget",
       "boreholes",
+      "reports",
       "admin"
     ],
     "nav": [
@@ -114,6 +115,10 @@
       [
         "budget",
         "Budget planning"
+      ],
+      [
+        "reports",
+        "Hole-by-hole report"
       ],
       [
         "admin",
