@@ -1,66 +1,12 @@
-<section class="page" id="page-drilling-schedule" hidden aria-hidden="true">
-      <div class="schedule-toolbar">
-        <div>
-          <h2 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.4px;margin:0;">Rig Scheduler</h2>
-          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Rig calendar for planned holes. Click a hole block to edit rig, dates, status, and notes.</div>
-        </div>
-        <div class="schedule-controls">
-          <span class="workspace-scope-note" id="schedule-project-context">Selected at entry</span>
-          <select id="schedule-project-filter" onchange="renderDrillingSchedule()" hidden><option value=""></option></select>
-          <label for="schedule-rig-filter">Rig</label>
-          <select id="schedule-rig-filter" onchange="renderDrillingSchedule()">
-            <option value="">All Rigs</option>
-          </select>
-          <label for="schedule-status-filter">Status</label>
-          <select id="schedule-status-filter" onchange="renderDrillingSchedule()">
-            <option value="">All Status</option>
-            <option value="Planned">Planned</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Complete">Complete</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-          <label for="schedule-from">From</label>
-          <input id="schedule-from" type="date" onchange="renderDrillingSchedule()"/>
-          <label for="schedule-to">To</label>
-          <input id="schedule-to" type="date" onchange="renderDrillingSchedule()"/>
-          <button class="btn-ghost" onclick="loadBoreholes(true)">Refresh</button>
-        </div>
-      </div>
-      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px;">
-        <div class="kpi"><div class="kpi-label">Scheduled Holes</div><div class="kpi-value" id="schedule-kpi-holes">—</div></div>
-        <div class="kpi"><div class="kpi-label">Rigs</div><div class="kpi-value" id="schedule-kpi-rigs">—</div></div>
-        <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value" id="schedule-kpi-projects">—</div></div>
-        <div class="kpi"><div class="kpi-label">Scheduled Days</div><div class="kpi-value" id="schedule-kpi-days">—</div></div>
-        <div class="kpi good"><div class="kpi-label">Complete</div><div class="kpi-value" id="schedule-kpi-complete">—</div></div>
-      </div>
-      <div class="schedule-layout">
-        <div class="schedule-wrap">
-          <div class="schedule-scroll">
-            <div class="schedule-grid" id="schedule-grid"></div>
-          </div>
-        </div>
-        <aside class="schedule-side" id="schedule-detail">
-          <div class="schedule-side-head">
-            <div class="schedule-side-title" id="schedule-detail-title">Select a scheduled hole</div>
-            <div class="schedule-side-sub" id="schedule-detail-sub">Rig and date changes save to the borehole database.</div>
-          </div>
-          <div class="schedule-side-body">
-            <div class="schedule-field"><label>Rig</label><input id="schedule-detail-rig" placeholder="e.g. ADR001"/></div>
-            <div class="schedule-field"><label>Start Date</label><input id="schedule-detail-start" type="date"/></div>
-            <div class="schedule-field"><label>End Date</label><input id="schedule-detail-end" type="date"/></div>
-            <div class="schedule-field"><label>Budgeted Days</label><input id="schedule-detail-days" type="number" min="0.25" step="0.25"/></div>
-            <div class="schedule-field"><label>Status</label>
-              <select id="schedule-detail-status">
-                <option>Planned</option>
-                <option>In Progress</option>
-                <option>Complete</option>
-                <option>Cancelled</option>
-              </select>
-            </div>
-            <div class="schedule-field"><label>Notes</label><textarea id="schedule-detail-notes" placeholder="Scheduler notes"></textarea></div>
-            <button class="btn-primary" onclick="saveScheduleDetail()">Save Schedule</button>
-            <button class="btn-ghost" onclick="openSelectedScheduleBorehole()">Open Borehole Details</button>
-          </div>
-        </aside>
-      </div>
-    </section>
+<section class="page" id="page-drilling-schedule">
+ <div class="rs-heading"><div><div class="rs-eyebrow">PROJECT / PLANNING</div><h1>Rig scheduler</h1><p id="rs-context"></p></div><button class="btn-secondary" onclick="loadDrillingSchedule()">Refresh</button></div>
+ <p id="rs-message" role="status"></p>
+ <div id="rs-content" hidden>
+ <div class="rs-toolbar"><label>Rig<select id="rs-rig" onchange="renderDrillingSchedule()"><option value="">All rigs</option></select></label><label>Status<select id="rs-status" onchange="renderDrillingSchedule()"><option value="">All active holes</option><option>Planned</option><option>In Progress</option><option>Complete</option><option>Cancelled</option><option value="all">Include cancelled</option></select></label><label>From<input id="rs-from" type="date" onchange="renderDrillingSchedule()"></label><label>To<input id="rs-to" type="date" onchange="renderDrillingSchedule()"></label><label>Zoom<select id="rs-zoom" onchange="renderDrillingSchedule()"><option value="36">Day</option><option value="20" selected>Week</option><option value="8">Month</option></select></label><div class="rs-range-buttons"><button class="btn-ghost" onclick="shiftRigSchedule(-1)" aria-label="Previous period">←</button><button class="btn-ghost" onclick="rigScheduleToday()">Today</button><button class="btn-ghost" onclick="shiftRigSchedule(1)" aria-label="Next period">→</button><button class="btn-ghost" onclick="fitRigSchedule()">Fit schedule</button></div></div>
+ <div id="rs-stats" class="rs-stats"></div>
+ <div class="rs-legend"><span><i class="planned"></i>Planned</span><span><i class="progress"></i>In progress</span><span><i class="complete"></i>Complete</span><span><i class="conflict"></i>Rig clash</span><span>Drag a block to propose new dates; save in the detail panel.</span></div>
+ <div class="rs-board"><aside class="rs-backlog"><h2>Unscheduled <span id="rs-backlog-count"></span></h2><p>Assign a rig and dates to add a hole to the timeline.</p><div id="rs-backlog"></div></aside><div class="rs-timeline-scroll" id="rs-timeline-scroll"><div id="rs-timeline"></div></div></div>
+ <p class="rs-note">Dashed blocks have an end date calculated from budgeted days. Saved start/end dates are kept as entered. Overlapping assignments on a rig are flagged.</p>
+ </div>
+ <aside id="rs-editor" class="rs-editor" hidden aria-label="Schedule details"><div class="rs-editor-heading"><div><h2 id="rs-editor-title"></h2><p id="rs-editor-sub"></p></div><button class="btn-ghost" onclick="closeRigScheduleEditor()" aria-label="Close schedule details">×</button></div><form id="rs-form"><label>Rig<input id="rs-edit-rig" list="rs-rigs" placeholder="Assign rig"><datalist id="rs-rigs"></datalist></label><div class="rs-editor-dates"><label>Start<input id="rs-edit-start" type="date"></label><label>End<input id="rs-edit-end" type="date"></label></div><label>Status<select id="rs-edit-status"><option>Planned</option><option>In Progress</option><option>Complete</option><option>Cancelled</option></select></label><label>Notes<textarea id="rs-edit-notes" rows="4"></textarea></label><p id="rs-edit-info"></p><p id="rs-edit-warning" role="status"></p><div class="rs-editor-actions"><button class="btn-primary" id="rs-save" type="submit">Save schedule</button><button class="btn-secondary" type="button" onclick="clearRigScheduleDates()">Unassign dates</button></div></form></aside>
+</section>

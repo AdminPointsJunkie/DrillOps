@@ -96,6 +96,7 @@
       "project-budgets",
       "budget",
       "boreholes",
+      "drilling-schedule",
       "reports",
       "admin"
     ],
@@ -111,6 +112,10 @@
       [
         "boreholes",
         "Borehole planning & map"
+      ],
+      [
+        "drilling-schedule",
+        "Rig scheduler"
       ],
       [
         "budget",
