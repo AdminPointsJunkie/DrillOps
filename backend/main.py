@@ -36,6 +36,7 @@ from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
+from rig_schedule import create_schedule_router, ensure_schedule_schema
 from account_accruals import create_accrual_router, ensure_accrual_schema
 from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from exploration_metres import summarize_exploration_metres
@@ -1441,6 +1442,7 @@ ensure_dar_schema(get_conn)
 ensure_training_schema(get_conn)
 ensure_tracking_schema(get_conn)
 ensure_accrual_schema(get_conn)
+ensure_schedule_schema(get_conn)
 
 # ── Seed 2025 rates (Allianz Drilling ONLY — other contractors start blank) ───
 def note_field_value(text, label):
@@ -12048,3 +12050,4 @@ app.include_router(create_admin_router(get_conn))
 app.include_router(create_training_router(get_conn))
 app.include_router(create_tracking_router(get_conn))
 app.include_router(create_accrual_router(get_conn))
+app.include_router(create_schedule_router(get_conn))
