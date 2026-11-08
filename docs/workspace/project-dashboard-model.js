@@ -22,16 +22,33 @@ var ProjectDashboardModel = (() => {
     const year = text(row.planned_year ?? row.year);
     return requireYear ? year === String(scope.year) : !year || year === String(scope.year);
   }
-  function build(budgetRows, holeRows, scope) {
-    const budgets = budgetRows === null ? null : budgetRows.filter(row => matches(row, scope, false));
+  function workbook(source, scope) {
+    if (!source || norm(scope.program)!=='exploration' || norm(source.project)!==norm(scope.project) || String(source.year)!==String(scope.year)) return null;
+    if (source.program && norm(source.program)!==norm(scope.program)) return null;
+    if (!Array.isArray(source.boreholes) || !source.boreholes.length || amount(source.total)===null) throw new Error('Incomplete workbook budget');
+    const fields={drilling_budget_total:'Drilling',earthworks_budget_total:'Earthworks',geophysical_budget_total:'Geophysical',geological_support_budget_total:'Geological support',misc_budget_total:'Other'};
+    const categories={};
+    for (const [field,label] of Object.entries(fields)) {
+      const values=source.boreholes.map(row=>amount(row[field]));
+      if(values.some(value=>value===null))throw new Error('Missing workbook category amounts');
+      categories[label]=Math.round(values.reduce((a,b)=>a+b,0)*100)/100;
+    }
+    const total=amount(source.total),categoryTotal=Object.values(categories).reduce((a,b)=>a+b,0);
+    if(Math.abs(total-categoryTotal)>0.02)throw new Error('Workbook categories do not reconcile');
+    return {...source,total,comparison_total:amount(source.comparison_total),categories};
+  }
+  function build(budgetRows, holeRows, scope, source=null) {
+    let budgets = budgetRows === null ? null : budgetRows.filter(row => matches(row, scope, false));
     const holes = holeRows === null ? null : holeRows.filter(row => matches(row, scope, true) && row.current_budget_scope !== false && norm(row.status) !== 'cancelled');
     const amounts = budgets?.map(row => amount(row.budget_amount));
-    const budget = amounts?.length && amounts.every(value => value !== null) ? amounts.reduce((sum, value) => sum + value, 0) : null;
-    const categories = Object.create(null);
+    let budget = amounts?.length && amounts.every(value => value !== null) ? amounts.reduce((sum, value) => sum + value, 0) : null;
+    let categories = Object.create(null);
     if (budget !== null) budgets.forEach((row, index) => {
       const category = text(row.section) || 'Uncategorised';
       categories[category] = (categories[category] || 0) + amounts[index];
     });
+    const imported=workbook(source,scope);
+    if(imported){budget=imported.total;categories=imported.categories;budgets=Object.entries(categories).map(([section,budget_amount])=>({section,budget_amount}));}
     const groups = {Complete: 0, 'In Progress': 0, Planned: 0, Other: 0};
     holes?.forEach(row => {
       const status = Object.keys(groups).find(key => norm(key) === norm(row.status)) || 'Other';
@@ -44,8 +61,8 @@ var ProjectDashboardModel = (() => {
       const lat = amount(row.lat), lng = amount(row.lng);
       return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
     }).length ?? null;
-    return {budget, budgets, holes, categories, groups, schedule, located};
+    return {budget, budgets, imported, holes, categories, groups, schedule, located};
   }
-  return {build, amount, date};
+  return {build, amount, date, workbook};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = ProjectDashboardModel;

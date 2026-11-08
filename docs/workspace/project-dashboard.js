@@ -7,10 +7,11 @@ const pmEmpty = message => '<p class="pm-empty">'+esc(message)+'</p>';
 function pmSet(id, value) { document.getElementById(id).textContent = value; }
 
 function renderProjectDashboard(model) {
-  const {budget,budgets,holes,categories,groups,schedule,located} = model;
+  const {budget,budgets,holes,categories,groups,schedule,located,imported} = model;
   const total = holes?.length ?? null;
   pmSet('pm-budget',budgets === null ? 'Unavailable' : pmMoney(budget));
-  pmSet('pm-budget-note',budgets?.length ? budgets.length+' allocation lines · AUD' : 'Recorded project allocations · AUD');
+  pmSet('pm-budget-label',imported?'Workbook plan budget':'Allocated budget');
+  pmSet('pm-budget-note',imported ? imported.source+' · '+imported.boreholes.length+' workbook rows' : budgets?.length ? budgets.length+' allocation lines · AUD' : 'Recorded project allocations · AUD');
   pmSet('pm-total',total === null ? '—' : total.toLocaleString());
   pmSet('pm-complete',total === null ? '—' : groups.Complete.toLocaleString());
   pmSet('pm-scheduled',total === null ? '—' : schedule.length.toLocaleString());
@@ -47,22 +48,27 @@ function renderProjectSchedule(schedule,total) {
 
 async function loadProjectDashboard() {
   const request = ++projectDashboardRequest;
+  renderProjectSwitcher();
   const project = activeWorkspaceProject();
   const scope = {project:activeProjectName,program:activeProgram,year:activeProjectYear(),clientId:activeClientId,projectId:project?.id};
   pmSet('pm-title',scope.project || 'Project dashboard');
   pmSet('pm-scope',[clientById(activeClientId)?.name,activeWorkspaceProgramLabel()].filter(Boolean).join(' / '));
   document.getElementById('pm-details').innerHTML = [['Client',clientById(activeClientId)?.name],['Program',activeProgram],['Year',scope.year],['Project status',project?.status]].map(([label,value])=>'<div><dt>'+label+'</dt><dd>'+esc(value||'Not recorded')+'</dd></div>').join('');
   pmSet('pm-message','Loading project records…');
+  pmSet('pm-workbook-note','');
   for (const id of ['pm-budget','pm-total','pm-complete','pm-scheduled']) pmSet(id,'—');
   for (const id of ['pm-progress','pm-budget-chart','pm-readiness','pm-schedule']) document.getElementById(id).innerHTML = pmEmpty('Loading…');
   const load = async path => {const response = await fetch(API+path,{cache:'no-store'});if(!response.ok)throw new Error('Request failed');const data=await response.json();if(!Array.isArray(data)||data.some(row=>!row||typeof row!=='object'))throw new Error('Unexpected response');return data;};
   // Name-based legacy endpoints cannot distinguish identically named workspaces.
   const ambiguous = projects.some(item=>item.name===scope.project && projectProgram(item)===scope.program && Number(item.client_id)!==Number(scope.clientId));
-  const results = ambiguous ? [{status:'rejected'},{status:'rejected'}] : await Promise.allSettled([load('/project-budgets?contractor=Company'),load('/boreholes?contractor=Company')]);
+  const results = ambiguous ? [{status:'rejected'},{status:'rejected'},{status:'rejected'}] : await Promise.allSettled([load('/project-budgets?contractor=Company'),load('/boreholes?contractor=Company'),loadProjectWorkbook(scope)]);
   if (request !== projectDashboardRequest || activeProjectName !== scope.project || activeProgram !== scope.program || activeClientId !== scope.clientId || activeProjectYear() !== scope.year) return;
   const data = results.map(result=>result.status==='fulfilled'?result.value:null);
-  renderProjectDashboard(ProjectDashboardModel.build(data[0],data[1],scope));
-  const failed = results.map((result,index)=>result.status==='rejected'?['Budget allocations','Borehole plan'][index]:null).filter(Boolean);
-  pmSet('pm-message',ambiguous?'This project name is shared by another client. Its records cannot be separated reliably in this dashboard.':failed.length?failed.join(' and ')+' could not be loaded. Refresh to try again.':'');
+  if(results[2].status==='rejected'&&projectWorkbookApplicable(scope))data[0]=null;
+  renderProjectDashboard(ProjectDashboardModel.build(data[0],data[1],scope,data[2]));
+  if(results[2].status==='rejected' && projectWorkbookApplicable(scope)){pmSet('pm-budget','Unavailable');pmSet('pm-budget-note','Workbook budget could not load');document.getElementById('pm-budget-chart').innerHTML=pmEmpty('Workbook budget could not be loaded. Refresh to retry.');}
+  document.getElementById('pm-workbook-note').textContent=data[2] ? 'Source: '+data[2].source+'. Workbook comparison total: '+pmMoney(data[2].comparison_total)+'. Revised plan costs are not a change to approved funding. Manual allocations are not added again.' : '';
+  const failed = results.map((result,index)=>result.status==='rejected'?['Budget allocations','Borehole plan','Workbook budget'][index]:null).filter(Boolean);
+  pmSet('pm-message',!scope.project?'Choose a project using the bottom-left sidebar selector.':ambiguous?'This project name is shared by another client. Its records cannot be separated reliably in this dashboard.':failed.length?failed.join(' and ')+' could not be loaded. Refresh to try again.':'');
   pmSet('pm-updated',(failed.length?'Last attempted ':'Updated ')+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short'}));
 }

@@ -8405,6 +8405,7 @@ function showWorkspaceGate() {
 }
 
 function syncWorkspaceControls() {
+  if(typeof renderProjectSwitcher==='function')renderProjectSwitcher();
   var scopeLabel=workspaceScopeLabel()||'No project selected';
   ['period-project-context','budget-project-context','cost-contract-project-context','details-project-context','schedule-project-context'].forEach(function(id){
     var node=document.getElementById(id);
@@ -9495,6 +9496,7 @@ function renderCostCentreForecast(){
 }
 
 async function loadProjectBudgets(){
+  if(WORKSPACE_APP==='project'&&typeof loadProjectBudgetPanel==='function')return loadProjectBudgetPanel();
   try{
     const res=await fetch(API+'/project-budgets?contractor=Company');
     projectBudgetsData=res.ok?await res.json():[];
@@ -9552,8 +9554,9 @@ function renderProjectBudgets(){
   setPeriodText('budget-kpi-rows',rows.length.toLocaleString());
   setPeriodText('budget-row-count',rows.length.toLocaleString());
   if(!body)return;
+  if(WORKSPACE_APP==='project'&&typeof renderProjectWorkbookBudget==='function')renderProjectWorkbookBudget();
   if(!rows.length){
-    body.innerHTML='<tr><td colspan="9"><div class="empty-state">No project budgets recorded.</div></td></tr>';
+    body.innerHTML='<tr><td colspan="9"><div class="empty-state">No manual budget allocations recorded.</div></td></tr>';
     return;
   }
   body.innerHTML=rows.map(function(r){
