@@ -6,13 +6,14 @@
         </div>
         <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
       </div>
-      <div id="project-workbook-budget" hidden></div>
       <div class="kpi-row budget-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div><div class="kpi-sub">Selected workspace total</div></div>
         <div class="kpi"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div><div class="kpi-sub">Drilling contractor allocation</div></div>
         <div class="kpi"><div class="kpi-label">Support / Other</div><div class="kpi-value" id="budget-kpi-support">--</div><div class="kpi-sub">All non-drilling allocations</div></div>
         <div class="kpi"><div class="kpi-label">Budget Lines</div><div class="kpi-value" id="budget-kpi-rows">--</div><div class="kpi-sub">Editable allocation rows</div></div>
       </div>
+      <div id="project-workbook-budget" hidden></div>
+      <details id="budget-manual-section"><summary>Manual project allocations</summary>
       <div class="chart-card" style="margin-bottom:14px;">
         <div class="budget-toolbar">
           <div class="filter-group"><label>Program</label><select id="budget-program-filter" onchange="renderProjectBudgets()" disabled></select></div>
@@ -37,4 +38,5 @@
           </table>
         </div>
       </div>
+      </details>
     </section>

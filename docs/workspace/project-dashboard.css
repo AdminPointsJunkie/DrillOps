@@ -29,3 +29,5 @@ body[data-workspace-area=project] #drawer{display:flex;flex-direction:column;ove
 
 .project-mobile-settings{position:relative}.project-mobile-settings summary{padding:8px 10px;cursor:pointer;font-size:11px;color:#65776b}.project-mobile-settings[open]{background:white;border:1px solid #dce5df;border-radius:6px}.project-mobile-settings[open] a{display:block;white-space:nowrap}
 @media(max-width:1300px){.pm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.pm-metric-budget{grid-column:1/-1}}
+
+body[data-workspace-area=project] #page-reports .period-report-body[hidden]{display:none!important}
