@@ -2,6 +2,7 @@
 let projectDashboardRequest = 0;
 const pmColours = {Complete:'#315d49','In Progress':'#86a88b',Planned:'#dce6dc',Other:'#a9b4ae'};
 const pmMoney = value => value === null ? 'Not set' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(value);
+const pmExactMoney = value => value === null ? 'Not set' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(value);
 const pmDate = time => new Intl.DateTimeFormat('en-AU',{day:'numeric',month:'short',timeZone:'UTC'}).format(time);
 const pmEmpty = message => '<p class="pm-empty">'+esc(message)+'</p>';
 function pmSet(id, value) { document.getElementById(id).textContent = value; }
@@ -9,9 +10,9 @@ function pmSet(id, value) { document.getElementById(id).textContent = value; }
 function renderProjectDashboard(model) {
   const {budget,budgets,holes,categories,groups,schedule,located,imported} = model;
   const total = holes?.length ?? null;
-  pmSet('pm-budget',budgets === null ? 'Unavailable' : pmMoney(budget));
-  pmSet('pm-budget-label',imported?'Workbook plan budget':'Allocated budget');
-  pmSet('pm-budget-note',imported ? imported.source+' · '+imported.boreholes.length+' workbook rows' : budgets?.length ? budgets.length+' allocation lines · AUD' : 'Recorded project allocations · AUD');
+  pmSet('pm-budget',budgets === null ? 'Unavailable' : imported ? pmExactMoney(budget) : pmMoney(budget));
+  pmSet('pm-budget-label',imported?'Approved budget':'Allocated budget');
+  pmSet('pm-budget-note',imported ? 'Original workbook budget · AUD' : budgets?.length ? budgets.length+' allocation lines · AUD' : 'Recorded project allocations · AUD');
   pmSet('pm-total',total === null ? '—' : total.toLocaleString());
   pmSet('pm-complete',total === null ? '—' : groups.Complete.toLocaleString());
   pmSet('pm-scheduled',total === null ? '—' : schedule.length.toLocaleString());
@@ -23,11 +24,13 @@ function renderProjectDashboard(model) {
   });
   document.getElementById('pm-progress').innerHTML = total ?
     '<div class="pm-donut" style="background:conic-gradient('+segments.join(',')+')" role="img" aria-label="'+attr(groups.Complete+' of '+total+' boreholes complete')+'"><div><strong>'+Math.round(groups.Complete/total*100)+'%</strong><span>holes complete</span></div></div><div class="pm-legend">'+Object.entries(groups).filter(([,count])=>count).map(([status,count])=>'<div><i style="background:'+pmColours[status]+'"></i><span>'+esc(status)+'</span><strong>'+count+'</strong></div>').join('')+'</div>' : pmEmpty(total === null ? 'Borehole records could not be loaded.' : 'No current-year boreholes recorded for this project.');
+  pmSet('pm-budget-chart-title',imported?'Workbook plan by category':'Budget allocation');
+  pmSet('pm-budget-chart-note',imported?'Workbook plan costs shown separately from the approved budget.':'Planning allocations by category. These are not expenditure totals.');
   const categoryEntries = Object.entries(categories).sort((a,b)=>b[1]-a[1]);
   const max = Math.max(...categoryEntries.map(([,value])=>Math.abs(value)),1);
   document.getElementById('pm-budget-chart').innerHTML = categoryEntries.length ? categoryEntries.map(([name,value])=>'<div class="pm-allocation"><div><span>'+esc(name)+'</span><strong>'+pmMoney(value)+'</strong></div><div class="pm-bar"><span style="width:'+Math.abs(value)/max*100+'%"></span></div></div>').join('') : pmEmpty(budgets === null ? 'Budget allocations could not be loaded.' : budgets?.length ? 'An allocation amount is missing. Open Budget to complete the records.' : 'No budget allocations recorded.');
   const readiness = [
-    ['Budget allocations',budgets === null ? 'Unavailable' : budget === null ? 'Not set' : 'Recorded',budgets !== null && budget !== null],
+    [imported?'Approved budget':'Budget allocations',budgets === null ? 'Unavailable' : budget === null ? 'Not set' : 'Recorded',budgets !== null && budget !== null],
     ['Schedule dates',total === null ? 'Unavailable' : schedule.length+' of '+total,!!total && schedule.length === total],
     ['Borehole locations',total === null ? 'Unavailable' : located+' of '+total,!!total && located === total]
   ];
@@ -67,7 +70,7 @@ async function loadProjectDashboard() {
   if(results[2].status==='rejected'&&projectWorkbookApplicable(scope))data[0]=null;
   renderProjectDashboard(ProjectDashboardModel.build(data[0],data[1],scope,data[2]));
   if(results[2].status==='rejected' && projectWorkbookApplicable(scope)){pmSet('pm-budget','Unavailable');pmSet('pm-budget-note','Workbook budget could not load');document.getElementById('pm-budget-chart').innerHTML=pmEmpty('Workbook budget could not be loaded. Refresh to retry.');}
-  document.getElementById('pm-workbook-note').textContent=data[2] ? 'Source: '+data[2].source+'. Workbook comparison total: '+pmMoney(data[2].comparison_total)+'. Revised plan costs are not a change to approved funding. Manual allocations are not added again.' : '';
+  document.getElementById('pm-workbook-note').textContent=data[2] ? 'Workbook plan: '+pmExactMoney(data[2].total)+(data[2].planVariance===null?' · Approved budget not recorded':data[2].planVariance>0?' · '+pmExactMoney(data[2].planVariance)+' above approved budget':data[2].planVariance<0?' · '+pmExactMoney(-data[2].planVariance)+' below approved budget':' · Matches approved budget')+'. Source: '+data[2].source+'.' : '';
   const failed = results.map((result,index)=>result.status==='rejected'?['Budget allocations','Borehole plan','Workbook budget'][index]:null).filter(Boolean);
   pmSet('pm-message',!scope.project?'Choose a project using the bottom-left sidebar selector.':ambiguous?'This project name is shared by another client. Its records cannot be separated reliably in this dashboard.':failed.length?failed.join(' and ')+' could not be loaded. Refresh to try again.':'');
   pmSet('pm-updated',(failed.length?'Last attempted ':'Updated ')+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short'}));

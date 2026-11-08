@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-budget1">
+<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-approved1">
 <link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
@@ -119,7 +119,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Project management</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Dashboard</span></button><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Projects</span></button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Borehole planning & map</span></button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Budget planning</span></button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Users & change log</span></button><a class="drawer-nav-item" href="./training.html"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Training matrix</span></a></div>
+    <div class="drawer-section"><div class="drawer-section-title">Project management</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Dashboard</span></button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Borehole planning & map</span></button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Budget planning</span></button><a class="drawer-nav-item" href="./training.html"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Training matrix</span></a></div><div class="drawer-section project-settings-section"><div class="drawer-section-title">Settings</div><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Projects</span></button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Users & change log</span></button></div>
 
   </div>
 <div class="project-switcher" id="project-switcher">
@@ -319,7 +319,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-dashboard">Dashboard<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a></nav>
+<nav class="app-local-nav" aria-label="Project navigation"><a class="app-nav-link" href="./project.html?view=project-dashboard">Dashboard<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=boreholes">Borehole planning &amp; map<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=budget">Budget planning<span aria-hidden="true">↗</span></a><a href="./training.html">Training matrix</a><details class="project-mobile-settings"><summary>Settings</summary><a class="app-nav-link" href="./project.html?view=project-budgets">Projects<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./project.html?view=admin">Users &amp; change log<span aria-hidden="true">↗</span></a></details></nav>
 
 
     <!-- Importer -->
@@ -386,7 +386,7 @@
       <div class="management-head">
         <div>
           <div class="management-title">Budget</div>
-          <div class="management-subtitle">Set the contractor budget for the selected project and use it across reporting, forecasting and cost control.</div>
+          <div class="management-subtitle">Review the approved budget and planning costs for the selected project.</div>
         </div>
         <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
       </div>
@@ -504,7 +504,7 @@
   <p id="pm-workbook-note" class="pm-footnote"></p>
   <div class="pm-grid">
     <article class="pm-panel"><div class="pm-panel-heading"><h2>Program progress</h2><span class="pm-caption">Borehole status</span></div><div id="pm-progress" class="pm-progress"></div><p class="pm-footnote">Share of boreholes marked Complete in the current plan.</p></article>
-    <article class="pm-panel"><div class="pm-panel-heading"><h2>Budget allocation</h2><a href="./project.html?view=budget">View budget ↗</a></div><div id="pm-budget-chart" class="pm-budget-chart"></div><p class="pm-footnote">Planning allocations by category. These are not expenditure totals.</p></article>
+    <article class="pm-panel"><div class="pm-panel-heading"><h2 id="pm-budget-chart-title">Budget allocation</h2><a href="./project.html?view=budget">View budget ↗</a></div><div id="pm-budget-chart" class="pm-budget-chart"></div><p class="pm-footnote" id="pm-budget-chart-note">Planning allocations by category. These are not expenditure totals.</p></article>
     <article class="pm-panel"><div class="pm-panel-heading"><h2>Planning readiness</h2><span class="pm-caption">Record coverage</span></div><div id="pm-readiness"></div><a class="pm-panel-link" href="./project.html?view=boreholes">Open borehole planning ↗</a></article>
     <article class="pm-panel pm-schedule-panel"><div class="pm-panel-heading"><div><h2>Drilling schedule</h2><p>Saved start and finish dates</p></div><a href="./project.html?view=boreholes">Open plan ↗</a></div><div id="pm-schedule"></div></article>
     <article class="pm-panel pm-workspace-panel"><div class="pm-panel-heading"><h2>Project details</h2><a href="./project.html?view=project-budgets">Edit ↗</a></div><dl id="pm-details"></dl><a class="pm-training-link" href="./training.html"><span class="pm-training-icon" aria-hidden="true">▦</span><span><strong>Training matrix</strong><small>People, competencies and evidence</small></span><span aria-hidden="true">↗</span></a></article>
@@ -699,9 +699,9 @@
 <script src="./workspace/runtime.js?v=20261108-projectbudget1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/project-dashboard-model.js?v=20261108-budget1"></script>
-<script src="./workspace/project-dashboard.js?v=20261108-budget1"></script>
-<script src="./workspace/project-budget-source.js?v=20261108-budget1"></script>
+<script src="./workspace/project-dashboard-model.js?v=20261108-approved1"></script>
+<script src="./workspace/project-dashboard.js?v=20261108-approved1"></script>
+<script src="./workspace/project-budget-source.js?v=20261108-approved1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>

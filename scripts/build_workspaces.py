@@ -30,17 +30,25 @@ def link(area,page,label,css='app-task'):
 for area,cfg in APPS.items():
  title=cfg['name'];nav='<div class="drawer-section"><div class="drawer-section-title">'+{'eos':'Operations','account':'Accounting','project':'Project management'}[area]+'</div>'
  if area=='eos':nav+='<a class="drawer-nav-item" href="./eos.html">'+icon('overview')+'<span>Overview</span></a>'
- for page,label in cfg['nav']:nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">'+icon(PAGE_ICONS[page])+f'<span>{label}</span></button>'
+ settings_pages={'project-budgets','admin'} if area=='project' else set()
+ for page,label in cfg['nav']:
+  if page in settings_pages:continue
+  nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">'+icon(PAGE_ICONS[page])+f'<span>{label}</span></button>'
  if area=='project':nav+='<a class="drawer-nav-item" href="./training.html">'+icon('people')+'<span>Training matrix</span></a>'
  nav+='</div>'
+ if area=='project':
+  nav+='<div class="drawer-section project-settings-section"><div class="drawer-section-title">Settings</div>'
+  for page,label in cfg['nav']:
+   if page in settings_pages:nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">'+icon(PAGE_ICONS[page])+f'<span>{label}</span></button>'
+  nav+='</div>'
  home=(SRC/'eos-home.html').read_text() if area=='eos' else ''
  s=shell.replace('{{navigation}}',nav).replace('{{area}}',area).replace('{{label}}',title).replace('{{home}}',home)
  s=s.replace('{{app-wordmark}}',wordmark(title,'./'+area+'.html',stacked=True))
  if area=='eos':
   scope=(SRC/'eos-scope.html').read_text()
   s=s.replace('{{area-navigation}}',scope+'{{area-navigation}}')
- local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'])
- if area=='project':local_links+='<a href="./training.html">Training matrix</a>'
+ local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'] if p not in settings_pages)
+ if area=='project':local_links+='<a href="./training.html">Training matrix</a><details class="project-mobile-settings"><summary>Settings</summary>'+''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'] if p in settings_pages)+'</details>'
  if area=='eos':local_links='<a href="./eos.html">Overview</a>'+local_links
  s=s.replace('{{area-navigation}}','<nav class="app-local-nav" aria-label="'+title+' navigation">'+local_links+'</nav>')
  s=s.replace('<a class="logo" href="./index.html" aria-label="DrillOps home">Drill<span>Ops</span></a><span class="workspace-area-name">'+title+'</span>',f'<a class="workspace-area-name" href="./{area}.html" aria-label="{title} home"><span class="mobile-company">DrillOps </span>{title}</a>')
@@ -81,11 +89,11 @@ for area,cfg in APPS.items():
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/accounts-overview-model.js?v=20261108-1"></script>\n<script src="./workspace/accounts-overview.js?v=20261108-1"></script>\n<script src="./workspace/start.js')
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/reconciliation-model.js?v=20261108-1"></script>\n<script src="./workspace/reconciliation.js?v=20261108-1"></script>\n<script src="./workspace/start.js')
  if area=='project':
-  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-budget1">\n</head>')
-  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-budget1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-budget1"></script>\n<script src="./workspace/start.js')
+  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-approved1">\n</head>')
+  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-approved1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-approved1"></script>\n<script src="./workspace/start.js')
  if area=='project':
   s=s.replace('  </div>\n</div>\n\n<!-- Header -->','  </div>\n'+(SRC/'project-switcher.html').read_text()+'\n</div>\n\n<!-- Header -->')
-  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-budget-source.js?v=20261108-budget1"></script>\n<script src="./workspace/start.js')
+  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-budget-source.js?v=20261108-approved1"></script>\n<script src="./workspace/start.js')
  s=s.replace('<div class="drawer-title">DrillOps</div>',f'<div class="drawer-title">{title}</div>').replace(f'<div class="drawer-subtitle">{title}</div>','<div class="drawer-subtitle">'+{'eos':'Drilling operations','account':'Invoices &amp; purchase orders','project':'Planning &amp; people'}[area]+'</div>')
  if area=='eos':s=s.replace('</head>','<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-standby1"></head>').replace('<script src="./workspace/runtime.js','<script src="./workspace/eos-production-model.js?v=20261108-holes1"></script>\n<script src="./workspace/runtime.js').replace('<script src="./workspace/start.js', '<script src="./workspace/eos-data-cache.js?v=20261108-speed1"></script>\n<script src="./workspace/eos-scope.js?v=20261108-plods1"></script>\n<script src="./workspace/eos-production.js?v=20261108-register4"></script>\n<script src="./workspace/start.js').replace('<script src="./workspace/start.js', '<script src="./workspace/eos-shift-charges.js?v=20261108-report2"></script>\n<script src="./workspace/eos-weather.js?v=20261108-report2"></script>\n<script src="./workspace/eos-period.js?v=20261108-holes1"></script>\n<script src="./workspace/eos-overview.js?v=20261108-plods1"></script>\n<script src="./workspace/start.js').replace('<div class="drawer-title">DrillOps</div>','<div class="drawer-title">EOS</div>').replace('<div class="drawer-subtitle">EOS</div>','<div class="drawer-subtitle">Drilling operations</div>')
  if area=='eos':s=s.replace('<script src="./workspace/start.js','<script src="./workspace/eos-standby-details.js?v=20261108-standby1"></script>\n<script src="./workspace/start.js')

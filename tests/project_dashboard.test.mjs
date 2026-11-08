@@ -38,8 +38,13 @@ const workbookScope={project:'Ironbark',program:'Exploration',year:2026};
 const workbookSource={project:'Ironbark',year:2026,source:'Example budget.xlsx',total:1500,comparison_total:1200,boreholes:[{hole_id:'TEST',drilling_budget_total:1000,earthworks_budget_total:200,geophysical_budget_total:100,geological_support_budget_total:150,misc_budget_total:50,budget_total:1500}]};
 test('saved workbook supplies the budget without adding duplicate manual allocations',()=>{
  const result=model.build([{...workbookScope,budget_amount:1500}],[],workbookScope,workbookSource);
- assert.equal(result.budget,1500);assert.equal(result.categories.Drilling,1000);assert.equal(result.imported.comparison_total,1200);
+ assert.equal(result.budget,1200);assert.equal(result.categories.Drilling,1000);assert.equal(result.imported.total,1500);assert.equal(result.imported.planVariance,300);assert.equal(result.imported.comparison_total,1200);
  for(const scope of [{...workbookScope,program:'Gas Riser'},{...workbookScope,year:2027},{...workbookScope,project:'Another Project'}])assert.equal(model.build([],[],scope,workbookSource).budget,null);
  assert.throws(()=>model.workbook({...workbookSource,total:1700},workbookScope),/reconcile/);
  assert.throws(()=>model.workbook({...workbookSource,boreholes:[{}]},workbookScope),/Missing/);
+});
+
+test('missing approved budget never substitutes the larger workbook plan',()=>{
+ const result=model.build([],[],workbookScope,{...workbookSource,comparison_total:null});
+ assert.equal(result.budget,null);assert.equal(result.imported.total,1500);assert.equal(result.imported.planVariance,null);
 });

@@ -35,7 +35,9 @@ var ProjectDashboardModel = (() => {
     }
     const total=amount(source.total),categoryTotal=Object.values(categories).reduce((a,b)=>a+b,0);
     if(Math.abs(total-categoryTotal)>0.02)throw new Error('Workbook categories do not reconcile');
-    return {...source,total,comparison_total:amount(source.comparison_total),categories};
+    // The original workbook comparison total is the user-confirmed approved budget.
+    const approvedBudget=amount(source.comparison_total);
+    return {...source,total,comparison_total:approvedBudget,approvedBudget,planVariance:approvedBudget===null?null:Math.round((total-approvedBudget)*100)/100,categories};
   }
   function build(budgetRows, holeRows, scope, source=null) {
     let budgets = budgetRows === null ? null : budgetRows.filter(row => matches(row, scope, false));
@@ -48,7 +50,7 @@ var ProjectDashboardModel = (() => {
       categories[category] = (categories[category] || 0) + amounts[index];
     });
     const imported=workbook(source,scope);
-    if(imported){budget=imported.total;categories=imported.categories;budgets=Object.entries(categories).map(([section,budget_amount])=>({section,budget_amount}));}
+    if(imported){budget=imported.approvedBudget;categories=imported.categories;budgets=Object.entries(categories).map(([section,budget_amount])=>({section,budget_amount}));}
     const groups = {Complete: 0, 'In Progress': 0, Planned: 0, Other: 0};
     holes?.forEach(row => {
       const status = Object.keys(groups).find(key => norm(key) === norm(row.status)) || 'Other';
