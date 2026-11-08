@@ -41,8 +41,14 @@ try{
  await page.locator('#eos-period-show-charges').check();assert.equal(await page.locator('.eos-shift-charge').count(),4);
  await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});
  assert.equal(await page.locator('.eos-period-register').isVisible(),true);assert.equal(await page.locator('#eos-period-charges-heading').isVisible(),true);
+ assert.match(await page.locator('#eos-print-page-style').textContent(),/@top-left.*Production Report.*Mitchells Drilling.*@top-right/s);
  if(process.env.CAPTURE_EOS)await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-production-register.pdf',preferCSSPageSize:true,printBackground:true});
  await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
+ if(process.env.CAPTURE_EOS){
+  await page.getByRole('button',{name:'Collapse all',exact:true}).filter({visible:true}).click();await page.getByRole('button',{name:'05 Shift register',exact:true}).click();
+  await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-shift-register-only.pdf',preferCSSPageSize:true,printBackground:true});
+  await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));await page.getByRole('button',{name:'Expand all',exact:true}).filter({visible:true}).click();
+ }
  await page.locator('#eos-period-show-charges').uncheck();assert.equal(await page.locator('.eos-shift-charge').count(),0);
  await page.locator('#eos-period-from').fill('2026-10-02');await page.locator('#eos-period-from').dispatchEvent('change');assert.match(await value('eos-period-metrics'),/Holes completed\s*0/);assert.match(await value('eos-period-performance'),/Penetration rate\s*10\.0/);assert.equal(await page.locator('#eos-period-register tr').count(),1);
  await page.locator('#eos-period-preset').selectOption('all');await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('100.0 m'));assert.match(await value('eos-period-metrics'),/Holes completed\s*1/);
