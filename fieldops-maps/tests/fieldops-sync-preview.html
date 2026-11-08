@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FieldMaps edit review test</title><body><button id="show" class="primary">Review sync conflict</button><p id="result"></p><script type="module">
+import '../src/style.css';import '../src/workspace.css';import '../src/appearance.css';import '../src/field-edit-conflicts.css';
+import {mergeFeatureSnapshots,resolveEditConflicts} from '../src/field-edit-conflicts.js';
+const original={type:'Feature',id:1,geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Inspection point',status:'To inspect',notes:'Access via north gate'}};
+document.querySelector('#show').onclick=async()=>{const a=structuredClone(original),b=structuredClone(original);a.properties.status='Checked in field';b.properties.status='Office review complete';b.properties.notes='Access via east gate';const merge=mergeFeatureSnapshots([original],[a],[b]);try{await resolveEditConflicts(merge.conflicts);document.querySelector('#result').textContent=JSON.stringify(merge.features()[0].properties);}catch(error){document.querySelector('#result').textContent=error.message;}};
+document.querySelector('#show').click();
+</script></body></html>

@@ -1,0 +1,5 @@
+.field-edit-conflicts{width:min(680px,calc(100vw - 28px));max-height:85dvh;padding:24px;overflow:auto;border:1px solid var(--border,#cbd3cf);border-radius:16px;background:var(--panel,#fff);color:var(--text,#182d24)}
+.field-edit-conflicts h2{margin-top:0}.field-edit-conflicts section{padding:12px 0;border-bottom:1px solid var(--border,#cbd3cf)}
+.field-edit-conflicts h3{font-size:1rem}.field-edit-conflicts details{margin:8px 0}.field-edit-conflicts pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;padding:10px;background:rgba(128,128,128,.08)}
+.field-edit-conflicts .workspace-actions{position:sticky;bottom:-24px;background:var(--panel,#fff);padding:16px 0;display:flex;gap:12px;flex-wrap:wrap}.field-edit-conflicts button,.field-edit-conflicts select{min-height:44px}
+[data-theme=dark] .field-edit-conflicts .workspace-actions{background:#1c1c1c;color:#ededed}
