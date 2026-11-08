@@ -34,3 +34,12 @@ test('budget categories reconcile and unknown borehole status stays separate',()
  assert.equal(result.budget,1500);assert.equal(Object.values(result.categories).reduce((a,b)=>a+b,0),1500);
  assert.equal(result.groups.Other,1);assert.equal(result.located,1);
 });
+const workbookScope={project:'Ironbark',program:'Exploration',year:2026};
+const workbookSource={project:'Ironbark',year:2026,source:'Example budget.xlsx',total:1500,comparison_total:1200,boreholes:[{hole_id:'TEST',drilling_budget_total:1000,earthworks_budget_total:200,geophysical_budget_total:100,geological_support_budget_total:150,misc_budget_total:50,budget_total:1500}]};
+test('saved workbook supplies the budget without adding duplicate manual allocations',()=>{
+ const result=model.build([{...workbookScope,budget_amount:1500}],[],workbookScope,workbookSource);
+ assert.equal(result.budget,1500);assert.equal(result.categories.Drilling,1000);assert.equal(result.imported.comparison_total,1200);
+ for(const scope of [{...workbookScope,program:'Gas Riser'},{...workbookScope,year:2027},{...workbookScope,project:'Another Project'}])assert.equal(model.build([],[],scope,workbookSource).budget,null);
+ assert.throws(()=>model.workbook({...workbookSource,total:1700},workbookScope),/reconcile/);
+ assert.throws(()=>model.workbook({...workbookSource,boreholes:[{}]},workbookScope),/Missing/);
+});

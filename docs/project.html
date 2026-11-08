@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-1">
+<link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-budget1">
 <link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
@@ -122,6 +122,16 @@
     <div class="drawer-section"><div class="drawer-section-title">Project management</div><button class="drawer-nav-item" data-page="project-dashboard" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Dashboard</span></button><button class="drawer-nav-item" data-page="project-budgets" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Projects</span></button><button class="drawer-nav-item" data-page="boreholes" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Borehole planning & map</span></button><button class="drawer-nav-item" data-page="budget" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Budget planning</span></button><button class="drawer-nav-item" data-page="admin" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Users & change log</span></button><a class="drawer-nav-item" href="./training.html"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Training matrix</span></a></div>
 
   </div>
+<div class="project-switcher" id="project-switcher">
+  <div id="project-switcher-panel" class="project-switcher-panel" hidden>
+    <div class="project-switcher-title">Your projects</div>
+    <label class="sr-only" for="project-switcher-search">Find a project</label>
+    <input id="project-switcher-search" type="search" placeholder="Find a project…" autocomplete="off">
+    <div id="project-switcher-options" role="group" aria-label="Projects"></div>
+  </div>
+  <button id="project-switcher-button" type="button" aria-expanded="false" aria-controls="project-switcher-panel"><span class="project-switcher-symbol" aria-hidden="true">▦</span><span><small>PROJECT</small><strong id="project-switcher-name">Choose a project</strong><span id="project-switcher-meta"></span></span><span aria-hidden="true">⌃</span></button>
+</div>
+
 </div>
 
 <!-- Header -->
@@ -380,6 +390,7 @@
         </div>
         <button class="btn-secondary" type="button" onclick="loadProjectBudgets()">Refresh</button>
       </div>
+      <div id="project-workbook-budget" hidden></div>
       <div class="kpi-row budget-kpi-row" style="margin-bottom:14px;">
         <div class="kpi"><div class="kpi-label">Project Budget</div><div class="kpi-value" id="budget-kpi-total">--</div><div class="kpi-sub">Selected workspace total</div></div>
         <div class="kpi"><div class="kpi-label">Drilling</div><div class="kpi-value" id="budget-kpi-drilling">--</div><div class="kpi-sub">Drilling contractor allocation</div></div>
@@ -485,11 +496,12 @@
   </div>
   <div id="pm-message" role="status" aria-live="polite"></div>
   <div class="pm-metrics">
-    <article class="pm-metric pm-metric-budget"><span>Allocated budget</span><strong id="pm-budget">—</strong><small id="pm-budget-note">Recorded project allocations · AUD</small></article>
+    <article class="pm-metric pm-metric-budget"><span id="pm-budget-label">Allocated budget</span><strong id="pm-budget">—</strong><small id="pm-budget-note">Recorded project allocations · AUD</small></article>
     <article class="pm-metric pm-metric-plan"><span>Boreholes in plan</span><strong id="pm-total">—</strong><small>Selected project, program and year</small></article>
     <article class="pm-metric"><span>Completed boreholes</span><strong id="pm-complete">—</strong><small id="pm-complete-note">Recorded completion status</small></article>
     <article class="pm-metric"><span>Scheduled boreholes</span><strong id="pm-scheduled">—</strong><small>Saved start and finish dates</small></article>
   </div>
+  <p id="pm-workbook-note" class="pm-footnote"></p>
   <div class="pm-grid">
     <article class="pm-panel"><div class="pm-panel-heading"><h2>Program progress</h2><span class="pm-caption">Borehole status</span></div><div id="pm-progress" class="pm-progress"></div><p class="pm-footnote">Share of boreholes marked Complete in the current plan.</p></article>
     <article class="pm-panel"><div class="pm-panel-heading"><h2>Budget allocation</h2><a href="./project.html?view=budget">View budget ↗</a></div><div id="pm-budget-chart" class="pm-budget-chart"></div><p class="pm-footnote">Planning allocations by category. These are not expenditure totals.</p></article>
@@ -684,11 +696,12 @@
 <script src="./fortem-estimate.js"></script>
 <script src="./workspace/navigation.js?v=overview1-20261108-calendar1"></script>
 <script src="./auth-session.js?v=20261108-session1"></script>
-<script src="./workspace/runtime.js?v=20261108-overview1"></script>
+<script src="./workspace/runtime.js?v=20261108-projectbudget1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>
-<script src="./workspace/project-dashboard.js?v=20261108-fieldmaps1"></script>
+<script src="./workspace/project-dashboard-model.js?v=20261108-budget1"></script>
+<script src="./workspace/project-dashboard.js?v=20261108-budget1"></script>
+<script src="./workspace/project-budget-source.js?v=20261108-budget1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>
