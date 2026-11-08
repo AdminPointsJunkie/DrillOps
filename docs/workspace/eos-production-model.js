@@ -131,7 +131,7 @@
  }
  function summarise(source,options={}){
   const cleaned=cleanRows(source),rows=cleaned.rows,completed=new Set(options.completionEvents||completionEvents(options.completionSource||rows));
-  const metric=()=>({metres:0,core:0,chip:0,other:0,hours:0,drillingHours:0,coreHours:0,chipHours:0,rateMetres:0,coreRateMetres:0,chipRateMetres:0,untimedDrillingMetres:0,standbyHours:0,movingHours:0,combinedMoveHours:0,otherHours:0,completedHoles:0});
+  const metric=()=>({timeCategories:{},metres:0,core:0,chip:0,other:0,hours:0,drillingHours:0,coreHours:0,chipHours:0,rateMetres:0,coreRateMetres:0,chipRateMetres:0,untimedDrillingMetres:0,standbyHours:0,movingHours:0,combinedMoveHours:0,otherHours:0,completedHoles:0});
   const total={...metric(),unpaidFatigueHours:0,nonChargeableStandbyHours:0,unconfirmedStandbyHours:0,unconfirmedStandbyRows:0,excludedStandbyHours:0,missingMoveTime:0,missingTime:0,missingStandbyTime:0,invalidMetres:0,invalidDates:0,duplicates:cleaned.duplicates};
   const days=new Map(),projects=new Map(),rigs=new Map(),reasons=new Map(),otherActivities=new Map(),reports=new Set(),holes=new Set(),productionRigDays=new Set(),moves=[];
   const add=(map,key,label,project,contractor)=>{if(!map.has(key))map.set(key,{label,project,contractor,...metric(),rows:0});return map.get(key);};
@@ -140,10 +140,12 @@
    let m=raw==null||text(raw)===''?0:Number(raw);if(!Number.isFinite(m)||m<0){total.invalidMetres++;m=0;}
    if(!d)total.invalidDates++;
    const drilling=!reason&&!move&&(m>0||(kind!=='other'&&text(r.code))||text(r.code).toUpperCase()==='H_DRILLING');
+   const timeLabel=reason?(included?'Standby · '+reason:null):move?(move==='combined'?'Site move + setup':'Site move'):drilling?(kind==='core'?'Cored drilling':kind==='chip'?'Chipped / open-hole drilling':'Other drilling'):otherActivity(r);
    const project=text(r.project)||'Unassigned project',contractor=text(r.contractor)||'Not recorded',rig=text(r.drill_rig)||'Not recorded';
    const groups=[total,add(projects,project.toLowerCase(),project,project,contractor),add(rigs,JSON.stringify([contractor,rig]),rig,project,contractor)];
    if(d)groups.push(add(days,d,d));
    for(const g of groups){
+    if(timeLabel&&h>0)g.timeCategories[timeLabel]=(g.timeCategories[timeLabel]||0)+h;
     g.metres+=m;g[kind]+=m;g.hours+=h||0;g.standbyHours+=included?(h||0):0;g.completedHoles+=completed.has(r)?1:0;if(g!==total)g.rows++;
     if(drilling){g.drillingHours+=h||0;if(h>0)g.rateMetres+=m;else g.untimedDrillingMetres+=m;
      if(kind==='core'||kind==='chip'){g[kind+'Hours']+=h||0;if(h>0)g[kind+'RateMetres']+=m;}
