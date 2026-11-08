@@ -1,0 +1,19 @@
+<section class="page eos-calendar" id="page-report-calendar">
+ <div class="eos-page-heading"><div><div class="eos-breadcrumb">EOS <span>/</span> Report calendar</div><h1>Report calendar</h1><p>See which rig reports are loaded, day by day.</p></div><button class="btn-secondary" type="button" onclick="refreshEosPage('report-calendar')">Refresh</button></div>
+ <div class="eos-calendar-controls">
+  <div class="eos-calendar-month"><button class="btn-secondary" type="button" aria-label="Previous month" onclick="moveEosCalendarMonth(-1)">‹</button><label>Month<input id="eos-calendar-month" type="month" onchange="renderEosCalendar()"></label><button class="btn-secondary" type="button" aria-label="Next month" onclick="moveEosCalendarMonth(1)">›</button></div>
+  <label>Rig<select id="eos-calendar-rig" onchange="renderEosCalendar()"><option value="">All rigs</option></select></label>
+  <label>Shift<select id="eos-calendar-shift" onchange="renderEosCalendar()"><option value="">Day &amp; night</option><option value="day">Day</option><option value="night">Night</option><option value="other">Other / not recorded</option></select></label>
+  <button class="btn-secondary" type="button" onclick="latestEosCalendarMonth()">Latest reports</button>
+ </div>
+ <p id="eos-calendar-message" role="status"></p>
+ <div id="eos-calendar-content" hidden>
+  <div class="eos-calendar-caption"><h2 id="eos-calendar-heading"></h2><span id="eos-calendar-summary"></span></div>
+  <div class="eos-calendar-legend"><span><i class="loaded">✓</i> Report loaded</span><span><i>—</i> No report loaded</span><span>D · Day &nbsp; N · Night &nbsp; ? · Other / unknown shift</span></div>
+  <p class="eos-calendar-swipe">Swipe to see the rest of the week →</p>
+  <div class="eos-calendar-scroll" role="region" aria-label="Monthly report coverage" tabindex="0"><div class="eos-calendar-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div id="eos-calendar-grid" class="eos-calendar-grid"></div></div>
+  <p class="eos-calendar-note">Empty shifts may be off days. Costs are recorded charges in AUD; * means partial pricing. Select a day to open its reports.</p>
+  <p id="eos-calendar-quality" class="eos-calendar-note"></p>
+  <section id="eos-calendar-detail" class="eos-calendar-detail" hidden aria-labelledby="eos-calendar-detail-title"><div class="eos-calendar-caption"><h2 id="eos-calendar-detail-title"></h2><button class="btn-secondary" type="button" onclick="closeEosCalendarDay()">Close</button></div><div id="eos-calendar-detail-body"></div></section>
+ </div>
+</section>

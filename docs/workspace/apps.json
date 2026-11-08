@@ -6,6 +6,7 @@
     "panels": [
       "reports",
       "activities",
+      "report-calendar",
       "costing",
       "rates",
       "cost-contracts",
@@ -16,6 +17,10 @@
       [
         "activities",
         "PLODs / Activity Reports"
+      ],
+      [
+        "report-calendar",
+        "Report calendar"
       ],
       [
         "reports",

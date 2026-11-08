@@ -6,7 +6,7 @@ import re, json, html
 from site_brand import navigation, footer, wordmark
 ROOT=Path(__file__).resolve().parents[1]; DOCS=ROOT/'docs'; SRC=DOCS/'workspace'
 APPS={
- 'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','costing','rates','cost-contracts','importer','settings'],'nav':[('activities','PLODs / Activity Reports'),('reports','Production Report'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports'),('settings','Settings')]},
+ 'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','report-calendar','costing','rates','cost-contracts','importer','settings'],'nav':[('activities','PLODs / Activity Reports'),('report-calendar','Report calendar'),('reports','Production Report'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports'),('settings','Settings')]},
  'account':{'name':'Account','tag':'Your books. Clear and connected.','copy':'Actual invoices, credit notes and purchase orders in one place.','panels':['invoices','purchase-orders','contractors','importer'],'nav':[('invoices','Invoice ledger'),('purchase-orders','Purchase orders'),('contractors','Suppliers'),('importer','Import invoices')]},
  'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-dashboard','project-budgets','budget','boreholes','admin'],'nav':[('project-dashboard','Dashboard'),('project-budgets','Projects'),('boreholes','Borehole planning & map'),('budget','Budget planning'),('admin','Users & change log')]}}
 shell=(SRC/'shell.html').read_text()
@@ -14,7 +14,7 @@ shell=re.sub(r'<nav class="site-nav".*?</nav>',navigation(),shell,flags=re.S)
 shell=re.sub(r'<footer class="site-footer".*?</footer>',footer(),shell,flags=re.S)
 shell=shell.replace('{{company-home}}',(DOCS/'website/home.html').read_text())
 # Same simple line icons used in FieldMaps' navigation.
-ICONS={'overview':'M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z',
+ICONS={'calendar':'M3 5h18v16H3zM3 10h18M7 3v4M17 3v4M7 14h2M15 14h2M7 18h2M15 18h2','overview':'M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z',
  'report':'M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6',
  'table':'M3 4h18v16H3zM3 9h18M9 9v11M15 9v11',
  'layers':'M3 7l9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5',
@@ -22,7 +22,7 @@ ICONS={'overview':'M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z',
  'settings':'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
  'chart':'M4 3v17h17M8 15v-4M13 15V7M18 15V4',
  'people':'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9'}
-PAGE_ICONS={'settings':'settings','activities':'report','reports':'report','production':'chart','costing':'chart','rates':'table','cost-contracts':'report','importer':'upload','invoices':'table','purchase-orders':'report','contractors':'people','project-dashboard':'overview','project-budgets':'layers','boreholes':'layers','budget':'chart','admin':'settings','training':'people'}
+PAGE_ICONS={'report-calendar':'calendar','settings':'settings','activities':'report','reports':'report','production':'chart','costing':'chart','rates':'table','cost-contracts':'report','importer':'upload','invoices':'table','purchase-orders':'report','contractors':'people','project-dashboard':'overview','project-budgets':'layers','boreholes':'layers','budget':'chart','admin':'settings','training':'people'}
 def icon(name):
  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+ICONS[name]+'"/></svg>'
 def link(area,page,label,css='app-task'):
@@ -82,6 +82,7 @@ for area,cfg in APPS.items():
   s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-fieldmaps1"></script>\n<script src="./workspace/start.js')
  s=s.replace('<div class="drawer-title">DrillOps</div>',f'<div class="drawer-title">{title}</div>').replace(f'<div class="drawer-subtitle">{title}</div>','<div class="drawer-subtitle">'+{'eos':'Drilling operations','account':'Invoices &amp; purchase orders','project':'Planning &amp; people'}[area]+'</div>')
  if area=='eos':s=s.replace('</head>','<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-plods1"></head>').replace('<script src="./workspace/runtime.js','<script src="./workspace/eos-production-model.js?v=20261108-report2"></script>\n<script src="./workspace/runtime.js').replace('<script src="./workspace/start.js', '<script src="./workspace/eos-data-cache.js?v=20261108-speed1"></script>\n<script src="./workspace/eos-scope.js?v=20261108-plods1"></script>\n<script src="./workspace/eos-production.js?v=20261108-register4"></script>\n<script src="./workspace/start.js').replace('<script src="./workspace/start.js', '<script src="./workspace/eos-shift-charges.js?v=20261108-report2"></script>\n<script src="./workspace/eos-weather.js?v=20261108-report2"></script>\n<script src="./workspace/eos-period.js?v=20261108-register4"></script>\n<script src="./workspace/eos-overview.js?v=20261108-plods1"></script>\n<script src="./workspace/start.js').replace('<div class="drawer-title">DrillOps</div>','<div class="drawer-title">EOS</div>').replace('<div class="drawer-subtitle">EOS</div>','<div class="drawer-subtitle">Drilling operations</div>')
+ if area=='eos':s=s.replace('</head>','<link rel="stylesheet" href="./workspace/eos-calendar.css?v=20261108-calendar1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/eos-calendar-model.js?v=20261108-calendar1"></script>\n<script src="./workspace/eos-calendar.js?v=20261108-calendar1"></script>\n<script src="./workspace/start.js')
  if area=='eos':s=s.replace('<script src="./workspace/start.js','<script src="./workspace/eos-settings.js?v=20261108-plods1"></script>\n<script src="./workspace/eos-sections.js?v=20261108-report2"></script>\n<script src="./workspace/start.js')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
