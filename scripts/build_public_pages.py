@@ -51,11 +51,12 @@ for name in PUBLIC_PAGES:
     def dimensions(match):
         tag = match[0]
         src = re.search(r'src="([^"?]+)', tag)
-        if not src or 'width=' in tag: return tag
+        if not src: return tag
         asset = DOCS / src[1].removeprefix('./')
         if asset.suffix == '.png' and asset.exists():
-            import struct
-            width, height = struct.unpack('>II', asset.read_bytes()[16:24])
+            from image_dimensions import image_dimensions
+            width, height = image_dimensions(asset)
+            tag = re.sub(r'\s(?:width|height)="[^"]*"', '', tag)
             tag = tag.replace('<img', f'<img width="{width}" height="{height}"', 1)
         return tag
     source = re.sub(r'<img\b[^>]*>', dimensions, source)

@@ -88,6 +88,18 @@ class PublicPages(unittest.TestCase):
                 self.assertIn('height=',tag,name)
         self.assertIn('./public-entry.js',(DOCS/'index.html').read_text())
 
+    def test_product_positioning_and_image_dimensions(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        from image_dimensions import image_dimensions
+        self.assertEqual(image_dimensions(DOCS/'assets/products/activities-dar.png'),(789,742))
+        self.assertEqual(image_dimensions(DOCS/'assets/products/fieldmaps-web.png'),(1280,720))
+        fieldops=(DOCS/'fieldops.html').read_text()
+        hero=fieldops.split('<section class="wrap product-hero">')[1].split('</section>')[0]
+        self.assertIn('Available now on the App Store',hero)
+        self.assertIn('href="https://apps.apple.com/au/app/fieldops-by-drillops/id6797079076">Buy on the App Store',hero)
+        self.assertIn('Get launch updates',(DOCS/'fieldmaps.html').read_text())
+
     def test_homepage_has_an_explicit_public_entry_marker(self):
         self.assertIn('data-public-home="true"',(DOCS/'index.html').read_text())
         self.assertIn('<title>DrillOps</title>',(DOCS/'index.html').read_text())
