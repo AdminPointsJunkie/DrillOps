@@ -18,3 +18,12 @@ test('materials shared across rigs are flagged instead of duplicated or guessed'
  assert.equal(c.get(m.key(a)).total,100);assert.equal(c.get(m.key(b)).total,210);assert.equal(c.get(m.key(other)).total,300);
  assert.equal(c.get(m.key(a)).sharedMaterials,1);assert.equal(c.get(m.key(other)).sharedMaterials,0);
 });
+
+test('period cost counts selected shifts once and handles no metres and partial charges',()=>{
+ const a=row({id:1,line_cost:100}),b=row({id:2,line_cost:200}),other=row({id:3,drill_rig:'Rig 2',line_cost:900});
+ const groups=m.summarise([a,b,other],[row({id:4,line_cost:50})]);
+ assert.deepEqual(m.periodCost([a,b],groups,10),{total:350,partial:false,perMetre:35});
+ assert.equal(m.periodCost([a,b],groups,0).perMetre,null);
+ assert.equal(m.periodCost([],groups,0).perMetre,null);
+ const missing=row({id:5,line_cost:null});assert.equal(m.periodCost([missing],m.summarise([missing]),10).partial,true);
+});

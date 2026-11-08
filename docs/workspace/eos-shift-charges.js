@@ -33,5 +33,10 @@
   }
   return groups;
  }
- const api={key,summarise};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosShiftCharges=api;
+ function periodCost(rows,groups,metres){
+  let total=0,partial=false,priced=0;
+  for(const k of new Set(rows.map(key))){const g=groups.get(k);if(!g){partial=true;continue;}total+=g.total;priced+=g.priced;partial=partial||!!(g.unpriced||g.sharedMaterials||g.excluded);}
+  return {total,partial,perMetre:metres>0&&priced?total/metres:null};
+ }
+ const api={key,summarise,periodCost};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosShiftCharges=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

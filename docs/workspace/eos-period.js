@@ -46,7 +46,7 @@ function renderEosPeriodReport(){
  const options={...eosStandbyOptions(eosPeriodRows),completionEvents:EosProduction.completionEvents(eosPeriodRows)};
  const s=EosProduction.summarise(rows,options);eosPeriodSummary=s;
  const n=productionNumber,showTables=document.getElementById('eos-period-show-tables').checked,showCharges=document.getElementById('eos-period-show-charges').checked;
- const charges=showCharges?EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables):null;
+ const charges=EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables);
  document.getElementById('eos-period-charges-heading').hidden=!showCharges;document.getElementById('eos-period-charges-note').hidden=!showCharges;
  productionSet('eos-period-contractor',activeContractor);
  productionSet('eos-period-context',eosScopeLabel());
@@ -55,6 +55,7 @@ function renderEosPeriodReport(){
  updateEosPrintHeader();
  const drilling=contractorCategory(contractorByName(activeContractor))==='Drilling';
  productionSet('eos-period-narrative',rows.length?(drilling?n(s.metres)+' m · '+s.holeCount+' holes · ':n(s.hours)+' h · ')+s.reportCount+' plods · '+s.projects.length+' projects':'No records for these filters.');
+ renderEosCostTimeInsights(s,rows,charges,drilling);
  const metrics=drilling?[['Cored',n(s.core),'m'],['Chipped / open hole',n(s.chip),'m'],['Holes completed',s.completedHoles,''],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Drilling time',n(s.drillingHours),'h'],['Source plods',s.reportCount,'']]:[['Recorded activity',n(s.hours),'h'],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Source plods',s.reportCount,'']];
  document.getElementById('eos-period-metrics').innerHTML=metrics.map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+' <small>'+unit+'</small></strong></div>').join('');
  document.getElementById('eos-completed-holes').hidden=!drilling;
@@ -103,4 +104,11 @@ function eosShiftChargeCell(charge){
 function updateEosPrintHeader(){
  let style=document.getElementById('eos-print-page-style');if(!style){style=document.createElement('style');style.id='eos-print-page-style';style.media='not all';document.head.append(style);}
  style.textContent='@page{size:A4 portrait;margin:12mm 12mm 14mm;}';
+}
+
+function renderEosCostTimeInsights(s,rows,charges,drilling){
+ const el=document.getElementById('eos-cost-time-insights');el.hidden=!drilling;if(!drilling)return;
+ const cost=EosShiftCharges.periodCost(rows,charges,s.metres),active=s.drillingHours,inactive=Math.max(0,s.displayedHours-active),pct=s.displayedHours>0?active/s.displayedHours*100:null;
+ const money=v=>v==null?'—':v.toLocaleString('en-AU',{style:'currency',currency:'AUD'}),n=productionNumber;
+ el.innerHTML='<div class="eos-cost-per-m"><span>Cost per metre'+(cost.partial?' · partial':'')+'</span><strong>'+money(cost.perMetre)+' <small>/ m</small></strong><small>EOS charges + consumables · ex GST</small></div><div class="eos-drilling-time"><div class="eos-time-labels"><strong>Active drilling '+(pct==null?'—':n(pct)+'%')+'</strong><span>Inactive '+(pct==null?'—':n(100-pct)+'%')+'</span></div><div class="eos-utilisation-bar" role="img" aria-label="'+(pct==null?'No recorded activity time':'Active drilling '+n(pct)+' percent; inactive '+n(100-pct)+' percent')+'"><i style="width:'+(pct||0)+'%"></i></div><div class="eos-time-labels"><span>'+n(active)+' h drilling</span><span>'+n(inactive)+' h other included activity</span></div><small>Uses displayed activity time and current standby exclusions.</small></div>'+(cost.partial?'<p class="eos-document-note">Cost per metre is partial: some charges are missing or cannot be uniquely allocated.</p>':'');
 }
