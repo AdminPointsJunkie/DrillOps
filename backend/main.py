@@ -10573,6 +10573,7 @@ async def apply_activity_contract_code(activity_id: int, request: Request):
 
 @app.post("/cost-contracts/{contract_id}/import-depco")
 async def import_depco_contract(contract_id: int, request: Request):
+    """Add DEPCO schedule rates, including confirmed wet-weather standby at $550/hour."""
     payload = await request.json()
     scope = payload.get("scope")
     try:

@@ -39,12 +39,12 @@
       "unit": "hour",
       "charge": 550,
       "section": "Time Activities",
-      "status": "Review",
-      "reference_name": "26038 | DEPCO Active vs Standby!row 29 | Revised exploration rate; wet weather rate and trigger require Argo confirmation",
-      "category": "Revised exploration rate; wet weather rate and trigger require Argo confirmation",
+      "status": "Active",
+      "reference_name": "26038 | DEPCO Active vs Standby!row 29 | Hourly wet-weather standby, including post-rain site inspections until safe to work. $550/hour confirmed by owner on 8 November 2026.",
+      "category": "Hourly wet-weather standby, including post-rain site inspections until safe to work. $550/hour confirmed by owner on 8 November 2026.",
       "rig_type": "All",
       "sort_order": 29,
-      "review": true
+      "review": false
     },
     {
       "scope": "A",
@@ -2589,15 +2589,19 @@
       "unit": "hour",
       "charge": 550,
       "section": "Time Activities",
-      "status": "Review",
-      "reference_name": "26038 | Non Drilling Activities !row 53 | Hourly Rate: Standby for adverse weather with crew at the Initial Period rate. Includes any post rain event site inspections until safe to work again. | 550 | TBC by Argo: rate and trigger duration",
-      "category": "Hourly Rate: Standby for adverse weather with crew at the Initial Period rate. Includes any post rain event site inspections until safe to work again. | 550 | TBC by Argo: rate and trigger duration",
+      "status": "Active",
+      "reference_name": "26038 | Non Drilling Activities !row 53 | Hourly wet-weather standby, including post-rain site inspections until safe to work. $550/hour confirmed by owner on 8 November 2026.",
+      "category": "Hourly wet-weather standby, including post-rain site inspections until safe to work. $550/hour confirmed by owner on 8 November 2026.",
       "rig_type": "All",
       "sort_order": 53,
-      "review": true,
+      "review": false,
       "aliases": [
         "Standby Wet Weat",
-        "H_Standby_Wet_Weat"
+        "Standby Wet Weath",
+        "Standby Wet Weather",
+        "H_Standby_Wet_Weat",
+        "H_Standby_Wet_Weath",
+        "H_Standby_Wet_Weather"
       ]
     },
     {
@@ -3767,7 +3771,11 @@
       "review": false,
       "aliases": [
         "Standby Wet Weat",
-        "H_Standby_Wet_Weat"
+        "Standby Wet Weath",
+        "Standby Wet Weather",
+        "H_Standby_Wet_Weat",
+        "H_Standby_Wet_Weath",
+        "H_Standby_Wet_Weather"
       ]
     },
     {
