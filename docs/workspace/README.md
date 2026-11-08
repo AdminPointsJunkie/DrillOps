@@ -10,7 +10,7 @@ Each app document contains only its own page panels and its own navigation. Cros
 
 The shared session key and API origin are unchanged. Account and Project keep their client/project/program selection keys. EOS saves optional viewing filters separately in sessionStorage.drillops_eos_view_scope; imports require an explicit destination project ID and program. No database copies, schema changes or new access privileges are introduced. Management access is still verified before app initialization; non-management accounts retain their field portal route. Never put tokens in app links.
 
-EOS's contractor choices are restricted to Mitchells Drilling, DEPCO Drilling and MCC Group, with one contractor selected at a time. EOS defaults to all projects and can filter project and program without changing contractor. Both cached contractor choices and project-linked contractor responses are scoped for EOS; the full supplier cache remains available to Account and Project. No supplier records are deleted.
+EOS's contractor choices are restricted to Mitchells Drilling and DEPCO Drilling, with one contractor selected at a time. EOS defaults to all projects and can filter project and program without changing contractor. Both cached contractor choices and project-linked contractor responses are scoped for EOS; a previously selected MCC session falls back to an allowed contractor before report requests start. The full supplier cache remains available to Account and Project. No supplier records are deleted.
 
 ## Editing
 
@@ -87,7 +87,7 @@ Performance checks: `tests/eos_data_cache.test.mjs`, `tests/eos_loading.browser.
 
 ### On-demand detail and historical weather
 
-- EOS Settings explicitly enables raw logs for the current browser tab. Fresh raw-log deep links open Settings, and background hooks cannot build those tables until enabled. Production/Period detail tables are empty until their Settings load button is used. Unload clears rows and invalidates pending raw-log loads.
+- PLODs / Activity Reports is a permanent main-navigation item and supports direct links. Its report register, filters and individual report access load when the page is opened, independent of raw-log settings. EOS Settings enables only the optional raw activity, crew, consumables and reconciliation tables for the current browser tab. Background hooks cannot build the report register or raw tables on other pages. Unload removes optional tables and invalidates pending loads while preserving the PLOD register and Production Report shift register.
 - Fatigue management counts as standby only when its recorded line charge is positive. Zero/missing-charge fatigue stays excluded even with non-chargeable standby enabled; source hours and prices are retained.
 - The Period Report has an optional charge column in its shift register. Activity costs respect cost-source flags and MCC allocations. Material charges attach only to a unique project/plod/rig/shift; ambiguous or missing charges are marked partial, not silently apportioned. Displaying standby differently never reprices the register.
 - Weather loads independently above the Period Report production chart from `/eos/weather`. The endpoint uses saved project borehole coordinates (MGA55 fallback, as in the planning map), rounds to SILO's 0.05° grid and caches provider responses for six hours. A newly named project can use an exact shared recorded hole only when it resolves to one planning project; that location source is displayed. Missing or geographically ambiguous locations remain unavailable.

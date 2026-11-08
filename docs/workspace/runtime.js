@@ -2222,6 +2222,7 @@ function renderMccPersonnel(data){
 }
 
 async function loadMccPersonnel(){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   if(activeContractor!=='MCC Group'){
     renderMccPersonnel(null);
     return;
@@ -2378,7 +2379,7 @@ function renderMccWeeklyAudit(data){
 
 let activitiesRequestSequence=0;
 async function loadActivities(){
-  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
+  if(WORKSPACE_APP==='eos'&&!isPageActive('activities'))return;
   const requestSequence=++activitiesRequestSequence,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
   if(WORKSPACE_APP==='eos'){renderDailyReportSummary([]);document.getElementById('report-body').innerHTML='<tr><td colspan="9">Loading plods…</td></tr>';}
   var dates=activityFilterParam('f-dates');
@@ -2399,7 +2400,8 @@ async function loadActivities(){
     const response=await fetch(API+'/activity-report-data?'+p,{cache:'no-store'});
     if(!response.ok)throw new Error('HTTP '+response.status);
     const bundle=await response.json();
-    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
+    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion)||(WORKSPACE_APP==='eos'&&!isPageActive('activities')))return;
+    if(!bundle||!Array.isArray(bundle.activities))throw new Error('Invalid activity report response');
     applyActivityReportBundle(bundle);
     if(WORKSPACE_APP==='eos')rememberEosProjects(bundle.activities,!dates&&!holes&&!sites&&!codes&&!search&&!activityMissingCodesOnly);
     activitiesData=filterWorkspaceActivities(activitiesData);
@@ -2412,9 +2414,10 @@ async function loadActivities(){
     renderConsumablesTable();
     renderCrewTable();
   }catch(e){
-    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion))return;
+    if(requestSequence!==activitiesRequestSequence||(typeof eosScopeVersion!=='undefined'&&scopeVersion!==eosScopeVersion)||(WORKSPACE_APP==='eos'&&!isPageActive('activities')))return;
     renderDailyReportSummary([]);
-    document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
+    document.getElementById('report-body').innerHTML='<tr><td colspan="15" role="status" style="color:var(--red);padding:20px">Could not load activity reports. Use Refresh to retry.</td></tr>';
+    if(WORKSPACE_APP!=='eos'||eosRawLogsEnabled)document.getElementById('act-body').innerHTML='<tr><td colspan="19" style="color:var(--red);padding:20px">API offline</td></tr>';
   }
 }
 
@@ -2483,11 +2486,12 @@ async function loadDailyReportRelatedData(dates){
 }
 
 function renderActivities(rows){
-  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
+  if(WORKSPACE_APP==='eos'&&!isPageActive('activities'))return;
   updateMissingCodeButton();
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
   const tbody=document.getElementById('act-body');
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled){tbody.replaceChildren();return;}
   const panel=document.getElementById('activity-log-panel');
   if(panel&&panel.classList.contains('collapsed')){
     tbody.innerHTML='';

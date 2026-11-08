@@ -45,7 +45,7 @@ eosPlodFilters.forEach(([label,id])=>{
 });
 const originalEosSummary=renderDailyReportSummary;
 renderDailyReportSummary=function(rows){
- if(!eosRawLogsEnabled)return;
+ if(!isPageActive('activities'))return;
  originalEosSummary(rows);
  const values={status:[['pending','Awaiting approval'],['approved','Approved'],['rejected','Rejected'],['query','Query']],shift:[...new Set(dailyReportsData.map(r=>r.shift).filter(Boolean))].sort().map(v=>[v,v]),rig:[...new Set(dailyReportsData.map(r=>r.rig).filter(Boolean))].sort().map(v=>[v,v])};
  for(const [key,options] of Object.entries(values)){
