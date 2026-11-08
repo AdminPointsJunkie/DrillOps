@@ -81,3 +81,19 @@ function renderEosOtherActivities(prefix,summary,unavailable=false){
  host.innerHTML=unavailable?'':eosBarChart(summary.otherActivities.filter(r=>r.hours>0),['hours'],'h');
  productionSet(prefix+'-other-summary',unavailable?'':productionNumber(summary.otherHours)+' h · by recorded activity code');
 }
+
+function eosDailyTimeChart(s){
+ const parts=[['drillingHours','Active drilling','#237a65'],['otherHours','Other activity','#a9d4bd'],['movingHours','Site moves / setup','#7598ae'],['standbyHours','Standby','#d4ad46']];
+ if(!s.daily.length)return '<p class="production-empty">No recorded time for these filters.</p>';
+ const legend='<div class="eos-utilisation-legend">'+parts.map(([key,label,color])=>'<span><i style="background:'+color+'"></i>'+label+'</span>').join('')+'</div>';
+ const charts=[];
+ for(let start=0;start<s.daily.length;start+=31){
+  const days=s.daily.slice(start,start+31),step=900/days.length;
+  const grid=[0,25,50,75,100].map(p=>'<line x1="55" x2="960" y1="'+(220-p*2)+'" y2="'+(220-p*2)+'" stroke="#e4ebe6"/><text x="45" y="'+(224-p*2)+'" text-anchor="end">'+p+'%</text>').join('');
+  const bars=days.map((d,i)=>{const total=parts.reduce((v,[k])=>v+(d[k]||0),0),x=55+i*step+step*.18,w=Math.min(36,step*.64);let offset=0;
+   return '<g class="eos-utilisation-day" data-date="'+attr(d.label)+'">'+parts.map(([key,label,color])=>{const hours=d[key]||0,pct=total?hours/total*100:0,y=220-(offset+pct)*2;offset+=pct;return '<rect data-category="'+key+'" data-percent="'+pct+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+pct*2+'" fill="'+color+'"><title>'+esc(productionDisplayDate(d.label,true)+' · '+label+': '+productionNumber(hours)+' h ('+productionNumber(pct)+'%)')+'</title></rect>';}).join('')+'<text transform="translate('+(x+w/2)+',235) rotate(-55)" text-anchor="end">'+esc(productionDisplayDate(d.label,true))+'</text>'+(total?'':'<text x="'+(x+w/2)+'" y="215" text-anchor="middle">—</text>')+'</g>';
+  }).join('');
+  charts.push('<svg viewBox="0 0 980 320" role="img" aria-label="Daily time utilisation as a percentage of included recorded hours">'+grid+bars+'</svg>');
+ }
+ return '<div class="eos-daily-utilisation"><h4>Daily time utilisation</h4>'+legend+charts.join('')+'<p class="eos-document-note">Each bar totals 100% of included recorded hours for that day across the selected rigs. Standby exclusions apply. Days without reports are not shown; missing durations are not estimated.</p></div>';
+}
