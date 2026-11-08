@@ -1503,6 +1503,7 @@ function triggerPageLoad(page){
   if(page==='cost-contracts') loadCostContracts();
   if(page==='reports')      loadReportsPage();
   if(page==='activities')   loadActivities();
+  if(page==='report-calendar'&&WORKSPACE_APP==='eos') loadEosCalendar();
   if(page==='costing')      loadCosting();
   if(page==='analytics')    { populateAnalyticsFilters(); setTimeout(function(){loadAnalytics('all');},80); }
   if(page==='purchase-orders') loadPOs();

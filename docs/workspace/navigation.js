@@ -7,7 +7,7 @@ function contractorsForApp(rows, field='name'){
  return WORKSPACE_APP==='eos'?list.filter(row=>EOS_CONTRACTOR_NAMES.has(row[field])):list;
 }
 const WORKSPACE_PAGES = {
- eos:['reports','activities','costing','rates','cost-contracts','importer','settings'],
+ eos:['reports','activities','report-calendar','costing','rates','cost-contracts','importer','settings'],
  account:['invoices','purchase-orders','contractors','importer'],
  project:['project-dashboard','project-budgets','budget','boreholes','admin']
 };
