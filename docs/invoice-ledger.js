@@ -10,7 +10,7 @@
   const supplier = document.getElementById('inv-contractor-filter');
   [supplier].forEach(el => { el.removeAttribute('style'); el.removeAttribute('onchange'); });
   page.innerHTML = `
-    <header class="ledger-heading"><div><div class="ledger-eyebrow" id="ledger-scope">Commercial / Invoices</div><h2>Invoice ledger</h2><p>Posted invoices and credit notes. Actuals only.</p></div>
+    <header class="ledger-heading"><div><div class="ledger-eyebrow" id="ledger-scope">Commercial / Invoices</div><h2 id="ledger-title">Invoice ledger</h2><p>Posted invoices and credit notes. Actuals only.</p></div>
       <div class="ledger-actions"><button class="ledger-button" id="ledger-refresh">Refresh</button><button class="ledger-button" id="ledger-export">Export ledger</button><button class="ledger-button primary" id="ledger-add">Add invoice</button></div></header>
     <div id="ledger-message" class="ledger-notice" role="status" hidden></div>
     <div class="ledger-cards">
@@ -36,6 +36,8 @@
   const known = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const cents = value => Math.round(Number(value) * 100);
   const money = value => known(value) ? Number(value).toLocaleString('en-AU', {style:'currency', currency:'AUD'}) : 'Not recorded';
+  const linkedProject = () => typeof activeWorkspaceProject === 'function' ? activeWorkspaceProject() : null;
+  const projectLabel = () => { const p=linkedProject(); return [p?.name||activeProjectName,p?.year].filter(Boolean).join(' '); };
   function dateKey(value) {
     const s = String(value || '');
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
@@ -59,7 +61,9 @@
     if (nextScope !== scope) { scope = nextScope; reset(); }
     ready = false; invoicesData = []; filter();
     el('ledger-detail').hidden = true; breakdown.hidden = true;
-    el('ledger-scope').textContent = [activeProjectName, activeProgram, 'Invoices'].filter(Boolean).join(' / ');
+    el('ledger-scope').textContent = [projectLabel(), activeProgram, 'Invoices'].filter(Boolean).join(' / ');
+    el('ledger-title').textContent = projectLabel() ? 'Invoice ledger · '+projectLabel() : 'Invoice ledger';
+    page.dataset.projectId = linkedProject()?.id || '';
     if (!activeProjectName) { message('Choose a workspace project to view its invoice ledger.'); return; }
     message('Loading invoice ledger…');
     try {
@@ -112,7 +116,7 @@
   function openDetails(id) {
     const row = invoicesData.find(r => Number(r.id) === id); if (!row) return;
     const detail = el('ledger-detail'); detail.hidden = false;
-    detail.innerHTML = `<div class="ledger-heading"><div><h3>${escape(row.invoice_number || 'Invoice')}</h3><span>${escape(row.contractor || '')} · ${escape(row.po_reference || 'No PO recorded')}</span></div><button class="ledger-button" id="ledger-close">Close details</button></div><dl class="ledger-detail-grid">${[['Subtotal · ex GST',row.subtotal],['GST',row.gst],['Total · incl GST',row.total_aud],['Amount paid',row.amount_paid],['Amount due',row.amount_due]].map(([label,value]) => `<div><dt>${label}</dt><dd>${money(value)}</dd></div>`).join('')}<div><dt>Invoice month</dt><dd>${escape(row.billing_month || 'Not recorded')}</dd></div></dl><div class="ledger-actions"><button class="ledger-button" id="ledger-lines">View line breakdown</button><button class="ledger-button" id="ledger-attachments">Attachments</button>${row.source_file && !String(row.source_file).startsWith('manual:')?'<button class="ledger-button" id="ledger-pdf">View invoice PDF</button>':''}</div><h4>Reconciliation notes</h4><pre>${escape([row.notes,row.query_notes].filter(Boolean).join('\n\n') || 'No notes recorded.')}</pre>`;
+    detail.innerHTML = `<div class="ledger-heading"><div><h3>${escape(row.invoice_number || 'Invoice')}</h3><span>${escape(row.contractor || '')} · ${escape(row.po_reference || 'No PO recorded')}</span></div><button class="ledger-button" id="ledger-close">Close details</button></div><dl class="ledger-detail-grid">${[['Subtotal · ex GST',row.subtotal],['GST',row.gst],['Total · incl GST',row.total_aud],['Amount paid',row.amount_paid],['Amount due',row.amount_due]].map(([label,value]) => `<div><dt>${label}</dt><dd>${money(value)}</dd></div>`).join('')}<div><dt>Project</dt><dd>${escape(projectLabel())} · ${escape(activeProgram)}</dd></div><div><dt>Invoice month</dt><dd>${escape(row.billing_month || 'Not recorded')}</dd></div></dl><div class="ledger-actions"><button class="ledger-button" id="ledger-lines">View line breakdown</button><button class="ledger-button" id="ledger-attachments">Attachments</button>${row.source_file && !String(row.source_file).startsWith('manual:')?'<button class="ledger-button" id="ledger-pdf">View invoice PDF</button>':''}</div><h4>Reconciliation notes</h4><pre>${escape([row.notes,row.query_notes].filter(Boolean).join('\n\n') || 'No notes recorded.')}</pre>`;
     el('ledger-close').onclick = () => { detail.hidden = true; breakdown.hidden = true; };
     el('ledger-lines').onclick = () => { breakdown.hidden = false; loadInvoiceBreakdown(id); breakdown.scrollIntoView({behavior:'smooth',block:'start'}); };
     el('ledger-attachments').onclick = () => openInvoiceAttachments(id);
@@ -122,8 +126,8 @@
   function exportLedger() {
     if (!ready || !visibleRows.length) return;
     let running = 0;
-    const records = [['Date','Invoice / credit','Supplier','PO','Charge ex GST','Credit ex GST','Running recorded total ex GST']];
-    visibleRows.forEach(r => { const n = known(r.subtotal)?cents(r.subtotal):null; if(n !== null) running += n; records.push([r.invoice_date,r.invoice_number,r.contractor,r.po_reference,n === null?'':n >= 0?n/100:'',n !== null && n < 0?-n/100:'',running/100]); });
+    const records = [['Project ID','Project','Project year','Program','Date','Invoice / credit','Supplier','PO','Charge ex GST','Credit ex GST','Running recorded total ex GST']];
+    visibleRows.forEach(r => { const n = known(r.subtotal)?cents(r.subtotal):null; if(n !== null) running += n; records.push([linkedProject()?.id||'',r.project,linkedProject()?.year||'',r.program,r.invoice_date,r.invoice_number,r.contractor,r.po_reference,n === null?'':n >= 0?n/100:'',n !== null && n < 0?-n/100:'',running/100]); });
     const quote = value => { let s = String(value ?? ''); if (typeof value !== 'number' && /^[=+@\-\t\r]/.test(s)) s = "'"+s; return '"'+s.replace(/"/g,'""')+'"'; };
     const url = URL.createObjectURL(new Blob(['\uFEFF'+records.map(row => row.map(quote).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'}));
     const link = document.createElement('a'); link.href=url; link.download='invoice-ledger.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
