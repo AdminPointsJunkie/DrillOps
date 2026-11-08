@@ -46,7 +46,7 @@
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
 <link rel="stylesheet" href="./workspace/project-budget-ledger.css?v=20261108-unallocated1"><link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-report1">
-<link rel="stylesheet" href="./workspace/project-hole-report.css?v=20261108-collapse1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/project-hole-report.css?v=20261108-simplify1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
 
@@ -466,14 +466,10 @@
     <div class="phr-actions"><label>From<input id="period-range-from" type="date" onchange="renderPeriodReport()"></label><label>To<input id="period-range-to" type="date" onchange="renderPeriodReport()"></label><button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button><button class="btn-secondary" id="project-hole-print" type="button" onclick="printPeriodReport()" disabled>Print PDF</button></div>
   </div>
   <div class="period-report-body phr-content" hidden>
+    <section class="phr-panel"><div class="phr-title"><h2>Project hole locations</h2></div><div class="period-map-card"><div id="period-map" class="period-map"></div><div id="period-map-print" class="period-map-print" aria-hidden="true"></div><div id="period-map-empty" class="period-map-empty" style="display:none">No mapped holes.</div></div></section>
     <div class="phr-section-controls"><button class="btn-secondary" type="button" data-phr-expand="false">Collapse all</button><button class="btn-secondary" type="button" data-phr-expand="true">Expand all</button></div><section class="phr-panel"><div class="phr-title"><h2>Budget summary</h2></div><div class="phr-kpis" id="phr-budget-kpis"></div></section>
     <section class="phr-panel"><div class="phr-title"><h2>EOS production &amp; monthly costs</h2><span id="phr-production-meta"></span></div><div class="phr-production" id="phr-production-kpis"></div><div id="phr-monthly-chart"></div></section>
     <section class="phr-panel"><div class="phr-title"><h2>Contractor reconciliation</h2><span>AUD · excluding GST</span></div><p class="phr-note">Planned budgets exclude cancelled holes. EOS charges and Accounts invoices are separate comparisons; they are never added together.</p><div class="phr-scroll" id="phr-contractors"></div></section>
-    <section class="phr-panel"><div class="phr-title"><h2>Production against the hole plan</h2><span>Holes with EOS work in the selected period</span></div><div id="period-hole-graphics"></div></section>
-    <section class="phr-panel"><div class="phr-title"><h2>Hole detail</h2><span id="phr-hole-count"></span></div><p class="phr-note">All planned holes remain visible. Invoice amounts appear against a hole only when its invoice lines reconcile to the invoice subtotal and identify that hole.</p><div class="phr-scroll" id="phr-hole-table"></div></section>
-    <section class="phr-panel"><div class="phr-title"><h2>Project-wide / unallocated costs</h2></div><div id="phr-unallocated"></div><div id="phr-issues" role="status"></div></section>
-    <section class="phr-panel"><div class="phr-title"><h2>Accounts invoices</h2><span id="phr-invoice-count"></span></div><p class="phr-note">Net subtotals including credit notes. Invoice periods use the billing month, or invoice date when no billing month is recorded; selected months are included in full.</p><div class="phr-scroll" id="phr-invoices"></div></section>
-    <section class="phr-panel"><div class="phr-title"><h2>Project hole locations</h2></div><div class="period-map-card"><div id="period-map" class="period-map"></div><div id="period-map-print" class="period-map-print" aria-hidden="true"></div><div id="period-map-empty" class="period-map-empty" style="display:none">No mapped holes.</div></div></section>
     <p class="phr-note" id="phr-source-note"></p>
   </div>
 </section>
@@ -725,8 +721,8 @@
 <script src="./workspace/project-budget-source.js?v=20261108-unallocated1"></script>
 <script src="./workspace/eos-production-model.js?v=20261108-holes1"></script>
 <script src="./workspace/accounts-overview-model.js?v=20261108-1"></script>
-<script src="./workspace/project-hole-report-model.js?v=20261108-collapse1"></script>
-<script src="./workspace/project-hole-report.js?v=20261108-collapse1"></script>
+<script src="./workspace/project-hole-report-model.js?v=20261108-simplify1"></script>
+<script src="./workspace/project-hole-report.js?v=20261108-simplify1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>
