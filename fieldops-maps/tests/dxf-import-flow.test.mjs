@@ -1,3 +1,4 @@
+import {readSavedVector} from '../src/saved-vector.js';
 import {isArchiveFile,isLocalGeoTIFF,assertCloudFile} from '../src/data-policy.js';
 import {attachmentPaths} from '../src/location-files.js';
 import test from 'node:test';
@@ -14,9 +15,9 @@ const makeLayer=()=>({id:'raw',name:'Survey',kind:'vector',metadata:{format:'DXF
  {type:'Feature',properties:{EntityHandle:'l'},geometry:{type:'LineString',coordinates:[[0,0],[1,1]]}},
  {type:'Feature',properties:{EntityHandle:'s'},geometry:{type:'Polygon',coordinates:[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}}
 ]}});
-function harness({failLine=false}={}){
+function harness({failLine=false,failReadback=false}={}){
  const elements=new Map(),uploaded=[],removed=[],saved=[],notices=[],layouts=[];
- const context={isArchiveFile,isLocalGeoTIFF,assertCloudFile,attachmentPaths,console,structuredClone,crypto:{randomUUID},splitDXFSections,CLOUD_FILE_LIMIT:50000000,LOCAL_TESTING:false,busy:false,queue:[{kind:'vector'}],reviewIndex:0,preview:null,user:{id:'user'},activeMap:{id:'project'},layerTree:[],layers:[],rendered:new Map(),
+ const context={readSavedVector,isArchiveFile,isLocalGeoTIFF,assertCloudFile,attachmentPaths,console,structuredClone,crypto:{randomUUID},splitDXFSections,CLOUD_FILE_LIMIT:50000000,LOCAL_TESTING:false,busy:false,queue:[{kind:'vector'}],reviewIndex:0,preview:null,user:{id:'user'},activeMap:{id:'project'},layerTree:[],layers:[],rendered:new Map(),
   $:selector=>{if(!elements.has(selector))elements.set(selector,{close(){},textContent:'',disabled:false});return elements.get(selector);},
   settings:()=>({crs:'EPSG:4326'}),convertCurrent:async()=>makeLayer(),setBusy:()=>{},renderQueue:()=>{},fit:()=>{},renderLayers:()=>{},updateEmpty:()=>{},refreshSaveStatus:()=>{},ensureMap:async()=>{},canEditLayer:()=>true,repairDXFLayer:async()=>0,
   toast:message=>notices.push(message),errorText:e=>e.message,registerUpload:async()=>{},explorer:{rekey(){}},mapComponents:{rekey(){}},
@@ -24,7 +25,7 @@ function harness({failLine=false}={}){
   replaceTreeId:(oldID,newID)=>{for(const node of context.layerTree){if(node.children){const i=node.children.indexOf(oldID);if(i>=0)node.children[i]=newID;}}},
   addLayer:l=>{context.layers.push(l);context.layerTree.unshift(l.id);context.rendered.set(l.id,{});},
   db:{from:()=>({select(){return this;},eq(){return this;},single:async()=>({data:{metadata:{...saved.at(-1).p_layer.metadata,data_revision:'fixture'}}})}),storage:{from:()=>({upload:async(path)=>{uploaded.push(path);return {};},remove:async paths=>{removed.push(...paths);return {};}})},rpc:async(name,args)=>{
-   if(name==='layer_geojson'){const prior=saved.at(-1);return {data:{type:'FeatureCollection',features:prior.p_features.map((f,i)=>({...f,id:i+1}))}};}
+   if(name==='layer_geojson'){if(failReadback){failReadback=false;return {error:Error('GeoJson: geometry not supported.')}}const prior=saved.at(-1);return {data:{type:'FeatureCollection',features:prior.p_features.map((f,i)=>({...f,id:i+1}))}};}
    if(failLine&&args.p_layer.metadata.dxf_geometry==='line'){failLine=false;return {error:Error('Temporary save failure')};}
    saved.push(structuredClone(args));return {data:randomUUID()};
   }}
@@ -61,3 +62,11 @@ test('DWG source-setting rebuild replaces only its named CAD layer',async()=>{
  h.context.replaceLayer=async(a,b)=>{assert.equal(a,old);replacement=b;};await h.context.reviewAction(false);
  assert.equal(replacement.fc.features.length,2);assert.ok(replacement.fc.features.every(f=>f.properties.Layer==='Targets'));assert.equal(replacement.metadata.cad_layer,'Targets');
 });
+
+ test('Save retries a committed KMZ readback and clears its stale error without reimporting',async()=>{
+  const h=harness({failReadback:true}),layer=makeLayer();layer.metadata.format='KMZ';h.context.addLayer(layer);
+  await assert.rejects(h.context.saveLayer(layer),/geometry not supported/);
+  assert.equal(layer.saved,true);assert.ok(layer.saveError);const committedID=layer.id;
+  await h.context.saveLayer(layer);
+  assert.equal(layer.id,committedID);assert.equal(layer.saveError,null);assert.equal(h.saved.length,1);assert.equal(h.uploaded.length,1);assert.equal(h.removed.length,0);assert.ok(layer.fc.features.every(f=>Number.isInteger(f.id)));
+ });
