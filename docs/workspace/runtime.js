@@ -7396,6 +7396,7 @@ async function saveBoreholeDetailCell(holeId, col, rawVal, isNumeric, isExtra) {
       body:JSON.stringify({contractor:boreholePlanningContractor(),[col]:val})
     });
     if(!res.ok) throw new Error(await res.text());
+    if(col==='status')notifyBoreholeStatusSaved();
     toast('Saved');
   } catch(e) {
     bh[col] = previousValue;
@@ -7884,6 +7885,10 @@ function renderBhMap() {
   }
 }
 
+function notifyBoreholeStatusSaved(){
+  try{localStorage.setItem('drillops_borehole_status_changed',String(Date.now()));}catch(error){}
+  window.dispatchEvent(new Event('drillops-borehole-status-changed'));
+}
 async function setBhStatus(holeId, status) {
   const bh = bhData.find(function(b){return b.hole_id===holeId;});
   if(!bh) return;
@@ -7895,6 +7900,7 @@ async function setBhStatus(holeId, status) {
       body:JSON.stringify({contractor:boreholePlanningContractor(),status:status})
     });
     if(!res.ok) throw new Error(await res.text());
+    notifyBoreholeStatusSaved();
     toast('✓ '+holeId+' → '+status);
   } catch(e) {
     bh.status = previous;

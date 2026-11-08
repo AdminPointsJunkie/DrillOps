@@ -9816,6 +9816,7 @@ async def import_budget(request: Request):
 
 @app.patch("/boreholes/{hole_id}")
 async def update_borehole(hole_id: str, request: Request):
+    """Update a borehole; saved planner statuses survive workbook refreshes."""
     payload = await request.json()
     contractor = payload.pop("contractor", "Allianz Drilling")
     safe = {"status","notes","days_budgeted","drilling_budget_total","earthworks_budget_total","geophysical_budget_total","geological_support_budget_total","misc_budget_total","budget_total","actual_total","drill_order","project","program","planned_year","site_id","bh_type","bit_type","purpose","easting","northing","rl","chip_depth","eoh_depth","total_core","seam_tk","lat","lng","assigned_rig","scheduled_start","scheduled_end","hole_id"}
@@ -10969,13 +10970,8 @@ def sync_ironbark_budget_v5_4():
                         seam_tk=EXCLUDED.seam_tk,
                         lat=EXCLUDED.lat,
                         lng=EXCLUDED.lng,
-                        status=CASE
-                            WHEN EXCLUDED.notes LIKE '%%user-confirmed status override%%' THEN EXCLUDED.status
-                            WHEN EXCLUDED.status='Cancelled' THEN 'Cancelled'
-                            WHEN LOWER(COALESCE(boreholes.status,'')) IN ('complete','in progress')
-                            THEN boreholes.status
-                            ELSE EXCLUDED.status
-                        END,
+                        -- Existing planning decisions survive source refreshes and restarts.
+                        status=COALESCE(NULLIF(BTRIM(boreholes.status), ''), EXCLUDED.status),
                         notes=CASE
                             WHEN COALESCE(BTRIM(boreholes.notes),'')=''
                               OR boreholes.notes LIKE 'Budget Version %% classification:%%'

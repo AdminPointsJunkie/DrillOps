@@ -1,0 +1,25 @@
+import {chromium} from 'playwright';import assert from 'node:assert/strict';
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:1000}});let status='Planned',saveFailure=false,loadFailure=false;const writes=[];
+ const source={project:'Ironbark',year:2026,source:'Example.xlsx',total:1500,comparison_total:1200,boreholes:[{hole_id:'SITE-A',site_id:'SITE-A',source_status:'Planned',budget_total:1500,drilling_budget_total:1000,earthworks_budget_total:200,geophysical_budget_total:100,geological_support_budget_total:150,misc_budget_total:50}]};
+ const hole=()=>({id:1,contractor:'Company',project:'Ironbark',program:'Exploration',planned_year:'2026',hole_id:'OPERATING-A',site_id:'SITE-A',activity_hole_ids:['SITE-A','OPERATING-A'],status,budget_total:7777,drilling_budget_total:1000});
+ await context.addInitScript(()=>{localStorage.setItem('drillops_supabase_session',JSON.stringify({access_token:'test',expires_at:9999999999}));localStorage.setItem('drillops_client_id','1');localStorage.setItem('drillops_project','Ironbark');localStorage.setItem('drillops_program','Exploration');});
+ await context.route('http://localhost:8000/**',async route=>{const p=new URL(route.request().url()).pathname;
+  if(p==='/boreholes/OPERATING-A'){const body=route.request().postDataJSON();writes.push(body);if(saveFailure)return route.fulfill({status:500,json:{detail:'failed'}});status=body.status;return route.fulfill({json:{status:'updated'}});}
+  if(p==='/boreholes'&&loadFailure)return route.fulfill({status:500,json:{}});
+  const data=p==='/mobile/me'?{name:'Test',role:'System Administrator',management_portal_access:true}:p==='/projects'?[{id:1,name:'Ironbark',client_id:1,year:'2026',program:'Exploration'}]:p==='/clients'?[{id:1,name:'Client'}]:p==='/boreholes'?[hole()]:p==='/project-budget-source'?source:[];
+  await route.fulfill({json:data});
+ });
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://localhost:8766/project.html?view=boreholes');await page.waitForSelector('#bh-body [data-hole="OPERATING-A"] select');
+ await page.locator('#bh-body [data-hole="OPERATING-A"] select').selectOption('Cancelled');await page.waitForFunction(()=>localStorage.getItem('drillops_borehole_status_changed'));
+ assert.equal(status,'Cancelled');assert.deepEqual(writes[0],{contractor:'Company',status:'Cancelled'});
+ await page.locator('.drawer-nav-item[data-page=budget]').click();await page.waitForFunction(()=>document.querySelector('.budget-source-status')?.textContent==='Cancelled');
+ assert.equal(await page.locator('.budget-hole-ledger tbody .ledger-total').innerText(),'$1,500.00');assert.equal(await page.locator('#budget-kpi-total').innerText(),'$1,200.00');assert.match(await page.locator('.budget-cancellation-summary').innerText(),/1,500.00/);
+ const downloads=page.waitForEvent('download');await page.locator('#budget-ledger-export').click();const download=await downloads,stream=await download.createReadStream();let csv='';for await(const part of stream)csv+=part;assert.match(csv,/BH Planner status/);assert.match(csv,/Cancelled/);assert.match(csv,/1500/);assert.doesNotMatch(csv,/7777/);
+ const planner=await context.newPage();planner.on('pageerror',e=>errors.push(e.message));await planner.goto('http://localhost:8766/project.html?view=boreholes');await planner.waitForSelector('#bh-body [data-hole="OPERATING-A"] select');await planner.locator('#bh-body [data-hole="OPERATING-A"] select').selectOption('Planned');
+ await page.waitForFunction(()=>document.querySelector('.budget-source-status')?.textContent==='Planned');assert.equal(await page.locator('.budget-hole-ledger tbody .ledger-total').innerText(),'$1,500.00');assert.equal(await page.locator('.budget-hole-ledger tbody .budget-potential-saving').innerText(),'$0.00');
+ saveFailure=true;await planner.locator('#bh-body [data-hole="OPERATING-A"] select').selectOption('Cancelled');await planner.waitForFunction(()=>document.querySelector('#bh-body select')?.value==='Planned');assert.equal(status,'Planned');
+ loadFailure=true;await page.bringToFront();await page.evaluate(()=>loadProjectBudgets());await page.waitForFunction(()=>document.querySelector('.budget-source-status')?.textContent==='Unavailable');assert.equal(await page.locator('.budget-hole-ledger tbody .ledger-total').innerText(),'$1,500.00');assert.equal(await page.locator('.budget-hole-ledger tfoot .budget-potential-saving').innerText(),'—');assert.match(await page.locator('#project-workbook-budget').innerText(),/statuses could not load/);assert.deepEqual(errors,[]);
+ console.log('PASS planner cancellation and reinstatement sync, cross-tab updates, original budget/CSV preservation, failed saves and unavailable status handling');
+}finally{await browser.close();}
