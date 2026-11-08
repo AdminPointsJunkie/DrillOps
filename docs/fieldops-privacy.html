@@ -11,27 +11,36 @@
 <body class="site"><a class="skip" href="#main">Skip to content</a><nav class="site-nav" aria-label="Main navigation"><a class="do-wordmark" href="./index.html" aria-label="DrillOps home"><span class="do-company">DrillOps</span></a><div class="nav-links"><a href="./drillops.html">EOS</a><a href="./accounting.html">Account</a><a href="./project-management.html">Project</a><a href="./fieldops.html">FieldOps</a><a href="./fieldmaps.html">FieldMaps</a></div><details class="mobile-menu"><summary>Products</summary><div><a href="./drillops.html">EOS</a><a href="./accounting.html">Account</a><a href="./project-management.html">Project</a><a href="./fieldops.html">FieldOps</a><a href="./fieldmaps.html">FieldMaps</a><a href="./support.html">Support</a></div></details><div class="nav-action"><a class="text-link" href="./support.html">Support ↗</a></div></nav>
 <main id="main"><div class="wrap document">
   <h1>FieldOps Privacy Policy</h1>
-  <p class="date">Effective 2 August 2026</p>
+  <p class="date">Effective 8 November 2026</p>
 
-  <p>FieldOps is designed to keep your field information on your device. The app does not require an account and the developer does not operate a server that receives your field records.</p>
+  <p>FieldOps keeps ordinary field records on your device. Its core field tools do not require a FieldMaps account. You can separately choose to connect to FieldMaps, connect to your own PostgreSQL/PostGIS database, export files or use a backup location. Those features transfer the information described below.</p>
 
   <h2>Data collection</h2>
-  <p>The developer does not collect, sell, rent, use for advertising, or use for analytics any personal data from FieldOps. The app contains no advertising SDKs, analytics SDKs or cross-app tracking.</p>
+  <p>The app contains no advertising SDKs or cross-app advertising tracking. DrillOps does not sell or rent your personal information or use your field records for advertising. Optional FieldMaps account, project and device information is processed to provide sign-in, access control, shared editing, downloads and workspace administration.</p>
 
   <h2>Device permissions</h2>
   <p>The app may request access to Location, Camera, Motion and Photos. Location is used for coordinates, mapping, waypoints, navigation and user-initiated track recording. Camera is used for field photography. Motion is used for compass and angle instruments. Photos Add access is used only when you ask the app to save a photo. This information is processed on the device.</p>
 
   <h2>Field records and sharing</h2>
-  <p>Tracks, waypoints, imported DXF layers and settings are stored locally on your device. Annotated photos are saved to your photo library when you request it. Data leaves the app only when you deliberately export or share a file, or when Apple services such as iCloud device backup are enabled under your own Apple account settings.</p>
+  <p>Tracks, waypoints, map objects, imported layers and settings are stored locally. Annotated photos are saved to your photo library when you request it. Export and sharing actions send the selected files to the destination you choose. Backups may copy app data to a folder or cloud service you select, or through device backups enabled under your Apple account. That destination's own privacy and retention terms apply.</p>
+
+  <h2>Optional FieldMaps connection</h2>
+  <p>FieldMaps is a separate DrillOps product with its own account and workspace permissions. If you sign in from FieldOps, your email and credentials are sent securely to the FieldMaps authentication service. FieldMaps uses Supabase for authentication, database and file storage. Session credentials are stored in the device Keychain; downloaded projects and saved edits are kept separately for each account.</p>
+  <p>Opening projects and downloading updates requests the maps and files assigned to your account. FieldMaps also receives a randomly generated installation identifier, device model, operating-system version, app version, workspace activity and completed-download information. Workspace administrators can use these records to see device activity and which published maps have been downloaded. This is not continuous GPS tracking.</p>
+  <p>When your workspace administrator has enabled FieldOps uploads, edits remain on your device until you press <strong>Sync now</strong>. Uploads can include feature names, notes, other attributes, precise map coordinates and deletions. They are associated with your account and project and update the FieldMaps draft. Authorised workspace users can access that draft; a workspace editor publishes it before other assigned devices receive the new version. Saving a field edit or returning to the app does not automatically upload it. This integration does not upload your unrelated FieldOps photo library, tracks, raster files or attachments.</p>
+
+  <h2>Your own database connections</h2>
+  <p>If you connect to PostgreSQL or PostGIS, FieldOps sends connection credentials to the server you configure and stores saved credentials in Keychain. Downloads and shared edits transfer the selected records under that server's permissions. Any automatic sync option applies only when you enable it for that database connection. The database operator controls access and retention.</p>
 
   <h2>Apple Maps</h2>
   <p>The map uses Apple's MapKit service. Apple's handling of map service information is governed by Apple's own privacy policy and platform terms.</p>
 
   <h2>Retention and deletion</h2>
-  <p>You can delete tracks, waypoints and DXF layers inside the app. You can remove saved photographs in the Photos app. Deleting FieldOps removes its locally stored application data, subject to any device backups managed by you through Apple.</p>
+  <p>You can delete local records in FieldOps and saved photographs in Photos. Signing out of FieldMaps removes its downloaded projects from the active device account; saved edit queues remain separated by account so unfinished work can be recovered on sign-in. Deleting the app removes its local application files, subject to copies in your backups. Sign out before removing the app to clear its saved FieldMaps session.</p>
+  <p>Removing a local copy or signing out does not erase records already uploaded to FieldMaps, your database or another sharing destination. Published versions, edit history, operation records and service backups may retain earlier copies. Your workspace administrator manages shared project records. For a FieldMaps account or privacy deletion request, contact your workspace administrator or <a href="mailto:admin@drillops.com.au">admin@drillops.com.au</a>.</p>
 
   <h2>Children</h2>
-  <p>The app does not knowingly collect personal information from children or any other users.</p>
+  <p>DrillOps does not knowingly collect children's personal information. If you believe such information has been submitted through a connected service, please contact us.</p>
 
   <h2>Changes</h2>
   <p>If this policy changes, the effective date and published policy will be updated before the changed practices apply.</p>
