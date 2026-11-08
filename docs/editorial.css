@@ -31,3 +31,10 @@ body{margin:0}button{color:inherit}p{margin:0 0 1em}h3{margin:1em 0}img{vertical
 .dd-productvisual img,.dd-productvisual.portrait img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;margin:0;box-shadow:0 12px 28px #21302215}
 .dd-productvisual figcaption{min-height:32px;margin-top:16px;align-items:flex-start}
 @media(max-width:900px){.dd-productvisual>a{height:360px;padding:18px}}
+
+/* Keep workspace access visible in every public header, including mobile. */
+.dd-signin{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-size:13px!important;font-weight:600!important;padding:12px 17px;background:#26352d;color:#fff!important;border-radius:3px;min-height:44px}
+.dd-signin:hover{background:#315d49}
+.dd-header{gap:22px}
+@media(max-width:1100px){.dd-header .dd-contact{display:none}.dd-header nav{gap:20px}}
+@media(max-width:600px){.dd-header{gap:14px}.dd-header .dd-brand{margin-right:auto}.dd-signin{font-size:12px!important;padding:10px 12px}.dd-menu{white-space:nowrap}}
