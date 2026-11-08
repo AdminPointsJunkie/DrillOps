@@ -46,7 +46,7 @@
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
 <link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
-</head>
+<link rel="stylesheet" href="./workspace/suite-style.css?v=20261108-suite1"><script src="./workspace/report-design.js?v=20261108-suite1"></script></head>
 <body class="workspace-locked" data-workspace-area="account">
 
 <!-- Landing / Login -->
@@ -496,13 +496,13 @@
   <div id="ao-kpis" class="ao-kpis"></div>
   <h3>Latest invoices received</h3><div id="ao-contractors" class="ao-contractors"></div>
   <section class="ao-panel"><div class="ao-section-title"><h3>Invoice receipt calendar</h3><span id="ao-calendar-year"></span></div>
-   <p class="ao-note">Latest invoiced month uses the billing month, or the invoice date when no billing month is recorded. A receipt does not confirm the month is fully billed.</p>
+
    <div class="ao-legend"><span><b class="received">✓</b> Invoice received</span><span><b class="gap">!</b> Priced EOS charges, no invoice</span><span><b class="partial">!</b> Receipt + EOS gap on another project</span><span><b class="credit">C</b> Credit only</span><span><b class="none">—</b> No invoice recorded</span></div>
    <div class="tbl-scroll" id="ao-calendar"></div>
-   <p class="ao-note">Only positive priced EOS charges trigger gap checks in completed months for Mitchells and DEPCO. Other blank months are not automatically overdue.</p>
+
   </section>
   <section id="ao-detail" class="ao-panel" hidden aria-live="polite"></section>
-  <div class="ao-charts"><section class="ao-panel"><h3>Monthly invoice actuals</h3><p class="ao-note">Net of credit notes · AUD, ex GST</p><div id="ao-monthly"></div></section><section class="ao-panel"><h3>Invoiced by supplier</h3><p class="ao-note">Largest net amounts · AUD, ex GST · Bar length shows magnitude; purple indicates net credits</p><div id="ao-suppliers"></div></section></div>
+  <div class="ao-charts"><section class="ao-panel"><h3>Monthly invoice actuals</h3><p class="ao-note">Net of credit notes · AUD, ex GST</p><div id="ao-monthly"></div></section><section class="ao-panel"><h3>Invoiced by supplier</h3><div id="ao-suppliers"></div></section></div>
   <details class="ao-panel ao-methods"><summary>What these figures mean</summary><p>Actuals come from the invoice ledger, excluding accruals and opening budget adjustments. The net total is not the amount deducted from the annual budget. Credits reduce actuals but do not count as a received invoice. Blank dates and missing amounts are flagged, not treated as evidence of receipt.</p><p>Priced EOS charges comes from the monthly reconciliation summary. A missing invoice means no matching invoice is recorded for that contractor, project, program and month; billing delays or incomplete records may explain it. Invoice dates are not upload dates.</p><p id="ao-quality"></p></details>
  </div>
 </section>
@@ -639,7 +639,7 @@
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
 <script src="./workspace/accounts-overview-model.js?v=20261108-1"></script>
-<script src="./workspace/accounts-overview.js?v=20261108-1"></script>
+<script src="./workspace/accounts-overview.js?v=20261108-suite1"></script>
 <script src="./workspace/reconciliation-model.js?v=20261108-1"></script>
 <script src="./workspace/reconciliation.js?v=20261108-1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
