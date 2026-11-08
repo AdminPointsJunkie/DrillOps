@@ -46,3 +46,13 @@ test('overrun colours cover thresholds, zero and missing budgets',()=>{
  const {drillingOverrun}=createRequire(import.meta.url)('../docs/workspace/project-hole-report-model.js');
  for(const [a,b,color] of [[100,100,'#237a65'],[101,100,'#eab308'],[110,100,'#eab308'],[110.01,100,'#f97316'],[125,100,'#f97316'],[125.01,100,'#dc2626'],[1,0,'#dc2626'],[1,null,'#94a3a0']])assert.equal(drillingOverrun(a,b).color,color);
 });
+
+test('rig cost per metre attributes materials once and does not guess between rigs',()=>{
+ const a={...row,drill_rig:'DR17',line_cost:400,total_metres:40},b={...row,id:3,drill_rig:'DR28',hole_num:'HOLE-B',line_cost:600,total_metres:20};
+ const m=run({evidence:{...evidence,activities:[a,b],consumables:[{contractor:row.contractor,project:row.project,program:row.program,date:row.date,source_file:row.source_file,hole_num:'HOLE-A',line_cost:80},{contractor:row.contractor,project:row.project,program:row.program,date:row.date,source_file:row.source_file,line_cost:100}]}});
+ assert.equal(m.rigCosts.find(r=>r.rig==='DR17').perMetre,12);assert.equal(m.rigCosts.find(r=>r.rig==='DR28').perMetre,30);assert.equal(m.unallocatedRigMaterials,1);assert.ok(m.rigCosts.every(r=>r.partial));
+});
+test('zero metres and missing prices do not create misleading rig rates',()=>{
+ const m=run({evidence:{...evidence,activities:[{...row,drill_rig:'DR17',total_metres:0,line_cost:100},{...row,id:3,drill_rig:'DR28',line_cost:null}],consumables:[]}});
+ assert.equal(m.rigCosts.find(r=>r.rig==='DR17').perMetre,null);assert.equal(m.rigCosts.find(r=>r.rig==='DR28').perMetre,null);assert.equal(m.rigCosts.find(r=>r.rig==='DR28').partial,true);
+});
