@@ -88,3 +88,37 @@ test('standby detail entries reconcile to included reasons without duplicate or 
  const all=m.summarise([wet,unknown,free,fatigue,pending],{includeNonChargeable:true});
  assert.deepEqual(all.reasons.flatMap(r=>r.entries).map(r=>r.id).sort(),[1,2,3]);
 });
+
+const depco=(data={})=>row({contractor:'DEPCO Drilling',program:'Exploration',shift:'Day',...data});
+const closingSequence=(hole='TEST-A',project='Alpha',rig='Rig 1')=>[
+ depco({id:101,hole_num:hole,project,drill_rig:rig,date:'2026-10-01',time_from:'08:00',code:'DEPCO_A_PCD_90_125_006',total_metres:100}),
+ depco({id:102,hole_num:hole,project,drill_rig:rig,date:'2026-10-01',time_from:'12:00',code:'DEPCO_A_STANDBY_LOGGER_048',notes:'Stand by logger'}),
+ depco({id:103,hole_num:hole,project,drill_rig:rig,date:'2026-10-02',time_from:'08:30',code:'DEPCO_A_RIG_CEMENTING_036',notes:'Cementing hole'}),
+];
+test('DEPCO closing sequence counts the correct hole once on cementing date across period and rig filters',()=>{
+ const a=closingSequence(),b=closingSequence('TEST-B','Beta','Rig 2').map(r=>({...r,id:r.id+10}));
+ const rows=[...a,...b,a[2],depco({id:200,hole_num:'TEST-C',code:'DEPCO_A_PCD_90_125_006',total_metres:30})];
+ const s=m.summarise(rows);assert.equal(s.completedHoles,2);assert.deepEqual(s.completedRows.map(r=>r.hole_num),['TEST-A','TEST-B']);
+ assert.equal(m.summarise([a[2]],{completionSource:rows}).completedHoles,1);
+ assert.equal(m.summarise(rows.filter(r=>r.date==='2026-10-01'),{completionSource:rows}).completedHoles,0);
+ assert.equal(m.summarise(rows.filter(r=>r.drill_rig==='Rig 2'),{completionSource:rows}).completedHoles,1);
+ assert.equal(s.daily.find(d=>d.label==='2026-10-02').completedHoles,2);
+ assert.equal(m.summarise(rows.slice().reverse()).completedHoles,2);
+});
+test('moves, pack-up and logging do not count, and closing a previous hole cannot complete the new hole',()=>{
+ const seq=closingSequence();
+ for(const notes of ['Site move to next hole','Pack up rig','Stand by logger','Trip in to cement','Standby cement','Planned cementing hole','Cementing hole casing','Cementing hole partially','Cementing hole - abandoned']){
+  assert.equal(m.summarise([...seq.slice(0,2),{...seq[2],notes}]).completedHoles,0,notes);
+ }
+ assert.equal(m.summarise([...seq.slice(0,2),{...seq[2],hole_num:'TEST-B'}]).completedHoles,0);
+ assert.equal(m.summarise([seq[0],seq[2]]).completedHoles,0,'requires logging evidence');
+ const resumed=depco({id:104,hole_num:'TEST-A',date:'2026-10-03',code:'DEPCO_A_PCD_90_125_006',total_metres:20});
+ assert.equal(m.summarise([...seq,resumed]).completedHoles,0,'later drilling contradicts a terminal close');
+ assert.equal(m.summarise(seq.map(r=>({...r,contractor:'Another contractor'}))).completedHoles,0);
+ assert.equal(m.summarise(seq.map(r=>({...r,code:r.code.replace('DEPCO_A','DEPCO_C')}))).completedHoles,0,'gas-riser cement is not exploration completion');
+});
+test('explicit completion and final cementing do not double count, placeholders and multi-hole identifiers are excluded',()=>{
+ const seq=closingSequence(),explicit={...seq[1],notes:'Source completion note: Hole completed',id:300};
+ assert.deepEqual(m.completionEvents([...seq,explicit]).map(r=>r.id),[300]);
+ for(const hole_num of ['NA','N/A','Unknown','-','TEST-A, TEST-B','TEST-A / TEST-B'])assert.equal(m.summarise([row({hole_num,notes:'EOH'})]).completedHoles,0,hole_num);
+});

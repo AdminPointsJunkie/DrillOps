@@ -37,6 +37,7 @@ from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
 from training_api import create_training_router, ensure_training_schema
 from exploration_metres import summarize_exploration_metres
+from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
@@ -11653,6 +11654,8 @@ Extract ALL data from this image into a JSON object with these exact fields:
   "activities": [
     {
       "comments": "handwritten description of the activity",
+      "hole_num": "the single hole this activity belongs to, or null if uncertain",
+      "completion_note": "exact source wording about this hole's completion from the footer or margin, on the relevant activity only; otherwise null",
       "bit_type": "bit type or HQ/PQ core size if explicitly written, otherwise null",
       "diameter": "hole diameter with original units if explicitly written, otherwise null",
       "time_from": "HH:MM format e.g. 05:30",
@@ -11667,6 +11670,9 @@ Extract ALL data from this image into a JSON object with these exact fields:
 
 IMPORTANT RULES:
 - Rig No. and Rod Trailer No. are separate fields. Never use the trailer number as the rig number.
+- Read every hole in the header, including amendments, and keep multiple header holes separated by commas. Do not silently select the last one.
+- Assign hole_num separately for EVERY activity. When a shift cements an old hole then moves to a new one, finishing/cementing belongs to the old hole; drilling after the move belongs to the new hole. Use the sequence and named moves on this page. Never put two holes in one activity's hole_num; use null if unclear.
+- Read the bottom COMMENTS and margins. Copy relevant completion wording into completion_note on the matching activity and hole only. Preserve negatives, planned work, abandonment and partial cementing. Never invent EOH or infer completion solely from logging, pack-up or a move.
 - Read the DRILLING section table carefully - each row has: COMMENTS, TIME FROM, TIME TO, TOTAL TIME, METERS FROM, METERS TO, TOTAL METERS
 - Times are in 24hr format (e.g. 0530 means 05:30, 1415 means 14:15)
 - Total Time is usually in fractions like 2, 1/2, 3/4 etc. Convert: 1/2=0:30, 1/4=0:15, 3/4=0:45
@@ -11699,6 +11705,8 @@ OPENAI_OCR_RESPONSE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "comments": {"type": ["string", "null"]},
+                    "hole_num": {"type": ["string", "null"]},
+                    "completion_note": {"type": ["string", "null"]},
                     "bit_type": {"type": ["string", "null"]},
                     "diameter": {"type": ["string", "null"]},
                     "time_from": {"type": ["string", "null"]},
@@ -11709,7 +11717,7 @@ OPENAI_OCR_RESPONSE_SCHEMA = {
                     "total_metres": {"type": ["number", "null"]},
                 },
                 "required": [
-                    "comments", "bit_type", "diameter", "time_from", "time_to", "total_time",
+                    "comments", "hole_num", "completion_note", "bit_type", "diameter", "time_from", "time_to", "total_time",
                     "metres_from", "metres_to", "total_metres",
                 ],
                 "additionalProperties": False,
@@ -11774,7 +11782,7 @@ async def import_ocr_pdf(
     client: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
-    """Import a reviewed or fresh OCR drill log. DEPCO rig mapping: Exploration = DR17; Gas Riser = DR28."""
+    """Import OCR with per-activity holes and source completion evidence, including multi-hole shifts."""
     filename = file.filename
     content = await file.read()
     if is_depco_report(filename):
@@ -11826,7 +11834,7 @@ async def import_ocr_pdf(
         {**activity, "date": date_str, "site_name": data.get("location", ""), "location": data.get("location", "")}
         for activity in activities
     ]
-    integrity_warnings = activity_integrity_qa(integrity_rows, filename)
+    integrity_warnings = activity_integrity_qa(integrity_rows, filename) + ocr_hole_warnings(data)
 
     rows = []
     for act in activities:
@@ -11843,11 +11851,11 @@ async def import_ocr_pdf(
         metres_from = act.get("metres_from")
         metres_to = act.get("metres_to")
         total_metres = act.get("total_metres")
-        comments = act.get("comments", "")
+        comments = ocr_activity_notes(act)
 
         rows.append({
             "source_file": filename, "contractor": contractor,
-            "date": date_str, "hole_num": hole_num,
+            "date": date_str, "hole_num": ocr_activity_hole(act, data),
             "site_name": site_name, "location": location,
             "drill_rig": data.get("rig_no", ""), "client": data.get("client", ""),
             "contract": "", "shift": shift,
@@ -11953,7 +11961,7 @@ async def preview_ocr_pdf(
         {**activity, "date": data.get("date", ""), "site_name": data.get("location", ""), "location": data.get("location", "")}
         for activity in data.get("activities", [])
     ]
-    warnings = activity_integrity_qa(preview_rows, file.filename)
+    warnings = activity_integrity_qa(preview_rows, file.filename) + ocr_hole_warnings(data)
     if date_warning:
         warnings.append(date_warning)
     rates = []

@@ -7,6 +7,7 @@ from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report, normalise_ocr_date, normalise_depco_rig
 
 
@@ -404,12 +405,16 @@ class DepcoOcrImportTests(unittest.TestCase):
         env={'UploadFile':object,'File':lambda *a,**k:None,'Form':lambda *a,**k:None,'Optional':Optional,
              'HTTPException':HTTPException,'json':json,'get_conn':get_conn,'import_marker_blocks_reimport':lambda *a:False,
              'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
+             'ocr_activity_hole':ocr_activity_hole,'ocr_activity_notes':ocr_activity_notes,'ocr_hole_warnings':ocr_hole_warnings,
              'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
              'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),
              'record_import_batch':lambda *a,**k:None,'is_depco_report':is_depco_report,'normalise_ocr_date':normalise_ocr_date}
         exec(compile(ast.Module(body=[node],type_ignores=[]),'ocr','exec'),env)
         file=SimpleNamespace(filename='DDR_Depco DR17_20261008.pdf',read=AsyncMock(return_value=b'fixture'))
         data={'date':'26/09/2026','activities':[{'comments':'Drill 120mm PCD','total_time':'1:00','metres_from':0,'metres_to':10,'total_metres':10,'pricing':{'line_cost':9999}}]}
+        data['hole_num']='TEST-A, TEST-B'
+        data['activities'][0]['hole_num']='TEST-A'
+        data['activities'].append({**data['activities'][0],'hole_num':'TEST-B','completion_note':'Hole completed'})
         result=asyncio.run(env['import_ocr_pdf'](file,'Allianz Drilling','Exploration','CD','Argo',json.dumps(data)))
         saved=batch.call_args.args[2][0]
         self.assertEqual(saved['metres_from'],0)
@@ -417,7 +422,10 @@ class DepcoOcrImportTests(unittest.TestCase):
         self.assertEqual(saved['line_cost'],380)
         self.assertEqual((saved['project'],saved['program'],saved['client']),('CD','Exploration','Argo'))
         self.assertTrue(saved['code'].startswith('DEPCO_A_'))
-        self.assertEqual(result['pricing_summary'],{'priced':1,'review':0})
+        self.assertEqual(result['pricing_summary'],{'priced':2,'review':0})
+        persisted=batch.call_args.args[2]
+        self.assertEqual([r['hole_num'] for r in persisted],['TEST-A','TEST-B'])
+        self.assertEqual(persisted[1]['notes'],'Drill 120mm PCD\nSource completion note: Hole completed')
 
 
 if __name__ == '__main__':

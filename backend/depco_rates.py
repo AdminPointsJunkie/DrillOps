@@ -6,6 +6,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
 from pathlib import Path
+from report_holes import ocr_activity_hole
 
 CATALOG = json.loads((Path(__file__).parent / 'data' / 'depco_26038_rates.json').read_text(encoding='utf-8'))
 BY_CODE = {r['cost_code']: r for r in CATALOG['rates']}
@@ -306,7 +307,7 @@ def preview_depco_ocr(cur, data, contractor, project, program):
         row={**activity,'notes':activity.get('comments'),'date':data.get('date'),
              'project':project,'program':program}
         priced=suggest_depco_activity(row,lines)
-        activities.append({**activity,'code':priced.get('code') or activity.get('code') or '', 'pricing':priced})
+        activities.append({**activity,'hole_num':ocr_activity_hole(activity,data),'code':priced.get('code') or activity.get('code') or '', 'pricing':priced})
     return {**data,'activities':activities},lines
 
 
