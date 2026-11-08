@@ -9,6 +9,8 @@ function pmSet(id, value) { document.getElementById(id).textContent = value; }
 
 function renderProjectDashboard(model) {
   const {budget,budgets,holes,categories,groups,schedule,located,imported} = model;
+  const costs=model.costs;
+  document.getElementById('pm-costs').innerHTML=costs?[['Accounts invoiced',costs.invoiced],['Open estimated accruals',costs.accruals],['Invoiced + accruals',costs.combined],['Budget less total',budget===null?null:budget-Number(costs.combined)]].map(([label,value])=>'<article class="pm-metric"><span>'+label+'</span><strong>'+pmExactMoney(value)+'</strong></article>').join('')+(Number(costs.missing_amounts)?'<p class="pm-footnote">Partial total: '+Number(costs.missing_amounts)+' invoices have no amount.</p>':''):pmEmpty('Financial totals unavailable.');
   const total = holes?.length ?? null;
   pmSet('pm-budget',budgets === null ? 'Unavailable' : imported ? pmExactMoney(budget) : pmMoney(budget));
   pmSet('pm-budget-label',imported?'Approved budget':'Allocated budget');
@@ -60,18 +62,19 @@ async function loadProjectDashboard() {
   pmSet('pm-message','Loading project records…');
   pmSet('pm-workbook-note','');
   for (const id of ['pm-budget','pm-total','pm-complete','pm-scheduled']) pmSet(id,'—');
-  for (const id of ['pm-progress','pm-budget-chart','pm-readiness','pm-schedule']) document.getElementById(id).innerHTML = pmEmpty('Loading…');
+  for (const id of ['pm-progress','pm-budget-chart','pm-readiness','pm-schedule','pm-costs']) document.getElementById(id).innerHTML = pmEmpty('Loading…');
   const load = async path => {const response = await fetch(API+path,{cache:'no-store'});if(!response.ok)throw new Error('Request failed');const data=await response.json();if(!Array.isArray(data)||data.some(row=>!row||typeof row!=='object'))throw new Error('Unexpected response');return data;};
   // Name-based legacy endpoints cannot distinguish identically named workspaces.
   const ambiguous = projects.some(item=>item.name===scope.project && projectProgram(item)===scope.program && Number(item.client_id)!==Number(scope.clientId));
-  const results = ambiguous ? [{status:'rejected'},{status:'rejected'},{status:'rejected'}] : await Promise.allSettled([load('/project-budgets?contractor=Company'),load('/boreholes?contractor=Company'),loadProjectWorkbook(scope)]);
+  const readCosts=async()=>{const response=await fetch(API+'/account-accruals/project-summary?project_id='+encodeURIComponent(scope.projectId),{cache:'no-store'});if(!response.ok)throw Error('Financial totals unavailable');const value=await response.json();if(!['invoiced','accruals','combined'].every(k=>value[k]!==null&&value[k]!==undefined&&Number.isFinite(Number(value[k]))))throw Error('Invalid financial totals');return value;};
+  const results = ambiguous ? [{status:'rejected'},{status:'rejected'},{status:'rejected'},{status:'rejected'}] : await Promise.allSettled([load('/project-budgets?contractor=Company'),load('/boreholes?contractor=Company'),loadProjectWorkbook(scope),readCosts()]);
   if (request !== projectDashboardRequest || activeProjectName !== scope.project || activeProgram !== scope.program || activeClientId !== scope.clientId || activeProjectYear() !== scope.year) return;
   const data = results.map(result=>result.status==='fulfilled'?result.value:null);
   if(results[2].status==='rejected'&&projectWorkbookApplicable(scope))data[0]=null;
-  renderProjectDashboard(ProjectDashboardModel.build(data[0],data[1],scope,data[2]));
+  renderProjectDashboard({...ProjectDashboardModel.build(data[0],data[1],scope,data[2]),costs:data[3]});
   if(results[2].status==='rejected' && projectWorkbookApplicable(scope)){pmSet('pm-budget','Unavailable');pmSet('pm-budget-note','Workbook budget could not load');document.getElementById('pm-budget-chart').innerHTML=pmEmpty('Workbook budget could not be loaded. Refresh to retry.');}
   document.getElementById('pm-workbook-note').textContent=data[2] ? 'Workbook plan: '+pmExactMoney(data[2].total)+(data[2].planVariance===null?' · Approved budget not recorded':data[2].planVariance>0?' · '+pmExactMoney(data[2].planVariance)+' above approved budget':data[2].planVariance<0?' · '+pmExactMoney(-data[2].planVariance)+' below approved budget':' · Matches approved budget')+'. Source: '+data[2].source+'.' : '';
-  const failed = results.map((result,index)=>result.status==='rejected'?['Budget allocations','Borehole plan','Workbook budget'][index]:null).filter(Boolean);
+  const failed = results.map((result,index)=>result.status==='rejected'?['Budget allocations','Borehole plan','Workbook budget','Financial totals'][index]:null).filter(Boolean);
   pmSet('pm-message',!scope.project?'Choose a project using the bottom-left sidebar selector.':ambiguous?'This project name is shared by another client. Its records cannot be separated reliably in this dashboard.':failed.length?failed.join(' and ')+' could not be loaded. Refresh to try again.':'');
   pmSet('pm-updated',(failed.length?'Last attempted ':'Updated ')+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short'}));
 }

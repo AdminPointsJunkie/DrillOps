@@ -3,16 +3,16 @@
  const el=id=>document.getElementById(id),M=AccountsOverview;
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=v=>Number(v).toLocaleString('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0});
- const exact=v=>Number(v).toLocaleString('en-AU',{style:'currency',currency:'AUD'});
+ const exact=v=>v===null?'Unavailable':Number(v).toLocaleString('en-AU',{style:'currency',currency:'AUD'});
  const label=m=>m?new Date(m+'-01T00:00:00Z').toLocaleDateString('en-AU',{month:'short',year:'numeric',timeZone:'UTC'}):'None recorded';
  const short=m=>label(m).split(' ')[0];
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Brisbane',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- let invoices=[],eos=null,request=0,model=null,loaded=false;
+ let invoices=[],accruals=null,eos=null,request=0,model=null,loaded=false;
  function populate(){
   const year=el('ao-year').value||today().slice(0,4),project=el('ao-project').value;
-  const years=new Set([today().slice(0,4),...invoices.map(r=>M.period(r).slice(0,4)),...(eos||[]).map(r=>String(r.month).slice(0,4))]);
+  const years=new Set([today().slice(0,4),...invoices.map(r=>M.period(r).slice(0,4)),...(eos||[]).map(r=>String(r.month).slice(0,4)),...(accruals||[]).map(r=>String(r.period).slice(0,4))]);
   el('ao-year').innerHTML=[...years].filter(v=>/^\d{4}$/.test(v)).sort().reverse().map(y=>`<option>${y}</option>`).join('');el('ao-year').value=year;if(el('ao-year').selectedIndex<0)el('ao-year').value=today().slice(0,4);
-  const opts=new Map([...invoices,...(eos||[])].map(r=>[M.scope(r),[r.project||'Unassigned project',r.program].filter(Boolean).join(' · ')]));
+  const opts=new Map([...invoices,...(eos||[]),...(accruals||[])].map(r=>[M.scope(r),[r.project||'Unassigned project',r.program].filter(Boolean).join(' · ')]));
   el('ao-project').innerHTML='<option value="">All projects</option>'+[...opts].sort((a,b)=>a[1].localeCompare(b[1])).map(([key,value])=>`<option value="${esc(key)}">${esc(value)}</option>`).join('');el('ao-project').value=project;if(el('ao-project').selectedIndex<0)el('ao-project').value='';
  }
  function monthlyChart(rows){
@@ -26,10 +26,12 @@
  }
  function render(){
   if(!loaded)return;
-  model=M.build(invoices,eos||[],{year:el('ao-year').value,project:el('ao-project').value,today:today()});
+  model=M.build(invoices,eos||[],{year:el('ao-year').value,project:el('ao-project').value,today:today(),accruals});
   el('ao-print').disabled=false;
   const m=model;el('ao-content').hidden=false;el('ao-detail').hidden=true;el('ao-calendar-year').textContent=m.year;
   const cards=[['Net invoice actuals',money(m.net),'Recorded amounts · ex GST'],['Invoices received',m.count,m.credits+' credit note(s), counted separately'],['Tracked contractors with invoices',m.closed?m.receivedClosed+' / 4':'—',m.closed?label(m.closed):'No completed month in this year'],['EOS months without invoices',eos===null?'Unavailable':new Set(m.gaps.map(r=>M.family(r.contractor)+'|'+r.month)).size,'Completed months · contractor/month pairs']];
+  cards.push(['Open accruals',m.accrualTotal===null?'Unavailable':money(m.accrualTotal),'Estimated uninvoiced amounts'],['Invoiced + accruals',m.combined===null?'Unavailable':money(m.combined),'Actuals plus open estimates']);
+  el('ao-accruals').innerHTML=accrualTable(m.openAccruals);
   el('ao-kpis').innerHTML=cards.map(([title,value,note])=>`<article class="ao-kpi"><span>${title}</span><strong>${esc(value)}</strong><span>${esc(note)}</span></article>`).join('');
   el('ao-contractors').innerHTML=m.rows.map(r=>`<article class="ao-contractor"><h4>${esc(r.name)}</h4><strong>${esc(label(r.latestMonth))}</strong><small>${r.latest?esc(r.latest.invoice_number):'No invoice recorded in '+m.year}</small><small>${r.fallback?'Invoice-date fallback':r.latest?'Billing month recorded':' '}</small>${r.latest?`<button data-ao-family="${r.id}" data-ao-month="${r.latestMonth}">View invoice</button>`:''}</article>`).join('');
   const descriptions={received:'Invoice received',gap:'Priced EOS charges recorded, no invoice',partial:'Invoice received; another project has Priced EOS charges without an invoice',credit:'Credit note only',none:'No invoice recorded',future:'Future month'};
@@ -37,7 +39,7 @@
   el('ao-monthly').innerHTML=monthlyChart(m.totals);
   const suppliers=m.suppliers.filter(r=>r.total!==0).slice(0,8),max=Math.max(1,...suppliers.map(r=>Math.abs(r.total)));
   el('ao-suppliers').innerHTML=suppliers.map(r=>`<div class="ao-supplier"><span>${esc(r.name)}</span><div><i style="width:${Math.abs(r.total)/max*100}%;${r.total<0?'background:#8a689c':''}"></i></div><strong title="${esc(exact(r.total))}">${esc(money(r.total))}</strong></div>`).join('')||'<p class="ao-note">No non-zero invoice amounts in this selection.</p>';
-  const warnings=[eos===null?'EOS comparisons could not load; receipt and cost figures remain available.':'',m.undated?m.undated+' undated invoice(s) excluded from year-based charts and coverage.':'',m.incomplete?m.incomplete+' invoice(s) have incomplete fields and are not evidence of receipt.':''].filter(Boolean);
+  const warnings=[accruals===null?'Accruals could not load; combined costs are unavailable.':'',eos===null?'EOS comparisons could not load; receipt and cost figures remain available.':'',m.undated?m.undated+' undated invoice(s) excluded from year-based charts and coverage.':'',m.incomplete?m.incomplete+' invoice(s) have incomplete fields and are not evidence of receipt.':''].filter(Boolean);
   el('ao-message').hidden=!warnings.length;el('ao-message').textContent=warnings.join(' ');
   el('ao-quality').textContent=m.fallbacks?m.fallbacks+' invoices have no billing month.':'';
  }
@@ -51,6 +53,7 @@
    '<div class="ledger-actions"><a class="ledger-button" href="./account.html?view=invoices">Open ledger</a><a class="ledger-button" href="./account.html?view=reconciliation">Open reconciliation</a></div>';
   el('ao-close-detail').onclick=()=>host.hidden=true;host.scrollIntoView({behavior:'smooth',block:'nearest'});
  }
+ function accrualTable(rows){return rows.length?'<div class="tbl-scroll"><table class="ao-detail-table totals"><thead><tr><th>Month</th><th>Supplier / PO</th><th>Project</th><th>Estimated amount</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(String(r.period).slice(0,7))+'</td><td>'+esc(r.supplier)+(r.po_number?'<small> · '+esc(r.po_number)+'</small>':'')+'</td><td>'+esc(r.project)+'</td><td>'+esc(exact(r.amount))+'</td></tr>').join('')+'</tbody></table></div>':'<p class="ao-note">'+(accruals===null?'Accruals unavailable.':'No open accruals in this selection.')+'</p>';}
  const activate=event=>{const target=event.target.closest('[data-ao-month]');if(target)details(target.dataset.aoMonth,target.dataset.aoFamily||'');};
  el('ao-content').addEventListener('click',activate);el('ao-monthly').addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();activate(event);}});
  ['ao-year','ao-project'].forEach(id=>el(id).addEventListener('change',render));
@@ -61,14 +64,16 @@
   const project=el('ao-project').selectedOptions[0]?.textContent||'All projects',stamp=el('ao-updated').textContent;
   const clone=id=>{const node=el(id).cloneNode(true);node.querySelectorAll('button').forEach(b=>{if(b.closest('.ao-calendar')){const mark=document.createElement('span');mark.className=b.className;mark.textContent=b.textContent;b.replaceWith(mark);}else b.remove();});node.querySelectorAll('[tabindex]').forEach(n=>{n.removeAttribute('tabindex');n.removeAttribute('role');});return node.innerHTML;};
   const header=DrillOpsReport.header('Account','Accounts report',project,String(model.year));
-  const page=(body,n)=>`<section class="sheet">${header}${body}<footer><span>${esc(stamp)} · AUD excluding GST</span><span>${n} / 3</span></footer></section>`;
+  const accrualPages=Array.from({length:Math.ceil(model.openAccruals.length/16)},(_,i)=>'<h1>Estimated accruals</h1>'+accrualTable(model.openAccruals.slice(i*16,(i+1)*16)));
+  const page=(body,n)=>`<section class="sheet">${header}${body}<footer><span>${esc(stamp)} · AUD excluding GST</span><span>${n} / ${3+accrualPages.length}</span></footer></section>`;
   const warnings=el('ao-message').hidden?'':`<p class="warning">${esc(el('ao-message').textContent)}</p>`;
-  const overview=`<div class="eyebrow">FINANCIAL OVERVIEW</div><h1>Invoice actuals</h1>${warnings}<div class="ao-kpis">${clone('ao-kpis')}</div><h2>Monthly invoice actuals</h2>${clone('ao-monthly')}<h2>Invoiced by supplier</h2>${clone('ao-suppliers')}`;
+  const costCards=[['Invoice actuals',exact(model.net)],['Open estimated accruals',exact(model.accrualTotal)],['Invoiced + accruals',exact(model.combined)],['Invoices received',model.count]].map(([title,value])=>'<article class="ao-kpi"><span>'+title+'</span><strong>'+esc(value)+'</strong></article>').join('');
+  const overview=`<div class="eyebrow">FINANCIAL OVERVIEW</div><h1>Invoices &amp; accruals</h1>${warnings}<div class="ao-kpis">${costCards}</div><h2>Monthly invoice actuals</h2>${clone('ao-monthly')}<h2>Invoiced by supplier</h2>${clone('ao-suppliers')}`;
   const coverage=`<div class="eyebrow">CONTRACTOR COVERAGE</div><h1>Invoices received up to</h1><div class="ao-contractors">${clone('ao-contractors')}</div><h2>Invoice receipt calendar · ${esc(model.year)}</h2>${clone('ao-calendar')}<p class="note">✓ Invoice received &nbsp; ! Priced EOS charges without invoice &nbsp; C Credit only &nbsp; — No invoice &nbsp; · Future</p>${warnings}<p class="note">${esc(el('ao-quality').textContent)}</p>`;
-  const monthly=`<div class="eyebrow">SUPPORTING FIGURES</div><h1>Monthly totals</h1><table class="totals"><thead><tr><th>Month</th><th>Invoices received</th><th>Net actuals · ex GST</th></tr></thead><tbody>${model.totals.map(r=>`<tr><td>${esc(label(r.month))}</td><td>${r.count}</td><td>${esc(exact(r.total))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total</th><th>${model.count}</th><th>${esc(exact(model.net))}</th></tr></tfoot></table>${warnings}`;
+  const monthly=`<div class="eyebrow">SUPPORTING FIGURES</div><h1>Monthly totals</h1><table class="totals"><thead><tr><th>Month</th><th>Invoices received</th><th>Invoice actuals</th><th>Open accruals</th><th>Combined</th></tr></thead><tbody>${model.totals.map(r=>`<tr><td>${esc(label(r.month))}</td><td>${r.count}</td><td>${esc(exact(r.total))}</td><td>${esc(exact(r.accruals))}</td><td>${esc(exact(r.combined))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total</th><th>${model.count}</th><th>${esc(exact(model.net))}</th><th>${esc(exact(model.accrualTotal))}</th><th>${esc(exact(model.combined))}</th></tr></tfoot></table>${warnings}`;
   report.document.open();report.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>DrillOps Accounts — ${esc(model.year)}</title>${DrillOpsReport.fonts}<style>
   @page{size:A4 portrait;margin:0}*{box-sizing:border-box}body{margin:0;background:#e9eeeb;color:#173b36;font-family:Arial,sans-serif;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.toolbar{padding:18px;text-align:center}.toolbar button{padding:10px 22px;background:#173b36;color:white;border:0;border-radius:6px;cursor:pointer}.sheet{width:210mm;min-height:297mm;margin:16px auto;padding:14mm 15mm 18mm;position:relative;background:white;break-after:page}.sheet:last-child{break-after:auto}header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #173b36;padding-bottom:14px;margin-bottom:25px;text-align:right;font-size:14px}.brand{font-size:29px;font-weight:800;letter-spacing:-1.5px;text-align:left}.brand span{color:#6c9986}.brand small{display:block;font-size:9px;letter-spacing:3px;margin-top:5px}header small{font-size:10px;color:#657873;letter-spacing:0}.eyebrow{font-size:10px;letter-spacing:2px;color:#657873}h1{font-size:30px;letter-spacing:-1px;margin:9px 0}h2{font-size:15px;margin:24px 0 12px}.intro,.note{color:#657873;line-height:1.65}.note{font-size:11px}.ao-kpis,.ao-contractors{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:22px 0}.ao-kpi,.ao-contractor{border:1px solid #dce5e1;border-radius:8px;padding:14px;break-inside:avoid}.ao-kpi{background:#edf4ef}.ao-kpi span,.ao-contractor small{display:block;font-size:10px;color:#657873;line-height:1.6}.ao-kpi strong,.ao-contractor strong{display:block;font-size:24px;margin:8px 0}.ao-contractor h4{margin:0 0 10px}.ao-chart{width:100%;height:225px;display:block}.ao-chart text{font-size:11px;fill:#657873}.bar{fill:#237a65}.negative{fill:#8a689c}.grid{stroke:#e5ece8}.ao-supplier{display:grid;grid-template-columns:1fr 1fr 90px;gap:12px;align-items:center;margin:12px 0;font-size:11px}.ao-supplier>div{height:10px;background:#edf2ef}.ao-supplier i{display:block;height:100%;background:#758bb3}.ao-supplier strong{text-align:right}.ao-calendar{width:100%;border-spacing:4px;font-size:10px}.ao-calendar th:first-child{text-align:left;width:120px}.ao-calendar td{text-align:center}.ao-calendar td span{display:block;padding:10px 0;border-radius:4px}.received{background:#dceee3;color:#1a6042}.gap{background:#f9dfd7;color:#963a22}.partial{background:#f8e9c7;color:#77541c}.credit{background:#e1e8f4;color:#405a84}.none,.future{background:#f0f3f1;color:#77877f}.totals{border-collapse:collapse;width:100%;margin:28px 0}.totals th,.totals td{padding:12px;border-bottom:1px solid #dce5e1;text-align:right}.totals th:first-child,.totals td:first-child{text-align:left}.totals thead,.totals tfoot{background:#edf4ef}.warning{background:#fff0dc;padding:12px;font-size:11px}footer{position:absolute;bottom:10mm;left:15mm;right:15mm;display:flex;justify-content:space-between;border-top:1px solid #dce5e1;padding-top:10px;color:#657873;font-size:9px}@media print{body{background:white}.toolbar{display:none}.sheet{margin:0;height:297mm;min-height:0}}@media screen and (max-width:800px){body{overflow:auto}}
-  ${DrillOpsReport.css}</style></head><body><div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>${page(overview,1)}${page(coverage,2)}${page(monthly,3)}</body></html>`);report.document.close();report.opener=null;
+  ${DrillOpsReport.css}</style></head><body><div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>${page(overview,1)}${page(coverage,2)}${page(monthly,3)}${accrualPages.map((body,i)=>page(body,4+i)).join('')}</body></html>`);report.document.close();report.opener=null;
  }
  el('ao-print').addEventListener('click',printReport);
  window.loadAccountsOverview=async function(){
@@ -76,7 +81,7 @@
   const read=async path=>{const response=await fetch(API+path,{cache:'no-store'});if(!response.ok)throw new Error('Request failed');return response.json();};
   const result=await Promise.allSettled([read('/invoice-ledger'),read('/reconciliation/monthly')]);if(current!==request)return;
   if(result[0].status!=='fulfilled'||!Array.isArray(result[0].value.invoices)){el('ao-message').textContent='Invoices could not load. Refresh to retry.';el('ao-updated').textContent='Not loaded';return;}
-  invoices=result[0].value.invoices;eos=result[1].status==='fulfilled'&&Array.isArray(result[1].value.eos)?result[1].value.eos:null;
+  invoices=result[0].value.invoices;accruals=Array.isArray(result[0].value.accruals)?result[0].value.accruals:null;eos=result[1].status==='fulfilled'&&Array.isArray(result[1].value.eos)?result[1].value.eos:null;
   loaded=true;populate();render();el('ao-updated').textContent='Updated '+new Date().toLocaleString('en-AU',{timeZone:'Australia/Brisbane',dateStyle:'medium',timeStyle:'short'});
  };
 })();

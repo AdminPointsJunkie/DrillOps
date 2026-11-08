@@ -15,5 +15,6 @@ WITH ledger AS (
    AND (%(program)s='' OR program=%(program)s)
 )
 SELECT COALESCE((SELECT jsonb_agg(ledger ORDER BY invoice_date,id) FROM ledger),'[]'::jsonb) invoices,
-       COALESCE((SELECT jsonb_agg(pos) FROM pos),'[]'::jsonb) purchase_orders
+       COALESCE((SELECT jsonb_agg(pos) FROM pos),'[]'::jsonb) purchase_orders,
+       COALESCE((SELECT jsonb_agg(x) FROM (SELECT a.*,p.name project,p.program,p.year FROM account_accruals a JOIN projects p ON p.id=a.project_id WHERE a.status='Open' AND (%(project)s='' OR lower(trim(p.name))=lower(trim(%(project)s))) AND (%(program)s='' OR p.program=%(program)s)) x),'[]'::jsonb) accruals
 """

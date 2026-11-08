@@ -17,7 +17,7 @@
  const period=r=>month(r.billing_month)||date(r.invoice_date).slice(0,7);
  const scope=r=>JSON.stringify([norm(r.project),norm(r.program)]);
  const workKey=(r,m)=>JSON.stringify([family(r.contractor),scope(r),m]);
- function build(invoices,eos,{year,project='',today}){
+ function build(invoices,eos,{year,project='',today,accruals=[]}){
   const within=r=>!project||scope(r)===project;
   const records=invoices.filter(within),eligible=records.filter(r=>period(r).startsWith(year+'-'));
   const usable=r=>text(r.invoice_number)&&known(r.subtotal)&&period(r);
@@ -25,8 +25,11 @@
   const invoiceKeys=new Set(received.map(r=>workKey(r,period(r))));
   const work=eos.filter(r=>within(r)&&text(r.month).startsWith(year+'-')&&Number(r.eos_total)>0);
   const gaps=[...new Map(work.filter(r=>r.month<today.slice(0,7)&&!invoiceKeys.has(workKey(r,r.month))).map(r=>[workKey(r,r.month),r])).values()];
+  const openAccruals=(accruals||[]).filter(r=>r.status==='Open'&&within(r)&&String(r.period).startsWith(year+'-'));
+  const accrualTotal=accruals===null?null:openAccruals.reduce((s,r)=>s+cents(r.amount),0)/100;
   const months=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
   const totals=months.map(m=>({month:m,total:eligible.filter(r=>period(r)===m&&known(r.subtotal)).reduce((s,r)=>s+cents(r.subtotal),0)/100,count:received.filter(r=>period(r)===m).length}));
+  for(const row of totals){row.accruals=accruals===null?null:openAccruals.filter(r=>String(r.period).slice(0,7)===row.month).reduce((s,r)=>s+cents(r.amount),0)/100;row.combined=row.accruals===null?null:(cents(row.total)+cents(row.accruals))/100;}
   const suppliers=new Map();for(const r of eligible){const key=family(r.contractor);if(!suppliers.has(key))suppliers.set(key,{name:tracked.find(t=>t.id===key)?.name||r.contractor,total:0});if(known(r.subtotal))suppliers.get(key).total+=cents(r.subtotal);}
   const rows=tracked.map(t=>{
    const own=received.filter(r=>family(r.contractor)===t.id).sort((a,b)=>period(b).localeCompare(period(a))||date(b.invoice_date).localeCompare(date(a.invoice_date)));
@@ -35,7 +38,7 @@
      return {month:m,entries,receipts,gaps:missing,reports,status:missing.length?(receipts.length?'partial':'gap'):receipts.length?'received':entries.some(r=>known(r.subtotal)&&Number(r.subtotal)<0)?'credit':m>today.slice(0,7)?'future':'none'};})};
   });
   const closed=months.filter(m=>m<today.slice(0,7)).at(-1)||'';
-  return {year,months,totals,rows,records:eligible,net:totals.reduce((s,r)=>s+cents(r.total),0)/100,count:received.length,credits:credits.length,
+  return {year,months,totals,rows,openAccruals,accrualTotal,combined:accrualTotal===null?null:(totals.reduce((s,r)=>s+cents(r.total),0)+cents(accrualTotal))/100,records:eligible,net:totals.reduce((s,r)=>s+cents(r.total),0)/100,count:received.length,credits:credits.length,
    suppliers:[...suppliers.values()].map(r=>({...r,total:r.total/100})).sort((a,b)=>Math.abs(b.total)-Math.abs(a.total)),gaps,
    closed,receivedClosed:rows.filter(r=>r.cells.some(c=>c.month===closed&&c.receipts.length)).length,
    undated:records.filter(r=>!period(r)).length,incomplete:eligible.filter(r=>!usable(r)).length,fallbacks:eligible.filter(r=>!month(r.billing_month)).length};

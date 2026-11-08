@@ -20,14 +20,14 @@ await page.route('http://localhost:8000/**',async route=>{
  :path==='/contractors'?[{id:1,name:'Test Supplier',program:'Exploration',sites:'Test Project',active:true}]
  :path==='/project-budgets'?(empty?[]:[...budgets,{...scope,program:'SIS',budget_amount:9000000}])
  :path==='/boreholes'?(empty?[]:[...holes,{...scope,project:'Another Project',status:'Complete'}])
- :path==='/stats'?{}:[];
+ :path==='/account-accruals/project-summary'?{invoiced:100000,accruals:25000,combined:125000,missing_amounts:0}:path==='/stats'?{}:[];
  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
 });
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.goto('http://localhost:8766/project.html');
 await page.waitForFunction(()=>document.getElementById('pm-total')?.textContent==='8');
 assert.equal(await page.locator('#pm-budget').innerText(),'$1,680,000');
-assert.equal(await page.locator('#pm-complete').innerText(),'3');
+assert.equal(await page.locator('#pm-complete').innerText(),'3');assert.match(await page.locator('#pm-costs').innerText(),/125,000.00/);assert.match(await page.locator('#pm-costs').innerText(),/1,555,000.00/);
 assert.equal(await page.locator('#pm-scheduled').innerText(),'6');
 assert.equal(await page.locator('.pm-timeline-row').count(),6);
 assert.equal(await page.locator('.page.active').getAttribute('id'),'page-project-dashboard');
