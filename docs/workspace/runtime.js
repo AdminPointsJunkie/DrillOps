@@ -1454,7 +1454,7 @@ function triggerPageLoad(page){
   updateContractorSwitcherVisibility(page);
   // Always reload fresh data when switching tabs — no caching
   if(page==='settings'&&WORKSPACE_APP==='eos')updateEosSettings();
-  if(page==='importer')     {};
+  if(page==='importer'&&WORKSPACE_APP==='account')loadInvoiceImportOptions();
   if(page==='contractors')  { renderContractorsPage(); }
   if(page==='admin')        loadAdminPage();
   if(page==='boreholes')    loadBoreholes();
@@ -5832,50 +5832,6 @@ function downloadCSV(type){
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
 }
-
-// ── Invoice import (sidebar) ──────────────────────────────────────────────────
-const invSidebarInput = document.getElementById('inv-file-input-sidebar');
-const invSidebarBtn   = document.getElementById('inv-import-btn-sidebar');
-let invSidebarFiles   = [];
-
-invSidebarInput?.addEventListener('change', e=>{
-  invSidebarFiles=[...e.target.files];
-  invSidebarBtn.disabled=invSidebarFiles.length===0;
-  invSidebarBtn.textContent=invSidebarFiles.length>0?`Import ${invSidebarFiles.length} invoice(s)`:'Import Invoices';
-});
-
-document.getElementById('inv-drop-zone-sidebar')?.addEventListener('dragover',e=>{e.preventDefault();});
-document.getElementById('inv-drop-zone-sidebar')?.addEventListener('drop',e=>{
-  e.preventDefault();
-  invSidebarFiles=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.pdf'));
-  invSidebarBtn.disabled=invSidebarFiles.length===0;
-  invSidebarBtn.textContent=invSidebarFiles.length>0?`Import ${invSidebarFiles.length} invoice(s)`:'Import Invoices';
-});
-
-invSidebarBtn?.addEventListener('click', async()=>{
-  if(!invSidebarFiles.length)return;
-  invSidebarBtn.disabled=true;invSidebarBtn.innerHTML='<span class="spinner"></span>Importing…';
-  const log=document.getElementById('inv-import-log-sidebar');log.innerHTML='';
-  let importedContractor='';
-  for(const file of invSidebarFiles){
-    const fd=new FormData();fd.append('file',file);fd.append('contractor',activeContractor);fd.append('project',activeProjectName||'');fd.append('program',activeProgram||'');
-    try{
-      const d=await fetch(`${API}/invoices/import`,{method:'POST',body:fd}).then(r=>r.json());
-      if(d.status==='imported'){
-        importedContractor=d.contractor||importedContractor;
-        log.innerHTML+=`<div style="color:var(--green)">✓ ${d.invoice_number} — $${(d.total_aud||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}${invoiceMatchImportText(d.match_summary)}</div>`;
-      }else
-        log.innerHTML+=`<div style="color:var(--yellow)">⚠ ${file.name} already imported</div>`;
-    }catch(e){log.innerHTML+=`<div style="color:var(--red)">✗ ${file.name}</div>`;}
-  }
-  invSidebarBtn.textContent='Import Invoices';invSidebarBtn.disabled=false;
-  invSidebarFiles=[];invSidebarInput.value='';
-  await loadProjectContractors();
-  ensureActiveContractorInProgram();
-  buildContractorSwitcher();
-  // Refresh invoices tab if open
-  if(document.getElementById('page-invoices').classList.contains('active')) await loadInvoices(importedContractor);
-});
 
 // ── OCR Import (handwritten drill logs via OpenAI) ────────────────────────────
 var ocrFileInput = document.getElementById('ocr-file-input');

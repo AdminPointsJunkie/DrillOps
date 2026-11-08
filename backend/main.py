@@ -8189,29 +8189,23 @@ async def import_invoice(
     contractor: str = Form(default="Allianz Drilling"),
     project: str = Form(default=""),
     program: str = Form(default=""),
+    project_id: Optional[int] = Form(default=None),
+    po_id: Optional[int] = Form(default=None),
 ):
     filename = file.filename
 
-    # Check if already imported — handle both old single-col and new dual-col table
-    try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
-                    return {"status": "skipped", "filename": filename}
-    except Exception:
-        # Table may have old schema — try migration
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                try:
-                    cur.execute("ALTER TABLE invoice_imports ADD COLUMN IF NOT EXISTS contractor TEXT DEFAULT 'Allianz Drilling'")
-                    cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s", (filename,))
-                    if cur.fetchone():
-                        return {"status": "skipped", "filename": filename}
-                except Exception:
-                    pass
-            conn.commit()
+    from invoice_import_controls import destination, find_duplicate
+    selected = None
+    if project_id is not None or po_id is not None:
+        if project_id is None or po_id is None:
+            raise HTTPException(400, "Choose both a project and a purchase order.")
+        try:
+            with get_conn(read_only=True) as conn:
+                with conn.cursor() as cur:
+                    selected = destination(cur, project_id, po_id)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
+        contractor, project, program = selected['contractor'], selected['project'], selected['program']
 
     content = await file.read()
     try:
@@ -8226,32 +8220,13 @@ async def import_invoice(
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
-    if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
-        contractor = "MCC Group"
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
-                    return {"status": "skipped", "filename": filename}
-
-    if "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
-        contractor = "CHMS"
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
-                    return {"status": "skipped", "filename": filename}
-
-    if "KINETIC LOGGING SERVICES" in text.upper() or "kls.ar@epiroc.com" in text.lower():
-        contractor = "Epiroc"
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM invoice_imports WHERE filename=%s AND contractor=%s",
-                            (filename, contractor))
-                if cur.fetchone():
-                    return {"status": "skipped", "filename": filename}
+    if not selected:
+        if "MCC Group Pty Ltd" in text or re.search(r"from_MCC_Group", filename, re.IGNORECASE):
+            contractor = "MCC Group"
+        elif "Central Highlands Mining Services" in text or re.search(r"Quote-00001532", filename, re.IGNORECASE):
+            contractor = "CHMS"
+        elif "KINETIC LOGGING SERVICES" in text.upper() or "kls.ar@epiroc.com" in text.lower():
+            contractor = "Epiroc"
 
     try:
         inv = parse_invoice_pdf(text, filename, contractor, tables)
@@ -8262,12 +8237,19 @@ async def import_invoice(
     if str(program or "").strip():
         inv["program"] = str(program).strip()
 
+    if selected:
+        inv["po_reference"] = selected["po_reference"]
+
     lines = inv.pop("lines", [])
 
     match_summary = {}
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
+                duplicate = find_duplicate(cur, contractor, inv.get("invoice_number", ""), content)
+                if duplicate:
+                    return {"status":"duplicate", "filename":filename, "existing_invoice":duplicate,
+                            "message":"This invoice is already recorded. No duplicate was saved."}
                 cur.execute("""
                     INSERT INTO invoices
                     (source_file,contractor,invoice_number,invoice_date,due_date,po_reference,
