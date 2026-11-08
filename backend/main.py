@@ -8497,6 +8497,16 @@ def ironbark_posted_invoices(year: int = Query(2026)):
              "status": "Posted", "notes": row["source_notes"] or ""} for row in rows]
 
 
+@app.get("/invoice-ledger")
+def get_invoice_ledger(project: str = Query(""), program: str = Query("")):
+    """Load project invoice actuals and PO values with one read-only database query."""
+    from invoice_ledger_read import LEDGER_SQL
+    with get_conn(read_only=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(LEDGER_SQL, {"project": project, "program": program})
+            return dict(cur.fetchone())
+
+
 @app.get("/invoices")
 def get_invoices(
     contractor: str = Query(...),

@@ -79,6 +79,12 @@
             <button class="login-forgot" id="forgot-password-button" type="button" onclick="requestPasswordReset()">Forgot your password?</button>
             <div id="login-error" class="login-feedback error"></div>
           </div>
+          <div id="session-retry-panel" hidden>
+            <h3>Reconnecting to DrillOps</h3>
+            <p id="session-retry-message">Your sign-in has been kept.</p>
+            <button class="login-submit" id="session-retry-button" onclick="resumePortalSession()">Retry connection</button>
+            <button class="login-forgot" type="button" onclick="doLogout()">Sign out</button>
+          </div>
           <div id="password-reset-panel" hidden>
             <h3>Choose a new password</h3>
             <p>Use at least eight characters for your new DrillOps password.</p>
@@ -131,9 +137,6 @@
   </select>
   <div id="contractor-switcher" aria-label="Contractor switcher"></div>
   <div class="header-right">
-    <button class="workspace-context-btn" id="workspace-context-btn" type="button" onclick="changeWorkspace()">
-      <span id="workspace-context-label">Select client / project / program</span>
-    </button>
     <div class="header-meta"><span id="db-count">—</span> records</div>
   </div>
 </header>
@@ -319,6 +322,7 @@
         <!-- Tax Invoices -->
         <div class="chart-card" style="padding:24px;">
           <div class="chart-title">Tax Invoices</div>
+          <button class="btn-secondary" type="button" onclick="changeWorkspace()">Set invoice import destination</button>
           <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Contractor invoice PDFs. Stored for viewing and reconciliation.</p>
           <div class="upload-zone" id="inv-drop-zone-sidebar" style="margin-bottom:10px;position:relative;">
             <input type="file" id="inv-file-input-sidebar" multiple accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:5;"/>
@@ -446,7 +450,7 @@
         <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
-          <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/></div>
+          <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/><button type="button" class="btn-secondary" onclick="changeWorkspace()">Set project for new PO</button></div>
           <div class="filter-group"><label>PO Value ($, ex GST)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
           <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>
@@ -522,7 +526,7 @@
         <div class="filter-body open" style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:14px;">
           <div class="filter-group"><label>Contractor</label><select id="manual-inv-contractor"></select></div>
           <div class="filter-group"><label>Program</label><select id="manual-inv-program" onchange="populateManualInvoiceForm(true)"><option>Exploration</option><option>Gas Riser</option><option>SIS</option></select></div>
-          <div class="filter-group"><label>Workspace project</label><select id="manual-inv-project" disabled><option value=""></option></select></div>
+          <div class="filter-group"><label>Project</label><select id="manual-inv-project"><option value=""></option></select></div>
           <div class="filter-group"><label>Invoice #</label><input id="manual-inv-number" placeholder="Manual-001"></div>
           <div class="filter-group"><label>Invoice Date</label><input id="manual-inv-date" type="date"></div>
           <div class="filter-group"><label>PO Number</label><input id="manual-inv-po" placeholder="optional"></div>
@@ -607,10 +611,11 @@
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
 <script src="./workspace/navigation.js?v=recon1-20261108-calendar1"></script>
-<script src="./workspace/runtime.js?v=20261108-ledger2"></script>
-<script src="./invoice-ledger.js?v=20261108-ledger2"></script>
+<script src="./auth-session.js?v=20261108-session1"></script>
+<script src="./workspace/runtime.js?v=20261108-session1"></script>
+<script src="./invoice-ledger.js?v=20261108-fast1"></script>
 <script src="./workspace/reconciliation-model.js?v=20261108-1"></script>
 <script src="./workspace/reconciliation.js?v=20261108-1"></script>
-<script src="./workspace/start.js?v=20261108-direct1-20261108-speed1"></script>
+<script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>

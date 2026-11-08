@@ -14,7 +14,7 @@ await context.route('https://*.supabase.co/auth/**',route=>{privateRequests++;re
 await context.route('http://localhost:8000/**',async route=>{
  privateRequests++;
  const path=new URL(route.request().url()).pathname;
- const data=path==='/mobile/me'?{name:'Test User',email:'test@example.invalid',role:'System Administrator',management_portal_access:true}
+ const data=path==='/invoice-ledger'?{invoices:[{id:1,contractor:'Test Supplier',project:'Test Project',program:'Exploration',invoice_number:'TEST-1',subtotal:100}],purchase_orders:[]}:path==='/mobile/me'?{name:'Test User',email:'test@example.invalid',role:'System Administrator',management_portal_access:true}
  :path==='/clients'?[{id:1,name:'Test Client',status:'Active'}]
  :path==='/projects'?[{id:1,client_id:1,name:'Test Project',program:'Exploration',year:2026,status:'Active'}]
  :path==='/contractors'?['Mitchells Drilling','DEPCO Drilling','MCC Group','Test Supplier','Allianz Drilling'].map((name,index)=>({id:index+1,name,category:name==='MCC Group'?'Labour':'Drilling',program:'Exploration',sites:'Test Project',active:true}))

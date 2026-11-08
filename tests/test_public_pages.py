@@ -57,7 +57,11 @@ class PublicPages(unittest.TestCase):
         self.assertNotIn('id="page-invoices"',(DOCS/'project.html').read_text())
         runtime=(DOCS/'workspace/runtime.js').read_text()
         self.assertIn("const AUTH_STORAGE_KEY='drillops_supabase_session'",runtime)
-        self.assertIn("headers.set('Authorization','Bearer '+token)",runtime)
+        self.assertIn("DrillOpsSession.fetch(input,options)",runtime)
+        session=(DOCS/'auth-session.js').read_text()
+        self.assertIn("headers.set('Authorization','Bearer '+access)",session)
+        for name in ['eos.html','account.html','project.html']:
+            self.assertNotIn('id="workspace-context-btn"',(DOCS/name).read_text())
     def test_no_illustrative_marketing(self):
         for name in ['index.html','drillops.html','fieldops.html','fieldmaps.html']:
             s=(DOCS/name).read_text()

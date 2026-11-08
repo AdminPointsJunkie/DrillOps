@@ -7,24 +7,29 @@
   if(document.body.dataset.publicHome==='true'&&!requestedSignIn){showLogin();return;}
   authSession=loadStoredAuthSession();
   if(!authSession){showLogin();return;}
+  showSessionRetry('Restoring your sign-in…');
+  await resumePortalSession();
+})();
+
+async function resumePortalSession(){
+  const retry=document.getElementById('session-retry-button');
+  retry.disabled=true;
   try{
     await accessToken();
     if(!await verifyPortalAccount())return;
   }catch(error){
-    saveAuthSession(null);
-    showLogin(error.message||'Please sign in again.');
+    if(error.sessionExpired||!loadStoredAuthSession())showLogin(error.message||'Please sign in again.');
+    else showSessionRetry();
     return;
-  }
+  }finally{retry.disabled=false;}
   document.getElementById('login-screen').style.display='none';
+  document.body.classList.remove('workspace-locked');
   try{
     await initializePortal();
   }catch(error){
     portalInitialized=false;
     console.error('Portal startup error:',error);
-    var gateError=document.getElementById('workspace-gate-error');
-    if(gateError)gateError.textContent='DrillOps could not finish loading. Refresh to retry; your sign-in and workspace have been kept.';
     showAppHome();
     toast('Could not finish loading. Refresh to retry.','warn');
-
   }
-})();
+}
