@@ -72,7 +72,7 @@ try{
  await page.locator('#eos-clear-scope').click();requests=[];await nav('reports');await page.waitForFunction(()=>document.getElementById('eos-period-document').hidden===false);
  assert.equal(requests.filter(r=>r.path==='/activity-report-data').every(r=>r.contractor==='Mitchells Drilling'),true);
  assert.equal(requests.some(r=>/budget|invoices|boreholes/.test(r.path)),false);
- assert.match(await text('eos-period-narrative'),/87.0 m/);assert.equal(await page.locator('#eos-period-rigs tr').count(),0);await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-rigs tr').length===2);
+ assert.match(await text('eos-period-narrative'),/87.0 m/);assert.equal(await page.locator('#eos-period-rigs tr').count(),0);await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-projects tr').length===3);
  assert.equal(await page.locator('#page-reports').innerText().then(t=>/Total Budget|Forecast|Training/.test(t)),false);
  await page.locator('#eos-contractor-filter').selectOption('DEPCO Drilling');await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('900.0 m'));
  assert.equal(await text('eos-period-contractor'),'DEPCO Drilling');
