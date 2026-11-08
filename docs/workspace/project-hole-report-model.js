@@ -56,8 +56,10 @@
   const remainingBudget=approvedBudget===null||plannedBudget===null?null:(cents(approvedBudget)-cents(plannedBudget))/100;
   const metrics=holes.map(h=>{
    const prod=E.summarise(h.rows,{completionSource:history}),costs=h.rows.concat(h.materials),eos=costs.length?sum(costs.map(r=>number(r.line_cost))):null,missing=costs.filter(r=>number(r.line_cost)===null).length;
+   const drillingRows=h.rows.filter(r=>!(/^D[ _-]/i.test(text(r.code))&&/water\s*cart|backhoe|loader|excavat|earthworks|earth works/i.test(text(r.code))));
+   const drillCosts=drillingRows.concat(h.materials),drillingActual=drillCosts.length?sum(drillCosts.map(r=>number(r.line_cost))):null;
    const invoiced=h.invoiceCount?sum(h.invoiceAmounts):null;
-   return {...h,production:prod,eos,unpriced:missing,invoiced,planLessEos:h.plannedBudget===null||eos===null?null:(cents(h.plannedBudget)-cents(eos))/100,planLessInvoices:h.plannedBudget===null||invoiced===null?null:(cents(h.plannedBudget)-cents(invoiced))/100};
+   return {...h,production:prod,eos,drillingActual,unpriced:missing,invoiced,planLessEos:h.plannedBudget===null||eos===null?null:(cents(h.plannedBudget)-cents(eos))/100,planLessInvoices:h.plannedBudget===null||invoiced===null?null:(cents(h.plannedBudget)-cents(invoiced))/100};
   });
   const suppliers=new Map(),family=name=>{const key=A.family(name);return ({weatherford:'geophysics',epiroc:'geophysics',weatherfordsepiroc:'geophysics',environmentfscesc:'impactenvironmental',impactenvironmentalptyltd:'impactenvironmental',b3:'sponcomtesting',sponcom:'sponcomtesting'})[key]||key;};
   const add=name=>{const key=family(name);if(!suppliers.has(key))suppliers.set(key,{key,name:key==='geophysics'?'Weatherford / Precision / Epiroc':name,budget:null,eos:null,invoiced:null,unpriced:0,invoiceCount:0});return suppliers.get(key);};
