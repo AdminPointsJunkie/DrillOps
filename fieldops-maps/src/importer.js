@@ -40,6 +40,11 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
      continue;
     }
     if(imagePattern.test(primary.name)&&group.length===1){items.push(...await readImages(primary,sourceFiles));continue;}
+    if(/\.kml$/i.test(primary.name)){
+     const {readKML}=await import('./kml-import.js');const {fc,details}=readKML(await primary.text());
+     validateCollection(fc);
+     items.push({name:fileLayerName(group),kind:'vector',format:'KML',files:sourceFiles,fc,kml:details,source:'EPSG:4326',count:fc.features.length});continue;
+    }
     const special=await readSpecial(primary,sourceFiles);if(special){items.push(...special);continue;}
     const cad=/\.dwg$/i.test(primary.name)?await readDWGReferences(primary,progress,{dwg,resolveReferences,saved:cadImport,sourceFiles:sourceFilesForCAD}):null;
     if(cad?.references?.length)sourceFiles=cad.originals;
