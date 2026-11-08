@@ -9,3 +9,5 @@
 .phr-site-id{font-weight:400;color:#657873;font-size:10px}
 
 #page-reports #phr-contractors thead th{text-align:left!important}#page-reports .phr-title,#page-reports .phr-section-toggle{justify-content:flex-start;text-align:left}#page-reports .phr-section-toggle>span{margin-left:0}
+
+#phr-production-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.phr-rig-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:20px 0}.phr-rig-grid h3{font-size:13px}.phr-rig-row{margin:14px 0}.phr-rig-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:11px}.phr-rig-row strong{white-space:nowrap}.phr-rig-track{display:flex;height:10px;background:#edf1ed;margin-top:5px}.phr-rig-track i{display:block;height:100%}@media(max-width:700px){.phr-rig-grid{grid-template-columns:1fr}#phr-production-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
