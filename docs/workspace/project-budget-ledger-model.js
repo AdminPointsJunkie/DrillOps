@@ -19,12 +19,16 @@
    const raw=detail.get(String(h.hole_id)),values=definitions.length?definitions.map((_,i)=>number(raw?.[3+i])):categories.map(([key])=>number(h[key]));
    const total=number(h.budget_total),complete=values.every(v=>v!==null),sum=complete?values.reduce((a,b)=>a+cents(b),0):null;
    const live=plannerMatch(h,source,plannerRows,scope);
-   return {...h,...live,potentialSaving:live.planner_linked?(live.planner_status==='Cancelled'?total:0):null,index,values,total,rounding:total!==null&&sum!==null?(cents(total)-sum)/100:null};
+   return {...h,...live,index,values,total,rounding:total!==null&&sum!==null?(cents(total)-sum)/100:null};
   });
   const query=search.trim().toLowerCase(),rows=all.filter(r=>(!status||r.planner_status===status)&&(!query||[r.hole_id,r.site_id,r.purpose,r.classification].join(' ').toLowerCase().includes(query)));
   const sum=key=>rows.every(r=>key(r)!==null)?rows.reduce((a,r)=>a+cents(key(r)),0)/100:null;
-  const cancelled=rows.filter(r=>r.planner_status==='Cancelled'&&r.planner_linked),potentialSaving=plannerRows===null||(rows.length>0&&rows.every(r=>!r.planner_linked))||cancelled.some(r=>r.total===null)?null:cancelled.reduce((sum,r)=>sum+cents(r.total),0)/100;
-  return {rows,columns,potentialSaving,cancelledCount:cancelled.length,unlinked:rows.filter(r=>!r.planner_linked).length,plannerUnavailable:plannerRows===null,statuses:[...new Set(all.map(r=>r.planner_status).filter(Boolean))],count:all.length,hasContractors:!!definitions.length,showRounding:all.some(r=>r.rounding!==null&&r.rounding!==0),totals:{values:columns.map((_,i)=>sum(r=>r.values[i])),rounding:sum(r=>r.rounding),total:sum(r=>r.total)},missing:rows.filter(r=>r.values.some(v=>v===null)).length};
+  // Project cards use every original hole budget, regardless of ledger filters.
+  // Only confirmed cancellations release a hole's allocation.
+  const cancelled=r=>r.planner_linked&&r.planner_status==='Cancelled',planned=all.filter(r=>!cancelled(r));
+  const plannedBudget=plannerRows===null||planned.some(r=>r.total===null)?null:planned.reduce((sum,r)=>sum+cents(r.total),0)/100;
+  const approvedBudget=number(source.approvedBudget),remainingBudget=approvedBudget===null||plannedBudget===null?null:(cents(approvedBudget)-cents(plannedBudget))/100;
+  return {rows,columns,plannedBudget,remainingBudget,cancelledCount:rows.filter(cancelled).length,unlinked:rows.filter(r=>!r.planner_linked).length,plannerUnavailable:plannerRows===null,statuses:[...new Set(all.map(r=>r.planner_status).filter(Boolean))],count:all.length,hasContractors:!!definitions.length,showRounding:all.some(r=>r.rounding!==null&&r.rounding!==0),totals:{values:columns.map((_,i)=>sum(r=>r.values[i])),rounding:sum(r=>r.rounding),total:sum(r=>r.total)},missing:rows.filter(r=>r.values.some(v=>v===null)).length};
  }
  const api={build,plannerMatch};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ProjectBudgetLedger=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
