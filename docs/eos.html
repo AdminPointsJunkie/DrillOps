@@ -45,7 +45,7 @@
 
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-report2"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/eos-production.css?v=20261108-overview3"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="eos">
 
@@ -325,7 +325,26 @@
     <div><span>Recorded hours</span><strong id="eos-hours">—</strong><small>From activity entries</small></div>
     <div><span>Recorded charges</span><strong id="eos-cost">—</strong><small id="eos-cost-note">Calculated report charges · AUD</small></div>
   </div>
-  <div class="eos-workspace-grid"><section class="eos-panel"><div class="eos-panel-heading"><h2>Production overview</h2><a href="./eos.html?view=production">Open production ↗</a></div><div class="eos-chart-caption"><strong>Metres over time</strong><span id="eos-overview-chart-status"></span></div><div class="production-legend"><span><i class="core"></i>Cored</span><span><i class="chip"></i>Chipped / open hole</span><span><i class="other"></i>Other</span></div><div id="eos-overview-production" class="production-svg"></div><h3 class="eos-standby-heading">By rig</h3><div id="eos-overview-rigs"></div><a class="eos-insight-link" href="./eos.html?view=settings">Settings · load raw logs &amp; tables ↗</a></section><aside class="eos-panel"><div class="eos-panel-heading"><h2>Time usage</h2></div><label class="eos-table-toggle eos-standby-toggle"><input id="eos-overview-include-nonchargeable" data-eos-standby-toggle type="checkbox" onchange="setEosStandbyPreference(this.checked)"> Include non-chargeable standby</label><div id="eos-time-usage"></div><h3 class="eos-standby-heading">Standby reasons</h3><div id="eos-overview-standby"></div><p id="eos-overview-standby-note" class="eos-footnote"></p><h3 class="eos-standby-heading">Other activity breakdown</h3><p id="eos-overview-other-summary" class="eos-footnote"></p><div id="eos-overview-other-chart"></div><a class="eos-insight-link" href="./eos.html?view=production">Production & rig performance ↗</a><a class="eos-insight-link" href="./eos.html?view=costing">Detailed charge breakdown ↗</a></aside></div>
+  <div class="eos-workspace-grid">
+    <section class="eos-panel eos-overview-production-panel">
+      <div class="eos-panel-heading"><h2>Production overview</h2><a href="./eos.html?view=production">Open production ↗</a></div>
+      <div class="eos-chart-caption"><strong>Metres over time</strong><span id="eos-overview-chart-status"></span></div>
+      <div class="production-legend"><span><i class="core"></i>Cored</span><span><i class="chip"></i>Chipped / open hole</span><span><i class="other"></i>Other</span></div>
+      <div id="eos-overview-production" class="production-svg"></div>
+      <h3 class="eos-standby-heading">By rig</h3><div id="eos-overview-rigs"></div>
+      <a class="eos-insight-link" href="./eos.html?view=settings">Settings · load raw logs &amp; tables ↗</a>
+    </section>
+    <section class="eos-panel eos-overview-time-panel">
+      <div class="eos-panel-heading"><h2>Time usage</h2></div>
+      <label class="eos-table-toggle eos-standby-toggle"><input id="eos-overview-include-nonchargeable" data-eos-standby-toggle type="checkbox" onchange="setEosStandbyPreference(this.checked)"> Include non-chargeable standby</label>
+      <div class="eos-overview-time-layout">
+        <div class="eos-overview-time-split"><h3 class="eos-standby-heading">Time allocation</h3><div id="eos-time-usage"></div></div>
+        <div class="eos-overview-standby-detail"><h3 class="eos-standby-heading">Standby reasons</h3><div id="eos-overview-standby"></div><p id="eos-overview-standby-note" class="eos-footnote"></p></div>
+        <div class="eos-overview-other-detail"><h3 class="eos-standby-heading">Other activity breakdown</h3><p id="eos-overview-other-summary" class="eos-footnote"></p><div id="eos-overview-other-chart"></div></div>
+      </div>
+      <div class="eos-overview-links"><a class="eos-insight-link" href="./eos.html?view=production">Production &amp; rig performance ↗</a><a class="eos-insight-link" href="./eos.html?view=costing">Detailed charge breakdown ↗</a></div>
+    </section>
+  </div>
 </section>
 
 
