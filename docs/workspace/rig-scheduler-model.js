@@ -10,18 +10,20 @@
    const start=date(b.scheduled_start),savedEnd=date(b.scheduled_end),duration=number(b.days_budgeted),derived=!!(start&&!savedEnd&&!text(b.scheduled_end)&&duration>0),end=derived?add(start,Math.ceil(duration)-1):savedEnd,rig=text(b.assigned_rig||b.drill_rig),invalid=!!((text(b.scheduled_start)&&!start)||(text(b.scheduled_end)&&!savedEnd)||(start&&end&&end<start));
    return {key:String(b.id??JSON.stringify([b.contractor,b.project,b.program,b.hole_id])),b,hole:text(b.hole_id)||'Unnamed hole',site:text(b.site_id),rig,start,end,derived,invalid,scheduled:!!(rig&&start&&end&&!invalid),status:text(b.status)||'Planned',days:start&&end&&!invalid?diff(start,end)+1:null,clashes:[]};
   });
-  for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){const a=rows[i],b=rows[j];if(a.scheduled&&b.scheduled&&a.status!=='Cancelled'&&b.status!=='Cancelled'&&a.rig===b.rig&&a.start<=b.end&&b.start<=a.end){a.clashes.push(b.key);b.clashes.push(a.key);}}
+  for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){const a=rows[i],b=rows[j];if(!a.b.is_reported&&!b.b.is_reported&&a.scheduled&&b.scheduled&&a.status!=='Cancelled'&&b.status!=='Cancelled'&&a.rig===b.rig&&a.start<=b.end&&b.start<=a.end){a.clashes.push(b.key);b.clashes.push(a.key);}}
   return rows.sort((a,b)=>(number(a.b.drill_order)??9999)-(number(b.b.drill_order)??9999)||a.hole.localeCompare(b.hole,undefined,{numeric:true}));
  }
  function lanes(rows){const ends=[];return rows.slice().sort((a,b)=>a.start.localeCompare(b.start)||a.end.localeCompare(b.end)).map(r=>{let lane=ends.findIndex(end=>end<r.start);if(lane<0)lane=ends.length;ends[lane]=r.end;return {...r,lane};});}
+ function displayLanes(rows){const planned=lanes(rows.filter(r=>!r.b.is_reported)),offset=Math.max(-1,...planned.map(r=>r.lane))+1;return planned.concat(lanes(rows.filter(r=>r.b.is_reported)).map(r=>({...r,lane:r.lane+offset})));}
  function groups(rows){const groups=new Map();for(const r of rows){const key=JSON.stringify([r.b.project,r.rig]);if(!groups.has(key))groups.set(key,{key,project:r.b.project,rig:r.rig,rows:[]});groups.get(key).rows.push(r);}return [...groups.values()].sort((a,b)=>a.project.localeCompare(b.project)||a.rig.localeCompare(b.rig,undefined,{numeric:true}));}
  const norm=v=>text(v).toUpperCase().replace(/^(IB|CD)-(?=\d{2}-)/,'');
- function combine(entries,planner){
+ function combine(entries,planner,reported=[]){
   const cancelled=new Set(planner.filter(b=>text(b.status).toLowerCase()==='cancelled').flatMap(b=>[b.site_id,b.hole_id].filter(Boolean).map(v=>JSON.stringify([b.project,b.program,norm(v)]))));
-  const bookings=entries.map(r=>({...r,id:'booking-'+r.id,schedule_id:r.id}));
+  const actuals=reported.filter(r=>![r.hole_id,r.site_id].filter(Boolean).some(v=>cancelled.has(JSON.stringify([r.project,r.program,norm(v)])))).map(r=>({...r,is_reported:true}));
+  const bookings=entries.map(r=>({...r,id:'booking-'+r.id,schedule_id:r.id})).concat(actuals);
   const covered=new Set(bookings.flatMap(r=>[r.hole_id,r.site_id].filter(Boolean).map(v=>JSON.stringify([r.project,r.program,norm(v)]))));
   const seen=new Map();for(const b of planner){if(text(b.status).toLowerCase()==='cancelled'||!b.project)continue;const ids=[b.hole_id,b.site_id].filter(Boolean).map(norm);if(ids.some(v=>covered.has(JSON.stringify([b.project,b.program,v]))||cancelled.has(JSON.stringify([b.project,b.program,v]))))continue;const key=JSON.stringify([b.project,b.program,norm(b.site_id||b.hole_id)]),old=seen.get(key);if(!old||(!/^\d/.test(b.hole_id)&&/^\d/.test(old.hole_id)))seen.set(key,b);}
   return bookings.concat([...seen.values()]);
  }
- const api={date,add,diff,build,lanes,groups,combine};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RigScheduler=api;
+ const api={date,add,diff,build,lanes,displayLanes,groups,combine};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RigScheduler=api;
 })(globalThis);
