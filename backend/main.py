@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from admin_api import create_admin_router
 from borehole_reads import borehole_actuals_query
+from eos_weather import create_eos_weather_router
 from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
@@ -386,6 +387,7 @@ def get_conn(*, read_only=False):
 # Every non-public request must carry a valid Supabase JWT. The new /mobile
 # routes enforce project/organisation permissions; unscoped legacy routes are
 # restricted to DrillOps system administrators.
+app.include_router(create_eos_weather_router(get_conn))
 app.add_middleware(DrillOpsAuthMiddleware, get_conn=get_conn)
 app.add_middleware(
     CORSMiddleware,

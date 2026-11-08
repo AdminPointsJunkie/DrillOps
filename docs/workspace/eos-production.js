@@ -73,6 +73,7 @@ renderDailyProduction=function(){
  productionSet('production-message',eosProductionLoading?'Loading recorded production…':eosProductionError||rangeError);
  document.getElementById('production-print').disabled=!!unavailable;
  productionFilteredData=unavailable?[]:productionRawData.filter(r=>{const date=EosProduction.date(r.date);return date&&(!from||date>=from)&&(!to||date<=to)&&(!rig||String(r.drill_rig||'Unspecified').trim()===rig)&&(!bit||productionBit(r)===bit);});
+ const showTables=document.getElementById('production-show-tables').checked;
  const summary=EosProduction.summarise(productionFilteredData,eosStandbyOptions(productionRawData));eosProductionSummary=unavailable?null:summary;
  productionSet('production-context',eosScopeLabel());
  productionSet('production-report-filters',[contractor||'No contractor selected',rig||'All rigs',bit||'All bit types',from||to?(from?productionDisplayDate(from,false):'Start')+' – '+(to?productionDisplayDate(to,false):'Latest'):'All available dates'].join(' · '));
@@ -89,13 +90,13 @@ renderDailyProduction=function(){
  const quality=[summary.other?productionNumber(summary.other)+' m are other or unclassified; they have not been assumed to be core or chip.':'',summary.untimedDrillingMetres?productionNumber(summary.untimedDrillingMetres)+' m have no drilling duration and are excluded from penetration rates.':'',summary.missingTime?summary.missingTime+' entries have no usable duration; hours and standby shares may be incomplete.':'',undated?undated+' undated entries are excluded from this dated report.':'',summary.invalidMetres?summary.invalidMetres+' invalid or negative metre values are excluded from metre totals.':''].filter(Boolean);
  productionSet('production-quality',unavailable?'':quality.join(' '));
  document.getElementById('production-chart').innerHTML=unavailable?'':productionChart(summary);
- document.getElementById('production-projects').innerHTML=unavailable?'':productionSummaryRows(summary.projects);
- document.getElementById('production-rigs').innerHTML=unavailable?'':productionSummaryRows(summary.rigs,true);
- document.getElementById('production-standby-reasons').innerHTML=unavailable?'':summary.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+productionNumber(r.hours)+'</td><td class="num">'+(summary.standbyHours?productionNumber(r.hours/summary.standbyHours*100)+'%':'—')+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="4" class="production-empty">No standby recorded for these filters.</td></tr>';
+ document.getElementById('production-projects').innerHTML=unavailable||!showTables?'':productionSummaryRows(summary.projects);
+ document.getElementById('production-rigs').innerHTML=unavailable||!showTables?'':productionSummaryRows(summary.rigs,true);
+ document.getElementById('production-standby-reasons').innerHTML=unavailable||!showTables?'':summary.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+productionNumber(r.hours)+'</td><td class="num">'+(summary.standbyHours?productionNumber(r.hours/summary.standbyHours*100)+'%':'—')+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="4" class="production-empty">No standby recorded for these filters.</td></tr>';
  for(const [id,rows,keys,unit] of [['production-project-chart',summary.projects],['production-rig-chart',summary.rigs]])document.getElementById(id).innerHTML=unavailable?'':eosBarChart(rows,keys,unit);
  document.getElementById('production-time-chart').innerHTML=unavailable?'':eosTimeChart(summary);
  document.getElementById('production-standby-chart').innerHTML=unavailable?'':eosStandbyChart(summary);
- for(const [id,html] of [['production-performance',eosPerformanceFigures(summary)],['production-rate-chart',eosRateChart(summary)],['production-daily',eosDailyRows(summary)]])document.getElementById(id).innerHTML=unavailable?'':html;
+ for(const [id,html] of [['production-performance',eosPerformanceFigures(summary)],['production-rate-chart',eosRateChart(summary)],['production-daily',showTables?eosDailyRows(summary):'']])document.getElementById(id).innerHTML=unavailable?'':html;
  renderEosMoves('production',summary,unavailable);
  productionSet('production-row-count',productionFilteredData.length);renderProductionDetails();
  productionSet('production-generated','Prepared '+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST');
@@ -127,11 +128,12 @@ function eosTimeChart(s){
  const circles=parts.map(p=>{const length=chartHours?p.hours/chartHours*circ:0,svg='<circle cx="74" cy="74" r="54" fill="none" stroke="'+p.colour+'" stroke-width="17" stroke-dasharray="'+length+' '+(circ-length)+'" stroke-dashoffset="'+(-offset)+'" transform="rotate(-90 74 74)"/>';offset+=length;return svg;}).join('');
  return '<div class="eos-time-chart"><svg viewBox="0 0 148 148" role="img" aria-label="Displayed activity hours"><title>'+parts.map(p=>p.label+': '+productionNumber(p.hours)+' hours').join(', ')+'</title><circle cx="74" cy="74" r="54" fill="none" stroke="#edf1ed" stroke-width="17"/>'+circles+'<text x="74" y="73" text-anchor="middle" class="eos-time-total">'+productionNumber(chartHours)+'</text><text x="74" y="91" text-anchor="middle">displayed hours</text></svg><div>'+parts.map(p=>'<div class="eos-time-key"><i style="background:'+p.colour+'"></i><span>'+p.label+'</span><strong>'+productionNumber(p.hours)+' h</strong></div>').join('')+'</div></div>';
 }
-function toggleProductionTables(){document.querySelectorAll('#production-report .production-data-table').forEach(el=>el.hidden=!document.getElementById('production-show-tables').checked);}
+function toggleProductionTables(){renderDailyProduction();document.querySelectorAll('#production-report .production-data-table').forEach(el=>el.hidden=!document.getElementById('production-show-tables').checked);}
 
 function eosStandbyNote(s){
  const parts=[s.includeNonChargeable?'Chargeable + non-chargeable standby':'Chargeable standby only'];
  if(!s.includeNonChargeable&&s.nonChargeableStandbyHours)parts.push(productionNumber(s.nonChargeableStandbyHours)+' h non-chargeable excluded');
+ if(s.unpaidFatigueHours)parts.push('Uncharged fatigue management excluded');
  if(s.unconfirmedStandbyRows)parts.push(s.unconfirmedStandbyRows+' entries awaiting a rate excluded ('+productionNumber(s.unconfirmedStandbyHours)+' h)');
  return parts.join(' · ');
 }
@@ -151,7 +153,7 @@ function renderEosMoves(prefix,s,unavailable=false){
  document.getElementById(prefix+'-move-chart').innerHTML=unavailable?'':eosBarChart(s.rigs.filter(r=>r.movingHours>0).map(r=>({...r,moveOnlyHours:r.movingHours-r.combinedMoveHours})),['moveOnlyHours','combinedMoveHours'],'h');
  productionSet(prefix+'-move-summary',unavailable?'':productionNumber(s.movingHours)+' h · '+s.moves.length+' recorded entries');
  productionSet(prefix+'-move-note',unavailable?'':[s.combinedMoveHours?productionNumber(s.combinedMoveHours)+' h combines moving and setup; no time split was recorded.':'Site-to-site rig moves; crew travel is excluded.',s.missingMoveTime?s.missingMoveTime+' move entries have no usable duration.':''].filter(Boolean).join(' '));
- document.getElementById(prefix+'-moves').innerHTML=unavailable?'':s.moves.map(r=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.hole_num||'')+'</small></td><td>'+esc(r.notes||r.code)+'<small>'+(r.moveType==='combined'?'Move + setup':'Site move')+'</small></td><td class="num">'+(r.moveHours===null?'—':productionNumber(r.moveHours))+'</td></tr>').join('')||'<tr><td colspan="4">No site moves recorded.</td></tr>';
+ document.getElementById(prefix+'-moves').innerHTML=unavailable||!document.getElementById(prefix==='production'?'production-show-tables':'eos-period-show-tables').checked?'':s.moves.map(r=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.hole_num||'')+'</small></td><td>'+esc(r.notes||r.code)+'<small>'+(r.moveType==='combined'?'Move + setup':'Site move')+'</small></td><td class="num">'+(r.moveHours===null?'—':productionNumber(r.moveHours))+'</td></tr>').join('')||'<tr><td colspan="4">No site moves recorded.</td></tr>';
 }
 function eosRateChart(s){
  const data=s.daily,valid=data.filter(d=>d.penetration!==null),max=Math.max(0,...valid.map(d=>d.penetration),s.penetration||0);

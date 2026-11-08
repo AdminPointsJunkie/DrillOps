@@ -1,17 +1,19 @@
 /* App boundaries and navigation. Authentication and project selection stay shared. */
 const WORKSPACE_APP = document.body.dataset.workspaceArea || 'eos';
+let eosRawLogsEnabled=false;
 const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling','MCC Group']);
 function contractorsForApp(rows, field='name'){
  const list=Array.isArray(rows)?rows:[];
  return WORKSPACE_APP==='eos'?list.filter(row=>EOS_CONTRACTOR_NAMES.has(row[field])):list;
 }
 const WORKSPACE_PAGES = {
- eos:['reports','activities','production','costing','rates','cost-contracts','importer'],
+ eos:['reports','activities','production','costing','rates','cost-contracts','importer','settings'],
  account:['invoices','purchase-orders','contractors','importer'],
  project:['project-dashboard','project-budgets','budget','boreholes','admin']
 };
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}
 function routeWorkspacePage(page){
+ if(WORKSPACE_APP==='eos'&&page==='activities'&&!eosRawLogsEnabled){drawerNav(document.querySelector('.drawer-nav-item[data-page="settings"]'));return true;}
  if(page==='app-home'||WORKSPACE_PAGES[WORKSPACE_APP].includes(page))return false;
  const owner=Object.keys(WORKSPACE_PAGES).find(app=>WORKSPACE_PAGES[app].includes(page));
  if(owner){window.location.assign('./'+owner+'.html?view='+encodeURIComponent(page));return true;}

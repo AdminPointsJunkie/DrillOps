@@ -44,7 +44,7 @@ try{
  assert.equal(await page.locator('#eos-project-filter').inputValue(),'');
  assert.deepEqual(await page.locator('#eos-contractor-filter option').allTextContents(),contractors);
  assert.equal(await text('eos-metres'),'87 m');
- assert.equal(await page.locator('#eos-recent-body tr').count(),6,'same source filename stays separated by project');
+ assert.equal(await text('eos-total'),'6','same source filename stays separated by project');assert.equal(await page.locator('#report-body tr.report-row').count(),0);assert.equal(await page.locator('#eos-overview-production svg').count(),1);
  await page.evaluate(()=>window.navigationMarker='kept');const docCount=documents;
  await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='50 m');
  await nav('production');await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='50.0 m');
@@ -72,7 +72,7 @@ try{
  await page.locator('#eos-clear-scope').click();requests=[];await nav('reports');await page.waitForFunction(()=>document.getElementById('eos-period-document').hidden===false);
  assert.equal(requests.filter(r=>r.path==='/activity-report-data').every(r=>r.contractor==='Mitchells Drilling'),true);
  assert.equal(requests.some(r=>/budget|invoices|boreholes/.test(r.path)),false);
- assert.match(await text('eos-period-narrative'),/87.0 m/);assert.equal(await page.locator('#eos-period-rigs tr').count(),2);
+ assert.match(await text('eos-period-narrative'),/87.0 m/);assert.equal(await page.locator('#eos-period-rigs tr').count(),0);await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-rigs tr').length===2);
  assert.equal(await page.locator('#page-reports').innerText().then(t=>/Total Budget|Forecast|Training/.test(t)),false);
  await page.locator('#eos-contractor-filter').selectOption('DEPCO Drilling');await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('900.0 m'));
  assert.equal(await text('eos-period-contractor'),'DEPCO Drilling');
@@ -95,7 +95,7 @@ try{
   await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});assert.equal(await page.locator('#page-production').isVisible(),false);await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-period-report-sample.pdf',preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
  }
  await page.setViewportSize({width:390,height:844});
- for(const view of ['reports','production','activities']){
+ for(const view of ['reports','production','settings']){
   await page.evaluate(view=>drawerNav(document.querySelector('[data-page="'+view+'"]')),view);await page.waitForTimeout(150);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,view+' mobile overflow');
  }

@@ -4,16 +4,11 @@ function renderEosOverviewTime(){
  if(!eosOverviewReady)return;
  const summary=EosProduction.summarise(eosOverviewActivityRows,eosStandbyOptions());
  document.getElementById('eos-time-usage').innerHTML=eosTimeChart(summary);document.getElementById('eos-overview-standby').innerHTML=eosStandbyChart(summary);
+ document.getElementById('eos-overview-production').innerHTML=productionChart(summary,'eos-overview-chart-status');document.getElementById('eos-overview-rigs').innerHTML=eosBarChart(summary.rigs);
  productionSet('eos-overview-standby-note',eosStandbyNote(summary));productionSet('eos-completed',summary.completedHoles);
 }
 let eosOverviewRows=[],eosOverviewStatus='all',eosOverviewRequest=0;
 function eosApproval(report){return (getStoredReportApproval(report.date,reportRecordHole(report),report.sourceFile,report.contractor)||{}).status||'pending';}
-function renderEosPlods(){
- const labels={pending:'Awaiting approval',approved:'Approved',rejected:'Rejected',query:'Query'};
- const rows=eosOverviewRows.filter(r=>eosOverviewStatus==='all'||eosApproval(r)===eosOverviewStatus).slice(0,12);
- document.querySelectorAll('[data-eos-status]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.eosStatus===eosOverviewStatus)));
- document.getElementById('eos-recent-body').innerHTML=rows.map(r=>{const status=eosApproval(r);return '<tr><td><button class="eos-plod-link" data-key="'+attr(r.key)+'">'+esc(r.id)+'</button></td><td>'+esc(r.date)+'<small>'+esc(r.shift||'Shift not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.rig||'Rig not recorded')+' · '+esc(r.hole||'Hole not recorded')+'</small></td><td><span class="eos-status '+(Object.hasOwn(labels,status)?status:'pending')+'">'+esc(labels[status]||status)+'</span></td><td class="num">'+Number(r.metres||0).toLocaleString('en-AU',{maximumFractionDigits:2})+'</td><td class="num">'+(r.unpriced===r.rows.length?'Not priced':cur(r.cost))+(r.unpriced&&r.unpriced!==r.rows.length?' *':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="eos-empty">No matching plods recorded.</td></tr>';
-}
 async function loadEosOverview(){
  const current=++eosOverviewRequest,scopeVersion=eosScopeVersion;
  const message=document.getElementById('eos-overview-message');if(!message)return;
@@ -21,7 +16,7 @@ async function loadEosOverview(){
  document.getElementById('eos-scope').textContent=eosScopeLabel();
  message.textContent='Loading recorded shifts…';
  for(const id of ['total','metres','completed','hours','cost'])document.getElementById('eos-'+id).textContent='—';
- document.getElementById('eos-recent-body').innerHTML='';document.getElementById('eos-time-usage').textContent='';eosOverviewActivityRows=[];eosOverviewReady=false;document.getElementById('eos-overview-standby').textContent='';productionSet('eos-overview-standby-note','');
+ document.getElementById('eos-overview-production').innerHTML='';document.getElementById('eos-overview-rigs').innerHTML='';document.getElementById('eos-time-usage').textContent='';eosOverviewActivityRows=[];eosOverviewReady=false;document.getElementById('eos-overview-standby').textContent='';productionSet('eos-overview-standby-note','');
  try{
   const response=await fetch(API+'/activity-report-data?contractor='+encodeURIComponent(activeContractor),{cache:'no-store'});
   if(!response.ok)throw new Error('Reports could not be loaded. Refresh to try again.');
@@ -30,7 +25,7 @@ async function loadEosOverview(){
   applyActivityReportBundle(bundle);rememberEosProjects(bundle.activities);
   const activities=filterWorkspaceActivities(activitiesData).filter(r=>!isMccWeeklyReportRow(r));
   eosOverviewRows=groupDailyReports(activities,filterRowsForActiveProgram(consumablesData)).sort((a,b)=>reportIso(b.date).localeCompare(reportIso(a.date)));
-  dailyReportsData=eosOverviewRows;
+
   const sum=key=>eosOverviewRows.reduce((s,r)=>s+Number(r[key]||0),0);
   document.getElementById('eos-total').textContent=eosOverviewRows.length.toLocaleString();
   document.getElementById('eos-metres').textContent=sum('metres').toLocaleString('en-AU',{maximumFractionDigits:1})+' m';
@@ -38,11 +33,9 @@ async function loadEosOverview(){
   const missing=sum('unpriced');document.getElementById('eos-cost').textContent=cur(sum('cost'))+(missing?' *':'');
   document.getElementById('eos-cost-note').textContent=missing?'* '+missing+' unpriced lines; recorded charges only':'Calculated report charges · AUD';
   eosOverviewActivityRows=activities;eosOverviewReady=true;renderEosOverviewTime();
-  message.textContent='';renderEosPlods();
+  message.textContent='';
  }catch(error){if(current!==eosOverviewRequest||scopeVersion!==eosScopeVersion)return;eosOverviewRows=[];message.textContent=error.message;}
 }
-document.querySelectorAll('[data-eos-status]').forEach(b=>b.addEventListener('click',()=>{eosOverviewStatus=b.dataset.eosStatus;renderEosPlods();}));
-document.getElementById('eos-recent-body').addEventListener('click',e=>{const b=e.target.closest('[data-key]');if(b)openDailyReportDetailByKey(b.dataset.key);});
 // Plod filters act on actual report values, rather than opening an unrelated filter panel.
 const eosPlodFilters=[['Status','eos-plod-status'],['Shift','eos-plod-shift'],['Rig','eos-plod-rig']];
 eosPlodFilters.forEach(([label,id])=>{
@@ -52,6 +45,7 @@ eosPlodFilters.forEach(([label,id])=>{
 });
 const originalEosSummary=renderDailyReportSummary;
 renderDailyReportSummary=function(rows){
+ if(!eosRawLogsEnabled)return;
  originalEosSummary(rows);
  const values={status:[['pending','Awaiting approval'],['approved','Approved'],['rejected','Rejected'],['query','Query']],shift:[...new Set(dailyReportsData.map(r=>r.shift).filter(Boolean))].sort().map(v=>[v,v]),rig:[...new Set(dailyReportsData.map(r=>r.rig).filter(Boolean))].sort().map(v=>[v,v])};
  for(const [key,options] of Object.entries(values)){
