@@ -21,7 +21,7 @@
     <p class="ledger-notice">Posted invoices and credit notes only; estimates and unbilled accruals are excluded. These are full invoice values before opening credits, so the net total is not the amount charged to this year’s budget. Missing payment and tax amounts show “Not recorded”.</p>
     <div class="ledger-shell"><div class="ledger-tabs" role="group" aria-label="Invoice views">
       <button class="ledger-tab" data-view="all" aria-pressed="true">All entries</button><button class="ledger-tab" data-view="credits" aria-pressed="false">Credit notes</button>
-    </div><div class="ledger-filters"><label class="ledger-search">Search<input id="ledger-search" type="search" placeholder="Supplier, invoice or PO number"></label><label id="ledger-supplier-label">Supplier</label><label>Invoice month<select id="ledger-month"><option value="">All months</option></select></label><button class="ledger-button" id="ledger-reset">Clear filters</button></div>
+    </div><div class="ledger-filters"><label class="ledger-search">Search<input id="ledger-search" type="search" placeholder="Supplier, invoice or PO number"></label><label>Project<select id="ledger-project"><option value="">All projects</option></select></label><label id="ledger-supplier-label">Supplier</label><label>Invoice month<select id="ledger-month"><option value="">All months</option></select></label><button class="ledger-button" id="ledger-reset">Clear filters</button></div>
     <div class="ledger-count" id="ledger-count" aria-live="polite"></div>
     <div class="tbl-scroll"><table id="inv-table"><thead><tr><th scope="col">Date</th><th scope="col">Invoice / credit</th><th scope="col">Supplier</th><th scope="col">Project</th><th scope="col">Purchase order</th><th scope="col" class="ledger-num">PO used</th><th scope="col" class="ledger-num">Charge · ex GST</th><th scope="col" class="ledger-num">Credit · ex GST</th><th scope="col" class="ledger-num">Running total</th></tr></thead><tbody id="inv-body"></tbody></table></div>
     <div class="ledger-footer"><span>Oldest to newest · Running total covers filtered entries · PO used covers all matching invoices and credits, ex GST</span><strong id="ledger-total">—</strong></div></div>
@@ -31,7 +31,7 @@
   document.getElementById('ledger-entry').append(entry);
   breakdown.hidden = true;
   page.append(breakdown);
-  let view = 'all', visibleRows = [], request = 0, scope = '', ready = false, ledgerPOs = [];
+  let view = 'all', visibleRows = [], request = 0, ready = false, ledgerPOs = [];
   const el = id => document.getElementById(id);
   const known = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const cents = value => Math.round(Number(value) * 100);
@@ -59,10 +59,12 @@
     return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '9999-99-99';
   }
   function message(text, error) { el('ledger-message').textContent = text; el('ledger-message').hidden = !text; el('ledger-message').classList.toggle('error', !!error); }
-  function reset() { supplier.value = ''; el('ledger-search').value = ''; el('ledger-month').value = ''; view = 'all'; filter(); }
+  function reset() { supplier.value = ''; el('ledger-search').value = ''; el('ledger-month').value = ''; el('ledger-project').value = ''; view = 'all'; filter(); }
+  const projectKey = row => JSON.stringify([row.project||'',row.program||'']);
   function filter() {
     const search = el('ledger-search').value.trim().toLowerCase();
     const rows = (invoicesData || []).filter(r => (!supplier.value || r.contractor === supplier.value)
+      && (!el('ledger-project').value || projectKey(r) === el('ledger-project').value)
       && (!el('ledger-month').value || r.billing_month === el('ledger-month').value)
       && (!search || [r.contractor,r.invoice_number,r.po_reference].join(' ').toLowerCase().includes(search))
       && (view === 'all' || view === 'credits' && known(r.subtotal) && Number(r.subtotal) < 0));
@@ -71,40 +73,32 @@
   }
   window.loadInvoices = async function () {
     const current = ++request;
-    const nextScope = [activeProjectName, activeProgram].join('|');
-    if (nextScope !== scope) { scope = nextScope; reset(); }
     ready = false; invoicesData = []; ledgerPOs = []; filter();
     el('ledger-detail').hidden = true; breakdown.hidden = true;
-    el('ledger-scope').textContent = [projectLabel(), activeProgram, 'Invoices'].filter(Boolean).join(' / ');
-    el('ledger-title').textContent = projectLabel() ? 'Invoice ledger · '+projectLabel() : 'Invoice ledger';
-    page.dataset.projectId = linkedProject()?.id || '';
-    if (!activeProjectName) { message('Choose a workspace project to view its invoice ledger.'); return; }
+    el('ledger-scope').textContent = 'Account / All projects';
+    el('ledger-title').textContent = 'Invoice ledger';
     message('Loading invoice ledger…');
     try {
       populateManualInvoiceForm();
-      const names = [...new Set(invoiceContractorsForWorkspace().map(c => c.name))];
-      if (activeContractor && !names.includes(activeContractor)) names.push(activeContractor);
-      if (!names.length) throw new Error('No suppliers are available for this workspace. Refresh the workspace and try again.');
-      const poRequest = fetch(API+'/purchase_orders?project='+encodeURIComponent(activeProjectName)+'&program='+encodeURIComponent(activeProgram), {cache:'no-store'}).then(async response => { if (!response.ok) return null; const data=await response.json(); return Array.isArray(data)?data:null; }).catch(()=>null);
-      const results = await Promise.all(names.map(async name => {
-        const response = await fetch(API+'/invoices?contractor='+encodeURIComponent(name)+'&project='+encodeURIComponent(activeProjectName), {cache:'no-store'});
-        if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Your session cannot access invoices. Sign in again and refresh.' : 'An invoice request failed. Refresh to try again.');
-        const data = await response.json();
-        if (!Array.isArray(data)) throw new Error('The invoice response could not be read. Refresh to try again.');
-        return data;
-      }));
-      const poRows = await poRequest;
+      const response = await fetch(API+'/invoice-ledger', {cache:'no-store'});
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Your session cannot access invoices. Sign in again and refresh.' : 'The invoice ledger could not load. Refresh to try again.');
+      const data = await response.json();
+      if (!Array.isArray(data.invoices) || !Array.isArray(data.purchase_orders)) throw new Error('The invoice response could not be read. Refresh to try again.');
       if (current !== request) return;
-      ledgerPOs = poRows || [];
+      ledgerPOs = data.purchase_orders;
       const unique = new Map();
-      results.flat().filter(r => r.project && projectNamesMatch(r.project, activeProjectName) && (!activeProgram || !r.program || r.program === activeProgram)).forEach(r => unique.set(r.id, r));
+      data.invoices.forEach(r => unique.set(r.id, r));
       invoicesData = [...unique.values()]; ready = true;
-      const previousSupplier = supplier.value, previousMonth = el('ledger-month').value;
+      const previousSupplier = supplier.value, previousMonth = el('ledger-month').value, previousProject = el('ledger-project').value;
+      const projectOptions = new Map(invoicesData.map(r=>[projectKey(r),[rowProjectLabel(r),r.program].filter(Boolean).join(' · ')]));
+      el('ledger-project').innerHTML='<option value="">All projects</option>'+[...projectOptions].sort((a,b)=>a[1].localeCompare(b[1])).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
+      el('ledger-project').value=previousProject;if(el('ledger-project').selectedIndex<0)el('ledger-project').value='';
       supplier.innerHTML = '<option value="">All suppliers</option>' + [...new Set(invoicesData.map(r => r.contractor).filter(Boolean))].sort().map(name => `<option value="${escape(name)}">${escape(name)}</option>`).join('');
       supplier.value = previousSupplier; if (supplier.selectedIndex < 0) supplier.value = '';
       el('ledger-month').innerHTML = '<option value="">All months</option>' + [...new Set(invoicesData.map(r => r.billing_month).filter(Boolean))].sort((a,b) => a.slice(-4).localeCompare(b.slice(-4)) || a.localeCompare(b)).map(month => `<option value="${escape(month)}">${escape(month)}</option>`).join('');
       el('ledger-month').value = previousMonth; if (el('ledger-month').selectedIndex < 0) el('ledger-month').value = '';
-      message(poRows === null ? 'PO values could not load. PO usage is unavailable; refresh to retry.' : ''); filter();
+      message(''); filter();
+      const count=document.getElementById('db-count');if(count)count.textContent=invoicesData.length.toLocaleString();
     } catch (error) {
       if (current !== request) return;
       invoicesData = []; filter(); message(error.message || 'The invoice ledger could not load. Refresh to try again.', true);
@@ -128,7 +122,7 @@
       if (n !== null) running += n;
       const kind = n < 0 ? 'Credit note' : 'Invoice';
       return `<tr data-inv-id="${Number(r.id)}"><td>${escape(r.invoice_date || 'Not recorded')}</td><td><button class="ledger-ref" data-invoice="${Number(r.id)}">${escape(r.invoice_number || 'View entry')}</button><span class="ledger-sub">${kind}</span></td><td>${escape(r.contractor || 'Not recorded')}</td><td>${escape(rowProjectLabel(r))}<span class="ledger-sub">${escape(r.program || 'Program not recorded')}</span></td><td>${escape(r.po_reference || '—')}</td><td class="ledger-num" title="Net invoices and credits ÷ PO value, ex GST; all ledger entries before filters">${poUsage(r) === null ? '—' : poUsage(r).toFixed(1)+'%'}</td><td class="ledger-num">${n === null ? 'Not recorded' : n >= 0 ? money(n/100) : '—'}</td><td class="ledger-num ledger-credit">${n !== null && n < 0 ? money(-n/100) : '—'}</td><td class="ledger-num">${money(running/100)}${missing?' *':''}</td></tr>`;
-    }).join('') || `<tr><td class="ledger-empty" colspan="9">${!ready?'Load the ledger to view invoices.':invoicesData.length?'No entries match these filters. Clear filters to see all entries.':'No invoices recorded for this workspace.'}</td></tr>`;
+    }).join('') || `<tr><td class="ledger-empty" colspan="9">${!ready?'Load the ledger to view invoices.':invoicesData.length?'No entries match these filters. Clear filters to see all entries.':'No invoices recorded.'}</td></tr>`;
   };
   function openDetails(id) {
     const row = invoicesData.find(r => Number(r.id) === id); if (!row) return;
@@ -152,7 +146,7 @@
   el('ledger-refresh').onclick = () => loadInvoices(); el('ledger-export').onclick = exportLedger;
   el('ledger-reset').onclick = reset;
   el('ledger-add').onclick = () => { el('ledger-entry').open = true; populateManualInvoiceForm(); el('ledger-entry').scrollIntoView({behavior:'smooth'}); };
-  [supplier,el('ledger-month')].forEach(control => control.addEventListener('change',filter));
+  [supplier,el('ledger-month'),el('ledger-project')].forEach(control => control.addEventListener('change',filter));
   el('ledger-search').addEventListener('input',filter);
   page.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click',() => { view=button.dataset.view; filter(); }));
   el('inv-body').addEventListener('click',event => { const button=event.target.closest('[data-invoice]'); if(button) openDetails(Number(button.dataset.invoice)); });

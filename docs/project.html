@@ -80,6 +80,12 @@
             <button class="login-forgot" id="forgot-password-button" type="button" onclick="requestPasswordReset()">Forgot your password?</button>
             <div id="login-error" class="login-feedback error"></div>
           </div>
+          <div id="session-retry-panel" hidden>
+            <h3>Reconnecting to DrillOps</h3>
+            <p id="session-retry-message">Your sign-in has been kept.</p>
+            <button class="login-submit" id="session-retry-button" onclick="resumePortalSession()">Retry connection</button>
+            <button class="login-forgot" type="button" onclick="doLogout()">Sign out</button>
+          </div>
           <div id="password-reset-panel" hidden>
             <h3>Choose a new password</h3>
             <p>Use at least eight characters for your new DrillOps password.</p>
@@ -132,9 +138,6 @@
   </select>
   <div id="contractor-switcher" aria-label="Contractor switcher"></div>
   <div class="header-right">
-    <button class="workspace-context-btn" id="workspace-context-btn" type="button" onclick="changeWorkspace()">
-      <span id="workspace-context-label">Select client / project / program</span>
-    </button>
     <div class="header-meta"><span id="db-count">—</span> records</div>
   </div>
 </header>
@@ -679,10 +682,11 @@
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
 <script src="./workspace/navigation.js?v=recon1-20261108-calendar1"></script>
-<script src="./workspace/runtime.js?v=20261108-ledger2"></script>
-<script src="./invoice-ledger.js?v=20261108-ledger2"></script>
+<script src="./auth-session.js?v=20261108-session1"></script>
+<script src="./workspace/runtime.js?v=20261108-session1"></script>
+<script src="./invoice-ledger.js?v=20261108-fast1"></script>
 <script src="./workspace/project-dashboard-model.js?v=20261108-1"></script>
 <script src="./workspace/project-dashboard.js?v=20261108-fieldmaps1"></script>
-<script src="./workspace/start.js?v=20261108-direct1-20261108-speed1"></script>
+<script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>

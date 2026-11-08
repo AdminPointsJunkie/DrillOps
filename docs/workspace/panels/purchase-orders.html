@@ -5,7 +5,7 @@
         <div class="filter-body" id="po-add-body" style="grid-template-columns:repeat(3,1fr);">
           <div class="filter-group"><label>PO Number *</label><input type="text" id="po-number" placeholder="e.g. PO-2025-001"/></div>
           <div class="filter-group"><label>Description</label><input type="text" id="po-description" placeholder="e.g. Exploration drilling CD-26"/></div>
-          <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/></div>
+          <div class="filter-group"><label>Workspace project</label><input type="text" id="po-project" readonly/><button type="button" class="btn-secondary" onclick="changeWorkspace()">Set project for new PO</button></div>
           <div class="filter-group"><label>PO Value ($, ex GST)</label><input type="number" id="po-value" placeholder="0.00" step="0.01"/></div>
           <div class="filter-group"><label>Issue Date</label><input type="text" id="po-issue-date" placeholder="d/m/yyyy"/></div>
           <div class="filter-group"><label>Expiry Date</label><input type="text" id="po-expiry-date" placeholder="d/m/yyyy"/></div>

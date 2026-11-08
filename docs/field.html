@@ -65,7 +65,7 @@
   <dialog id="detail-dialog"><div class="dialog-head"><h2 id="detail-title">DAR</h2><button class="close" data-close="detail-dialog">×</button></div><div class="dialog-body" id="detail-body"></div><div class="dialog-foot" id="detail-actions"><button class="btn" data-close="detail-dialog">Close</button></div></dialog>
   <dialog id="review-dialog"><form id="review-form"><div class="dialog-head"><h2>Review DAR</h2><button type="button" class="close" data-close="review-dialog">×</button></div><div class="dialog-body"><div class="form-grid"><div class="field span-3"><label>Decision</label><select name="status"><option value="approved">Approve</option><option value="query">Raise query</option><option value="rejected">Reject</option></select></div><div class="field span-3"><label>Review note</label><textarea name="reason" placeholder="Required for a query or rejection"></textarea></div></div><div id="review-error" class="error"></div></div><div class="dialog-foot"><button type="button" class="btn" data-close="review-dialog">Cancel</button><button class="btn primary" type="submit">Save decision</button></div></form></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js"></script><script src="auth-guard.js"></script>
+  <script src="config.js"></script><script src="./auth-session.js?v=20261108-session1"></script><script src="./auth-guard.js?v=20261108-session1"></script>
   <script>
   const API=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:8000':'https://api.drillops.com.au';
   const state={user:null,clients:[],projects:[],project:null,permissions:new Set(),contractors:[],boreholes:[],dars:[],notifications:[],events:{},editing:null,reviewing:null};

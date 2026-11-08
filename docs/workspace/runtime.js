@@ -16,70 +16,25 @@ function authConfig(){
   return {url,key};
 }
 
-function saveAuthSession(session){
+function saveAuthSession(session){DrillOpsSession.save(session);}
+function loadStoredAuthSession(){return DrillOpsSession.load();}
+async function authRequest(grantType,payload){return DrillOpsSession.authenticate(grantType,payload);}
+async function accessToken(){return DrillOpsSession.token();}
+window.addEventListener('drillops-session-change',()=>{
+  authSession=loadStoredAuthSession();
   if(typeof invalidateEosReads==='function')invalidateEosReads();
-  authSession=session;
-  if(session){
-    localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-  }else{
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-  }
-}
-
-function loadStoredAuthSession(){
-  try{
-    const session=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||sessionStorage.getItem(AUTH_STORAGE_KEY)||'null');
-    if(session){
-      localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));
-      sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    }
-    return session;
-  }
-  catch(error){localStorage.removeItem(AUTH_STORAGE_KEY);sessionStorage.removeItem(AUTH_STORAGE_KEY);return null;}
-}
-
-async function authRequest(grantType,payload){
-  const config=authConfig();
-  const response=await nativeFetch(config.url+'/auth/v1/token?grant_type='+encodeURIComponent(grantType),{
-    method:'POST',
-    headers:{apikey:config.key,'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data.message||data.error_description||'Authentication failed');
-  saveAuthSession(data);
-  return data;
-}
-
-async function accessToken(){
-  if(!authSession)authSession=loadStoredAuthSession();
-  if(!authSession)return '';
-  const expiresAt=Number(authSession.expires_at||0);
-  if(!expiresAt||expiresAt*1000>Date.now()+90000)return authSession.access_token;
-  const refreshed=await authRequest('refresh_token',{refresh_token:authSession.refresh_token});
-  return refreshed.access_token;
-}
-
+});
 window.fetch=async function(input,options={}){
   const requestUrl=typeof input==='string'?input:input.url;
-  const targetOrigin=new URL(requestUrl,window.location.href).origin;
-  if(targetOrigin!==new URL(API).origin)return nativeFetch(input,options);
-  const token=await accessToken();
-  if(!token)throw new Error('Authentication required');
-  const headers=new Headers(options.headers||(input instanceof Request?input.headers:undefined));
-  headers.set('Authorization','Bearer '+token);
-  const response=await nativeFetch(input,{...options,headers});
-  if(response.status===401){
-    saveAuthSession(null);
-    showLogin('Your session expired. Please sign in again.');
-  }
-  return response;
+  if(new URL(requestUrl,window.location.href).origin!==new URL(API).origin)return nativeFetch(input,options);
+  try{return await DrillOpsSession.fetch(input,options);}
+  catch(error){if(error.sessionExpired)showLogin(error.message);throw error;}
 };
 
 function showLogin(message=''){
   document.getElementById('login-screen').style.display='block';
+  document.getElementById('session-retry-panel').hidden=true;
+  document.getElementById('login-panel').hidden=!document.getElementById('password-reset-panel').hidden;
   document.body.classList.add('workspace-locked');
   document.getElementById('login-error').textContent=message;
 }
@@ -134,15 +89,22 @@ async function doLogin(){
   button.disabled=true;button.textContent='Signing in…';error.textContent='';
   try{
     await authRequest('password',{email,password});
-    if(!await verifyPortalAccount())return;
-    document.getElementById('login-screen').style.display='none';
-    await initializePortal();
+    document.getElementById('login-password').value='';
+    portalInitialized=false;
+    await resumePortalSession();
   }catch(authenticationError){
-    saveAuthSession(null);
     error.textContent=authenticationError.message||'Sign-in failed.';
   }finally{
     button.disabled=false;button.textContent='Sign in securely';
   }
+}
+
+function showSessionRetry(message){
+  document.getElementById('login-screen').style.display='block';
+  document.body.classList.add('workspace-locked');
+  document.getElementById('login-panel').hidden=true;
+  document.getElementById('session-retry-panel').hidden=false;
+  document.getElementById('session-retry-message').textContent=message||'Could not reconnect. Your sign-in has been kept; retry when the connection is available.';
 }
 
 async function requestPasswordReset(){
@@ -6370,7 +6332,7 @@ function populateManualInvoiceForm(programChanged){
   var csel = document.getElementById('manual-inv-contractor');
   if(csel){
     var current = csel.value || activeContractor;
-    var availableContractors=invoiceContractorsForWorkspace(program);
+    var availableContractors=CONTRACTORS.filter(c=>c.active!==false&&contractorInProgram(c,program)).sort((a,b)=>a.name.localeCompare(b.name));
     csel.innerHTML = availableContractors.map(function(c){
       return '<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>';
     }).join('');
@@ -6379,8 +6341,9 @@ function populateManualInvoiceForm(programChanged){
   }
   var psel = document.getElementById('manual-inv-project');
   if(psel){
-    psel.innerHTML='<option value="'+attr(activeProjectName||'')+'">'+esc(activeProjectName||'No project selected')+'</option>';
-    psel.value=activeProjectName||'';
+    const previous=programChanged?'':psel.value;
+    psel.innerHTML='<option value="">Choose project for this invoice</option>'+projects.filter(p=>projectProgram(p)===program).map(p=>'<option value="'+attr(p.name)+'">'+esc([p.name,p.year].filter(Boolean).join(' '))+'</option>').join('');
+    psel.value=previous;if(psel.selectedIndex<0)psel.value='';
   }
   var date = document.getElementById('manual-inv-date');
   if(date && !date.value) date.value = new Date().toISOString().slice(0,10);
@@ -6430,7 +6393,7 @@ async function createManualInvoice(){
   var total = manualInvoiceNumber('manual-inv-total');
   var payload = {
     contractor: (document.getElementById('manual-inv-contractor') || {}).value || activeContractor,
-    project: activeProjectName||'',
+    project: (document.getElementById('manual-inv-project') || {}).value || '',
     program: (document.getElementById('manual-inv-program') || {}).value || activeProgram || 'Exploration',
     invoice_number: ((document.getElementById('manual-inv-number') || {}).value || '').trim(),
     invoice_date: ((document.getElementById('manual-inv-date') || {}).value || '').trim(),
@@ -6446,6 +6409,7 @@ async function createManualInvoice(){
     amount_paid: status === 'Paid' ? total : 0,
     amount_due: status === 'Paid' ? 0 : total
   };
+  if(!payload.project){toast('Choose a project for this invoice','err');return;}
   if(!payload.invoice_number || !payload.description){
     toast('Invoice number and description are required','err');
     return;
@@ -10230,18 +10194,18 @@ async function initializePortal(){
     }).catch(error=>console.warn('EOS setup refresh failed:',error.message));
     return;
   }
-  await fetchContractors();
-  await fetchProjects();
+  await Promise.all([fetchContractors(),fetchProjects()]);
   // Restore a valid previous scope without blocking startup on a chooser.
   if(!restoreWorkspaceSelection()){activeClientId=null;activeProjectName='';activeProgram='';}
   document.getElementById('workspace-gate').classList.remove('open');
   document.body.classList.remove('workspace-locked');
   workspaceStarted = true;
-  await loadProjectContractors();
+  if(WORKSPACE_APP==='account')loadProjectContractors();
+  else await loadProjectContractors();
   ensureActiveContractorInProgram();
   buildContractorSwitcher();
   syncWorkspaceControls();
   if(WORKSPACE_APP==='project')await loadProjectBudgets();
-  await updateDbCount();
+  if(WORKSPACE_APP!=='account')await updateDbCount();
   openInitialAppPage();
 }
