@@ -8,7 +8,7 @@ function rememberEosProjects(rows,complete=true){
  if(complete){
  const catalogue=(rows||[]).filter(r=>EosProduction.scopeMatch(r,eosScope));
  filterOpts={dates:[...new Set(catalogue.map(r=>r.date).filter(Boolean))].sort(),holes:[...new Set(catalogue.map(r=>r.hole_num).filter(Boolean))].sort(),sites:[...new Set(catalogue.map(r=>r.site_name).filter(Boolean))].sort(),codes:[...new Set(catalogue.map(r=>r.code).filter(Boolean))].sort(),total_rows:catalogue.length};
- for(const [id,key] of [['f-dates','dates'],['f-holes','holes'],['f-sites','sites'],['f-codes','codes']]){const chosen=getSelVals(id);fillSelect(id,filterOpts[key]);if(chosen.length)document.querySelectorAll('#'+id+' option').forEach(o=>o.selected=chosen.includes(o.value));}
+ if(eosRawLogsEnabled)for(const [id,key] of [['f-dates','dates'],['f-holes','holes'],['f-sites','sites'],['f-codes','codes']]){const chosen=getSelVals(id);fillSelect(id,filterOpts[key]);if(chosen.length)document.querySelectorAll('#'+id+' option').forEach(o=>o.selected=chosen.includes(o.value));}
  const count=document.getElementById('db-count');if(count)count.textContent=catalogue.length.toLocaleString();
  }
  for(const row of rows||[])if(row.project)eosKnownProjects.add(String(row.project));renderEosScopeControls();}

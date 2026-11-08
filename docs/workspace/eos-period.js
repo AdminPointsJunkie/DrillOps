@@ -1,8 +1,8 @@
 /* A contractor operations document, independent of Project's budget and planning report. */
-let eosPeriodRows=[],eosPeriodRequest=0,eosPeriodLoading=false,eosPeriodError='',eosPeriodSummary=null;
+let eosPeriodSourceRows=[],eosPeriodConsumables=[],eosPeriodRows=[],eosPeriodRequest=0,eosPeriodLoading=false,eosPeriodError='',eosPeriodSummary=null;
 loadReportsPage=async function(){
  const request=++eosPeriodRequest,version=eosScopeVersion,contractor=activeContractor;
- eosPeriodLoading=true;eosPeriodError='';eosPeriodRows=[];renderEosPeriodReport();
+ eosPeriodLoading=true;eosPeriodError='';eosPeriodRows=[];eosPeriodSourceRows=[];eosPeriodConsumables=[];renderEosPeriodReport();
  try{
   if(!contractor)throw Error('Select a contractor to prepare the report.');
   const response=await fetch(API+'/activity-report-data?contractor='+encodeURIComponent(contractor),{cache:'no-store'});
@@ -10,6 +10,7 @@ loadReportsPage=async function(){
   const bundle=await response.json();if(!Array.isArray(bundle.activities))throw Error('The operations response could not be read.');
   if(request!==eosPeriodRequest||version!==eosScopeVersion)return;
   const rows=bundle.activities.filter(r=>(!r.contractor||r.contractor===contractor)&&!isMccWeeklyReportRow(r)).map(r=>({...r,contractor:r.contractor||contractor}));
+  eosPeriodSourceRows=EosProduction.cleanRows(rows).rows;eosPeriodConsumables=bundle.consumables||[];
   rememberEosProjects(rows);eosPeriodRows=EosProduction.cleanRows(rows.filter(r=>EosProduction.scopeMatch(r,eosScope))).rows;
   const select=document.getElementById('eos-period-rig'),previous=select.value;
   select.innerHTML='<option value="">All rigs</option>'+[...new Set(eosPeriodRows.map(r=>String(r.drill_rig||'Not recorded').trim()))].sort().map(r=>'<option value="'+attr(r)+'">'+esc(r)+'</option>').join('');select.value=previous;if(select.selectedIndex<0)select.value='';
@@ -28,7 +29,7 @@ function setEosPeriodRange(preset){
 function eosPeriodRegister(rows,options){
  const groups=new Map();
  for(const row of rows){
-  const key=JSON.stringify([row.contractor,row.project||'',row.date,row.source_file||'',row.drill_rig||'',row.shift||'']);
+  const key=EosShiftCharges.key(row);
   if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);
  }
  return [...groups.values()].map(rows=>({row:rows[0],summary:EosProduction.summarise(rows,options),holes:[...new Set(rows.map(r=>r.hole_num).filter(Boolean))].join(', ')})).sort((a,b)=>EosProduction.date(a.row.date).localeCompare(EosProduction.date(b.row.date))||String(a.row.drill_rig||'').localeCompare(String(b.row.drill_rig||''))||String(a.row.shift||'').localeCompare(String(b.row.shift||'')));
@@ -40,11 +41,13 @@ function renderEosPeriodReport(){
  productionSet('eos-period-message',eosPeriodLoading?'Preparing operations report…':error);
  document.getElementById('eos-period-print').disabled=!!unavailable;
  document.getElementById('eos-period-document').hidden=!!unavailable;
- if(unavailable){eosPeriodSummary=null;return;}
+ if(unavailable){eosPeriodSummary=null;clearEosWeather();return;}
  const rows=eosPeriodRows.filter(r=>{const date=EosProduction.date(r.date);return date&&(!from||date>=from)&&(!to||date<=to)&&(!rig||String(r.drill_rig||'Not recorded').trim()===rig);});
  const options={...eosStandbyOptions(eosPeriodRows),completionEvents:EosProduction.completionEvents(eosPeriodRows)};
  const s=EosProduction.summarise(rows,options);eosPeriodSummary=s;
- const n=productionNumber;
+ const n=productionNumber,showTables=document.getElementById('eos-period-show-tables').checked,showCharges=document.getElementById('eos-period-show-charges').checked;
+ const charges=showTables&&showCharges?EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables):null;
+ document.getElementById('eos-period-charges-heading').hidden=!showCharges;document.getElementById('eos-period-charges-note').hidden=!showCharges;
  productionSet('eos-period-contractor',activeContractor);
  productionSet('eos-period-context',eosScopeLabel());
  productionSet('eos-period-dates',from||to?[from?productionDisplayDate(from,false):'Start',to?productionDisplayDate(to,false):'Latest'].join(' – '):'No dated records');
@@ -56,21 +59,30 @@ function renderEosPeriodReport(){
  const undated=eosPeriodRows.filter(r=>!EosProduction.date(r.date)).length;
  productionSet('eos-period-quality',[s.untimedDrillingMetres?n(s.untimedDrillingMetres)+' m without drilling duration are excluded from penetration rates.':'',s.missingTime?s.missingTime+' entries have no usable duration; time totals may be incomplete.':'',s.other?n(s.other)+' m are other or unclassified.':'',s.invalidMetres?s.invalidMetres+' invalid or negative metre values are excluded.':'',undated?undated+' undated entries are excluded.':''].filter(Boolean).join(' '));
  document.getElementById('eos-period-production-chart').hidden=!drilling;document.getElementById('eos-period-performance-section').hidden=!drilling;
+ prepareEosWeather(s);
  document.getElementById('eos-period-chart').innerHTML=productionChart(s,'eos-period-chart-status');
  for(const [id,rows,keys,unit] of [['eos-period-rig-chart',s.rigs,drilling?undefined:['hours'],drilling?'m':'h'],['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
  document.getElementById('eos-period-time-chart').innerHTML=eosTimeChart(s);
  document.getElementById('eos-period-standby-chart').innerHTML=eosStandbyChart(s);
- document.getElementById('eos-period-performance').innerHTML=eosPerformanceFigures(s);document.getElementById('eos-period-rate-chart').innerHTML=eosRateChart(s);document.getElementById('eos-period-daily').innerHTML=eosDailyRows(s);
+ document.getElementById('eos-period-performance').innerHTML=eosPerformanceFigures(s);document.getElementById('eos-period-rate-chart').innerHTML=eosRateChart(s);document.getElementById('eos-period-daily').innerHTML=showTables?eosDailyRows(s):'';
  productionSet('eos-period-standby-note',eosStandbyNote(s));renderEosMoves('eos-period',s);
- document.getElementById('eos-period-rigs').innerHTML=productionSummaryRows(s.rigs);
- document.getElementById('eos-period-projects').innerHTML=productionSummaryRows(s.projects);
+ document.getElementById('eos-period-rigs').innerHTML=showTables?productionSummaryRows(s.rigs):'';
+ document.getElementById('eos-period-projects').innerHTML=showTables?productionSummaryRows(s.projects):'';
  productionSet('eos-period-standby-summary',n(s.standbyHours)+' hours'+(s.standbyPercent===null?'':', '+n(s.standbyPercent)+'% of displayed activity time')+'.'+(s.missingStandbyTime?' '+s.missingStandbyTime+' standby entries have no usable duration.':''));
- document.getElementById('eos-period-standby').innerHTML=s.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+n(r.hours)+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="3">No standby recorded.</td></tr>';
- document.getElementById('eos-period-register').innerHTML=eosPeriodRegister(rows,options).map(({row:r,summary:s,holes})=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.shift||'Shift not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.source_file||'Manual entry')+'<small>'+esc(holes||'Hole not recorded')+'</small></td>'+['core','chip','other','standbyHours','hours'].map(k=>'<td class="num">'+n(s[k])+(k==='hours'&&s.missingTime?' *':'')+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="8">No shifts recorded.</td></tr>';
+ document.getElementById('eos-period-standby').innerHTML=!showTables?'':s.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+n(r.hours)+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="3">No standby recorded.</td></tr>';
+ document.getElementById('eos-period-register').innerHTML=!showTables?'':eosPeriodRegister(rows,options).map(({row:r,summary:s,holes})=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.shift||'Shift not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.source_file||'Manual entry')+'<small>'+esc(holes||'Hole not recorded')+'</small></td>'+['core','chip','other','standbyHours','hours'].map(k=>'<td class="num">'+n(s[k])+(k==='hours'&&s.missingTime?' *':'')+'</td>').join('')+(showCharges?eosShiftChargeCell(charges.get(EosShiftCharges.key(r))):'')+'</tr>').join('')||'<tr><td colspan="'+(showCharges?9:8)+'">No shifts recorded.</td></tr>';
  productionSet('eos-period-generated','Prepared '+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST');
 }
 printPeriodReport=function(){if(!eosPeriodSummary)return;document.body.classList.add('eos-period-print');window.print();};
 window.addEventListener('beforeprint',()=>{if(isPageActive('reports'))document.body.classList.add('eos-period-print');});
 window.addEventListener('afterprint',()=>document.body.classList.remove('eos-period-print'));
 
-function toggleEosPeriodTables(){document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=!document.getElementById('eos-period-show-tables').checked);}
+function toggleEosPeriodTables(){renderEosPeriodReport();document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=!document.getElementById('eos-period-show-tables').checked);}
+
+function eosShiftChargeCell(charge){
+ if(!charge)return '<td class="num eos-shift-charge">—</td>';
+ const incomplete=charge.unpriced||charge.sharedMaterials||charge.excluded;
+ const value=charge.priced?cur(charge.total)+(incomplete?' *':''):'—';
+ const notes=[charge.unpriced?charge.unpriced+' unpriced lines':'',charge.sharedMaterials?'Shared materials not allocated':'',charge.excluded?'Weekly-billed lines excluded':''].filter(Boolean);
+ return '<td class="num eos-shift-charge">'+value+(notes.length?'<small>'+esc(notes.join(' · '))+'</small>':'')+'</td>';
+}

@@ -1491,6 +1491,7 @@ function triggerPageLoad(page){
   document.querySelectorAll('.app-local-nav a').forEach(a=>{if(new URL(a.href).searchParams.get('view')===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   updateContractorSwitcherVisibility(page);
   // Always reload fresh data when switching tabs — no caching
+  if(page==='settings'&&WORKSPACE_APP==='eos')updateEosSettings();
   if(page==='importer')     {};
   if(page==='contractors')  { renderContractorsPage(); }
   if(page==='admin')        loadAdminPage();
@@ -2161,6 +2162,7 @@ function renderMccPersonnelDetail(people){
 }
 
 function renderMccPersonnel(data){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   const panel=document.getElementById('mcc-personnel-panel');
   if(!panel)return;
   if(activeContractor!=='MCC Group'){
@@ -2232,12 +2234,12 @@ async function loadMccPersonnel(){
     const response=await fetch(API+'/mcc/personnel?_='+Date.now(),{cache:'no-store'});
     const data=await response.json().catch(function(){return {};});
     if(!response.ok)throw new Error(data.detail||'HTTP '+response.status);
-    if(activeContractor!==requestContractor)return;
+    if(activeContractor!==requestContractor||(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled))return;
     mccPersonnelData=data;
     mccPersonnelLoading=false;
     renderMccPersonnel(data);
   }catch(error){
-    if(activeContractor!==requestContractor)return;
+    if(activeContractor!==requestContractor||(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled))return;
     mccPersonnelLoading=false;
     const summary=document.getElementById('mcc-personnel-summary');
     const body=document.getElementById('mcc-personnel-body');
@@ -2328,6 +2330,7 @@ async function loadMccWeeklyAudit(){
 }
 
 function renderMccWeeklyAudit(data){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   mccWeeklyAuditData=data||null;
   const panel=document.getElementById('mcc-weekly-audit-panel');
   if(!panel)return;
@@ -2375,6 +2378,7 @@ function renderMccWeeklyAudit(data){
 
 let activitiesRequestSequence=0;
 async function loadActivities(){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   const requestSequence=++activitiesRequestSequence,scopeVersion=typeof eosScopeVersion==='undefined'?0:eosScopeVersion;
   if(WORKSPACE_APP==='eos'){renderDailyReportSummary([]);document.getElementById('report-body').innerHTML='<tr><td colspan="9">Loading plods…</td></tr>';}
   var dates=activityFilterParam('f-dates');
@@ -2479,6 +2483,7 @@ async function loadDailyReportRelatedData(dates){
 }
 
 function renderActivities(rows){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   updateMissingCodeButton();
   document.getElementById('act-count').textContent=rows.length.toLocaleString();
   renderDailyReportSummary(rows);
@@ -4637,6 +4642,7 @@ async function loadConsumables(){
 }
 
 function renderConsumablesTable(){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   const count=document.getElementById('con-count');
   const body=document.getElementById('con-body');
   if(!body)return;
@@ -4692,6 +4698,7 @@ async function loadCrew(){
 }
 
 function renderCrewTable(){
+  if(WORKSPACE_APP==='eos'&&!eosRawLogsEnabled)return;
   const count=document.getElementById('crew-count');
   const body=document.getElementById('crew-body');
   if(!body)return;

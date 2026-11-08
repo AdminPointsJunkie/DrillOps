@@ -1,0 +1,7 @@
+<section class="page eos-settings" id="page-settings">
+ <div class="eos-breadcrumb">EOS <span>/</span> Settings</div>
+ <h1>Settings</h1>
+ <section class="eos-settings-card"><div><h2>Raw logs</h2><p>Open the source plods, activity rows, crew and consumables when you need them.</p><small id="eos-raw-status">Not loaded</small></div><button class="btn-primary" id="eos-load-raw" type="button" onclick="loadEosRawLogs()">Load raw logs</button></section>
+ <section class="eos-settings-card"><div><h2>Detailed report tables</h2><p>Load daily figures, rig and project tables, site moves and the shift register.</p></div><div class="eos-settings-actions"><button class="btn-secondary" id="eos-load-production-tables" type="button" onclick="loadEosReportTables('production')">Load production tables</button><button class="btn-secondary" id="eos-load-period-tables" type="button" onclick="loadEosReportTables('reports')">Load period report tables</button></div></section>
+ <button class="btn-secondary" id="eos-unload-raw" type="button" onclick="unloadEosRawLogs()">Unload logs &amp; tables</button>
+</section>

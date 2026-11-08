@@ -10,8 +10,8 @@ test('core, chip and unclassified reconcile without guessing uncoded metres',()=
 });
 test('standby excludes non-chargeable and unconfirmed entries by default',()=>{
  const rows=[row({code:'H_Standby_Fatigue',total_metres:0,total_time:'2:00',unit_rate:0,line_cost:0}),row({code:'DEPCO_A_WET_WEATHER_STANDBY_029',total_time:'1:30',unit_rate:630.5}),row({code:'Drill_Core',notes:'No standby today',total_time:'4:00',total_metres:20}),row({code:'H_Standby_Logger',unit_rate:650}),row({code:'H_Standby_Water',total_time:'1:00',unit_rate:null,line_cost:null})];
- const s=m.summarise(rows);assert.equal(s.standbyHours,1.5);assert.equal(s.missingStandbyTime,1);assert.equal(s.drillingHours,4);assert.equal(s.reasons.length,2);assert.equal(s.unconfirmedStandbyHours,1);assert.equal(s.nonChargeableStandbyHours,2);assert.equal(s.displayedHours,5.5);
- const all=m.summarise(rows,{includeNonChargeable:true});assert.equal(all.standbyHours,3.5);assert.equal(all.metres,s.metres);assert.equal(all.hours,s.hours);assert.equal(all.displayedHours,7.5);assert.equal(all.unconfirmedStandbyRows,1);
+ const s=m.summarise(rows);assert.equal(s.standbyHours,1.5);assert.equal(s.missingStandbyTime,1);assert.equal(s.drillingHours,4);assert.equal(s.reasons.length,2);assert.equal(s.unconfirmedStandbyHours,1);assert.equal(s.nonChargeableStandbyHours,0);assert.equal(s.unpaidFatigueHours,2);assert.equal(s.displayedHours,5.5);
+ const all=m.summarise(rows,{includeNonChargeable:true});assert.equal(all.standbyHours,1.5);assert.equal(all.metres,s.metres);assert.equal(all.hours,s.hours);assert.equal(all.displayedHours,5.5);assert.equal(all.unconfirmedStandbyRows,1);
  assert.equal(m.standbyChargeability({unit_rate:650,line_cost:0}),'chargeable');assert.equal(m.standbyChargeability({line_cost:0}),'unconfirmed');assert.equal(m.standbyChargeability({unit_rate:650,rate_basis:'not chargeable'}),'non-chargeable');
 });
 test('standby reasons distinguish weather, grouting, logging and other delays',()=>{
@@ -50,4 +50,20 @@ test('scope matches only selected project and explicit program, including unassi
  assert.equal(m.scopeMatch(row({project:''}),{project:'__unassigned__',program:''}),true);
  assert.equal(m.scopeMatch(row(),{project:'__unassigned__',program:''}),false);
  const s=m.summarise([]);assert.equal(s.metres,0);assert.equal(s.standbyPercent,null);assert.equal(s.best,null);
+});
+
+test('fatigue requires a positive recorded charge, even when non-chargeable standby is enabled',()=>{
+ const rows=[
+  row({code:'H_Standby_Fatigue',total_time:'32:45',unit_rate:0,line_cost:0}),
+  row({code:'H_Standby_Fatigue',total_time:'1:00',unit_rate:650,line_cost:0,chargeable:true}),
+  row({code:'H_Standby_Fatigue',total_time:'1:00',unit_rate:650,line_cost:null}),
+  row({code:'H_Standby_Fatigue',total_time:'1:00',line_cost:50,rate_basis:'not chargeable - Mitchells fatigue management'}),
+  row({contractor:'DEPCO Drilling',code:'H_Standby',notes:'Fatigue management',total_time:'1:00',line_cost:100}),
+  row({code:'H_Standby_Inspection',total_time:'2:00',unit_rate:0,line_cost:0}),
+ ];
+ const s=m.summarise(rows),all=m.summarise(rows,{includeNonChargeable:true});
+ assert.equal(s.standbyHours,2);assert.equal(all.standbyHours,4);assert.equal(all.unpaidFatigueHours,34.75);
+ assert.equal(all.reasons.find(r=>r.label==='Fatigue management').hours,2);
+ assert.equal(all.displayedHours,4);assert.equal(s.hours,38.75);
+ for(const r of rows.slice(0,3))assert.equal(m.standbyIncluded(r,{includeNonChargeable:true}),false);
 });

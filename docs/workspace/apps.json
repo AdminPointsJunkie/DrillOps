@@ -10,13 +10,10 @@
       "costing",
       "rates",
       "cost-contracts",
-      "importer"
+      "importer",
+      "settings"
     ],
     "nav": [
-      [
-        "activities",
-        "Plods"
-      ],
       [
         "reports",
         "Period reports"
@@ -40,6 +37,10 @@
       [
         "importer",
         "Import reports"
+      ],
+      [
+        "settings",
+        "Settings"
       ]
     ]
   },

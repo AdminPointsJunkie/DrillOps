@@ -61,10 +61,12 @@
   return reason(c)||reason(notes)||(/CONTRACTOR/.test(c)?'Contractor instruction':/AAC|COMPANY/.test(c)?'Company instruction':'Other standby');
  }
  function standbyChargeability(row){
+  // Fatigue counts only when the source line actually carries a charge.
+  // A rate or a generic chargeability flag is not evidence of a billed amount.
+  if(standby(row)==='Fatigue management')return Number(row.line_cost)>0?'chargeable':'non-chargeable';
   const flag=text(row.chargeable??row.is_chargeable).toLowerCase(),basis=text(row.rate_basis);
   const code=text(row.code).toUpperCase();
-  if(['false','no','n','0'].includes(flag)||/\b(?:not[ _-]+chargeable|non[ _-]*chargeable|no[ _-]+charge)\b/i.test(basis)||/(?:^|_)NC(?:_|$)/.test(code)
-   ||(text(row.contractor)==='Mitchells Drilling'&&code==='H_STANDBY_FATIGUE'))return 'non-chargeable';
+  if(['false','no','n','0'].includes(flag)||/\b(?:not[ _-]+chargeable|non[ _-]*chargeable|no[ _-]+charge)\b/i.test(basis)||/(?:^|_)NC(?:_|$)/.test(code))return 'non-chargeable';
   const number=v=>v==null||text(v)===''?null:(Number.isFinite(Number(v))?Number(v):null);
   const rate=number(row.unit_rate),cost=number(row.line_cost);
   if(['true','yes','y','1'].includes(flag)||(rate!==null&&rate>0)||(cost!==null&&cost>0))return 'chargeable';
@@ -74,6 +76,7 @@
  }
  function standbyIncluded(row,options={}){
   const status=standbyChargeability(row);
+  if(standby(row)==='Fatigue management')return status==='chargeable';
   return status==='chargeable'||(options.includeNonChargeable===true&&status==='non-chargeable');
  }
  function cleanRows(rows){
@@ -104,7 +107,7 @@
  function summarise(source,options={}){
   const cleaned=cleanRows(source),rows=cleaned.rows,completed=new Set(options.completionEvents||completionEvents(options.completionSource||rows));
   const metric=()=>({metres:0,core:0,chip:0,other:0,hours:0,drillingHours:0,coreHours:0,chipHours:0,rateMetres:0,coreRateMetres:0,chipRateMetres:0,untimedDrillingMetres:0,standbyHours:0,movingHours:0,combinedMoveHours:0,completedHoles:0});
-  const total={...metric(),nonChargeableStandbyHours:0,unconfirmedStandbyHours:0,unconfirmedStandbyRows:0,excludedStandbyHours:0,missingMoveTime:0,missingTime:0,missingStandbyTime:0,invalidMetres:0,invalidDates:0,duplicates:cleaned.duplicates};
+  const total={...metric(),unpaidFatigueHours:0,nonChargeableStandbyHours:0,unconfirmedStandbyHours:0,unconfirmedStandbyRows:0,excludedStandbyHours:0,missingMoveTime:0,missingTime:0,missingStandbyTime:0,invalidMetres:0,invalidDates:0,duplicates:cleaned.duplicates};
   const days=new Map(),projects=new Map(),rigs=new Map(),reasons=new Map(),reports=new Set(),holes=new Set(),productionRigDays=new Set(),moves=[];
   const add=(map,key,label,project,contractor)=>{if(!map.has(key))map.set(key,{label,project,contractor,...metric(),rows:0});return map.get(key);};
   for(const r of rows){
@@ -125,7 +128,10 @@
    if(h===null){total.missingTime++;if(included)total.missingStandbyTime++;if(move)total.missingMoveTime++;}
    if(move)moves.push({...r,moveType:move,moveHours:h});
    if(reason){
-    if(status==='non-chargeable')total.nonChargeableStandbyHours+=h||0;
+    if(status==='non-chargeable'){
+     if(reason==='Fatigue management')total.unpaidFatigueHours+=h||0;
+     else total.nonChargeableStandbyHours+=h||0;
+    }
     if(status==='unconfirmed'){total.unconfirmedStandbyHours+=h||0;total.unconfirmedStandbyRows++;}
     if(!included)total.excludedStandbyHours+=h||0;
     else{
