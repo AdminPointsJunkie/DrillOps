@@ -7,7 +7,7 @@ def route_apps(path,method):
     if path.startswith(('/admin','/reset','/imports/cleanup','/imports/ocr-integrity','/imports/qa-existing')):return frozenset()
     if path=='/mobile/me':return frozenset({'field','eos','account','project','fieldmaps'})
     if path.startswith('/mobile/'):return frozenset({'field'})
-    if path.startswith(('/project-hole-report-data','/project-labs','/project-budget','/cost-centre-forecast','/training','/boreholes')):return frozenset({'project'})
+    if path.startswith(('/rig-schedule','/project-hole-report-data','/project-labs','/project-budget','/cost-centre-forecast','/training','/boreholes')):return frozenset({'project'})
     if path.startswith(('/account-accruals','/invoice','/ironbark-posted-invoices','/purchase_orders','/reconciliation')):return frozenset({'account'})
     if path.startswith(('/projects','/clients')):return frozenset({'project'})
     if path.startswith('/contractors'):return frozenset({'account'})
