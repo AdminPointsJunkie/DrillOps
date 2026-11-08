@@ -1,6 +1,9 @@
 import {formatField} from './number-format.js';
+const labelledLayers=new WeakSet();
 export function pointLabels(layer,item,bounds,document,limit=500){
  const field=item.metadata?.style?.labelField;let count=0;
+ if(!field&&!labelledLayers.has(layer))return 0;
+ if(field)labelledLayers.add(layer);else labelledLayers.delete(layer);
  const visit=marker=>{
   if(marker.eachLayer){marker.eachLayer(visit);return;}
   const position=marker.getLatLng?.()??marker.getBounds?.().getCenter();if(position==null)return;

@@ -448,3 +448,12 @@ Nested KML MultiGeometry collections are retained when saved layers are read bac
 Validation: the affected saved 499-feature layer was read with its authenticated owner's permissions, retaining original 3D geometry. A rolled-back 9+ MB / 499-feature nested collection import and readback passed. All 321 web checks and the production build passed. Apply both `20261108223641_nested_kmz_geojson_readback.sql` and `20261108223846_large_kmz_read_publish_budget.sql`; both are already applied to the live project.
 
 The large-KMZ publishing path also avoids repeated binary JSON construction and redundant whole-manifest copies in project-settings/supporting-file triggers. The exact two-layer customer project completed a rolled-back SYNC under the actual account permissions in 11.72 seconds, with all 547 features verified. No customer publication was committed by the check. Apply `20261108225756_efficient_large_kmz_publication.sql` (already live).
+
+
+## Faster project opening — 9 November 2026
+
+Editable projects now recheck the live accessible layer list and reuse cached exact geometry only when its server data revision matches. Legacy layers use the embedded live project revision. Cached data stays separated by account/project and editing receives an independent copy. Changed layers reload; denied access clears that cached project; sign-out/account changes clear the shared cache. Cache writes remain optional and bounded to 64 MiB per draft project, with the existing eight-entry cache limit.
+
+Cold layer reads/downloads overlap at most two requests and preserve saved layer order. Failed opens wait for in-flight requests, then clean their preview URLs. All layers install before rebuilding the sidebar/legend once. Canvas rendering replaces thousands of SVG paths, and models with labels off skip unnecessary geometry walks.
+
+Validation: all 327 tests and production build pass. Real Chrome checks with the supplied 499-feature KMZ render all 495 source-visible features; SVG produced 19,337 paths versus three control paths plus one canvas. Real IndexedDB reopening reuses geometry while changed revisions refetch, without retaining an unsaved editor mutation. Browser benchmark timings exclude live server/network latency and are saved separately; cache reuse avoids those repeated multi-second geometry calls.
