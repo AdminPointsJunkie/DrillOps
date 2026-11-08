@@ -4,3 +4,15 @@ test('lab totals exclude cancellation and flag pending overdue and unpriced',()=
 test('7:7 remains planned until confirmed, day overrides preserve saved rate',()=>{const m=days.build([roster],[{...roster,work_date:'2026-11-01',status:'Worked',units:0.5,day_rate:1500},{...roster,work_date:'2026-11-02',status:'Not working',units:0,day_rate:1600}],'2026-11','Fortem','');assert.equal(m.people[0].cells[7].status,'Off');assert.equal(m.worked,750);assert.equal(m.workedDays,.5);assert.equal(m.plannedDays,14);assert.equal(m.planned,22400);});
 test('effective dated changes retain earlier days and ended latest rule does not revive older roster',()=>{const m=days.build([roster,{...roster,id:2,effective_from:'2026-11-08',anchor_date:'2026-11-08',effective_to:'2026-11-12',days_on:3,days_off:1,day_rate:1800}],[],'2026-11','Fortem',1);assert.equal(m.people[0].cells[0].rate,1600);assert.equal(m.people[0].cells[7].rate,1800);assert.equal(m.people[0].cells[10].status,'Off');assert.equal(m.people[0].cells[12].status,'Off');});
 test('filter contractor/project and flag duplicate person assignments',()=>{const r2={...roster,id:2,project_id:2};assert.ok(days.build([roster,r2],[],'2026-11','Fortem','').conflicts>0);assert.equal(days.build([roster,r2],[],'2026-11','Fortem',1).people.length,1);assert.equal(days.build([roster],[],'2026-11','Other','').people.length,0);});
+test('rig-linked project filters use each dated allocation, not roster home project',()=>{
+ const r={...roster,follow_contractor:'Mitchells Drilling',follow_rig:'1218'};
+ const locations=[{date:'2026-11-01',contractor:'Mitchells Drilling',drill_rig:'1218',project_id:2,site:'SITE-A'},{date:'2026-11-01',contractor:'Mitchells Drilling',drill_rig:'1218',project_id:2,site:'SITE-B'},{date:'2026-11-02',contractor:'Mitchells Drilling',drill_rig:'1218',project_id:3,site:'SITE-C'}];
+ const all=days.build([r],[],'2026-11','Fortem','',locations);assert.equal(all.people[0].cells[0].allocation,2);assert.equal(all.people[0].cells[0].sites,'SITE-A, SITE-B');assert.equal(all.people[0].cells[2].allocation,null);
+ assert.equal(days.build([r],[],'2026-11','Fortem',1,locations).planned,0);assert.equal(days.build([r],[],'2026-11','Fortem',2,locations).planned,1600);
+ assert.equal(days.build([r],[],'2026-11','Fortem','unallocated',locations).planned,all.planned-3200);
+ locations.push({...locations[0],project_id:3});assert.equal(days.build([r],[],'2026-11','Fortem','',locations).people[0].cells[0].allocation,null);
+});
+test('backdated alternating swings have one person on daily from May 19 and preserve current swing',()=>{
+ const a={...roster,effective_from:'2026-05-19',anchor_date:'2026-11-05'},b={...a,id:2,person:'Geo B',anchor_date:'2026-11-12'};
+ for(const month of ['2026-05','2026-06','2026-11']){const m=days.build([a,b],[],month,'Fortem','');for(let i=0;i<m.dates.length;i++)assert.equal(m.people.reduce((sum,p)=>sum+p.cells[i].units,0),m.dates[i]<'2026-05-19'?0:1);}
+});

@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS day_rate_days (
  revision INTEGER NOT NULL DEFAULT 1, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS day_rate_days_identity ON day_rate_days(project_id,lower(trim(contractor)),lower(trim(person)),work_date);
+ALTER TABLE day_rate_rosters ADD COLUMN IF NOT EXISTS follow_contractor TEXT NOT NULL DEFAULT '';
+ALTER TABLE day_rate_rosters ADD COLUMN IF NOT EXISTS follow_rig TEXT NOT NULL DEFAULT '';
 ALTER TABLE lab_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lab_samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE day_rate_rosters ENABLE ROW LEVEL SECURITY;
@@ -183,26 +185,38 @@ def create_tracking_router(get_conn):
                     v.update(project_id=pid,tests=Json(tests),projected_cost=total);row=persist(cur,'lab_samples',v,rid);audit(cur,row,'lab_sample');return row
         except UniqueViolation:raise HTTPException(409,'This sample ID already exists in the project.')
 
-    @router.get('/day-rate-tracking')
+    @router.get('/day-rate-tracking', description='Includes dated rig project and site allocations.')
     def day_rates(request:Request):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 access(cur,request);cur.execute('SELECT * FROM day_rate_rosters ORDER BY contractor,person,effective_from');rosters=cur.fetchall()
                 cur.execute('SELECT * FROM day_rate_days ORDER BY work_date');days=cur.fetchall()
                 cur.execute('SELECT id,name,program,year FROM projects ORDER BY name,year,program');projects=cur.fetchall()
-                return {'rosters':rosters,'days':days,'projects':projects}
+                cur.execute("""SELECT DISTINCT a.date,a.contractor,a.drill_rig,a.project,a.program,
+                    COALESCE(NULLIF(a.site_id,''),NULLIF(a.site_name,''),NULLIF(a.location,''),a.hole_num,'') AS site,
+                    p.id AS project_id
+                    FROM activities a LEFT JOIN projects p ON p.name=a.project AND p.program=a.program AND p.year=left(a.date,4)
+                    WHERE EXISTS (SELECT 1 FROM day_rate_rosters r WHERE r.follow_contractor=a.contractor AND r.follow_rig=a.drill_rig)
+                    ORDER BY a.date""");locations=cur.fetchall()
+                cur.execute("SELECT DISTINCT contractor,drill_rig FROM activities WHERE COALESCE(drill_rig,'')<>'' ORDER BY contractor,drill_rig");rigs=cur.fetchall()
+                return {'rosters':rosters,'days':days,'projects':projects,'locations':locations,'rigs':rigs}
 
     @router.post('/day-rate-tracking/rosters')
     async def save_roster(request:Request):
         p=await payload(request);pid=integer(p.get('project_id'));rid=integer(p['id']) if p.get('id') else None
         v={k:text(p,k,True,200) for k in ['contractor','person']}
+        v.update(follow_contractor=text(p,'follow_contractor',False,200),follow_rig=text(p,'follow_rig',False,200))
+        if bool(v['follow_contractor'])!=bool(v['follow_rig']):raise HTTPException(400,'Choose a contractor and rig to follow.')
         v.update(project_id=pid,effective_from=day(p.get('effective_from'),True),effective_to=day(p.get('effective_to')),anchor_date=day(p.get('anchor_date'),True),days_on=integer(p.get('days_on'),1,90),days_off=integer(p.get('days_off'),0,90),day_rate=amount(p.get('day_rate')).quantize(Decimal('0.01')))
         if v['effective_to'] and v['effective_to']<v['effective_from']:raise HTTPException(400,'End date must follow the effective date.')
         try:
             with get_conn() as conn:
                 with conn.cursor() as cur:
                     access(cur,request,pid)
-                    if rid:existing(cur,'day_rate_rosters',rid,p.get('revision'),pid)
+                    if rid:
+                        existing(cur,'day_rate_rosters',rid,p.get('revision'),pid)
+                        if 'follow_contractor' not in p and 'follow_rig' not in p:
+                            v.pop('follow_contractor');v.pop('follow_rig')
                     row=persist(cur,'day_rate_rosters',v,rid);audit(cur,row,'day_rate_roster');return row
         except UniqueViolation:raise HTTPException(409,'This person already has a roster version from that date.')
 

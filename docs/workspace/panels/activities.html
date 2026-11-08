@@ -6,13 +6,9 @@
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Status</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Shift</button>
         <button class="filter-chip" type="button" onclick="toggleActFilters()">Rig</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Cost Contract</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Date</button>
-        <button class="filter-chip" type="button" onclick="toggleActFilters()">Lock Status</button>
-        <input class="range-date" id="range-from" type="date" title="Report start date"/>
-        <input class="range-date" id="range-to" type="date" title="Report end date"/>
-        <button class="btn-primary" type="button" onclick="openGraphicalRangeReport()">Graphical report</button>
-        <button class="btn-ghost" id="bulk-assign-project-btn" type="button" onclick="bulkAssignReportsToWorkspace()" disabled>Assign to workspace</button>
+        <input class="range-date" hidden style="display:none!important" id="range-from" type="date" title="Report start date"/>
+        <input class="range-date" hidden style="display:none!important" id="range-to" type="date" title="Report end date"/>
+        <button class="btn-ghost" hidden style="display:none!important" id="bulk-assign-project-btn" type="button" onclick="bulkAssignReportsToWorkspace()" disabled>Assign to workspace</button>
         <button class="btn-ghost" id="bulk-lock-btn" type="button" onclick="bulkSetReportLocks(true)" disabled>Lock selected</button>
         <button class="btn-ghost" id="bulk-unlock-btn" type="button" onclick="bulkSetReportLocks(false)" disabled>Unlock selected</button>
         <button class="btn-ghost" id="bulk-delete-btn" type="button" onclick="bulkDeleteReports()" disabled style="border-color:var(--red);color:var(--red);">Delete selected</button>
