@@ -34,7 +34,7 @@
   el('phr-contractors').innerHTML=table(contractorHeaders,contractorRows(m.contractors));
   el('phr-source-note').textContent='Budget: '+m.source+'. EOS: loaded production reports. Accounts: current invoice ledger, excluding GST. Budgets cover the full project plan; EOS uses the selected dates and the invoice total includes all project billing periods; the monthly chart shows selected billing months. No forecasts or accruals.';
   el('page-reports').querySelector('.phr-content').hidden=false;el('project-hole-print').disabled=false;
-  renderPeriodMap(m.metrics.map(h=>h.borehole));
+  renderPeriodMap(m.metrics.filter(h=>h.production.metres>0).map(h=>h.borehole));
  }
  async function load(preserveRange){
   const token=++request,scope=currentScope(),key=scopeKey(scope);data=null;model=null;
