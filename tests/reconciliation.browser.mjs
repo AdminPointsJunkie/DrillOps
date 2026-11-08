@@ -19,6 +19,7 @@ try{
  await page.locator('.recon-card summary').click();assert.equal(await page.locator('.recon-card tbody tr').count(),2);
  assert.match(await page.locator('.recon-card').innerText(),/Example · 2026 · Exploration/);
  assert.equal(await page.locator('#po-notes').count(),0);assert.equal(await page.locator('#po-table th').filter({hasText:/^Notes$/}).count(),0);
+ data.eos.push({...base,contractor:'Fortem',rig:'Nuwan Jayasinghe',eos_total:1600,report_count:1,unpriced:0});await page.evaluate(()=>loadMonthlyReconciliation());await page.locator('#recon-contractor').selectOption('Fortem');assert.equal(await page.locator('.recon-card').count(),1);assert.match(await page.locator('.recon-card').innerText(),/1,600.00/);await page.locator('.recon-card summary').click();assert.match(await page.locator('.recon-card').innerText(),/Nuwan Jayasinghe/);
  await page.screenshot({path:'../reconciliation-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  failure=true;await page.evaluate(()=>loadMonthlyReconciliation());assert.equal(await page.locator('.recon-card').count(),0);assert.match(await page.locator('#recon-message').innerText(),/could not load/);
