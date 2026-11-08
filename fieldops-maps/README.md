@@ -457,3 +457,5 @@ Editable projects now recheck the live accessible layer list and reuse cached ex
 Cold layer reads/downloads overlap at most two requests and preserve saved layer order. Failed opens wait for in-flight requests, then clean their preview URLs. All layers install before rebuilding the sidebar/legend once. Canvas rendering replaces thousands of SVG paths, and models with labels off skip unnecessary geometry walks.
 
 Validation: all 327 tests and production build pass. Real Chrome checks with the supplied 499-feature KMZ render all 495 source-visible features; SVG produced 19,337 paths versus three control paths plus one canvas. Real IndexedDB reopening reuses geometry while changed revisions refetch, without retaining an unsaved editor mutation. Browser benchmark timings exclude live server/network latency and are saved separately; cache reuse avoids those repeated multi-second geometry calls.
+
+Project switching also removes Leaflet's cached per-pane renderers after removing their paths, releasing the old Canvas surfaces. A real Chrome pointer/cleanup check confirms source feature selection and zero retained project canvases after removal.
