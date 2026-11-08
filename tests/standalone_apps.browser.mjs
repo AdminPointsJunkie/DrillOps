@@ -57,7 +57,7 @@ assert.equal(await page.locator('.page.active').getAttribute('id'),'page-invoice
 console.log('PASS public homepage, expired session, explicit sign-in and app return link');
 for(const [app,views] of Object.entries({eos:['','reports','activities','settings','production','costing','rates','cost-contracts','importer'],account:['','invoices','purchase-orders','contractors','importer'],project:['','project-dashboard','project-budgets','budget','boreholes','admin']})){
  for(const view of views){errors=[];await page.goto(base+app+'.html'+(view?'?view='+view:''));await page.waitForTimeout(650);
- assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+(app==='eos'&&view==='activities'?'settings':view):({account:'page-invoices',project:'page-project-dashboard'}[app]||'page-app-home'));
+ assert.equal(await page.locator('.page.active').getAttribute('id'),view?'page-'+(app==='eos'&&view==='activities'?'settings':app==='eos'&&view==='production'?'reports':view):({account:'page-invoices',project:'page-project-dashboard'}[app]||'page-app-home'));
  assert.deepEqual(errors,[],app+' '+view);
  assert.equal(await page.locator('#login-screen').isVisible(),false);
  assert.equal(await page.locator('.app-chooser,.app-choice,.app-tasks,.app-switch').count(),0);

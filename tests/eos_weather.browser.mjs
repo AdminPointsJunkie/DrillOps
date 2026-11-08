@@ -32,7 +32,7 @@ try{
  assert.equal(await page.locator('.eos-weather-storm').getAttribute('data-date'),'2026-10-17');
  assert.match(await page.locator('.eos-weather-storm title').textContent(),/Thunderstorm \(estimated\)/);
  assert.match(await page.locator('#eos-weather-trend').innerHTML(),/°C/);assert.match(await page.locator('#eos-weather-status').innerText(),/not confirmed strikes.*missing data/);
- assert.equal(await page.locator('#eos-period-register tr').count(),0);
+ assert.equal(await page.locator('#eos-period-register tr').count(),32);
  const before=weatherRequests;await page.locator('#eos-period-include-nonchargeable').check();await page.waitForSelector('#eos-weather-trend svg');assert.equal(weatherRequests,before);
  await page.locator('#eos-period-rig').selectOption('Rig 1');await page.waitForSelector('#eos-weather-trend svg');assert.equal(weatherRequests,before,'fixed weather is cached across rig changes');
  assert.equal(await page.locator('#eos-period-rig-chart,#eos-period-moves-chart').count(),0);
@@ -43,7 +43,7 @@ try{
  assert.equal(await project.isVisible(),false,'collapsed sections are omitted from print');assert.equal(await page.locator('#eos-period-chart').isVisible(),true);assert.equal(await page.locator('.eos-weather-retry').isVisible(),false);
  await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
  await page.getByRole('button',{name:'Collapse all',exact:true}).filter({visible:true}).click();assert.equal(await page.locator('#eos-period-chart').isVisible(),false);
- await page.getByRole('button',{name:'Expand all',exact:true}).filter({visible:true}).click();assert.equal(await page.locator('#eos-period-chart').isVisible(),true);assert.equal(await page.locator('.eos-period-register').isVisible(),false,'expand cannot load hidden registers');
+ await page.getByRole('button',{name:'Expand all',exact:true}).filter({visible:true}).click();assert.equal(await page.locator('#eos-period-chart').isVisible(),true);assert.equal(await page.locator('.eos-period-register').isVisible(),true,'expand restores the report register');
  if(process.env.CAPTURE_EOS){
   await page.screenshot({path:process.env.CAPTURE_EOS+'/EOS-weather-compact.png',fullPage:true});
   await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-weather-compact.pdf',preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));

@@ -6,7 +6,6 @@
     "panels": [
       "reports",
       "activities",
-      "production",
       "costing",
       "rates",
       "cost-contracts",
@@ -16,11 +15,7 @@
     "nav": [
       [
         "reports",
-        "Period reports"
-      ],
-      [
-        "production",
-        "Production"
+        "Production Report"
       ],
       [
         "costing",

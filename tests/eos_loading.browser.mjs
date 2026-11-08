@@ -13,15 +13,14 @@ page.on('request',r=>{if(r.url().includes('/mobile/me'))authStarted=Date.now();}
 try{
  await page.goto(process.env.DRILLOPS_TEST_URL||'http://localhost:8766/eos.html');await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='10 m');
  const initial=(await page.evaluate(()=>window.eosReadyAt))-authStarted;let at=Date.now();
- await page.locator('[data-page="production"]').click();await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='10.0 m');const production=Date.now()-at;
- at=Date.now();await page.locator('[data-page="reports"]').click();await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('10.0 m'));const reports=Date.now()-at;
+ await page.locator('[data-page="reports"]').click();await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('10.0 m'));const reports=Date.now()-at;
  if(!process.env.BASELINE){
-  assert.equal(counts['/activity-report-data'],1,'one bundle reused across Overview, Production and Period');
+  assert.equal(counts['/activity-report-data'],1,'one bundle reused across Overview and Production Report');
   assert.equal(counts['/filters']||0,0,'startup does not wait for another filter query');
   assert.ok(starts['/activity-report-data']<completed['/contractors'],'first report starts while metadata is loading');
   const before=counts['/activity-report-data'];await page.locator('#page-reports').getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>!document.getElementById('eos-period-document').hidden);assert.equal(counts['/activity-report-data'],before+1,'Refresh always fetches latest');
   await page.evaluate(()=>fetch(API+'/activities/1',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:'test mutation'})}));
-  await page.locator('[data-page="production"]').click();await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='10.0 m');assert.equal(counts['/activity-report-data'],before+2,'edits invalidate cached data');
+  await page.locator('#drawer .drawer-nav-item[href="./eos.html"]').click();await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='10 m');assert.equal(counts['/activity-report-data'],before+2,'edits invalidate cached data');
  }
- console.log(JSON.stringify({controlledRequestDelayMs:delay,authToOverviewMs:initial,overviewToProductionMs:production,productionToPeriodMs:reports,requests:counts}));
+ console.log(JSON.stringify({controlledRequestDelayMs:delay,authToOverviewMs:initial,overviewToReportMs:reports,requests:counts}));
 }finally{await browser.close();}

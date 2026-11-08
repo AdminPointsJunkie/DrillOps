@@ -10,18 +10,16 @@ function loadEosRawLogs(){
  productionSet('activity-log-toggle-label','Hide activity log');
  drawerNav(document.querySelector('.drawer-nav-item[data-page="activities"]'));
 }
-function loadEosReportTables(page){
- const production=page==='production',id=production?'production-show-tables':'eos-period-show-tables';
- document.getElementById(id).checked=true;
- if(production)document.getElementById('production-show-detail').checked=true;
- document.querySelectorAll(production?'#production-report .production-data-table':'#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=false);
- drawerNav(document.querySelector('.drawer-nav-item[data-page="'+page+'"]'));
+function loadEosReportTables(){
+ document.getElementById('eos-period-show-tables').checked=true;
+ document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=false);
+ drawerNav(document.querySelector('.drawer-nav-item[data-page="reports"]'));
 }
 function unloadEosRawLogs(){
  eosRawLogsEnabled=false;activitiesRequestSequence++;
- for(const id of ['production-show-tables','production-show-detail','eos-period-show-tables'])document.getElementById(id).checked=false;
- document.querySelectorAll('#page-activities tbody,#production-report tbody,#eos-period-document tbody').forEach(el=>el.replaceChildren());
- document.querySelectorAll('#production-report .production-data-table,#eos-period-document .eos-period-data-table,#production-detail').forEach(el=>el.hidden=true);
+ document.getElementById('eos-period-show-tables').checked=false;
+ document.querySelectorAll('#page-activities tbody,#eos-period-document tbody:not(#eos-period-register)').forEach(el=>el.replaceChildren());
+ document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=true);
  document.getElementById('activity-log-panel')?.classList.add('collapsed');
  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];mccWeeklyReportsData=[];
  closeDailyReportDetail();updateEosSettings();toast('Logs and tables unloaded');

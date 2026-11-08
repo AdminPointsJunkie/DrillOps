@@ -28,30 +28,27 @@ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(
 const value=id=>page.locator('#'+id).innerText();
 const nav=async view=>page.locator('#drawer [data-page="'+view+'"]').click();
 try{
- await page.goto('http://localhost:8766/eos.html');await page.waitForFunction(()=>document.getElementById('eos-completed').textContent==='2');
- assert.match(await value('eos-overview-standby'),/Wet weather.*4\.0/s);assert.doesNotMatch(await value('eos-overview-standby'),/Fatigue/);
- await nav('production');await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='120.0 m');
- assert.equal(await value('production-kpi-completed'),'2');assert.equal(await value('production-kpi-standby'),'5.0 h');
- assert.match(await value('production-performance'),/Penetration rate\s*15\.0/);assert.match(await value('production-performance'),/Core penetration\s*12\.0/);assert.match(await value('production-performance'),/Chip penetration\s*20\.0/);assert.match(await value('production-performance'),/Metres \/ production day\s*60\.0/);
- assert.equal(await page.locator('#production-chart .eos-average-line').count(),1);assert.equal(await page.locator('#production-rate-chart .eos-average-line').count(),1);
- assert.match(await value('production-move-summary'),/3\.5 h/);assert.match(await value('production-move-note'),/2\.0 h combines/);
- const before=bundles;await page.locator('#production-include-nonchargeable').check();assert.equal(await value('production-kpi-standby'),'7.0 h');assert.doesNotMatch(await value('production-standby-chart'),/Fatigue management/);assert.match(await value('production-standby-chart'),/Site inspections/);assert.equal(bundles,before);
- await nav('reports');await page.waitForFunction(()=>document.getElementById('eos-period-document').hidden===false);
- assert.equal(await page.locator('#eos-period-include-nonchargeable').isChecked(),true);assert.match(await value('eos-period-standby-summary'),/^7\.0 hours/);
- await page.locator('#eos-period-include-nonchargeable').uncheck();assert.match(await value('eos-period-standby-summary'),/^5\.0 hours/);assert.doesNotMatch(await value('eos-period-standby-chart'),/Fatigue/);
- assert.match(await value('eos-period-metrics'),/Holes completed\s*2/);assert.match(await value('eos-period-performance'),/Penetration rate\s*15\.0/);
- assert.equal(await page.locator('#eos-period-daily tr').count(),0);await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-daily tr').length===2);assert.equal(await page.locator('#eos-period-daily tr').count(),2);assert.equal(await page.locator('#eos-period-moves').count(),0);assert.equal(await page.locator('#eos-period-rig-chart').count(),0);
- await page.locator('#eos-period-from').fill('2026-10-02');await page.locator('#eos-period-from').dispatchEvent('change');
- assert.match(await value('eos-period-metrics'),/Holes completed\s*0/);assert.match(await value('eos-period-performance'),/Penetration rate\s*10\.0/);
- await page.locator('#eos-period-preset').selectOption('all');await nav('settings');await page.locator('#eos-unload-raw').click();await nav('reports');await page.waitForFunction(()=>!document.getElementById('eos-period-document').hidden);
- if(process.env.CAPTURE_EOS){
-  await page.screenshot({path:process.env.CAPTURE_EOS+'/EOS-performance-report.png',fullPage:true});
-  await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-performance-report.pdf',preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
- }
- await nav('production');await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='120.0 m');assert.equal(await page.locator('#production-include-nonchargeable').isChecked(),false);
- assert.equal(await page.locator('#production-daily tr').count(),0);await nav('settings');await page.locator('#eos-load-production-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#production-daily tr').length===2);assert.equal(await page.locator('#production-daily tr').count(),2);
- await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='100.0 m');assert.equal(await value('production-kpi-completed'),'1');
- const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Export filtered activities',exact:true}).click();const csv=await readFile(await (await downloaded).path(),'utf8');assert.match(csv,/Standby chargeability/);assert.match(csv,/\"non-chargeable\",\"false\"/);assert.match(csv,/\"Wet weather\",\"chargeable\",\"true\"/);
- await page.setViewportSize({width:390,height:844});for(const view of ['production','reports']){await page.evaluate(v=>drawerNav(document.querySelector('[data-page="'+v+'"]')),view);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,view+' mobile overflow');}
- assert.deepEqual(errors,[]);console.log('PASS standby scope, wet-weather reasons, completed holes, weighted penetration, daily averages, site moves, print and mobile');
+ await page.goto('http://localhost:8766/eos.html?view=production');await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('120.0 m'));
+ assert.equal(await page.locator('#page-production').count(),0);assert.equal(await page.locator('#drawer [data-page="production"]').count(),0);assert.equal(await page.locator('#drawer [data-page="reports"]').innerText(),'Production Report');
+ assert.equal(await page.locator('#page-reports h1').innerText(),'Production Report');assert.match(page.url(),/view=reports/);
+ assert.match(await value('eos-period-metrics'),/Holes completed\s*2/);assert.match(await value('eos-period-standby-summary'),/^5\.0 hours/);
+ assert.match(await value('eos-period-performance'),/Penetration rate\s*15\.0/);assert.match(await value('eos-period-performance'),/Core penetration\s*12\.0/);assert.match(await value('eos-period-performance'),/Chip penetration\s*20\.0/);assert.match(await value('eos-period-performance'),/Metres \/ production day\s*60\.0/);
+ assert.doesNotMatch(await value('eos-period-performance'),/Chipped \/ production day|producing rig-day|Site-move time/);
+ assert.equal(await page.locator('#eos-period-chart .eos-average-line').count(),1);assert.equal(await page.locator('#eos-period-rate-chart .eos-average-line').count(),1);
+ assert.equal(await page.locator('#eos-period-register tr').count(),4);assert.equal(await page.locator('.eos-period-register').isVisible(),true);assert.equal(await page.locator('#eos-period-daily tr').count(),0);
+ const before=bundles;await page.locator('#eos-period-include-nonchargeable').check();assert.match(await value('eos-period-standby-summary'),/^7\.0 hours/);assert.doesNotMatch(await value('eos-period-standby-chart'),/Fatigue management/);assert.match(await value('eos-period-standby-chart'),/Site inspections/);assert.equal(bundles,before);
+ await page.locator('#eos-period-include-nonchargeable').uncheck();assert.match(await value('eos-period-standby-summary'),/^5\.0 hours/);
+ await page.locator('#eos-period-show-charges').check();assert.equal(await page.locator('.eos-shift-charge').count(),4);
+ await page.evaluate(()=>document.body.classList.add('eos-period-print'));await page.emulateMedia({media:'print'});
+ assert.equal(await page.locator('.eos-period-register').isVisible(),true);assert.equal(await page.locator('#eos-period-charges-heading').isVisible(),true);
+ if(process.env.CAPTURE_EOS)await page.pdf({path:process.env.CAPTURE_EOS+'/EOS-production-register.pdf',preferCSSPageSize:true,printBackground:true});
+ await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.body.classList.remove('eos-period-print'));
+ await page.locator('#eos-period-show-charges').uncheck();assert.equal(await page.locator('.eos-shift-charge').count(),0);
+ await page.locator('#eos-period-from').fill('2026-10-02');await page.locator('#eos-period-from').dispatchEvent('change');assert.match(await value('eos-period-metrics'),/Holes completed\s*0/);assert.match(await value('eos-period-performance'),/Penetration rate\s*10\.0/);assert.equal(await page.locator('#eos-period-register tr').count(),1);
+ await page.locator('#eos-period-preset').selectOption('all');await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('eos-period-narrative').textContent.startsWith('100.0 m'));assert.match(await value('eos-period-metrics'),/Holes completed\s*1/);
+ await nav('settings');await page.locator('#eos-load-period-tables').click();await page.waitForFunction(()=>document.querySelectorAll('#eos-period-daily tr').length===2);
+ await nav('settings');await page.locator('#eos-unload-raw').click();await nav('reports');await page.waitForFunction(()=>!document.getElementById('eos-period-document').hidden);
+ assert.equal(await page.locator('#eos-period-daily tr').count(),0);assert.equal(await page.locator('#eos-period-register tr').count(),3);
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.deepEqual(errors,[]);console.log('PASS single Production Report, legacy redirect, default printable shift register, optional charges, retained averages/rates, standby and scope');
 }finally{await browser.close();}
