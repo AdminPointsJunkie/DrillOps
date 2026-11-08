@@ -23,7 +23,8 @@ function harness({failLine=false}={}){
   saveLayout:async()=>layouts.push(structuredClone(context.layerTree)),
   replaceTreeId:(oldID,newID)=>{for(const node of context.layerTree){if(node.children){const i=node.children.indexOf(oldID);if(i>=0)node.children[i]=newID;}}},
   addLayer:l=>{context.layers.push(l);context.layerTree.unshift(l.id);context.rendered.set(l.id,{});},
-  db:{storage:{from:()=>({upload:async(path)=>{uploaded.push(path);return {};},remove:async paths=>{removed.push(...paths);return {};}})},rpc:async(name,args)=>{
+  db:{from:()=>({select(){return this;},eq(){return this;},single:async()=>({data:{metadata:{...saved.at(-1).p_layer.metadata,data_revision:'fixture'}}})}),storage:{from:()=>({upload:async(path)=>{uploaded.push(path);return {};},remove:async paths=>{removed.push(...paths);return {};}})},rpc:async(name,args)=>{
+   if(name==='layer_geojson'){const prior=saved.at(-1);return {data:{type:'FeatureCollection',features:prior.p_features.map((f,i)=>({...f,id:i+1}))}};}
    if(failLine&&args.p_layer.metadata.dxf_geometry==='line'){failLine=false;return {error:Error('Temporary save failure')};}
    saved.push(structuredClone(args));return {data:randomUUID()};
   }}

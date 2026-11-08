@@ -1,5 +1,17 @@
 # DrillOps Maps
 
+## FieldOps account connection and manual edits
+
+FieldOps 1.1.3 connects using a separate FieldMaps account. Workspace administrators can enable **Allow uploads from FieldOps** for individual members in People & access; membership and project assignments still apply. All members are read-only from FieldOps until that permission is explicitly enabled.
+
+The device keeps a durable account-specific edit queue. **Sync now** uploads queued vector changes and downloads published projects for offline use. Saving or foregrounding the app never triggers an upload. Mobile uploads update the draft; an authorised web editor still presses **SYNC** to publish changes to other devices.
+
+Browser and mobile edits use original snapshots to merge changes to separate fields. Same-field changes and deletion versus editing require an explicit conflict choice. Cancelling the web review retains unsaved edits. Stable feature identifiers, revision checks and idempotent upload operations protect against stale saves and lost-response retries. Uploaded device overlays remain until a newer publication is downloaded.
+
+The migration is `20261108083943_fieldops_account_edits.sql`. Tests are `tests/fieldops-sync.sql` (run in a transaction and roll back) and `tests/fieldops-sync.test.mjs`. The new private tables intentionally have no direct client access; authenticated API functions enforce live workspace access and the explicit upload grant. Existing data replacement/version-history functions retain their prior access policies and now reject stale revisions.
+
+Mobile edits cover scalar attributes and coordinates for points, lines and simple polygons. Other geometry is retained during attribute edits. Raster and attachment uploads are not part of this integration. Live tile services still need internet. Complete offline downloads are kept through network failures; confirmed revoked access removes the downloaded project on the next access check.
+
 ## Data efficiency and local imagery
 
 GeoTIFF/COG and VRT raster overlays stay on the device (the current session in cloud mode), with no original or preview cloud upload. Original import archives also stay local; their parsed vectors can still be shared. Location attachments reject TIFFs and archives. JPEG photo attachments are optimised with on-demand thumbnails. The published web viewer caches unchanged exact layers, checks live access on every open, and defers hidden raster files. Publishing retains the latest three releases and reuses unchanged raster snapshots. Existing files are not purged.

@@ -16,7 +16,7 @@ insert into public.features(layer_id,geometry,properties) values ('df000000-0000
 set local role authenticated;
 do $$declare result jsonb; version_id uuid; token text; payload jsonb; begin
  select to_jsonb(l) into payload from public.layers l where id='df000000-0000-4000-8000-000000000030';
- result:=public.replace_vector_versioned('df000000-0000-4000-8000-000000000030',payload,'[{"type":"Feature","geometry":{"type":"Point","coordinates":[154,-28]},"properties":{"name":"B"}}]');
+ result:=public.replace_vector_versioned('df000000-0000-4000-8000-000000000030',payload,'[{"type":"Feature","geometry":{"type":"Point","coordinates":[154,-28]},"properties":{"name":"B"}}]',payload->'metadata'->>'data_revision');
  version_id:=(result->>'version')::uuid;token:=result->>'data_revision';
  assert (select properties->>'name' from public.features where layer_id='df000000-0000-4000-8000-000000000030')='B';
  assert (select count(*) from public.layer_data_versions where layer_id='df000000-0000-4000-8000-000000000030')=1;
