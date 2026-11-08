@@ -10233,8 +10233,10 @@ async function initializePortal(){
   }
   await fetchContractors();
   await fetchProjects();
-  if(WORKSPACE_APP==='eos')initializeEosScope();
-  else if(!restoreWorkspaceSelection()) await showWorkspaceGate();
+  // Restore a valid previous scope without blocking startup on a chooser.
+  if(!restoreWorkspaceSelection()){activeClientId=null;activeProjectName='';activeProgram='';}
+  document.getElementById('workspace-gate').classList.remove('open');
+  document.body.classList.remove('workspace-locked');
   workspaceStarted = true;
   await loadProjectContractors();
   ensureActiveContractorInProgram();
