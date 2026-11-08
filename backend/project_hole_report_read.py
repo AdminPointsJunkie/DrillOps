@@ -1,6 +1,8 @@
 """Project report evidence in one read, without invoice attachments or crew records."""
-REPORT_SQL = """
-WITH all_activity AS MATERIALIZED (
+from day_rate_costs import WORKED_DAYS_CTE
+
+REPORT_SQL = "WITH " + WORKED_DAYS_CTE + "," + """
+all_activity AS MATERIALIZED (
  SELECT id, contractor, project, program, source_file, date, hole_num, site_name,
         site_id, drill_rig, shift, time_from, time_to, total_time, bit_type, code,
         notes, total_metres, unit_rate, line_cost, rate_basis
@@ -34,7 +36,8 @@ WITH all_activity AS MATERIALIZED (
  SELECT l.id,l.invoice_id,l.hole_num,l.site_name,l.amount
  FROM invoice_lines l JOIN ledger i ON i.id=l.invoice_id
 )
-SELECT COALESCE((SELECT jsonb_agg(a ORDER BY date,id) FROM scoped_activity a),'[]'::jsonb) activities,
+SELECT COALESCE((SELECT jsonb_agg(d ORDER BY date,id) FROM worked_days d WHERE lower(trim(d.project))=lower(trim(%(project)s)) AND lower(trim(d.program))=lower(trim(%(program)s))),'[]'::jsonb) day_rates,
+       COALESCE((SELECT jsonb_agg(a ORDER BY date,id) FROM scoped_activity a),'[]'::jsonb) activities,
        COALESCE((SELECT jsonb_agg(m ORDER BY date,id) FROM material_scope m WHERE scope_count=1),'[]'::jsonb) consumables,
        COALESCE((SELECT jsonb_agg(m ORDER BY date,id) FROM material_scope m WHERE scope_count<>1),'[]'::jsonb) ambiguous_consumables,
        COALESCE((SELECT jsonb_agg(i ORDER BY invoice_date,id) FROM ledger i),'[]'::jsonb) invoices,

@@ -1,5 +1,7 @@
 """Monthly recorded EOS charges and invoice actuals; no extrapolated accruals."""
 
+from day_rate_costs import WORKED_DAYS_CTE
+
 def month_sql(field):
     # Text dates are stored in both ISO and Australian formats. Unknown stays visible.
     return f"""CASE
@@ -14,7 +16,7 @@ EOS_MONTH = month_sql('date')
 INVOICE_MONTH = month_sql("COALESCE(NULLIF(trim(billing_month),''),invoice_date)")
 # Consumables have no project/rig fields: only attach when the report evidence is unique.
 MONTHLY_SQL = f"""
-WITH a AS (
+WITH {WORKED_DAYS_CTE}, a AS (
  SELECT contractor, COALESCE(project,'') project, COALESCE(program,'') program,
         COALESCE(NULLIF(trim(drill_rig),''),'Unassigned rig') rig,
         date, source_file, hole_num, shift, line_cost
@@ -35,11 +37,13 @@ WITH a AS (
  SELECT contractor,project,program,rig,date,source_file,line_cost,'activity' kind FROM a
  UNION ALL
  SELECT contractor,project,program,rig,date,source_file,line_cost,'material' kind FROM materials
+ UNION ALL
+ SELECT contractor,project,program,person AS rig,date,'day-rate:'||id::text,line_cost,'day-rate' kind FROM worked_days
 ), eos AS (
  SELECT contractor, project, program, rig, {EOS_MONTH} AS month,
    SUM(line_cost) eos_total, count(*) FILTER (WHERE line_cost IS NULL) unpriced,
    count(*) line_count,
-   count(DISTINCT (date,source_file)) FILTER (WHERE kind='activity') report_count
+   count(DISTINCT (date,source_file)) FILTER (WHERE kind IN ('activity','day-rate')) report_count
  FROM charges GROUP BY 1,2,3,4,5
 ), inv AS (
  SELECT CASE WHEN contractor='DEPCO' THEN 'DEPCO Drilling' ELSE contractor END contractor,
@@ -48,7 +52,7 @@ WITH a AS (
    SUM(subtotal) invoice_total, count(*) invoice_count,
    count(*) FILTER (WHERE subtotal IS NULL) missing_amounts,
    count(*) FILTER (WHERE COALESCE(trim(billing_month),'')='') date_fallbacks
- FROM invoices WHERE contractor IN ('Mitchells Drilling','DEPCO Drilling','DEPCO')
+ FROM invoices WHERE contractor IN ('Mitchells Drilling','DEPCO Drilling','DEPCO') OR lower(trim(contractor)) IN (SELECT DISTINCT lower(trim(contractor)) FROM day_rate_days)
  GROUP BY 1,2,3,4
 )
 SELECT COALESCE((SELECT jsonb_agg(eos ORDER BY month,project,contractor,rig) FROM eos),'[]'::jsonb) eos,

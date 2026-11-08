@@ -17,7 +17,7 @@ FIXTURE_SQL = """WITH sample_activities(contractor,project,program,drill_rig,dat
  ('Mitchells Drilling','Sample','Exploration','10/2026','2026-11-10',200.0),
  ('Mitchells Drilling','Sample','Exploration','','2/10/2026',-20.0),
  ('Other supplier','Sample','Exploration','10/2026','2026-10-10',999.0)
-), """ + MONTHLY_SQL.strip()[5:].replace('FROM activities ', 'FROM sample_activities ').replace('FROM consumables ', 'FROM sample_consumables ').replace('FROM invoices ', 'FROM sample_invoices ')
+), """ + MONTHLY_SQL.strip()[5:].replace('FROM activities ', 'FROM sample_activities ').replace('FROM consumables ', 'FROM sample_consumables ').replace('FROM invoices ', 'FROM sample_invoices ').replace('FROM day_rate_days', 'FROM (SELECT * FROM day_rate_days WHERE FALSE) day_rate_days')
 
 class MonthlyEndpoint(unittest.TestCase):
     def test_one_read_only_query_and_response(self):

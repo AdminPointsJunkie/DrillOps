@@ -33,7 +33,7 @@
   const holes=(budget?budget.rows:live).map((r,i)=>{
    const p=budget?live.find(p=>p.hole_id===r.planner_hole):r;
    const original=budget?r.total:number(r.budget_total),status=budget?r.planner_status:r.status;
-   return {id:p?.hole_id||r.hole_id,sourceId:r.hole_id,aliases:[...new Set([...ids(r),...ids(p||{})])],borehole:{...r,...p,status},status,originalBudget:original,plannedBudget:status==='Cancelled'?0:original,drillBudget:number(r.drilling_budget_total),plannedMetres:number(r.eoh_depth??r.chip_depth),rows:[],materials:[],invoiceAmounts:[],invoiceCount:0,order:i};
+   return {id:p?.hole_id||r.hole_id,sourceId:r.hole_id,aliases:[...new Set([...ids(r),...ids(p||{})])],borehole:{...r,...p,status},status,originalBudget:original,plannedBudget:status==='Cancelled'?0:original,drillBudget:number(r.drilling_budget_total),plannedMetres:number(r.eoh_depth??r.chip_depth),rows:[],materials:[],support:[],invoiceAmounts:[],invoiceCount:0,order:i};
   });
   const history=E.cleanRows((evidence.activities||[]).filter(r=>scoped(r,scope))).rows;
   const rows=history.filter(r=>withinDate(E.date(r.date))),materials=(evidence.consumables||[]).filter(r=>scoped(r,scope)&&withinDate(E.date(r.date)));
@@ -42,11 +42,13 @@
    const id=text(row.hole_num);if(holes.some(h=>h.aliases.includes(identity(id))))continue;
    const p=live.filter(p=>ids(p).includes(identity(id)));
    if(p.length>1)continue;
-   holes.push({id,sourceId:'',aliases:[identity(id),...(p.length===1?ids(p[0]):[])],borehole:p[0]||{hole_id:id},status:p[0]?.status||'Not in plan',originalBudget:null,plannedBudget:null,drillBudget:null,plannedMetres:p.length===1?number(p[0].eoh_depth):null,rows:[],materials:[],invoiceAmounts:[],invoiceCount:0,order:holes.length});
+   holes.push({id,sourceId:'',aliases:[identity(id),...(p.length===1?ids(p[0]):[])],borehole:p[0]||{hole_id:id},status:p[0]?.status||'Not in plan',originalBudget:null,plannedBudget:null,drillBudget:null,plannedMetres:p.length===1?number(p[0].eoh_depth):null,rows:[],materials:[],support:[],invoiceAmounts:[],invoiceCount:0,order:holes.length});
   }
-  const unassignedRows=[],unassignedMaterials=[];
+  const dayRates=(evidence.day_rates||[]).filter(r=>r.status==='Worked'&&scoped(r,scope)&&withinDate(E.date(r.date)));
+  const unassignedRows=[],unassignedMaterials=[],unassignedSupport=[];
   for(const r of rows){const h=findHole(r,holes);(h?h.rows:unassignedRows).push(r);}
   for(const r of materials){const h=findHole(r,holes);(h?h.materials:unassignedMaterials).push(r);}
+  for(const r of dayRates){const h=findHole(r,holes);(h?h.support:unassignedSupport).push(r);}
   const invoices=(evidence.invoices||[]).filter(r=>scoped(r,scope));
   const linesByInvoice=new Map();for(const line of evidence.invoice_lines||[]){const key=String(line.invoice_id);if(!linesByInvoice.has(key))linesByInvoice.set(key,[]);linesByInvoice.get(key).push(line);}
   let linkedInvoiceCents=0,unreconciledInvoices=0;
@@ -58,7 +60,7 @@
    else if(lines.length)unreconciledInvoices++;
    return {...inv,value,month:A.period(inv),linked:allocated/100,unallocated:value===null?null:(cents(value)-allocated)/100};
   });
-  const production=E.summarise(rows,{completionSource:history}),priced=rows.concat(materials),eosTotal=sum(priced.map(r=>number(r.line_cost))),unpriced=priced.filter(r=>number(r.line_cost)===null).length;
+  const production=E.summarise(rows,{completionSource:history}),priced=rows.concat(materials,dayRates),eosTotal=sum(priced.map(r=>number(r.line_cost))),unpriced=priced.filter(r=>number(r.line_cost)===null).length;
   // Attribute consumables to a rig only when recorded evidence identifies one rig.
   const rigKey=(contractor,rig)=>JSON.stringify([text(contractor)||'Not recorded',text(rig)||'Not recorded']);
   const rigCosts=production.rigs.map(r=>({key:rigKey(r.contractor,r.label),contractor:r.contractor,rig:r.label,metres:r.metres,total:0,priced:0,partial:false})),rigMap=new Map(rigCosts.map(r=>[r.key,r]));
@@ -76,7 +78,7 @@
   const approvedBudget=source?number(source.approvedBudget):null;
   const remainingBudget=approvedBudget===null||plannedBudget===null?null:(cents(approvedBudget)-cents(plannedBudget))/100;
   const metrics=holes.map(h=>{
-   const prod=E.summarise(h.rows,{completionSource:history}),costs=h.rows.concat(h.materials),eos=costs.length?sum(costs.map(r=>number(r.line_cost))):null,missing=costs.filter(r=>number(r.line_cost)===null).length;
+   const prod=E.summarise(h.rows,{completionSource:history}),costs=h.rows.concat(h.materials,h.support),eos=costs.length?sum(costs.map(r=>number(r.line_cost))):null,missing=costs.filter(r=>number(r.line_cost)===null).length;
    const drillingRows=h.rows.filter(r=>!(/^D[ _-]/i.test(text(r.code))&&/water\s*cart|backhoe|loader|excavat|earthworks|earth works/i.test(text(r.code))));
    const drillCosts=drillingRows.concat(h.materials),drillingActual=drillCosts.length?sum(drillCosts.map(r=>number(r.line_cost))):null;
    const invoiced=h.invoiceCount?sum(h.invoiceAmounts):null;
@@ -98,7 +100,7 @@
   if(unpriced)issues.push(unpriced+' EOS lines have no recorded price. EOS totals include priced lines only.');
   if(invoiceMissing)issues.push(invoiceMissing+' invoices have no subtotal and are excluded from monetary totals.');
   if(unreconciledInvoices)issues.push(unreconciledInvoices+' invoices have line totals that cannot be reconciled to their subtotal; these remain at project level.');
-  const unallocatedInvoices=(cents(invoiced)-linkedInvoiceCents)/100,unallocatedEos=sum(unassignedRows.concat(unassignedMaterials).map(r=>number(r.line_cost)));
+  const unallocatedInvoices=(cents(invoiced)-linkedInvoiceCents)/100,unallocatedEos=sum(unassignedRows.concat(unassignedMaterials,unassignedSupport).map(r=>number(r.line_cost)));
   const ambiguous=(evidence.ambiguous_consumables||[]).filter(r=>withinDate(E.date(r.date))).length;
   if(ambiguous)issues.push(ambiguous+' consumable lines match more than one project/program and are excluded until allocated.');
   const undated=(evidence.invoices||[]).filter(r=>scoped(r,scope)&&!A.period(r)).length;
@@ -107,7 +109,7 @@
   if(unscoped)issues.push(unscoped+' invoices have no program and are excluded until assigned.');
   const invalidDates=history.filter(r=>!E.date(r.date)).length;if(invalidDates)issues.push(invalidDates+' EOS lines have no usable date and are excluded from the period.');
   const monthly=Array.from({length:12},(_,i)=>`${scope.year}-${String(i+1).padStart(2,'0')}`).filter(m=>m>=from.slice(0,7)&&m<=to.slice(0,7)).map(month=>({month,eos:sum(priced.filter(r=>E.date(r.date).startsWith(month)).map(r=>number(r.line_cost))),invoices:sum(invoiceRows.filter(r=>r.month===month).map(r=>r.value))}));
-  return {scope,from,to,rigCosts,unallocatedRigMaterials,metrics,contractors,invoiceRows,production,eosTotal,unpriced,invoiced,invoiceMissing,plannedBudget,approvedBudget,remainingBudget,planLessInvoices:plannedBudget===null?null:(cents(plannedBudget)-cents(invoiced))/100,linkedInvoices:linkedInvoiceCents/100,unallocatedInvoices,unallocatedEos,unassignedRows:unassignedRows.length+unassignedMaterials.length,issues,monthly,source:source?.source||'Borehole planning'};
+  return {scope,from,to,dayRateTotal:sum(dayRates.map(r=>number(r.line_cost))),drillingEosTotal:sum(rows.concat(materials).map(r=>number(r.line_cost))),rigCosts,unallocatedRigMaterials,metrics,contractors,invoiceRows,production,eosTotal,unpriced,invoiced,invoiceMissing,plannedBudget,approvedBudget,remainingBudget,planLessInvoices:plannedBudget===null?null:(cents(plannedBudget)-cents(invoiced))/100,linkedInvoices:linkedInvoiceCents/100,unallocatedInvoices,unallocatedEos,unassignedRows:unassignedRows.length+unassignedMaterials.length+unassignedSupport.length,issues,monthly,source:source?.source||'Borehole planning'};
  }
  const api={build,findHole,scoped,drillingOverrun};if(req)module.exports=api;else root.ProjectHoleReport=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

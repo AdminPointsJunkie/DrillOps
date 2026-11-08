@@ -56,3 +56,13 @@ test('zero metres and missing prices do not create misleading rig rates',()=>{
  const m=run({evidence:{...evidence,activities:[{...row,drill_rig:'DR17',total_metres:0,line_cost:100},{...row,id:3,drill_rig:'DR28',line_cost:null}],consumables:[]}});
  assert.equal(m.rigCosts.find(r=>r.rig==='DR17').perMetre,null);assert.equal(m.rigCosts.find(r=>r.rig==='DR28').perMetre,null);assert.equal(m.rigCosts.find(r=>r.rig==='DR28').partial,true);
 });
+test('worked support costs affect project, contractor and hole total but never drilling or invoice actuals',()=>{
+ const support={id:1,status:'Worked',contractor:'Fortem',person:'Person',project:'Example',program:'Exploration',date:'2026-03-10',site_name:'SITE-A',line_cost:1600};
+ const m=run({evidence:{...evidence,day_rates:[support,{...support,id:2,status:'Planned',line_cost:9999},{...support,id:3,status:'Not working',line_cost:8888},{...support,id:4,project:'Other',line_cost:7777},{...support,id:5,date:'2025-03-10',line_cost:6666}]}});
+ const original=run();assert.equal(m.eosTotal,original.eosTotal+1600);assert.equal(m.dayRateTotal,1600);assert.equal(m.invoiced,original.invoiced);assert.equal(m.drillingEosTotal,original.eosTotal);assert.equal(m.production.metres,original.production.metres);assert.equal(m.metrics[0].eos,original.metrics[0].eos+1600);assert.equal(m.metrics[0].drillingActual,original.metrics[0].drillingActual);assert.equal(m.contractors.find(c=>c.name==='Fortem').eos,1600);assert.equal(m.monthly.find(r=>r.month==='2026-03').eos,original.monthly.find(r=>r.month==='2026-03').eos+1600);
+});
+test('support without a unique site remains project-level; dates exclude other periods',()=>{
+ const support={status:'Worked',contractor:'Fortem',project:'Example',program:'Exploration',date:'2026-03-10',site_name:'Unmatched',line_cost:1600};
+ const m=run({evidence:{...evidence,day_rates:[support]}});assert.equal(m.unallocatedEos,1600);assert.equal(m.metrics[0].eos,run().metrics[0].eos);
+ assert.equal(run({evidence:{...evidence,day_rates:[support]}},{from:'2026-04-01',to:'2026-04-30'}).dayRateTotal,0);
+});

@@ -8710,7 +8710,7 @@ def delete_invoice(invoice_id: int):
 
 @app.get("/reconciliation/monthly")
 def get_monthly_eos_reconciliation():
-    """Compare monthly loaded EOS charges with invoice actuals, ex GST, by project and rig."""
+    """Compare monthly EOS reports and worked day-rate charges with invoice actuals, by project, rig and person."""
     from eos_reconciliation import MONTHLY_SQL
     with get_conn(read_only=True) as conn:
         with conn.cursor() as cur:
