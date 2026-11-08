@@ -39,6 +39,7 @@ export function styleControls(layer){
  const fields=[...new Set(layer.fc?.features?.flatMap(f=>Object.keys(f.properties||{}))||[])];
  const options=(values,current)=>values.map(v=>`<option value="${v}" ${v===current?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('');
  return `<div class="layer-style-controls" data-layer-panel="style" hidden><div class="style-fields">
+ ${layer.metadata?.kml_import?`<label class="label-field"><span><input type="checkbox" data-action="useKMLStyle" ${layer.metadata?.style?.useKMLStyle?'checked':''}> Use original KML colours and visibility</span><small>Turn off to apply your own layer styling.</small></label>`:''}
  <label>${kinds.has('shape')?'Outline / line colour':'Colour'}<input type="color" value="${/^#[0-9a-f]{6}$/i.test(layer.color)?layer.color:'#147d72'}" data-action="color" aria-label="Layer colour"></label>
  <label>Layer opacity <output>${Math.round(s.opacity*100)}%</output><input type="range" min="0" max="1" step="0.05" value="${s.opacity}" data-action="opacity" aria-label="Layer opacity"></label>
  ${kinds.has('point')?`<label>Point symbol<select data-action="symbol" aria-label="Point symbol">${options(symbols,s.symbol)}</select></label><label>Point size<input type="number" min="4" max="48" value="${s.pointSize}" data-action="pointSize" aria-label="Point size"></label>`:''}

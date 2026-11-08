@@ -47,6 +47,13 @@ export function attributeEvaluator(rules,fields){
  };
 }
 export function featureAppearance(layer,feature){
+ if(feature&&layer.metadata?.style?.useKMLStyle){
+  const p=feature.properties||{},color=v=>/^#[0-9a-f]{6}$/i.test(v),style={...layer.metadata.style};
+  if(color(p.fill))style.fillColor=p.fill;
+  for(const [key,target] of [['stroke-width','lineWidth'],['fill-opacity','fillOpacity']])if(p[key]!==undefined&&Number.isFinite(Number(p[key])))style[target]=Number(p[key]);
+  if(p['icon-scale']!==undefined)style.pointSize=Math.max(4,Math.min(48,12*Number(p['icon-scale'])||12));
+  layer={...layer,color:color(p.stroke)?p.stroke:color(p['icon-color'])?p['icon-color']:layer.color,metadata:{...layer.metadata,style}};
+ }
  const rules=layer.metadata?.style?.rules;if(!rules||!feature)return layer;
  let evaluate=cache.get(rules);if(!evaluate){try{evaluate=attributeEvaluator(rules,attributeFields(layer.fc));}catch{evaluate=()=>({});}cache.set(rules,evaluate);}
  const style=evaluate(feature.properties||{});
