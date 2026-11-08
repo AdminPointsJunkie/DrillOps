@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createHandler} from '../fieldops-maps/supabase/functions/drillops-create-user/handler.js';
+const owner='c636e8ab-01d4-458e-a455-6f329dae6bf1';
+function harness({id=owner,active=true,duplicate=false}={}){let created=[];const factory=(_url,key)=>key==='service'?{auth:{admin:{createUser:async input=>{created.push(input);return duplicate?{error:{code:'email_exists',message:'exists'}}:{data:{user:{id:'new',email:input.email}}};}}}}:{auth:{getUser:async()=>({data:{user:{id}}})},rpc:async()=>({data:{owner:true,active}})};return {created,handler:createHandler(factory,k=>k==='SUPABASE_SERVICE_ROLE_KEY'?'service':'public')};}
+const input={name:'Test Name',email:' TEST@example.invalid ',password:'test-password-123',apps:['eos','project']};
+function request(data=input,headers={Authorization:'Bearer valid'}){return new Request('https://example.invalid',{method:'POST',headers,body:JSON.stringify(data)});}
+test('only chosen apps are provisioned server-side',async()=>{const h=harness();const r=await h.handler(request());assert.equal(r.status,201);assert.deepEqual(h.created[0].app_metadata.drillops_initial_apps,['eos','project']);assert.equal(h.created[0].app_metadata.drillops_created_by,owner);assert.equal(h.created[0].email,'test@example.invalid');assert.equal((await r.text()).includes(input.password),false);});
+test('non-owner, inactive owner, and missing authentication cannot create users',async()=>{for(const config of [{id:'other'},{active:false}]){const h=harness(config);assert.equal((await h.handler(request())).status,403);assert.equal(h.created.length,0);}const h=harness();assert.equal((await h.handler(request(input,{}))).status,401);});
+test('invalid and empty grants are rejected before provisioning',async()=>{for(const change of [{apps:[]},{apps:['admin']},{password:'short'},{email:'invalid'}]){const h=harness();assert.equal((await h.handler(request({...input,...change}))).status,400);assert.equal(h.created.length,0);}});
+test('duplicate email returns conflict without altering existing grants',async()=>{const h=harness({duplicate:true});assert.equal((await h.handler(request())).status,409);assert.equal(h.created.length,1);});
+test('untrusted browser origins are rejected',async()=>{const h=harness();assert.equal((await h.handler(request(input,{Authorization:'Bearer valid',Origin:'https://untrusted.invalid'}))).status,403);assert.equal(h.created.length,0);});
