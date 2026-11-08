@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>FieldMaps zipped KML verification</title><h1>Browser import verification</h1><pre id="results">Running…</pre><script type="module">
+import {inspect,convert} from '../src/importer.js';
+import {zipSync,strToU8} from 'fflate';
+const results=document.querySelector('#results');results.textContent='';let failures=0;
+const assert=(v,msg)=>{if(!v)throw Error(msg)};
+const fixture=async name=>new File([await (await fetch('./fixtures/'+name)).arrayBuffer()],name);
+async function test(name,fn){try{await fn();results.textContent+='PASS '+name+'\n';}catch(e){failures++;results.textContent+='FAIL '+name+': '+(e.stack||e)+'\n';}}
+const settings={crs:'EPSG:4326',x:'longitude',y:'latitude'};
+for(const name of ['survey.kml','survey.kmz'])await test(name,async()=>{const result=await inspect([await fixture(name)]);assert(result.items.length&&!result.errors.length,result.errors.join('; '));for(const item of result.items)assert((await convert(item,{...settings,crs:item.source})).fc.features.length===3,'features missing');});
+for(const name of ['nested.KMZ','survey.kml.zip'])await test(name+' with nested KML and companion resources',async()=>{
+ const kml=new Uint8Array(await (await fixture('survey.kml')).arrayBuffer());
+ const entries={'export/layers/Survey.KML':kml};
+ if(/kmz$/i.test(name)){entries['icons/pin.png']=strToU8('not a standalone image layer');entries['readme.txt']=strToU8('Companion resource');}
+ const file=new File([zipSync(entries)],name),result=await inspect([file]);
+ assert(!result.errors.length,result.errors.join('; '));assert(result.items.length===1,'KML resources became extra layers');
+ const item=result.items[0],data=await convert(item,{...settings,crs:item.source});
+ assert(item.files[0]===file,'original archive not retained');assert(data.fc.features.length===3,'features lost');
+ assert(data.fc.features.map(f=>f.geometry.type).join(',')==='Point,LineString,Polygon','geometry types lost');
+ assert(data.fc.features[0].properties.Name==='Hole A','placemark name lost');
+ assert(data.fc.features[0].geometry.coordinates.join(',')==='153,-27,10','coordinates or elevation lost');
+});
+await test('KMZ with multiple nested KML documents',async()=>{
+ const kml=new Uint8Array(await (await fixture('survey.kml')).arrayBuffer());
+ const file=new File([zipSync({'first/doc.kml':kml,'second/doc.kml':kml})],'layers.kmz'),result=await inspect([file]);
+ assert(!result.errors.length,result.errors.join('; '));assert(result.items.length===2,'nested KML documents missing');
+ assert(result.items.every(i=>i.format==='KMZ'&&i.files[0]===file),'KMZ source metadata lost');
+ for(const item of result.items)assert((await convert(item,{...settings,crs:item.source})).fc.features.length===3,'features missing');
+});
+await test('KMZ without KML gives a useful error',async()=>{
+ const result=await inspect([new File([zipSync({'readme.txt':strToU8('No map data')})],'empty.kmz')]);
+ assert(!result.items.length&&result.errors.some(e=>e.includes('contains no KML files')),'missing KML was not explained');
+});
+results.textContent+='DONE: '+failures+' failures';document.title=failures?'FAILED import verification':'PASSED import verification';
+</script>

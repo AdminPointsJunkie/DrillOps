@@ -30,7 +30,14 @@ export async function inspect(files,progress=()=>{},{engine=gdal,unpack=unpackAr
     const reason=unsupportedReason(primary.name);if(reason)throw Error(reason);
     if(archivePattern.test(primary.name)&&! /\.gdb\.zip$/i.test(primary.name)){
      if(depth>=2)throw Error('Nested archives deeper than two levels must be unpacked first.');
-     await readBatch(await unpack(primary,archiveBudget),originals||[primary],depth+1);continue;
+     const extracted=await unpack(primary,archiveBudget),kmz=/\.kmz$/i.test(primary.name);
+     // KMZ is a KML package: icons and other resources are not separate map layers.
+     const datasets=kmz?extracted.filter(file=>/\.kml$/i.test(file.name)):extracted;
+     if(kmz&&!datasets.length)throw Error('This KMZ archive contains no KML files.');
+     const start=items.length;
+     await readBatch(datasets,originals||[primary],depth+1);
+     if(kmz)for(const item of items.slice(start))item.format='KMZ';
+     continue;
     }
     if(imagePattern.test(primary.name)&&group.length===1){items.push(...await readImages(primary,sourceFiles));continue;}
     const special=await readSpecial(primary,sourceFiles);if(special){items.push(...special);continue;}
