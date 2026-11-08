@@ -151,8 +151,8 @@ def create_training_router(get_conn):
         # Defence in depth: do not rely only on the global legacy-route middleware.
         auth = current_auth_user(request)
         cur.execute("SELECT 1 FROM user_profiles WHERE user_id=%s AND active=TRUE AND system_role='system_admin'", (auth.user_id,))
-        if not cur.fetchone():
-            raise HTTPException(403, 'System administrator access is required.')
+        if not cur.fetchone() and not (getattr(auth,'owner',False) or 'project' in getattr(auth,'apps',())):
+            raise HTTPException(403, 'Project app access is required.')
         cur.execute('SELECT name FROM contractors WHERE name=%s', (contractor,))
         row = cur.fetchone()
         if not row:

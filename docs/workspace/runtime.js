@@ -16,7 +16,7 @@ function authConfig(){
   return {url,key};
 }
 
-function saveAuthSession(session){DrillOpsSession.save(session);}
+function saveAuthSession(session){return DrillOpsSession.save(session);}
 function loadStoredAuthSession(){return DrillOpsSession.load();}
 async function authRequest(grantType,payload){return DrillOpsSession.authenticate(grantType,payload);}
 async function accessToken(){return DrillOpsSession.token();}
@@ -56,6 +56,7 @@ async function verifyPortalAccount(){
   const response=await apiFetch(API+'/mobile/me',{cache:'no-store'},2);
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
+  if(Array.isArray(data.apps)&&typeof WORKSPACE_APP!=='undefined'&&!data.apps.includes(WORKSPACE_APP)){window.location.replace('./drillops-account.html');return false;}
   const returnTo=safeReturnTo();
   const hasManagementAccess=data.management_portal_access===true||data.role==='System Administrator';
   const returnPage=returnTo?new URL(returnTo,window.location.href).pathname.split('/').pop():'';
@@ -73,6 +74,7 @@ async function verifyPortalAccount(){
     return false;
   }
   authenticatedUser=data;
+  if(data.owner===false)document.querySelectorAll('[data-page=admin]').forEach(el=>el.hidden=true);
   const name=document.getElementById('authenticated-user-name');
   const email=document.getElementById('authenticated-user-email');
   if(name)name.textContent=data.name+' · '+data.role;
@@ -173,7 +175,7 @@ async function updateRecoveredPassword(){
     });
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.message||data.error_description||'Your password could not be updated.');
-    saveAuthSession(null);
+    await saveAuthSession(null);
     document.getElementById('password-reset-panel').hidden=true;
     document.getElementById('login-panel').hidden=false;
     document.getElementById('login-password').value='';
@@ -195,7 +197,7 @@ async function doLogout(){
       method:'POST',headers:{apikey:config.key,Authorization:'Bearer '+token}
     });
   }catch(error){}
-  saveAuthSession(null);
+  await saveAuthSession(null);
   ['drillops_client_id','drillops_project','drillops_program','drillops_active_page'].forEach(function(key){localStorage.removeItem(key);});
   sessionStorage.clear();
   window.location.reload();
@@ -414,7 +416,7 @@ async function loadAdminPage(){
   const importBody=document.getElementById('admin-imports-body');
   if(userBody)userBody.innerHTML='<tr><td colspan="6">Loading user accounts…</td></tr>';
   if(importBody)importBody.innerHTML='<tr><td colspan="6">Loading import history…</td></tr>';
-  await Promise.all([loadAdminUsers(),loadAdminImports(),loadAdminAudit()]);
+  await Promise.all([loadAdminImports(),loadAdminAudit()]);
 }
 
 async function loadAdminUsers(){

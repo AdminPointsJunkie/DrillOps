@@ -331,14 +331,10 @@
     <!-- Users and immutable change history -->
     <section class="page" id="page-admin">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
-        <div><h2 class="section-title" style="margin-bottom:4px;">Users &amp; Change Log</h2><p style="font-size:12px;color:var(--muted);">Invite accounts, grant project roles, and see who imported or changed operational data.</p></div>
-        <div style="display:flex;gap:8px;"><button class="btn-ghost" type="button" onclick="loadAdminPage()">Refresh</button><button class="btn-primary" type="button" onclick="openUserAccessDialog()">Invite user</button></div>
+        <div><h2 class="section-title" style="margin-bottom:4px;">Users &amp; Change Log</h2></div>
+        <div style="display:flex;gap:8px;"><button class="btn-ghost" type="button" onclick="loadAdminPage()">Refresh</button><a class="btn-primary" href="./drillops-admin.html">Manage DrillOps access</a></div>
       </div>
       <div class="admin-grid">
-        <div class="chart-card">
-          <div class="chart-title" style="display:flex;justify-content:space-between;gap:12px;"><span>User accounts</span><span id="admin-user-count" style="color:var(--muted);font-weight:500;"></span></div>
-          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>User</th><th>Account type</th><th>Project access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="admin-users-body"><tr><td colspan="6">Open this page to load users.</td></tr></tbody></table></div>
-        </div>
         <div class="chart-card">
           <div class="chart-title">Import history</div>
           <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">One row per file or import batch, including its owner and the records created.</p>
@@ -733,11 +729,11 @@
 </div>
 <div id="toast"></div>
 
-<script src="./config.js"></script>
+<script src="./config.js?v=20261108-account1"></script>
 
 <script src="./workspace/navigation.js?v=20261108-tracking2"></script>
-<script src="./auth-session.js?v=20261108-session1"></script>
-<script src="./workspace/runtime.js?v=20261108-startup1"></script>
+<script src="./auth/unified-client.bundle.js?v=20261108-account1"></script><script src="./auth-session.js?v=20261108-account1"></script>
+<script src="./workspace/runtime.js?v=20261108-account1"></script>
 
 
 <script src="./workspace/project-budget-ledger-model.js?v=20261108-unallocated1"></script>
