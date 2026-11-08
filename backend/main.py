@@ -3138,11 +3138,15 @@ def coreplan_drill_code(row):
 
 
 def coreplan_category_code(category, notes):
+    from activity_categories import is_weather_standby
+    code = COREPLAN_CATEGORY_CODES.get(category, "H_Active")
+    if code in {"H_Active", "H_Standby_AAC"} and is_weather_standby(f"{category} {notes or ''}"):
+        return "H_Standby_Wet_Weath"
     if category == "Travel":
         n = (notes or "").lower()
         if "swipe off" in n or "off site" in n or "from site" in n:
             return "H_Crew_Travel_Off"
-    return COREPLAN_CATEGORY_CODES.get(category, "H_Active")
+    return code
 
 
 def parse_coreplan_sections(text):
@@ -4463,6 +4467,7 @@ async def import_pdf(
     project: str = Form(default=""),
     client: str = Form(default=""),
 ):
+    """Import reports with source prices preserved and Mitchells weather standby classified explicitly."""
     filename = file.filename
     content = await file.read()
     if filename.lower().endswith(".csv") and looks_like_site_log_csv(content):

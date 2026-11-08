@@ -1,4 +1,4 @@
-/* Recorded production, independent of prices and chargeability. */
+/* Recorded production with an explicit chargeability filter for standby only. */
 (function(root){
  'use strict';
  const text=v=>String(v??'').trim();
@@ -30,44 +30,117 @@
   return 'other';
  }
  function standby(row){
-  const c=text(row.code).toUpperCase(),notes=text(row.notes).toUpperCase();
-  if(!/STAND[ _-]?BY|INACTIVE/.test(c)&&!/^\s*(?:STAND[ -]?BY|WAITING\b|ON HOLD\b)/.test(notes))return '';
-  const s=c+' '+notes;
-  if(/WEAT|RAIN/.test(s))return 'Weather';
-  if(/WATER/.test(s))return 'Water supply';
-  if(/LOGGER|GEOPHYS/.test(s))return 'Geophysical logger';
-  if(/FATIGUE/.test(s))return 'Fatigue management';
-  if(/NO.?CREW|WITHOUT.?CREW/.test(s))return 'Without crew';
-  if(/INSP/.test(s))return 'Site inspections';
-  if(/AAC|COMPANY/.test(s))return 'Company instruction';
-  return 'Other standby';
+  const c=text(row.code).toUpperCase().replace(/[ -]/g,'_'),notes=text(row.notes).toUpperCase();
+  const weatherStop=!(Number(row.total_metres)>0)&&(/^(?:WET WEATHER|RAIN DELAY|RAINED OFF)\b/.test(notes)||/TOO? WET TO (?:WORK|DRILL|MOVE)/.test(notes));
+  if(!/STAND_?BY|INACTIVE/.test(c)&&c!=='H_SAFETY_GAS'&&!weatherStop&&!/^\s*(?:STAND[ -]?BY|WAITING\b|ON HOLD\b)/.test(notes))return '';
+  const reason=s=>{
+   if(/WEAT|RAIN|WET[ _-]/.test(s))return 'Wet weather';
+   if(/NO_?GAS_?MON|GAS[ _-]?MONITOR/.test(s))return 'Gas monitor unavailable';
+   if(/WITHOUT[ _-]?CREW|NO[ _-]?CREW/.test(s))return 'Without crew';
+   if(/FATIGUE/.test(s))return 'Fatigue management';
+   if(/CEMENT[ _-]?SET|GROUT.*SET/.test(s))return 'Waiting for grout / cement to set';
+   if(/GROUTER|WAITING.*GROUTING UNIT/.test(s))return 'Waiting for grouting unit';
+   if(/GROUT/.test(s))return 'Grouting in progress';
+   if(/LOGGER|WAITING.*GEOPHYS/.test(s))return 'Waiting for geophysical logger';
+   if(/LOGGING|GEOPHYS/.test(s))return 'Geophysical logging in progress';
+   if(/WATER[ _-]?CART/.test(s))return 'Water cart standby';
+   if(/WATER/.test(s))return 'Water supply';
+   if(/BACKHOE/.test(s))return 'Backhoe standby';
+   if(/BLAST/.test(s))return 'Mine blasting';
+   if(/MINE[ _-]?SHUT/.test(s))return 'Mine shutdown';
+   if(/INCIDENT|INVESTIGATION|ICAM/.test(s))return 'Incidents / investigations';
+   if(/SITE[ _-]?PREP/.test(s))return 'Site preparation';
+   if(/INSP/.test(s))return 'Site inspections';
+   if(/VAC(?:UUM)?/.test(s))return 'Vacuum truck';
+   if(/SUMP/.test(s))return 'Sump preparation';
+   if(/TESTING|PERMEAB|PIEZOMETER/.test(s))return 'Testing / piezometer installation';
+   if(/SAFETY_GAS|GAS DETECT/.test(s))return 'Gas safety';
+   return '';
+  };
+  // A specific activity code takes precedence over incidental words in the notes.
+  return reason(c)||reason(notes)||(/CONTRACTOR/.test(c)?'Contractor instruction':/AAC|COMPANY/.test(c)?'Company instruction':'Other standby');
+ }
+ function standbyChargeability(row){
+  const flag=text(row.chargeable??row.is_chargeable).toLowerCase(),basis=text(row.rate_basis);
+  const code=text(row.code).toUpperCase();
+  if(['false','no','n','0'].includes(flag)||/\b(?:not[ _-]+chargeable|non[ _-]*chargeable|no[ _-]+charge)\b/i.test(basis)||/(?:^|_)NC(?:_|$)/.test(code)
+   ||(text(row.contractor)==='Mitchells Drilling'&&code==='H_STANDBY_FATIGUE'))return 'non-chargeable';
+  const number=v=>v==null||text(v)===''?null:(Number.isFinite(Number(v))?Number(v):null);
+  const rate=number(row.unit_rate),cost=number(row.line_cost);
+  if(['true','yes','y','1'].includes(flag)||(rate!==null&&rate>0)||(cost!==null&&cost>0))return 'chargeable';
+  if(rate===0&&(cost===null||cost===0))return 'non-chargeable';
+  // A missing rate or a zero line total alone is not evidence of free standby.
+  return 'unconfirmed';
+ }
+ function standbyIncluded(row,options={}){
+  const status=standbyChargeability(row);
+  return status==='chargeable'||(options.includeNonChargeable===true&&status==='non-chargeable');
  }
  function cleanRows(rows){
   const seen=new Set(),out=[];let duplicates=0;
   for(const row of rows||[]){const key=row.id==null?null:JSON.stringify([row.contractor,row.id]);if(key&&seen.has(key)){duplicates++;continue;}if(key)seen.add(key);out.push(row);}
   return {rows:out,duplicates};
  }
- function summarise(source){
-  const cleaned=cleanRows(source),rows=cleaned.rows;
-  const total={metres:0,core:0,chip:0,other:0,hours:0,drillingHours:0,standbyHours:0,missingTime:0,missingStandbyTime:0,invalidMetres:0,invalidDates:0,duplicates:cleaned.duplicates};
-  const days=new Map(),projects=new Map(),rigs=new Map(),reasons=new Map(),reports=new Set(),holes=new Set();
-  const add=(map,key,label,project,contractor)=>{if(!map.has(key))map.set(key,{label,project,contractor,core:0,chip:0,other:0,metres:0,hours:0,standbyHours:0,rows:0});return map.get(key);};
+ function completionEvents(source){
+  const events=new Map(),marker='(?:end[ -]+of[ -]+hole|eoh|hole[ -]+complet(?:ed|e))';
+  const positive=new RegExp('\\b'+marker+'\\b','i');
+  const negative=new RegExp('\\b(?:no|not|before|until|planned|expected|target|awaiting)\\b[^.;\\n]{0,45}\\b'+marker+'\\b|\\b'+marker+'\\b\\s+(?:not|pending|tomorrow)','i');
+  for(const row of cleanRows(source).rows){
+   const d=date(row.date),hole=text(row.hole_num),notes=text(row.notes);
+   if(!d||!hole||!positive.test(notes)||negative.test(notes))continue;
+   const key=JSON.stringify([row.contractor,row.project,hole].map(v=>text(v).toUpperCase()));
+   if(!events.has(key)||d<date(events.get(key).date))events.set(key,row);
+  }
+  return [...events.values()];
+ }
+ function siteMove(row){
+  const code=text(row.code).toUpperCase(),notes=text(row.notes);
+  if(standby(row)||/CREW.*TRAVEL/.test(code))return '';
+  const explicit=/^H_RIG_MOVE$|_MOB_DEMOB_SITE_TO_SITE_/.test(code);
+  const described=/\bsite move\b|\b(?:mov(?:e|ed|ing)|relocat\w*)\b.{0,35}\b(?:next|new|between)\b.{0,15}\b(?:site|pad|hole)s?\b/i.test(notes);
+  if(!explicit&&(!described||/\b(?:no|not|waiting|planning|planned|tomorrow|unable|too wet|to wet)\b.{0,45}\b(?:move|moving|relocat)/i.test(notes)))return '';
+  return /SETUP|PACKUP|SURFACE_SETUP/.test(code)||/set[ -]?up|pack[ -]?up|rig[ -]?(?:up|down)/i.test(notes)?'combined':'move';
+ }
+ function summarise(source,options={}){
+  const cleaned=cleanRows(source),rows=cleaned.rows,completed=new Set(options.completionEvents||completionEvents(options.completionSource||rows));
+  const metric=()=>({metres:0,core:0,chip:0,other:0,hours:0,drillingHours:0,coreHours:0,chipHours:0,rateMetres:0,coreRateMetres:0,chipRateMetres:0,untimedDrillingMetres:0,standbyHours:0,movingHours:0,combinedMoveHours:0,completedHoles:0});
+  const total={...metric(),nonChargeableStandbyHours:0,unconfirmedStandbyHours:0,unconfirmedStandbyRows:0,excludedStandbyHours:0,missingMoveTime:0,missingTime:0,missingStandbyTime:0,invalidMetres:0,invalidDates:0,duplicates:cleaned.duplicates};
+  const days=new Map(),projects=new Map(),rigs=new Map(),reasons=new Map(),reports=new Set(),holes=new Set(),productionRigDays=new Set(),moves=[];
+  const add=(map,key,label,project,contractor)=>{if(!map.has(key))map.set(key,{label,project,contractor,...metric(),rows:0});return map.get(key);};
   for(const r of rows){
-   const d=date(r.date),h=hours(r),kind=method(r),reason=standby(r),raw=r.total_metres;
+   const d=date(r.date),h=hours(r),kind=method(r),reason=standby(r),move=siteMove(r),included=reason&&standbyIncluded(r,options),status=reason?standbyChargeability(r):'',raw=r.total_metres;
    let m=raw==null||text(raw)===''?0:Number(raw);if(!Number.isFinite(m)||m<0){total.invalidMetres++;m=0;}
    if(!d)total.invalidDates++;
+   const drilling=!reason&&!move&&(m>0||(kind!=='other'&&text(r.code))||text(r.code).toUpperCase()==='H_DRILLING');
    const project=text(r.project)||'Unassigned project',contractor=text(r.contractor)||'Not recorded',rig=text(r.drill_rig)||'Not recorded';
    const groups=[total,add(projects,project.toLowerCase(),project,project,contractor),add(rigs,JSON.stringify([contractor,rig]),rig,project,contractor)];
    if(d)groups.push(add(days,d,d));
-   for(const g of groups){g.metres+=m;g[kind]+=m;g.hours+=h||0;g.standbyHours+=reason?(h||0):0;if(g!==total)g.rows++;}
-   if(h===null){total.missingTime++;if(reason)total.missingStandbyTime++;}
-   if(!reason&&(m>0||(kind!=='other'&&text(r.code))))total.drillingHours+=h||0;
-   if(reason){const item=add(reasons,reason,reason);item.hours+=h||0;item.rows++;item.missing=(item.missing||0)+(h===null?1:0);}
+   for(const g of groups){
+    g.metres+=m;g[kind]+=m;g.hours+=h||0;g.standbyHours+=included?(h||0):0;g.completedHoles+=completed.has(r)?1:0;if(g!==total)g.rows++;
+    if(drilling){g.drillingHours+=h||0;if(h>0)g.rateMetres+=m;else g.untimedDrillingMetres+=m;
+     if(kind==='core'||kind==='chip'){g[kind+'Hours']+=h||0;if(h>0)g[kind+'RateMetres']+=m;}
+    }
+    if(move){g.movingHours+=h||0;if(move==='combined')g.combinedMoveHours+=h||0;}
+   }
+   if(h===null){total.missingTime++;if(included)total.missingStandbyTime++;if(move)total.missingMoveTime++;}
+   if(move)moves.push({...r,moveType:move,moveHours:h});
+   if(reason){
+    if(status==='non-chargeable')total.nonChargeableStandbyHours+=h||0;
+    if(status==='unconfirmed'){total.unconfirmedStandbyHours+=h||0;total.unconfirmedStandbyRows++;}
+    if(!included)total.excludedStandbyHours+=h||0;
+    else{
+     const item=add(reasons,reason,reason);item.hours+=h||0;item.rows++;item.missing=(item.missing||0)+(h===null?1:0);
+     const key=status==='chargeable'?'chargeableHours':'nonChargeableHours';item[key]=(item[key]||0)+(h||0);
+    }
+   }
    reports.add(JSON.stringify([contractor,project,d||r.date,r.source_file||'',r.source_file?'':r.hole_num||'',r.source_file?'':r.shift||'']));
    if(text(r.hole_num)&&m>0)holes.add(JSON.stringify([project,r.hole_num]));
+   if(d&&m>0)productionRigDays.add(JSON.stringify([contractor,rig,d]));
   }
-  const daily=[...days.values()].sort((a,b)=>a.label.localeCompare(b.label)),productionDays=daily.filter(d=>d.metres>0),best=productionDays.reduce((best,d)=>!best||d.metres>best.metres?d:best,null);
-  return {...total,rows,projects:[...projects.values()].sort((a,b)=>a.label.localeCompare(b.label)),rigs:[...rigs.values()].sort((a,b)=>a.contractor.localeCompare(b.contractor)||a.label.localeCompare(b.label)),reasons:[...reasons.values()].sort((a,b)=>b.hours-a.hours),daily,productionDays:productionDays.length,average:productionDays.length?total.metres/productionDays.length:0,best,reportCount:reports.size,holeCount:holes.size,standbyPercent:total.hours?total.standbyHours/total.hours*100:null};
+  const finish=g=>({...g,penetration:g.drillingHours?g.rateMetres/g.drillingHours:null,corePenetration:g.coreHours?g.coreRateMetres/g.coreHours:null,chipPenetration:g.chipHours?g.chipRateMetres/g.chipHours:null});
+  const daily=[...days.values()].sort((a,b)=>a.label.localeCompare(b.label)).map(finish),productionDays=daily.filter(d=>d.metres>0),best=productionDays.reduce((best,d)=>!best||d.metres>best.metres?d:best,null);
+  const displayedHours=Math.max(0,total.hours-total.excludedStandbyHours);
+  return {...finish(total),displayedHours,includeNonChargeable:options.includeNonChargeable===true,rows,moves,completedRows:rows.filter(r=>completed.has(r)),projects:[...projects.values()].sort((a,b)=>a.label.localeCompare(b.label)).map(finish),rigs:[...rigs.values()].sort((a,b)=>a.contractor.localeCompare(b.contractor)||a.label.localeCompare(b.label)).map(finish),reasons:[...reasons.values()].sort((a,b)=>b.hours-a.hours),daily,recordedDays:daily.length,productionDays:productionDays.length,productionRigDays:productionRigDays.size,average:productionDays.length?total.metres/productionDays.length:0,averageCore:productionDays.length?total.core/productionDays.length:0,averageChip:productionDays.length?total.chip/productionDays.length:0,averagePerRigDay:productionRigDays.size?total.metres/productionRigDays.size:0,standbyPerDay:daily.length?total.standbyHours/daily.length:0,movingPerDay:daily.length?total.movingHours/daily.length:0,best,reportCount:reports.size,holeCount:holes.size,standbyPercent:displayedHours?total.standbyHours/displayedHours*100:null};
  }
  function scopeMatch(row,scope){
   const norm=v=>text(v).toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ');
@@ -76,6 +149,6 @@
   if(scope.program&&!text(row.program).split(',').some(p=>norm(p)===norm(scope.program)))return false;
   return true;
  }
- const api={date,duration,hours,method,standby,cleanRows,summarise,scopeMatch};
+ const api={date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,completionEvents,cleanRows,summarise,scopeMatch};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosProduction=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
