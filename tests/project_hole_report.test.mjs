@@ -38,3 +38,7 @@ test('contractor budgets reconcile to the active hole plan including cents round
  const m=run({source:{...source,holes:[[1,'SITE-A',1,600,399.99],[2,'SITE-B',1,600,400]]}});
  assert.equal(m.contractors.find(r=>r.name==='Budget rounding').budget,.01);assert.equal(Math.round(m.contractors.reduce((s,r)=>s+(r.budget||0),0)*100),Math.round(m.plannedBudget*100));
 });
+test('drilling bars exclude separately coded earthworks while total EOS retains them',()=>{
+ const m=run({evidence:{...evidence,activities:[row,{...row,id:9,code:'D_Backhoe',total_metres:0,line_cost:100}]}});
+ assert.equal(m.metrics[0].drillBudget,600);assert.equal(m.metrics[0].drillingActual,450);assert.equal(m.metrics[0].eos,550);
+});
