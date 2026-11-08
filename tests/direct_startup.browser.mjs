@@ -15,7 +15,7 @@ try{
   assert.equal(await page.locator('#workspace-gate').isVisible(),false);
   assert.equal(await page.evaluate(()=>document.body.classList.contains('workspace-locked')),false);
   assert.equal(await page.evaluate(()=>activeProjectName),saved?'Example':'');
-  assert.equal(await page.locator('#page-'+(app==='account'?'invoices':'project-dashboard')).evaluate(el=>el.classList.contains('active')),true);
+  assert.equal(await page.locator('#page-'+(app==='account'?'accounts-overview':'project-dashboard')).evaluate(el=>el.classList.contains('active')),true);
   assert.equal(await page.locator('#workspace-context-btn').count(),0);
   assert.deepEqual(errors,[]);await context.close();
  }

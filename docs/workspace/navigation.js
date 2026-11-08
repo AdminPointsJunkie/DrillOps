@@ -8,7 +8,7 @@ function contractorsForApp(rows, field='name'){
 }
 const WORKSPACE_PAGES = {
  eos:['reports','activities','report-calendar','costing','rates','cost-contracts','importer','settings'],
- account:['invoices','reconciliation','purchase-orders','contractors','importer'],
+ account:['accounts-overview','invoices','reconciliation','purchase-orders','contractors','importer'],
  project:['project-dashboard','project-budgets','budget','boreholes','admin']
 };
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}
@@ -29,7 +29,7 @@ function showAppHome(){
 function openInitialAppPage(){
  let requested=new URLSearchParams(location.search).get('view');
  if(WORKSPACE_APP==='eos'&&requested==='production'){requested='reports';syncEosRoute('reports',true);}
- const page=WORKSPACE_PAGES[WORKSPACE_APP].includes(requested)?requested:({account:'invoices',project:'project-dashboard'}[WORKSPACE_APP]||'');
+ const page=WORKSPACE_PAGES[WORKSPACE_APP].includes(requested)?requested:({account:'accounts-overview',project:'project-dashboard'}[WORKSPACE_APP]||'');
  if(page&&WORKSPACE_PAGES[WORKSPACE_APP].includes(page)){
   const button=document.querySelector('.drawer-nav-item[data-page="'+page+'"]');
   if(button)drawerNav(button);
