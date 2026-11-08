@@ -63,7 +63,7 @@
     el('ledger-detail').hidden = true; breakdown.hidden = true;
     el('ledger-scope').textContent = [projectLabel(), activeProgram, 'Invoices'].filter(Boolean).join(' / ');
     el('ledger-title').textContent = projectLabel() ? 'Invoice ledger · '+projectLabel() : 'Invoice ledger';
-    page.dataset.projectId = linkedProject()?.id || ''; 
+    page.dataset.projectId = linkedProject()?.id || '';
     if (!activeProjectName) { message('Choose a workspace project to view its invoice ledger.'); return; }
     message('Loading invoice ledger…');
     try {
