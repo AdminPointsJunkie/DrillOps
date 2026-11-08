@@ -41,17 +41,18 @@ function renderEosPeriodReport(){
  productionSet('eos-period-message',eosPeriodLoading?'Preparing operations report…':error);
  document.getElementById('eos-period-print').disabled=!!unavailable;
  document.getElementById('eos-period-document').hidden=!!unavailable;
- if(unavailable){eosPeriodSummary=null;clearEosWeather();return;}
+ if(unavailable){eosPeriodSummary=null;document.getElementById('eos-print-page-style')?.remove();clearEosWeather();return;}
  const rows=eosPeriodRows.filter(r=>{const date=EosProduction.date(r.date);return date&&(!from||date>=from)&&(!to||date<=to)&&(!rig||String(r.drill_rig||'Not recorded').trim()===rig);});
  const options={...eosStandbyOptions(eosPeriodRows),completionEvents:EosProduction.completionEvents(eosPeriodRows)};
  const s=EosProduction.summarise(rows,options);eosPeriodSummary=s;
  const n=productionNumber,showTables=document.getElementById('eos-period-show-tables').checked,showCharges=document.getElementById('eos-period-show-charges').checked;
- const charges=showTables&&showCharges?EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables):null;
+ const charges=showCharges?EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables):null;
  document.getElementById('eos-period-charges-heading').hidden=!showCharges;document.getElementById('eos-period-charges-note').hidden=!showCharges;
  productionSet('eos-period-contractor',activeContractor);
  productionSet('eos-period-context',eosScopeLabel());
  productionSet('eos-period-dates',from||to?[from?productionDisplayDate(from,false):'Start',to?productionDisplayDate(to,false):'Latest'].join(' – '):'No dated records');
  productionSet('eos-period-rigs-label',rig||'All rigs');
+ updateEosPrintHeader();
  const drilling=contractorCategory(contractorByName(activeContractor))==='Drilling';
  productionSet('eos-period-narrative',rows.length?(drilling?n(s.metres)+' m · '+s.holeCount+' holes · ':n(s.hours)+' h · ')+s.reportCount+' plods · '+s.projects.length+' projects':'No records for these filters.');
  const metrics=drilling?[['Cored',n(s.core),'m'],['Chipped / open hole',n(s.chip),'m'],['Holes completed',s.completedHoles,''],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Drilling time',n(s.drillingHours),'h'],['Source plods',s.reportCount,'']]:[['Recorded activity',n(s.hours),'h'],[eosIncludeNonChargeableStandby?'Standby':'Chargeable standby',n(s.standbyHours),'h'],['Source plods',s.reportCount,'']];
@@ -69,12 +70,13 @@ function renderEosPeriodReport(){
  document.getElementById('eos-period-projects').innerHTML=showTables?productionSummaryRows(s.projects):'';
  productionSet('eos-period-standby-summary',n(s.standbyHours)+' hours'+(s.standbyPercent===null?'':', '+n(s.standbyPercent)+'% of displayed activity time')+'.'+(s.missingStandbyTime?' '+s.missingStandbyTime+' standby entries have no usable duration.':''));
  document.getElementById('eos-period-standby').innerHTML=!showTables?'':s.reasons.map(r=>'<tr><td>'+esc(r.label)+(r.missing?' · '+r.missing+' missing duration':'')+'</td><td class="num">'+n(r.hours)+'</td><td class="num">'+r.rows+'</td></tr>').join('')||'<tr><td colspan="3">No standby recorded.</td></tr>';
- document.getElementById('eos-period-register').innerHTML=!showTables?'':eosPeriodRegister(rows,options).map(({row:r,summary:s,holes})=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.shift||'Shift not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.source_file||'Manual entry')+'<small>'+esc(holes||'Hole not recorded')+'</small></td>'+['core','chip','other','standbyHours','hours'].map(k=>'<td class="num">'+n(s[k])+(k==='hours'&&s.missingTime?' *':'')+'</td>').join('')+(showCharges?eosShiftChargeCell(charges.get(EosShiftCharges.key(r))):'')+'</tr>').join('')||'<tr><td colspan="'+(showCharges?9:8)+'">No shifts recorded.</td></tr>';
+ document.getElementById('eos-period-register').innerHTML=eosPeriodRegister(rows,options).map(({row:r,summary:s,holes})=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.shift||'Shift not recorded')+'</small></td><td>'+esc(r.project||'Unassigned project')+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.source_file||'Manual entry')+'<small>'+esc(holes||'Hole not recorded')+'</small></td>'+['core','chip','other','standbyHours','hours'].map(k=>'<td class="num">'+n(s[k])+(k==='hours'&&s.missingTime?' *':'')+'</td>').join('')+(showCharges?eosShiftChargeCell(charges.get(EosShiftCharges.key(r))):'')+'</tr>').join('')||'<tr><td colspan="'+(showCharges?9:8)+'">No shifts recorded.</td></tr>';
  productionSet('eos-period-generated','Prepared '+new Date().toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST');
 }
-printPeriodReport=function(){if(!eosPeriodSummary)return;document.body.classList.add('eos-period-print');window.print();};
-window.addEventListener('beforeprint',()=>{if(isPageActive('reports'))document.body.classList.add('eos-period-print');});
-window.addEventListener('afterprint',()=>document.body.classList.remove('eos-period-print'));
+printPeriodReport=function(){if(!eosPeriodSummary)return;prepareEosPrint();window.print();};
+function prepareEosPrint(){if(isPageActive('reports')&&eosPeriodSummary){document.body.classList.add('eos-period-print');updateEosPrintHeader();document.getElementById('eos-print-page-style').media='print';}}
+window.addEventListener('beforeprint',prepareEosPrint);
+window.addEventListener('afterprint',()=>{document.body.classList.remove('eos-period-print');const style=document.getElementById('eos-print-page-style');if(style)style.media='not all';});
 
 function toggleEosPeriodTables(){renderEosPeriodReport();document.querySelectorAll('#eos-period-document .eos-period-data-table').forEach(el=>el.hidden=!document.getElementById('eos-period-show-tables').checked);}
 
@@ -84,4 +86,16 @@ function eosShiftChargeCell(charge){
  const value=charge.priced?cur(charge.total)+(incomplete?' *':''):'—';
  const notes=[charge.unpriced?charge.unpriced+' unpriced lines':'',charge.sharedMaterials?'Shared materials not allocated':'',charge.excluded?'Weekly-billed lines excluded':''].filter(Boolean);
  return '<td class="num eos-shift-charge">'+value+(notes.length?'<small>'+esc(notes.join(' · '))+'</small>':'')+'</td>';
+}
+
+// Page-margin content repeats without overlapping the report's flowing content.
+// Use the unnamed page rule for every continuation page; enable it only while printing this report.
+// https://developer.chrome.com/blog/print-margins
+function updateEosPrintHeader(){
+ const quote=value=>'"'+String(value).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\n\r\f]/g,' ')+'"';
+ const text=id=>document.getElementById('eos-period-'+id).textContent;
+ const lines=values=>values.map(quote).join(' "\\A " ');
+ let style=document.getElementById('eos-print-page-style');if(!style){style=document.createElement('style');style.id='eos-print-page-style';style.media='not all';document.head.append(style);}
+ const common='white-space:pre-line;vertical-align:middle;padding-bottom:2mm;margin-bottom:3mm;border-bottom:1px solid #315d49;color:#26352d;width:50%;';
+ style.textContent='@page{size:A4 portrait;margin:30mm 12mm 14mm;@top-left{content:'+lines(['DrillOps EOS · Production Report',text('contractor'),text('context')])+';'+common+'font:600 10px/1.5 Arial,sans-serif;text-align:left;}@top-right{content:'+lines([text('dates'),text('rigs-label')])+';'+common+'font:400 9px/1.5 Arial,sans-serif;text-align:right;}}';
 }
