@@ -25,6 +25,7 @@ async function loadProjectBudgetPanel(){
  projectWorkbookData=results[1].status==='fulfilled'?results[1].value:null;
  projectWorkbookError=[results[0].status==='rejected'?'Manual allocations could not load.':'',results[1].status==='rejected'?'Workbook budget could not load. Refresh to retry.':'',results[2].status==='rejected'?'BH Planner statuses could not load; original budgets remain available.':''].filter(Boolean).join(' ');
  renderProjectBudgets();
+ loadProjectBudgetSuppliers();
 }
 function renderProjectWorkbookBudget(){
  const host=document.getElementById('project-workbook-budget');if(!host)return;
@@ -66,7 +67,7 @@ async function selectProjectWorkspace(id){
  if(page==='project-dashboard')await loadProjectDashboard();
  else if(page==='budget')await loadProjectBudgets();
  else {const nav=document.querySelector('.drawer-nav-item[data-page="'+page+'"]');if(nav)drawerNav(nav);}
- await loadProjectContractors();ensureActiveContractorInProgram();buildContractorSwitcher();
+
 }
 const projectSwitcher=document.getElementById('project-switcher');
 projectSwitcher.querySelector('#project-switcher-button').addEventListener('click',()=>toggleProjectSwitcher());
@@ -83,3 +84,12 @@ function refreshVisibleBudgetStatuses(){
 window.addEventListener('focus',refreshVisibleBudgetStatuses);
 window.addEventListener('storage',event=>{if(event.key==='drillops_borehole_status_changed')refreshVisibleBudgetStatuses();});
 window.addEventListener('drillops-borehole-status-changed',refreshVisibleBudgetStatuses);
+
+// The supplier directory is only needed when editing manual allocations.
+let projectBudgetSuppliersLoading=null;
+async function loadProjectBudgetSuppliers(){
+ if(!document.getElementById('budget-manual-section').open||!isPageActive('budget')||projectBudgetPlannerRows===null||projectBudgetSuppliersLoading)return;
+ projectBudgetSuppliersLoading=fetchContractors();
+ try{await projectBudgetSuppliersLoading;document.querySelectorAll('#project-budget-body select[data-col="vendor"]').forEach(select=>{const value=select.value;select.innerHTML=budgetContractorOptions(value);select.value=value;});}finally{projectBudgetSuppliersLoading=null;}
+}
+document.getElementById('budget-manual-section').addEventListener('toggle',loadProjectBudgetSuppliers);

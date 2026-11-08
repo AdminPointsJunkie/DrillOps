@@ -95,7 +95,7 @@ for area,cfg in APPS.items():
   s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-dashboard-model.js?v=20261108-approved1"></script>\n<script src="./workspace/project-dashboard.js?v=20261108-approved1"></script>\n<script src="./workspace/start.js')
  if area=='project':
   s=s.replace('  </div>\n</div>\n\n<!-- Header -->','  </div>\n'+(SRC/'project-switcher.html').read_text()+'\n</div>\n\n<!-- Header -->')
-  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-budget-source.js?v=20261108-unallocated1"></script>\n<script src="./workspace/start.js')
+  s=s.replace('<script src="./workspace/start.js','<script src="./workspace/project-budget-source.js?v=20261108-startup1"></script>\n<script src="./workspace/start.js')
  if area=='project':
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/rig-scheduler.css?v=20261108-scheduler1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/rig-scheduler-model.js?v=20261108-scheduler1"></script>\n<script src="./workspace/rig-scheduler.js?v=20261108-scheduler1"></script>\n<script src="./workspace/start.js')
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/project-hole-report.css?v=20261108-projectsummary1"></head>')
@@ -107,6 +107,12 @@ for area,cfg in APPS.items():
  if area=='eos':s=s.replace('<script src="./workspace/start.js','<script src="./workspace/eos-settings.js?v=20261108-standby1"></script>\n<script src="./workspace/eos-sections.js?v=20261108-report2"></script>\n<script src="./workspace/start.js')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
+ if area=='project':
+  s=re.sub(r'<script src="\./(?:invoice-ledger|invoice-import|fortem-estimate)\.js[^\"]*"></script>','',s)
+  s=re.sub(r'<link rel="stylesheet" href="\./invoice-ledger\.css[^\"]*">','',s)
+  s=s.replace('<div id="contractor-switcher" aria-label="Contractor switcher"></div>','')
+  s=s.replace('<div class="header-meta"><span id="db-count">—</span> records</div>','')
+
  if area!='home':
   s=s.replace('<div id="login-screen" class="site">','<div id="login-screen" class="site signin-mode">').replace('Sign in to your workspace.',f'Sign in to {title}.').replace('Operations workspace',title).replace('>DO</div>',f'>{title[:1]}</div>')
  s=s.replace('<div class="login-copy"><div class="kicker">DrillOps</div>', '<div class="login-copy">'+wordmark(title,'./'+area+'.html'))

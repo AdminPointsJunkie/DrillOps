@@ -643,6 +643,7 @@ function openProjectWorkspaceSection(section){
 }
 
 function renderDrawerContractors(){
+  if(WORKSPACE_APP==='project')return;
   const list=document.getElementById('drawer-contractor-list');
   if(!list)return;
   list.innerHTML=filteredContractors().map((c)=>`
@@ -734,6 +735,7 @@ async function saveContractorGl(button){
 }
 
 function renderDrawerContractors(){
+  if(WORKSPACE_APP==='project')return;
   const list=document.getElementById('drawer-contractor-list');
   if(!list)return;
   list.innerHTML=filteredContractors().map((c)=>`
@@ -1360,6 +1362,7 @@ function sortDailyReportsFromKey(event,key){
 
 // ── Contractor switcher ───────────────────────────────────────────────────────
 function buildContractorSwitcher(){
+  if(WORKSPACE_APP==='project')return;
   ensureActiveContractorInProgram();
   setProgramControls();
   const label=document.getElementById('active-contractor-label');
@@ -10170,6 +10173,18 @@ async function initializePortal(){
       if(previous!==activeContractor)switchContractor(activeContractor);
       renderEosScopeControls();buildContractorSwitcher();syncWorkspaceControls();
     }).catch(error=>console.warn('EOS setup refresh failed:',error.message));
+    return;
+  }
+  if(WORKSPACE_APP==='project'){
+    // Project pages own their data loads. Do not preload the hidden budget page,
+    // contractor switcher or EOS filter counts before opening the requested view.
+    await fetchProjects();
+    if(!restoreWorkspaceSelection()){activeClientId=null;activeProjectName='';activeProgram='';}
+    document.getElementById('workspace-gate').classList.remove('open');
+    document.body.classList.remove('workspace-locked');
+    workspaceStarted=true;
+    syncWorkspaceControls();
+    openInitialAppPage();
     return;
   }
   await Promise.all([fetchContractors(),fetchProjects()]);
