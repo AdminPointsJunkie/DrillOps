@@ -140,9 +140,38 @@ class DepcoRatesTests(unittest.TestCase):
         self.assertIsNone(result['line_cost'])
         self.assertIn('overlapping',result['rate_basis'])
 
-    def test_missing_price_and_wet_weather_remain_review(self):
-        for r in (self.rate('C','PCD 125 - 175',depth_from=0),self.rate('A','Wet Weather Standby')):
-            self.assertIsNone(self.price(r,total_time=3,metres_from=0,metres_to=10,total_metres=10)['line_cost'])
+    def test_missing_drilling_price_remains_review(self):
+        r=self.rate('C','PCD 125 - 175',depth_from=0)
+        self.assertIsNone(self.price(r,total_time=3,metres_from=0,metres_to=10,total_metres=10)['line_cost'])
+
+    def test_confirmed_wet_weather_prices_every_contract_code(self):
+        for scope,name in [('A','Wet Weather Standby'),('A','Standby Wet Weat'),('C','Standby Wet Weat')]:
+            with self.subTest(scope=scope,name=name):
+                r=self.rate(scope,name)
+                result=self.price(r,total_time='08:15')
+                self.assertEqual(result['unit_rate'],550)
+                self.assertEqual(result['quantity'],8.25)
+                self.assertEqual(result['line_cost'],4537.50)
+                self.assertEqual(r['status'],'Active')
+                self.assertFalse(r.get('review'))
+                self.assertIsNone(self.price(r,total_time='invalid')['line_cost'])
+
+    def test_wet_weather_legacy_spellings_and_import_suggestions(self):
+        for scope in ('A','C'):
+            for code in ('H_Standby_Wet_Weat','H_Standby_Wet_Weath','H_Standby_Wet_Weather','Standby Wet Weather'):
+                with self.subTest(scope=scope,code=code):
+                    result=price_depco_activity({'code':code,'total_time':'11:15'},catalogue(scope))
+                    self.assertEqual(result['line_cost'],6187.50)
+                    self.assertEqual(result['code'],f'DEPCO_{scope}_STANDBY_WET_WEAT_053')
+            result=suggest_depco_activity({'notes':'Stand by wet weather','total_time':'06:15'},catalogue(scope))
+            self.assertEqual(result['line_cost'],3437.50)
+            self.assertEqual(result['unit_rate'],550)
+
+    def test_wet_weather_still_respects_contract_status_and_dates(self):
+        rate=self.rate('A','Standby Wet Weat')
+        for override in ({'status':'Inactive'},{'charge':None},{'_start_date':'2026-11-01'}):
+            result=price_depco_activity({'code':rate['cost_code'],'date':'2026-10-15','total_time':8},[{**rate,**override}])
+            self.assertIsNone(result['line_cost'])
 
     def test_conditional_charges_do_not_infer_from_dollars(self):
         for name in ('Water Collect','Crew Travel Off','Safety Permits','Standby Water','Accommodation','Tripping Rods'):
@@ -331,6 +360,9 @@ class DepcoRouteTests(unittest.TestCase):
         self.assertEqual(result['added'],126)
         inserted=[c.args[1] for c in self.cur.execute.call_args_list if 'INSERT' in c.args[0]]
         self.assertTrue(any(r['charge'] is None and r['status']=='Review' for r in inserted))
+        wet=[r for r in inserted if 'WET' in r['cost_code']]
+        self.assertEqual(len(wet),2)
+        self.assertTrue(all(r['status']=='Active' and r['charge']==550 and r['unit']=='hour' for r in wet))
 
     def test_locked_report_cannot_change_code(self):
         self.cur.fetchone.return_value={'id':2,'contractor':'DEPCO Drilling'}
