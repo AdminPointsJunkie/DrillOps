@@ -17,6 +17,15 @@
   if(id){const exact=holes.filter(h=>[h.id,h.sourceId].map(identity).includes(id));if(exact.length===1)return exact[0];if(exact.length>1)return null;const aliases=holes.filter(h=>h.aliases.includes(id));if(aliases.length===1)return aliases[0];if(aliases.length>1)return null;}
   if(!site)return null;const matches=holes.filter(h=>h.aliases.includes(site));return matches.length===1?matches[0]:null;
  }
+ function drillingOverrun(actual,budget){
+  actual=number(actual);budget=number(budget);
+  if(actual===null||budget===null||budget<0)return {color:'#94a3a0',label:'Budget comparison unavailable'};
+  const a=cents(actual),b=cents(budget);
+  if(a<=b)return {color:'#237a65',label:'Within drilling budget'};
+  if(b===0)return {color:'#dc2626',label:'Over zero drilling budget'};
+  const percent=(a-b)/b*100;
+  return {color:percent<=10?'#eab308':percent<=25?'#f97316':'#dc2626',label:percent.toFixed(1)+'% over drilling budget'};
+ }
  function build({source,planner=[],evidence={},allocations=[]},scope,range){
   const issues=[],from=range.from||scope.year+'-01-01',to=range.to||scope.year+'-12-31';
   const withinDate=d=>d&&d>=from&&d<=to&&d.slice(0,4)===String(scope.year);
@@ -88,5 +97,5 @@
   const monthly=Array.from({length:12},(_,i)=>`${scope.year}-${String(i+1).padStart(2,'0')}`).filter(m=>m>=from.slice(0,7)&&m<=to.slice(0,7)).map(month=>({month,eos:sum(priced.filter(r=>E.date(r.date).startsWith(month)).map(r=>number(r.line_cost))),invoices:sum(invoiceRows.filter(r=>r.month===month).map(r=>r.value))}));
   return {scope,from,to,metrics,contractors,invoiceRows,production,eosTotal,unpriced,invoiced,invoiceMissing,plannedBudget,approvedBudget,remainingBudget,planLessInvoices:plannedBudget===null?null:(cents(plannedBudget)-cents(invoiced))/100,linkedInvoices:linkedInvoiceCents/100,unallocatedInvoices,unallocatedEos,unassignedRows:unassignedRows.length+unassignedMaterials.length,issues,monthly,source:source?.source||'Borehole planning'};
  }
- const api={build,findHole,scoped};if(req)module.exports=api;else root.ProjectHoleReport=api;
+ const api={build,findHole,scoped,drillingOverrun};if(req)module.exports=api;else root.ProjectHoleReport=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
