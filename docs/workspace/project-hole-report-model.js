@@ -20,7 +20,6 @@
  function build({source,planner=[],evidence={},allocations=[]},scope,range){
   const issues=[],from=range.from||scope.year+'-01-01',to=range.to||scope.year+'-12-31';
   const withinDate=d=>d&&d>=from&&d<=to&&d.slice(0,4)===String(scope.year);
-  const invoiceWithin=r=>{const m=A.period(r);return m&&m.slice(0,4)===String(scope.year)&&m>=from.slice(0,7)&&m<=to.slice(0,7);};
   const live=planner.filter(r=>planScoped(r,scope)),budget=source?B.build(source,{plannerRows:live,scope}):null;
   const holes=(budget?budget.rows:live).map((r,i)=>{
    const p=budget?live.find(p=>p.hole_id===r.planner_hole):r;
@@ -39,7 +38,7 @@
   const unassignedRows=[],unassignedMaterials=[];
   for(const r of rows){const h=findHole(r,holes);(h?h.rows:unassignedRows).push(r);}
   for(const r of materials){const h=findHole(r,holes);(h?h.materials:unassignedMaterials).push(r);}
-  const invoices=(evidence.invoices||[]).filter(r=>scoped(r,scope)&&invoiceWithin(r));
+  const invoices=(evidence.invoices||[]).filter(r=>scoped(r,scope));
   const linesByInvoice=new Map();for(const line of evidence.invoice_lines||[]){const key=String(line.invoice_id);if(!linesByInvoice.has(key))linesByInvoice.set(key,[]);linesByInvoice.get(key).push(line);}
   let linkedInvoiceCents=0,unreconciledInvoices=0;
   const invoiceRows=invoices.map(inv=>{
@@ -81,7 +80,7 @@
   if(ambiguous)issues.push(ambiguous+' consumable lines match more than one project/program and are excluded until allocated.');
   const undated=(evidence.invoices||[]).filter(r=>scoped(r,scope)&&!A.period(r)).length;
   const unscoped=(evidence.invoices||[]).filter(r=>norm(r.project)===norm(scope.project)&&!text(r.program)).length;
-  if(undated)issues.push(undated+' project invoices have no usable billing month or invoice date and are excluded from the period.');
+  if(undated)issues.push(undated+' project invoices have no usable billing month or invoice date and cannot be placed on the monthly chart.');
   if(unscoped)issues.push(unscoped+' invoices have no program and are excluded until assigned.');
   const invalidDates=history.filter(r=>!E.date(r.date)).length;if(invalidDates)issues.push(invalidDates+' EOS lines have no usable date and are excluded from the period.');
   const monthly=Array.from({length:12},(_,i)=>`${scope.year}-${String(i+1).padStart(2,'0')}`).filter(m=>m>=from.slice(0,7)&&m<=to.slice(0,7)).map(month=>({month,eos:sum(priced.filter(r=>E.date(r.date).startsWith(month)).map(r=>number(r.line_cost))),invoices:sum(invoiceRows.filter(r=>r.month===month).map(r=>r.value))}));
