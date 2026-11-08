@@ -138,10 +138,10 @@
   </div>
 </header>
 
-<div class="workspace-gate open" id="workspace-gate" role="dialog" aria-modal="true" aria-labelledby="workspace-gate-title">
+<div class="workspace-gate" id="workspace-gate" role="dialog" aria-modal="true" aria-labelledby="workspace-gate-title">
   <div class="workspace-gate-card">
-    <div class="workspace-gate-brand">DrillOps workspace</div>
-    <div class="workspace-gate-title" id="workspace-gate-title">Choose where you are working</div>
+    <div class="workspace-gate-brand">DrillOps workspace</div><button class="btn-ghost" type="button" onclick="document.getElementById('workspace-gate').classList.remove('open');document.body.classList.remove('workspace-locked');if(workspaceGateResolve){workspaceGateResolve(null);workspaceGateResolve=null;}">Cancel</button>
+    <div class="workspace-gate-title" id="workspace-gate-title">Change project</div>
     <div class="workspace-gate-copy">Select a client, project and program. DrillOps will use all three to scope operational data and reports.</div>
     <div class="workspace-gate-fields">
       <div class="workspace-gate-field">
@@ -163,7 +163,7 @@
         </select>
       </div>
     </div>
-    <button class="workspace-gate-action" id="workspace-continue-btn" type="button" onclick="confirmWorkspaceSelection()" disabled>Enter DrillOps</button>
+    <button class="workspace-gate-action" id="workspace-continue-btn" type="button" onclick="confirmWorkspaceSelection()" disabled>Use project</button>
     <div style="display:flex;justify-content:center;gap:8px;margin-top:10px;">
       <button class="btn-ghost" type="button" onclick="showNewClientDialog()">Add client</button>
       <button class="btn-ghost" type="button" onclick="showNewProjectDialog()">Add project / program</button>
@@ -599,8 +599,8 @@
 <script src="./config.js"></script>
 <script src="./fortem-estimate.js"></script>
 <script src="./workspace/navigation.js?v=20261108-calendar1"></script>
-<script src="./workspace/runtime.js?v=20261108-holes1"></script>
+<script src="./workspace/runtime.js?v=20261108-direct1"></script>
 <script src="./invoice-ledger.js?v=20261108-project1"></script>
-<script src="./workspace/start.js?v=20261108-speed1"></script>
+<script src="./workspace/start.js?v=20261108-direct1-20261108-speed1"></script>
 </body>
 </html>
