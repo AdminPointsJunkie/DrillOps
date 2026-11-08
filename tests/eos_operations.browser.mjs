@@ -12,8 +12,8 @@ const projects=[{id:1,client_id:1,name:'Alpha',program:'Exploration',year:2026,s
 const rows=[
  [1,'Alpha','Rig 1','Drill_Core',30,'2:00'],[2,'Alpha','Rig 2','Drill_Chip_or_Open_hole',20,'3:00'],[3,'Alpha','Rig 1','H_Standby_Fatigue',0,'2:00'],
  [4,'Beta','Rig 1','Drill_Core',5,'1:00'],[5,'Beta','Rig 2','Drill_Chip_or_Open_hole',15,'1:00'],[6,'Beta','Rig 1','',7,'1:00'],[7,'Beta','Rig 2','H_Standby_Logger',0,'1:00'],[8,'','Rig 1','Drill_Core',10,'1:00']
-].map(([id,project,drill_rig,code,total_metres,total_time])=>({id,project,drill_rig,code,total_metres,total_time,contractor:contractors[0],client:'Sample Client',program:'Exploration',date:'2026-10-02',shift:'Day',source_file:'sample-'+drill_rig+'.pdf',hole_num:project+'-01',line_cost:total_metres*10}));
-rows.push({id:9,project:'Alpha',program:'Gas Riser',contractor:contractors[0],date:'2026-10-03',source_file:'sample-gas.pdf',drill_rig:'Rig 2',code:'H_Standby_Logger',total_time:'1:00',total_metres:0,line_cost:0});
+].map(([id,project,drill_rig,code,total_metres,total_time])=>({id,project,drill_rig,code,total_metres,total_time,contractor:contractors[0],client:'Sample Client',program:'Exploration',date:'2026-10-02',shift:'Day',source_file:'sample-'+drill_rig+'.pdf',hole_num:project+'-01',line_cost:total_metres*10,unit_rate:code==='H_Standby_Logger'?650:0}));
+rows.push({id:9,project:'Alpha',program:'Gas Riser',contractor:contractors[0],date:'2026-10-03',source_file:'sample-gas.pdf',drill_rig:'Rig 2',code:'H_Standby_Logger',total_time:'1:00',total_metres:0,line_cost:0,unit_rate:650});
 const depco=[{...rows[0],id:101,contractor:contractors[1],total_metres:900,total_time:'8:00'}];
 const mcc=[{...rows[0],id:201,contractor:contractors[2],code:'Labour',total_metres:0,total_time:'8:00',source_file:'sample-daily.csv'}, {...rows[0],id:202,contractor:contractors[2],code:'Labour',total_metres:0,total_time:'40:00',source_file:'sample-weekly.xlsx',source_file_type:'mcc_weekly_xlsx'}];
 let requests=[],documents=0,delayNext=false,failNext=false,release;
@@ -48,7 +48,7 @@ try{
  await page.evaluate(()=>window.navigationMarker='kept');const docCount=documents;
  await page.locator('#eos-project-filter').selectOption('Alpha');await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='50 m');
  await nav('production');await page.waitForFunction(()=>document.getElementById('production-kpi-metres').textContent==='50.0 m');
- assert.equal(await text('production-kpi-core'),'30.0 m');assert.equal(await text('production-kpi-chip'),'20.0 m');assert.equal(await text('production-kpi-standby'),'3.0 h');
+ assert.equal(await text('production-kpi-core'),'30.0 m');assert.equal(await text('production-kpi-chip'),'20.0 m');assert.equal(await text('production-kpi-standby'),'1.0 h');
  assert.equal(await page.locator('#production-contractor').count(),0);
  await page.locator('#drawer .drawer-nav-item[href="./eos.html"]').click();await page.waitForFunction(()=>document.getElementById('eos-metres').textContent==='50 m');
  assert.equal(documents,docCount);assert.equal(await page.evaluate(()=>window.navigationMarker),'kept');assert.equal(await page.locator('#login-screen').isVisible(),false);

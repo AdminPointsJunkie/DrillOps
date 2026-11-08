@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INDEX_HTML = ROOT / "docs" / "index.html"
+PORTAL_RUNTIME = ROOT / "docs" / "workspace" / "runtime.js"
 MAIN_PY = ROOT / "backend" / "main.py"
 
 
@@ -62,7 +62,7 @@ def _load_import_endpoint(namespace):
 class ReportImportResilienceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = INDEX_HTML.read_text(encoding="utf-8")
+        cls.html = PORTAL_RUNTIME.read_text(encoding="utf-8")
 
     def test_portal_retries_transient_upload_failures(self):
         self.assertIn("async function postOperationalReport(url,formData,retries=2)", self.html)
