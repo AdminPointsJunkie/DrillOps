@@ -42,3 +42,7 @@ test('drilling bars exclude separately coded earthworks while total EOS retains 
  const m=run({evidence:{...evidence,activities:[row,{...row,id:9,code:'D_Backhoe',total_metres:0,line_cost:100}]}});
  assert.equal(m.metrics[0].drillBudget,600);assert.equal(m.metrics[0].drillingActual,450);assert.equal(m.metrics[0].eos,550);
 });
+test('overrun colours cover thresholds, zero and missing budgets',()=>{
+ const {drillingOverrun}=createRequire(import.meta.url)('../docs/workspace/project-hole-report-model.js');
+ for(const [a,b,color] of [[100,100,'#237a65'],[101,100,'#eab308'],[110,100,'#eab308'],[110.01,100,'#f97316'],[125,100,'#f97316'],[125.01,100,'#dc2626'],[1,0,'#dc2626'],[1,null,'#94a3a0']])assert.equal(drillingOverrun(a,b).color,color);
+});
