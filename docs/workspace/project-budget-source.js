@@ -39,7 +39,7 @@ function renderProjectWorkbookBudget(){
  const exact=value=>value===null?'Not set':Number(value).toLocaleString('en-AU',{style:'currency',currency:'AUD'});
  const ledger=renderBudgetLedger(source);
  setPeriodText('budget-kpi-total',exact(source.approvedBudget));setPeriodText('budget-kpi-drilling',budgetLedgerMoney(ledger.plannedBudget));setPeriodText('budget-kpi-support',budgetLedgerMoney(ledger.remainingBudget));setPeriodText('budget-kpi-rows',source.boreholes.length);
- if(labels[0])labels[0].textContent='Approved budget';if(labels[1])labels[1].textContent='Planned Holes';if(labels[2])labels[2].textContent='Remaining Budget';if(labels[3])labels[3].textContent='Workbook holes';
+ if(labels[0])labels[0].textContent='Approved budget';if(labels[1])labels[1].textContent='Planned Holes';if(labels[2])labels[2].textContent='Unallocated Budget';if(labels[3])labels[3].textContent='Workbook holes';
  if(notes[0])notes[0].textContent='Original workbook budget';if(notes[1])notes[1].textContent='Original budgets, excluding cancelled holes';if(notes[2])notes[2].textContent='Approved budget minus Planned Holes';if(notes[3])notes[3].textContent='Source rows, including cancelled holes';
 }
 function renderProjectSwitcher(){
