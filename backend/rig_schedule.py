@@ -1,5 +1,6 @@
 """Project/rig bookings, including separate visits and roster breaks."""
-from datetime import date
+from datetime import date, timedelta
+import hashlib
 from fastapi import APIRouter, HTTPException, Request
 from audit import record_audit_event
 from security import current_auth_user
@@ -20,6 +21,55 @@ ALTER TABLE rig_schedule ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON rig_schedule FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON SEQUENCE rig_schedule_id_seq FROM PUBLIC,anon,authenticated;
 """
+
+# One compact row per reported hole/day, not the raw activity register.
+EOS_SQL = """SELECT contractor,project,program,drill_rig,date,hole_num,
+ array_agg(DISTINCT NULLIF(trim(site_id),'')) site_ids,
+ array_agg(DISTINCT NULLIF(trim(source_file),'')) sources
+ FROM activities
+ WHERE contractor IN ('Mitchells Drilling','DEPCO Drilling')
+ AND trim(drill_rig) IN ('1218','DR17')
+ AND lower(COALESCE(trim(program),''))<>'gas riser'
+ GROUP BY contractor,project,program,drill_rig,date,hole_num"""
+
+def report_date(value):
+    value=str(value or '').strip()
+    try:
+        if '/' in value:
+            day,month,year=value.split('/');return date(int(year),int(month),int(day))
+        return date.fromisoformat(value)
+    except (TypeError,ValueError):return None
+
+def reported_bookings(rows,planner):
+    """Consecutive reported dates only; a gap or year boundary starts a new visit."""
+    daily={}
+    for r in rows:
+        day=report_date(r.get('date'));hole=str(r.get('hole_num') or '').strip()
+        if not day or hole.upper() in ('','NA','N/A','NONE','UNKNOWN','NOT RECORDED','NO HOLE','OOO','-'):continue
+        rig=str(r.get('drill_rig') or '').strip()
+        if rig not in ('1218','DR17') or str(r.get('program') or '').strip().lower()=='gas riser':continue
+        project=str(r.get('project') or '').strip() or 'Unallocated'
+        program=str(r.get('program') or '').strip() or 'Exploration'
+        key=(project,program,rig,hole.upper(),day)
+        if key not in daily:daily[key]=dict(project=project,program=program,assigned_rig=rig,hole_id=hole,day=day,sites=set(),sources=set())
+        daily[key]['sites'].update(v for v in r.get('site_ids',[]) if v)
+        daily[key]['sources'].update(v for v in r.get('sources',[]) if v)
+    visits=[]
+    for _,r in sorted(daily.items()):
+        sites=r['sites']
+        # Use a site ID from the planner only when the hole has one unambiguous match.
+        if not sites:sites={str(p['site_id']).strip() for p in planner if p.get('site_id') and p.get('project')==r['project'] and p.get('program')==r['program'] and identity(p.get('hole_id'))==identity(r['hole_id'])}
+        sid=next(iter(sites)) if len(sites)==1 else ''
+        prev=visits[-1] if visits else None
+        if prev and all(prev[k]==r[k] for k in ('project','program','assigned_rig','hole_id')) and prev['site_id']==sid and prev['end']+timedelta(days=1)==r['day'] and prev['end'].year==r['day'].year:
+            prev['end']=r['day'];prev['reported_days']+=1;prev['sources'].update(r['sources'])
+        else:visits.append({k:r[k] for k in ('project','program','assigned_rig','hole_id')}|dict(site_id=sid,start=r['day'],end=r['day'],reported_days=1,sources=set(r['sources'])))
+    result=[]
+    for v in visits:
+        start=v.pop('start');end=v.pop('end');sources=v.pop('sources')
+        key='|'.join([v['project'],v['program'],v['assigned_rig'],v['hole_id'],start.isoformat()])
+        result.append(dict(v,id='eos-'+hashlib.sha256(key.encode()).hexdigest()[:20],scheduled_start=start.isoformat(),scheduled_end=end.isoformat(),planned_year=str(start.year),status='Reported',kind='Drilling',is_reported=True,report_count=len(sources),source_reference='EOS reports',notes=''))
+    return active_entries(result,planner)
 
 def ensure_schedule_schema(get_conn):
     with get_conn() as conn:
@@ -58,13 +108,15 @@ def create_schedule_router(get_conn):
         return auth
     @router.get('')
     def read(request:Request):
+        """Load planned bookings and live EOS-reported hole visits for the rig timeline."""
         authorize(request)
         with get_conn(read_only=True) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM rig_schedule WHERE status<>'Cancelled' ORDER BY scheduled_start,id");entries=cur.fetchall()
                 cur.execute("SELECT id,contractor,hole_id,site_id,project,program,planned_year,status,assigned_rig,scheduled_start,scheduled_end,days_budgeted,notes FROM boreholes WHERE contractor='Company'");planner=cur.fetchall()
                 cur.execute('SELECT id,name,program,year FROM projects ORDER BY name,year,program');projects=cur.fetchall()
-                return dict(entries=active_entries(entries,planner),planner=planner,projects=projects)
+                cur.execute(EOS_SQL);reported=reported_bookings(cur.fetchall(),planner)
+                return dict(entries=active_entries(entries,planner),planner=planner,projects=projects,reported=reported)
     @router.post('')
     async def save(request:Request):
         auth=authorize(request)
