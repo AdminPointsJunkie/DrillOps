@@ -11,7 +11,7 @@
   [supplier].forEach(el => { el.removeAttribute('style'); el.removeAttribute('onchange'); });
   page.innerHTML = `
     <header class="ledger-heading"><div><div class="ledger-eyebrow" id="ledger-scope">Commercial / Invoices</div><h2 id="ledger-title">Invoice ledger</h2><p>Posted invoices and credit notes. Actuals only.</p></div>
-      <div class="ledger-actions"><button class="ledger-button" id="ledger-refresh">Refresh</button><button class="ledger-button" id="ledger-export">Export ledger</button><button class="ledger-button primary" id="ledger-add">Add invoice</button></div></header>
+      <div class="ledger-actions"><button class="ledger-button primary" id="ledger-edit" disabled>Edit ledger</button><button class="ledger-button" id="ledger-cancel" hidden>Cancel</button><button class="ledger-button" id="ledger-refresh">Refresh</button><button class="ledger-button" id="ledger-export">Export ledger</button><button class="ledger-button primary" id="ledger-add">Add invoice</button></div></header>
     <div id="ledger-message" class="ledger-notice" role="status" hidden></div>
     <div class="ledger-cards">
       <div class="ledger-card"><div class="ledger-card-label">Invoice actuals · ex GST</div><div class="ledger-card-value" id="inv-kpi-total">—</div><div class="ledger-card-note">Net invoices before opening credits</div></div>
@@ -62,6 +62,7 @@
   function reset() { supplier.value = ''; el('ledger-search').value = ''; el('ledger-month').value = ''; el('ledger-project').value = ''; view = 'all'; filter(); }
   const projectKey = row => JSON.stringify([row.project||'',row.program||'']);
   function filter() {
+    if(editing)return;
     const search = el('ledger-search').value.trim().toLowerCase();
     const rows = (invoicesData || []).filter(r => (!supplier.value || r.contractor === supplier.value)
       && (!el('ledger-project').value || projectKey(r) === el('ledger-project').value)
@@ -72,8 +73,9 @@
     renderLedger(rows);
   }
   window.loadInvoices = async function () {
+    if(editing){message('Press Done or Cancel before refreshing the ledger.');return;}
     const current = ++request;
-    ready = false; invoicesData = []; ledgerPOs = []; filter();
+    ready = false; invoicesData = []; ledgerPOs = []; filter();editControls();
     el('ledger-detail').hidden = true; breakdown.hidden = true;
     el('ledger-scope').textContent = 'Account / All projects';
     el('ledger-title').textContent = 'Invoice ledger';
@@ -97,7 +99,7 @@
       supplier.value = previousSupplier; if (supplier.selectedIndex < 0) supplier.value = '';
       el('ledger-month').innerHTML = '<option value="">All months</option>' + [...new Set(invoicesData.map(r => r.billing_month).filter(Boolean))].sort((a,b) => a.slice(-4).localeCompare(b.slice(-4)) || a.localeCompare(b)).map(month => `<option value="${escape(month)}">${escape(month)}</option>`).join('');
       el('ledger-month').value = previousMonth; if (el('ledger-month').selectedIndex < 0) el('ledger-month').value = '';
-      message(''); filter();
+      message(''); filter();editControls();
       const count=document.getElementById('db-count');if(count)count.textContent=invoicesData.length.toLocaleString();
     } catch (error) {
       if (current !== request) return;
@@ -150,5 +152,63 @@
   el('ledger-search').addEventListener('input',filter);
   page.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click',() => { view=button.dataset.view; filter(); }));
   el('inv-body').addEventListener('click',event => { const button=event.target.closest('[data-invoice]'); if(button) openDetails(Number(button.dataset.invoice)); });
+  let editing=false,saving=false,drafts=new Map();
+  const editFields=['invoice_date','invoice_number','contractor','project','program','po_reference','subtotal','gst','billing_month'];
+  function changes(row,draft){return Object.fromEntries(editFields.filter(k=>String(row[k]??'')!==String(draft[k]??'')).map(k=>[k,draft[k]]));}
+  function editorInput(row,key,type='text'){
+    let value=row[key]??'';if(type==='date')value=dateKey(value)==='9999-99-99'?'':dateKey(value);
+    return `<input data-edit="${key}" type="${type}" ${type==='number'?'step="0.01"':''} aria-label="${escape(key.replaceAll('_',' '))}" value="${escape(value)}">`;
+  }
+  function editorRow(row){
+    const draft=drafts.get(row.id)||{...row};drafts.set(row.id,draft);
+    const list=typeof projects==='undefined'?[]:projects;
+    const projectOptions=list.map(p=>[JSON.stringify([p.name,p.program]),[p.name,p.year,p.program].filter(Boolean).join(' · ')]);
+    const current=JSON.stringify([draft.project||'',draft.program||'']);
+    if(!projectOptions.some(p=>p[0]===current))projectOptions.unshift([current,[draft.project,draft.program].filter(Boolean).join(' · ')||'Not recorded']);
+    return `<tr data-edit-id="${Number(row.id)}"><td>${editorInput(draft,'invoice_date','date')}</td><td>${editorInput(draft,'invoice_number')}<label class="ledger-sub">Billing month (MM/YYYY)${editorInput(draft,'billing_month')}</label></td><td>${editorInput(draft,'contractor')}</td><td><select data-edit="project_scope" aria-label="Project">${projectOptions.map(([key,label])=>`<option value="${escape(key)}" ${key===current?'selected':''}>${escape(label)}</option>`).join('')}</select></td><td>${editorInput(draft,'po_reference')}</td><td class="ledger-num">—</td><td>${editorInput(draft,'subtotal','number')}<span class="ledger-sub">Negative amount for a credit</span></td><td>${editorInput(draft,'gst','number')}</td><td class="ledger-num">Recalculates on Done</td></tr>`;
+  }
+  function editControls(){
+    el('ledger-edit').textContent=saving?'Saving…':editing?'Done':'Edit ledger';el('ledger-edit').disabled=saving||!ready;
+    el('ledger-cancel').hidden=!editing;el('ledger-cancel').disabled=saving;
+    page.querySelectorAll('.ledger-filters input,.ledger-filters select,.ledger-filters button,[data-view],#ledger-refresh,#ledger-add,#ledger-export').forEach(control=>control.disabled=editing||!ready);
+    page.classList.toggle('ledger-editing',editing);
+    const headers=el('inv-table').querySelectorAll('thead th');headers[6].textContent=editing?'Amount · ex GST':'Charge · ex GST';headers[7].textContent=editing?'GST':'Credit · ex GST';
+  }
+  async function finishEditing(){
+    const invalid=el('inv-body').querySelector('input:invalid');if(invalid){invalid.reportValidity();return;}
+    const dirty=[...drafts].map(([id,draft])=>({row:invoicesData.find(r=>r.id===id),draft})).filter(x=>x.row&&Object.keys(changes(x.row,x.draft)).length);
+    for(const {draft} of dirty){
+      if(!String(draft.invoice_number||'').trim()||!String(draft.contractor||'').trim()){message('Enter an invoice number and supplier for each edited invoice.',true);return;}
+      if(draft.billing_month&&!/^(0[1-9]|1[0-2])\/\d{4}$/.test(draft.billing_month)){message('Billing month must use MM/YYYY, for example 09/2026.',true);return;}
+    }
+    saving=true;editControls();el('inv-body').querySelectorAll('input,select').forEach(c=>c.disabled=true);
+    let saved=0;
+    try{
+      for(const {row,draft} of dirty){
+        const payload=changes(row,draft);
+        if('subtotal' in payload||'gst' in payload)payload.total_aud=known(draft.subtotal)&&known(draft.gst)?(cents(draft.subtotal)+cents(draft.gst))/100:null;
+        payload.version=row.version||1;
+        const response=await fetch(API+'/invoices/'+row.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const result=await response.json();if(!response.ok)throw new Error((response.status===409?'This invoice changed elsewhere. Cancel editing and refresh before trying again.':result.detail)||'Could not save this invoice. Retry Done.');
+        Object.assign(row,payload,{version:result.version});drafts.set(row.id,{...row});saved++;
+      }
+      editing=false;drafts.clear();filter();message(dirty.length?'Changes saved. Totals recalculated.':'');
+    }catch(error){message((saved?saved+' invoice(s) saved. ':'')+error.message+' Unsaved edits remain on screen.',true);}
+    finally{saving=false;editControls();el('inv-body').querySelectorAll('input,select').forEach(c=>c.disabled=false);}
+  }
+  el('ledger-edit').onclick=()=>{
+    if(editing){finishEditing();return;}editing=true;drafts.clear();el('ledger-detail').hidden=true;breakdown.hidden=true;el('ledger-entry').open=false;
+    el('inv-body').innerHTML=visibleRows.map(editorRow).join('');editControls();message('Edit the invoice fields, then press Done to save and recalculate totals.');
+  };
+  el('ledger-cancel').onclick=()=>{if(saving)return;editing=false;drafts.clear();filter();editControls();message('Edits cancelled. Any invoices already saved remain saved.');};
+  el('inv-body').addEventListener('input',event=>{
+    const control=event.target.closest('[data-edit]');if(!editing||!control)return;
+    const draft=drafts.get(Number(control.closest('[data-edit-id]').dataset.editId));if(!draft)return;
+    const key=control.dataset.edit;
+    if(key==='project_scope'){[draft.project,draft.program]=JSON.parse(control.value);return;}
+    draft[key]=control.type==='number'?(control.value===''?null:Number(control.value)):control.value;
+  });
+  window.addEventListener('beforeunload',event=>{if(editing&&[...drafts].some(([id,d])=>Object.keys(changes(invoicesData.find(r=>r.id===id)||{},d)).length)){event.preventDefault();event.returnValue='';}});
+
   filter();
 })();

@@ -10,3 +10,5 @@
 @media(max-width:900px){.ledger-cards{grid-template-columns:repeat(2,1fr)}.ledger-heading{align-items:start;flex-direction:column}.ledger-detail-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.ledger-card{padding:14px}.ledger-card-value{font-size:21px}.ledger-filters label{width:100%}.ledger-filters select{max-width:none}.ledger-tabs{gap:16px}.ledger-footer{flex-direction:column;gap:6px}}
 
 #page-invoices .filter-group[hidden]{display:none}
+
+#ledger-cancel[hidden]{display:none}.ledger-editing #inv-body input,.ledger-editing #inv-body select{box-sizing:border-box;width:100%;min-width:120px;padding:8px;border:1px solid #a8bfb5;border-radius:5px;background:white;color:#173b36;font:inherit}.ledger-editing #inv-body td{vertical-align:top}.ledger-editing #inv-body select{min-width:210px}.ledger-editing #inv-body input:focus{outline:2px solid #237a65}
