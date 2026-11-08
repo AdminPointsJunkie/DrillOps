@@ -46,7 +46,7 @@
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
 <link rel="stylesheet" href="./workspace/project-budget-ledger.css?v=20261108-plannedholes1"><link rel="stylesheet" href="./workspace/project-dashboard.css?v=20261108-report1">
-<link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/project-hole-report.css?v=20261108-reconcile1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 </head>
 <body class="workspace-locked" data-workspace-area="project">
 
@@ -461,86 +461,23 @@
 
     <!-- Reports -->
     <section class="page" id="page-reports">
-      <div class="period-report">
-        <div class="period-report-head">
-          <div>
-            <div class="period-report-eyebrow">Project / Hole-by-hole report</div>
-            <div class="period-report-title">Hole-by-hole report</div>
-            <div class="period-report-meta" id="period-report-meta">Select a date range to summarise the current workspace project.</div>
-          </div>
-          <div class="period-report-actions">
-            <input class="range-date" id="period-range-from" type="date" title="Report start date" onchange="renderPeriodReport()"/>
-            <input class="range-date" id="period-range-to" type="date" title="Report end date" onchange="renderPeriodReport()"/>
-            <span class="workspace-scope-note" id="period-project-context">Selected at entry</span>
-            <button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button>
-            <button class="btn-secondary" type="button" id="project-hole-print" onclick="printPeriodReport()">Print PDF</button>
-          </div>
-        </div>
-        <div class="period-report-body" hidden>
-          <div class="period-print-header">
-            <div>
-              <div class="period-print-title" id="period-print-title">Hole-by-hole report</div>
-              <div class="period-print-subtitle" id="period-print-meta">Prepared from Drill Ops period report.</div>
-            </div>
-            <img class="period-print-logo" src="assets/argo-natural-resources-logo.png" alt="ARGO Natural Resources logo"/>
-          </div>
-          <div class="period-section-title">Boreholes In Drilling Period</div>
-          <div class="period-map-card">
-            <div id="period-map" class="period-map"></div>
-            <div id="period-map-print" class="period-map-print" aria-hidden="true"></div>
-            <div id="period-map-empty" class="period-map-empty" style="display:none;">No mapped boreholes in this period.</div>
-          </div>
-          <div class="period-section-title">Headline Figures</div>
-          <div class="period-kpis">
-            <div class="period-kpi"><div class="label">Holes Completed</div><div class="value" id="period-holes-completed">--</div><div class="sub" id="period-holes-completed-sub">Completed during selected period</div></div>
-            <div class="period-kpi"><div class="label">Holes In Progress</div><div class="value" id="period-holes-in-progress">--</div><div class="sub" id="period-holes-in-progress-sub">Active during selected period</div></div>
-            <div class="period-kpi"><div class="label">Hole Plan Budget</div><div class="value" id="period-budget-total">--</div><div class="sub" id="period-budget-sub">Project / hole budget</div></div>
-            <div class="period-kpi"><div class="label">Drilling Spend / Budget</div><div class="value" id="period-drilling-summary">--</div><div class="sub" id="period-drilling-sub">Drilling provider charges / budget</div></div>
-            <div class="period-kpi"><div class="label">Recorded Support</div><div class="value" id="period-support-total">--</div><div class="sub" id="period-support-sub">Invoices / support records received</div></div>
-            <div class="period-kpi"><div class="label">Recorded Spend</div><div class="value" id="period-total-spent">--</div><div class="sub">Drilling + recorded support costs</div></div>
-            <div class="period-kpi"><div class="label">Recorded Variance</div><div class="value" id="period-variance">--</div><div class="sub" id="period-variance-sub">Budget vs recorded actuals</div></div>
-            <div class="period-kpi"><div class="label">Total Metres</div><div class="value" id="period-total-metres">--</div><div class="sub" id="period-metres-sub">Core / chipped split</div></div>
-            <div class="period-kpi"><div class="label">Average $/m</div><div class="value" id="period-cost-metre">--</div><div class="sub" id="period-extra-costs">Standby and extras</div></div>
-            <div class="period-kpi"><div class="label">Penetration</div><div class="value" id="period-penetration">--</div><div class="sub" id="period-penetration-sub">Drilled metres / drill hour</div></div>
-          </div>
-          <div class="period-reconciliation" id="period-reconciliation" aria-live="polite"></div>
-          <div id="period-drilling-providers" aria-live="polite"></div>
-          <div class="period-section-title period-print-section-start" id="exploration-metres-title">Program Drilling Metres</div>
-          <div class="exploration-metres-grid" id="exploration-metres-summary">
-            <div class="exploration-metres-card">Loading annual drilling metres...</div>
-          </div>
-          <div class="exploration-metres-note" id="exploration-metres-note">Annual actuals are sourced from exploration drilling activity reports; remaining metres are sourced from Borehole Planning.</div>
-          <div class="period-layout">
-            <div>
-              <div class="period-section-title">Cost Breakdown</div>
-              <div id="period-cost-breakdown"></div>
-            </div>
-          </div>
-          <div class="period-section-title period-print-section-start">Project Budget by Contractor</div>
-          <div id="period-support-invoices"></div>
-          <div class="period-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-            <span>Standby Reasons</span>
-            <button class="btn-csv collapse-btn" type="button" onclick="togglePanel('period-standby-panel','period-standby-toggle-label','detail')"><span class="collapse-arrow">▶</span><span id="period-standby-toggle-label">Show detail</span></button>
-          </div>
-          <div class="collapsible-table collapsed" id="period-standby-panel">
-            <div class="tbl-scroll" style="max-height:260px;">
-              <div id="period-standby-reasons"></div>
-            </div>
-          </div>
-          <div class="period-section-title period-print-section-start">Cost Per Hole &amp; Drilling Performance</div>
-          <div class="period-visual-grid" id="period-hole-graphics"></div>
-          <div class="period-section-title">Hole Detail Table</div>
-          <div class="tbl-scroll" style="max-height:320px;">
-            <table class="period-mini-table">
-              <thead><tr><th>Hole ID</th><th>Purpose</th><th>Planned m</th><th>Actual m</th><th>Drill Budget</th><th>Drilling $</th><th>Total EOS</th><th>$/m</th><th>Penetration</th><th>Drill Variance</th><th>Method</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
-              <tbody id="period-hole-body"></tbody>
-            </table>
-          </div>
-          <div class="period-section-title">Exceptions</div>
-          <div class="period-issues" id="period-progress-issues">No period report generated yet.</div>
-        </div>
-      </div>
-    </section>
+  <div class="phr-heading">
+    <div><div class="phr-eyebrow">PROJECT / PERFORMANCE &amp; COSTS</div><h1>Hole-by-hole report</h1><p id="period-report-meta">Choose a project to view the report.</p></div>
+    <div class="phr-actions"><label>From<input id="period-range-from" type="date" onchange="renderPeriodReport()"></label><label>To<input id="period-range-to" type="date" onchange="renderPeriodReport()"></label><button class="btn-primary" type="button" onclick="loadReportsPage(true)">Update report</button><button class="btn-secondary" id="project-hole-print" type="button" onclick="printPeriodReport()" disabled>Print PDF</button></div>
+  </div>
+  <div class="period-report-body phr-content" hidden>
+    <div class="phr-kpis" id="phr-budget-kpis"></div>
+    <section class="phr-panel"><div class="phr-title"><h2>EOS production &amp; monthly costs</h2><span id="phr-production-meta"></span></div><div class="phr-production" id="phr-production-kpis"></div><div id="phr-monthly-chart"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Contractor reconciliation</h2><span>AUD · excluding GST</span></div><p class="phr-note">Planned budgets exclude cancelled holes. EOS charges and Accounts invoices are separate comparisons; they are never added together.</p><div class="phr-scroll" id="phr-contractors"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Production against the hole plan</h2><span>Holes with EOS work in the selected period</span></div><div id="period-hole-graphics"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Hole detail</h2><span id="phr-hole-count"></span></div><p class="phr-note">All planned holes remain visible. Invoice amounts appear against a hole only when its invoice lines reconcile to the invoice subtotal and identify that hole.</p><div class="phr-scroll" id="phr-hole-table"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Project-wide / unallocated costs</h2></div><div id="phr-unallocated"></div><div id="phr-issues" role="status"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Accounts invoices</h2><span id="phr-invoice-count"></span></div><p class="phr-note">Net subtotals including credit notes. Invoice periods use the billing month, or invoice date when no billing month is recorded; selected months are included in full.</p><div class="phr-scroll" id="phr-invoices"></div></section>
+    <section class="phr-panel"><div class="phr-title"><h2>Project hole locations</h2></div><div class="period-map-card"><div id="period-map" class="period-map"></div><div id="period-map-print" class="period-map-print" aria-hidden="true"></div><div id="period-map-empty" class="period-map-empty" style="display:none">No mapped holes.</div></div></section>
+    <p class="phr-note" id="phr-source-note"></p>
+  </div>
+</section>
+
 
     <!-- Activities -->
 
@@ -786,6 +723,10 @@
 <script src="./workspace/project-dashboard-model.js?v=20261108-approved1"></script>
 <script src="./workspace/project-dashboard.js?v=20261108-approved1"></script>
 <script src="./workspace/project-budget-source.js?v=20261108-plannedholes1"></script>
+<script src="./workspace/eos-production-model.js?v=20261108-holes1"></script>
+<script src="./workspace/accounts-overview-model.js?v=20261108-1"></script>
+<script src="./workspace/project-hole-report-model.js?v=20261108-reconcile1"></script>
+<script src="./workspace/project-hole-report.js?v=20261108-reconcile1"></script>
 <script src="./workspace/start.js?v=20261108-session1"></script>
 </body>
 </html>
