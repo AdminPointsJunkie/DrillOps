@@ -8646,6 +8646,7 @@ def delete_invoice_attachment(invoice_id: int, attachment_id: int):
 
 @app.patch("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: int, request: Request):
+    """Update invoice fields, rejecting stale versions supplied by ledger editing."""
     payload = await request.json()
     safe = {"billing_month","status","notes","amount_paid","amount_due","po_reference","query_notes","version","contractor","project","program","service_start","service_end","invoice_date","subtotal","gst","total_aud","invoice_number"}
     u = {k:v for k,v in payload.items() if k in safe and k != "version"}
