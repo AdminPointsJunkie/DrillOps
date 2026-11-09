@@ -61,13 +61,14 @@ def create_accrual_router(get_conn):
                 return dict(row,combined=row['invoiced']+row['accruals'])
     @router.get('')
     def read(request:Request):
+        """Read accruals and purchase order descriptions for monthly planning."""
         authorize(request)
         with get_conn(read_only=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(READ_SQL+" WHERE a.status<>'Voided' ORDER BY a.period DESC,a.supplier,a.id");rows=cur.fetchall()
                 cur.execute('SELECT id,name,program,year FROM projects ORDER BY name,year,program');projects=cur.fetchall()
                 cur.execute("SELECT name FROM contractors UNION SELECT contractor FROM invoices WHERE contractor<>'' UNION SELECT contractor FROM purchase_orders WHERE contractor<>'' ORDER BY 1");suppliers=[r['name'] for r in cur.fetchall()]
-                cur.execute('SELECT id,po_number,contractor,project,program,status,po_value FROM purchase_orders ORDER BY po_number');pos=cur.fetchall()
+                cur.execute('SELECT id,po_number,contractor,project,program,status,po_value,description FROM purchase_orders ORDER BY po_number');pos=cur.fetchall()
                 return dict(accruals=rows,projects=projects,suppliers=suppliers,pos=pos)
     @router.post('')
     async def save(request:Request):
