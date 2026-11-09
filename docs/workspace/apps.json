@@ -7,6 +7,7 @@
       "reports",
       "activities",
       "report-calendar",
+      "time-register",
       "day-rates",
       "costing",
       "rates",
@@ -22,6 +23,10 @@
       [
         "report-calendar",
         "Report calendar"
+      ],
+      [
+        "time-register",
+        "People & hours"
       ],
       [
         "day-rates",
