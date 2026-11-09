@@ -86,7 +86,7 @@ for area,cfg in APPS.items():
  s=re.sub(r'\{\{panel:([^}]+)\}\}',panel,s)
  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/app-style.css?v=20261108">\n</head>')
  if area=='account':
-  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-cards2"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/accruals.js?v=20261109-po-cards2"></script>\n<script src="./workspace/start.js')
+  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-close3"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/accruals.js?v=20261109-po-close3"></script>\n<script src="./workspace/start.js')
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/accounts-overview-model.js?v=20261108-accruals1"></script>\n<script src="./workspace/accounts-overview.js?v=20261108-accruals1"></script>\n<script src="./workspace/start.js')
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/reconciliation-model.js?v=20261108-1"></script>\n<script src="./workspace/reconciliation.js?v=20261108-fortem1"></script>\n<script src="./workspace/start.js')
  if area=='project':
