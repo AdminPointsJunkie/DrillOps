@@ -6,7 +6,7 @@ import re, json, html
 from site_brand import navigation, footer, wordmark
 ROOT=Path(__file__).resolve().parents[1]; DOCS=ROOT/'docs'; SRC=DOCS/'workspace'
 APPS={
- 'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','report-calendar','day-rates','costing','rates','cost-contracts','importer','settings'],'nav':[('activities','Drilling Activity Reports'),('report-calendar','Report calendar'),('day-rates','Day-rate contractors'),('reports','Production Report'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports'),('settings','Settings')]},
+ 'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],'nav':[('activities','Drilling Activity Reports'),('report-calendar','Report calendar'),('time-register','People & hours'),('day-rates','Day-rate contractors'),('reports','Production Report'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports'),('settings','Settings')]},
  'account':{'name':'Account','tag':'Your books. Clear and connected.','copy':'Actual invoices, credit notes and purchase orders in one place.','panels':['accounts-overview','invoices','accruals','reconciliation','purchase-orders','contractors','importer'],'nav':[('accounts-overview','Overview'),('invoices','Invoice ledger'),('accruals','Estimated accruals'),('reconciliation','Reconciliation'),('purchase-orders','Purchase orders'),('contractors','Suppliers'),('importer','Import invoices')]},
  'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-dashboard','project-budgets','budget','boreholes','drilling-schedule','labs','reports','admin'],'nav':[('project-dashboard','Dashboard'),('project-budgets','Projects'),('boreholes','Borehole planning & map'),('drilling-schedule','Rig scheduler'),('labs','Labs'),('budget','Budget planning'),('reports','Hole-by-hole report'),('admin','Users & change log')]}}
 shell=(SRC/'shell.html').read_text()
@@ -22,7 +22,7 @@ ICONS={'calendar':'M3 5h18v16H3zM3 10h18M7 3v4M17 3v4M7 14h2M15 14h2M7 18h2M15 1
  'settings':'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
  'chart':'M4 3v17h17M8 15v-4M13 15V7M18 15V4',
  'people':'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9'}
-PAGE_ICONS={'accruals':'table','labs':'table','day-rates':'calendar','drilling-schedule':'calendar','accounts-overview':'overview','reconciliation':'chart','report-calendar':'calendar','settings':'settings','activities':'report','reports':'report','production':'chart','costing':'chart','rates':'table','cost-contracts':'report','importer':'upload','invoices':'table','purchase-orders':'report','contractors':'people','project-dashboard':'overview','project-budgets':'layers','boreholes':'layers','budget':'chart','admin':'settings','training':'people'}
+PAGE_ICONS={'time-register':'people','accruals':'table','labs':'table','day-rates':'calendar','drilling-schedule':'calendar','accounts-overview':'overview','reconciliation':'chart','report-calendar':'calendar','settings':'settings','activities':'report','reports':'report','production':'chart','costing':'chart','rates':'table','cost-contracts':'report','importer':'upload','invoices':'table','purchase-orders':'report','contractors':'people','project-dashboard':'overview','project-budgets':'layers','boreholes':'layers','budget':'chart','admin':'settings','training':'people'}
 def icon(name):
  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+ICONS[name]+'"/></svg>'
 def link(area,page,label,css='app-task'):
@@ -45,6 +45,7 @@ for area,cfg in APPS.items():
  s=shell.replace('{{navigation}}',nav).replace('{{area}}',area).replace('{{label}}',title).replace('{{home}}',home)
  s=s.replace('{{app-wordmark}}',wordmark(title,'./'+area+'.html',stacked=True))
  if area=='eos':
+  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/time-register.css?v=20261110-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/time-register.js?v=20261110-1"></script>\n<script src="./workspace/start.js')
   scope=(SRC/'eos-scope.html').read_text()
   s=s.replace('  </div>\n</div>\n\n<!-- Header -->','  </div>\n'+scope+'\n</div>\n\n<!-- Header -->')
  local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'] if p not in settings_pages)

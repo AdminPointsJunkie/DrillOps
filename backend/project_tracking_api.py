@@ -6,6 +6,7 @@ from psycopg2.extras import Json
 from psycopg2.errors import UniqueViolation
 from security import current_auth_user
 from audit import record_audit_event
+from eos_time_register import load_register
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab_rates (
@@ -188,6 +189,13 @@ def create_tracking_router(get_conn):
                     tests,total=price_tests(p.get('tests',[]),rates,v['lab'],v['category'],old['tests'] if old else [])
                     v.update(project_id=pid,tests=Json(tests),projected_cost=total);row=persist(cur,'lab_samples',v,rid);audit(cur,row,'lab_sample');return row
         except UniqueViolation:raise HTTPException(409,'This sample ID already exists in the project.')
+
+    @router.get('/crew/time-register', description='Personnel dates, reported crew hours and confirmed worked days across EOS projects.')
+    def time_register(request:Request):
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                access(cur,request)
+                return load_register(cur)
 
     @router.get('/day-rate-tracking', description='Includes editable daily project allocations and saved historical locations.')
     def day_rates(request:Request):
