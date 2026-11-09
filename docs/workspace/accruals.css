@@ -3,3 +3,5 @@
 .ac-po-card{display:flex;flex-direction:column}.ac-po-ratio{min-height:14px}.ac-po-card-actions{margin-top:auto;padding-top:14px}
 
 .ac-po-description{font-size:12px;line-height:1.5;color:#536b5c;margin:0 0 14px;white-space:pre-line;overflow-wrap:anywhere}
+
+.ac-po-card-actions .ac-close-po{display:flex;align-items:center;gap:7px;margin-right:auto;cursor:pointer}.ac-close-po input{width:17px;height:17px;accent-color:#315d49;margin:0}
