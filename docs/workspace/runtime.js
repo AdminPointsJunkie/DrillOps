@@ -5330,7 +5330,7 @@ async function loadPOs(){
 function renderPOs(rows){
   document.getElementById('po-count').textContent=rows.length;
   const tbody=document.getElementById('po-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state"><div class="big">🧾</div>No purchase orders recorded for '+esc(activeProjectName||'this project')+'</div></td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="12"><div class="empty-state"><div class="big">🧾</div>No purchase orders recorded for '+esc(activeProjectName||'this project')+'</div></td></tr>';return;}
   tbody.innerHTML=rows.map(r=>{
     const spent=parseFloat(r.spent_to_date)||0;
     const value=parseFloat(r.po_value)||0;
@@ -5349,6 +5349,7 @@ function renderPOs(rows){
       <td style="color:${rem<0?'var(--red)':'var(--green)'}">${cur(rem)}</td>
       <td><div style="display:flex;align-items:center;gap:5px;"><div style="flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="width:${pct===null?0:Math.max(0,Math.min(100,Number(pct)))}%;height:100%;background:${bc};"></div></div><span style="font-family:var(--font-mono);font-size:9px;color:${bc}">${pct===null?'—':pct+'%'}</span></div></td>
       <td contenteditable="true" data-col="status" style="color:${sc}">${esc(r.status||'Active')}</td>
+      <td style="text-align:center"><input type="checkbox" class="po-closed" aria-label="Closed: ${esc(r.po_number)}" ${['completed','closed'].includes(String(r.status||'').toLowerCase())?'checked':''} style="width:18px;height:18px;accent-color:var(--green);cursor:pointer"/></td>
       <td><button onclick="deletePO(${r.id})" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
   }).join('');
@@ -5359,6 +5360,22 @@ function renderPOs(rows){
       if(cell.dataset.numeric)val=parseFloat(val)||0;
       await fetch(`${API}/purchase_orders/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[col]:val})});
       toast('✓ PO saved');loadPOs();
+    });
+  });
+  tbody.querySelectorAll('.po-closed').forEach(box=>{
+    box.addEventListener('change',async()=>{
+      const closed=box.checked;
+      box.disabled=true;
+      try{
+        const res=await fetch(`${API}/purchase_orders/${box.closest('tr').dataset.id}`,{
+          method:'PATCH',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({status:closed?'Completed':'Active'})
+        });
+        if(!res.ok)throw new Error('Unable to save PO status');
+        toast(closed?'✓ PO closed':'✓ PO reopened');
+        await loadPOs();
+      }catch(e){box.checked=!closed;toast('PO status could not be saved','err');}
+      finally{box.disabled=false;}
     });
   });
   makeTableSortable('po-table');
