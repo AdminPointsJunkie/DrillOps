@@ -45,3 +45,11 @@ def test_project_summary_is_read_only_scoped_and_available_to_project_users():
     r=c.get('/account-accruals/project-summary?project_id=1')
     assert r.status_code==200 and r.json()['combined']==1500
     assert cur.execute.call_args.args[1]==(1,)
+
+
+def test_po_descriptions_are_returned_for_cards():
+    c,cur=client([]);cur.fetchall.side_effect=[[],[],[],[{'id':10,'po_number':'PO-10','description':'Geological support'}]]
+    result=c.get('/account-accruals')
+    assert result.status_code==200 and result.json()['pos'][0]['description']=='Geological support'
+    query=next(call.args[0] for call in cur.execute.call_args_list if 'FROM purchase_orders ORDER BY' in call.args[0])
+    assert 'po_value,description' in query

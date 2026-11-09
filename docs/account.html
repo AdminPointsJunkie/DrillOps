@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-cards1"><link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-cards2"><link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261108-1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 <link rel="stylesheet" href="./workspace/suite-style.css?v=20261108-suite1"><script src="./workspace/report-design.js?v=20261108-suite1"></script></head>
 <body class="workspace-locked" data-workspace-area="account">
 
@@ -474,11 +474,11 @@
     </section>
     <section class="page" id="page-accruals"><fieldset id="ac-page-lock">
  <header class="ledger-heading"><div><div class="ledger-eyebrow">Accounts</div><h2>Estimated accruals</h2></div><div class="ledger-actions"><button class="ledger-button" id="ac-refresh">Refresh</button><button class="ledger-button" id="ac-new">Add supplier accrual</button></div></header>
- <div class="ledger-filters"><label>Project<select id="ac-project"><option value="">All projects</option></select></label><label>Month<input id="ac-month" type="month"></label><label>Status<select id="ac-status"><option>Open</option><option>Cleared</option><option value="">All</option></select></label></div>
+ <div class="ledger-filters"><label>Project<select id="ac-project"><option value="">All projects</option></select></label><label>Supplier<select id="ac-supplier"><option value="">All suppliers</option></select></label><label>Month<input id="ac-month" type="month"></label><label>Status<select id="ac-status"><option>Open</option><option>Cleared</option><option value="">All</option></select></label></div>
  <p id="ac-message" role="status"></p><div class="ledger-cards" id="ac-totals"></div>
  <section class="ac-month-chart" aria-label="Monthly accruals"><div class="ac-section-heading"><h3>Open accruals by month</h3><span id="ac-chart-year"></span></div><div id="ac-month-bars"></div></section>
  <section class="ac-po-section"><div class="ac-section-heading"><div><h3>Open purchase orders</h3><span id="ac-po-count"></span></div><div class="ac-po-actions"><button class="ledger-button" id="ac-prev-month" aria-label="Previous month">←</button><strong id="ac-month-label"></strong><button class="ledger-button" id="ac-next-month" aria-label="Next month">→</button><button class="ledger-button ac-primary" id="ac-save-month" disabled>Save month</button></div></div>
- <label class="ac-po-search">Find a PO or supplier<input id="ac-search" type="search" placeholder="PO number or supplier"></label>
+ <label class="ac-po-search">Find a PO<input id="ac-search" type="search" placeholder="PO number or description"></label>
  <p id="ac-po-message" role="status"></p><div id="ac-po-cards" class="ac-po-grid"></div></section>
  <details class="ac-saved"><summary>Saved accruals</summary>
  <div class="tbl-scroll"><table class="ac-table"><thead><tr><th>Month</th><th>Supplier</th><th>Project</th><th>PO</th><th>Description</th><th>Estimated amount</th><th>Status</th><th></th></tr></thead><tbody id="ac-rows"></tbody></table></div></details>
@@ -657,7 +657,7 @@
 <script src="./workspace/runtime.js?v=20261108-account1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/accruals.js?v=20261109-po-cards1"></script>
+<script src="./workspace/accruals.js?v=20261109-po-cards2"></script>
 <script src="./workspace/accounts-overview-model.js?v=20261108-accruals1"></script>
 <script src="./workspace/accounts-overview.js?v=20261108-accruals1"></script>
 <script src="./workspace/reconciliation-model.js?v=20261108-1"></script>
