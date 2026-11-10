@@ -1,7 +1,7 @@
 import {classifyFeatures} from './attribute-style.js';
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 import {attributeFields} from './explore-data.js';
-export const analysisTools={heatmap:'Create heatmap',hex:'Hexagon summary',extract:'Extract',bounds:'Bounds',buffer:'Buffer',centroid:'Centroid',dissolve:'Dissolve',clip:'Clip to boundary',nearest:'Nearest distance',summarize:'Summarize within areas',validate:'Validate geometry',count:'Count points',intersect:'Intersect polygons',join:'Join attributes',merge:'Merge layers',sample:'Sample raster',subtract:'Subtract polygons'};
+export const analysisTools={lidar:'LiDAR terrain tools',heatmap:'Create heatmap',hex:'Hexagon summary',extract:'Extract',bounds:'Bounds',buffer:'Buffer',centroid:'Centroid',dissolve:'Dissolve',clip:'Clip to boundary',nearest:'Nearest distance',summarize:'Summarize within areas',validate:'Validate geometry',count:'Count points',intersect:'Intersect polygons',join:'Join attributes',merge:'Merge layers',sample:'Sample raster',subtract:'Subtract polygons'};
 export function openAnalysis(operation,{getLayers,canCreate,onResult,onPreview=()=>()=>{},initialSource,initialSettings}){
  if(!canCreate())return;
  if(operation==='sample'){import('./raster-sample.js').then(m=>m.openRasterSample({getLayers,canCreate,onResult}));return;}
