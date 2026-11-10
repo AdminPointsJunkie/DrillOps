@@ -67,9 +67,11 @@ export function locationFilesPanel({document,layer,feature,canEdit,upload,remove
   list.append(row);
  }
  if(canEdit(layer)){
-  const label=document.createElement('label');label.textContent='Attach files';const input=document.createElement('input');input.type='file';input.multiple=true;input.setAttribute('aria-label','Attach files to this location');label.append(input);panel.append(label);
+  const label=document.createElement('label');label.textContent='Choose files to upload';const input=document.createElement('input');input.type='file';input.multiple=true;input.setAttribute('aria-label','Attach files to this location');label.append(input);panel.append(label);
   const hint=document.createElement('p');hint.textContent='JPEG photos are reduced to 2048 pixels with a small preview; keep original photos separately. GeoTIFFs and archives stay local. Up to 50 MB per other file. SYNC shares attachments with operators.';panel.append(hint);
-  input.onchange=()=>{const files=Array.from(input.files||[]);if(files.length)void run(progress=>upload(files,progress));input.value='';};
+  const send=document.createElement('button');send.type='button';send.textContent='Upload selected files to DrillOps';send.disabled=true;panel.append(send);
+  input.onchange=()=>{send.disabled=!input.files?.length;status.textContent=input.files?.length?'Selected files stay on this device until you click Upload.':'';};
+  send.onclick=async()=>{const files=Array.from(input.files||[]);if(!files.length)return;await run(progress=>upload(files,progress));input.value='';send.disabled=true;};
  }
  panel.append(status);return panel;
 }
