@@ -1,4 +1,4 @@
-import {streamlineToolbar,openShortcutGuide} from './compact-toolbar.js';
+import {configureToolbarIcons,openShortcutGuide} from './compact-toolbar.js';
 import {installPhotoLocations} from './photo-locations.js';
 import {pinScope} from './photo-location-model.js';
 import {releaseLayerRenderers} from './layer-renderers.js';
@@ -900,7 +900,7 @@ scene3D=installMap3D({map,getLayers:()=>layers.filter(isVisible),getBasemap:()=>
 
 photoLocations=installPhotoLocations({L,map,getScope:()=>pinScope(user?.id,currentWorkspace?.id,activeMap?.id),getLayers:()=>layers,isVisible,acceptFeature:(layer,feature)=>!explorer||explorer.acceptFeature(layer,feature),featureSearch:()=>explorer.openSearch(),getEngine:gdal,toast,canStart:()=>{if(busy||geometryEditor?.active||fieldTools?.pending){toast('Finish the current drawing or operation first.');return false;}scene3D?.close();return true;},download:async path=>{const {data,error}=await db.storage.from('gis-files').download(path);if(error)throw error;return data;}});
 
-streamlineToolbar();
+configureToolbarIcons();
 quickAction('Find location',()=>photoLocations.openSearch(),'mod+f');
 quickAction('Save draft',()=>$('#save-draft').click(),'mod+s',()=>!homeUI?.active&&!$('#save-draft').disabled);
 quickAction('Publish / sync',()=>$('#sync-project').click(),'mod+shift+s',()=>!homeUI?.active&&!$('#sync-project').disabled);

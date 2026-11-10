@@ -1,4 +1,22 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {build} from 'esbuild';import {mkdtemp} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';
-const temporary=await mkdtemp(join(tmpdir(),'fieldmaps-toolbar-')),bundle=join(temporary,'toolbar.mjs');await build({entryPoints:[fileURLToPath(new URL('../src/compact-toolbar.js',import.meta.url))],bundle:true,platform:'node',format:'esm',loader:{'.css':'empty'},outfile:bundle});const {streamlineToolbar,shortcutGuide}=await import(pathToFileURL(bundle));
-test('secondary tools move into Tools while original buttons keep their actions',()=>{const dom=new JSDOM('<header><div class="toolbar-menus"><button id="open-table">Table</button><button id="open-search">Search</button><button aria-label="Photo locations and saved pins">Photos</button><details class="tool-menu"><summary aria-label="Annotations">Draw</summary><div class="tool-menu-content"><button id="pin">Pin</button></div></details><details class="tool-menu"><summary aria-label="Analysis">Analysis</summary><div class="tool-menu-content"><button id="buffer">Buffer</button></div></details></div></header>');globalThis.document=dom.window.document;const table=document.getElementById('open-table');let clicks=0;table.onclick=()=>clicks++;streamlineToolbar();assert.equal(document.querySelector('.toolbar-more #open-table'),table);table.click();assert.equal(clicks,1);assert.ok(document.querySelector('.toolbar-more #buffer'));assert.ok(document.querySelector('.compact-toolbar > .tool-menu #pin'));assert.equal(document.querySelectorAll('.compact-toolbar > .tool-menu').length,2);assert.equal(document.getElementById('open-search').getAttribute('aria-keyshortcuts'),'Meta+f Control+f /');dom.window.close();});
+const temporary=await mkdtemp(join(tmpdir(),'fieldmaps-toolbar-')),bundle=join(temporary,'toolbar.mjs');await build({entryPoints:[fileURLToPath(new URL('../src/compact-toolbar.js',import.meta.url))],bundle:true,platform:'node',format:'esm',loader:{'.css':'empty'},outfile:bundle});const {configureToolbarIcons,shortcutGuide}=await import(pathToFileURL(bundle));
+test('original categories stay visible and toolbar actions use accessible icons',()=>{
+ const dom=new JSDOM('<header><div class="toolbar-menus"><button id="open-table" class="square">Table</button><button id="open-search" class="square">Search</button><button aria-label="Photo locations and saved pins" class="square">Photos</button><button id="copy-map-data" hidden>Download map data</button><details class="tool-menu"><summary aria-label="Annotations"><svg></svg></summary><div class="tool-menu-content"><button id="pin">Pin</button></div></details><details class="tool-menu"><summary aria-label="Analysis"><svg></svg></summary><div class="tool-menu-content"><button id="buffer">Buffer</button></div></details><details class="tool-menu"><summary aria-label="Upload"><svg></svg></summary><div class="tool-menu-content"><button id="upload">Upload files</button></div></details><details class="tool-menu"><summary aria-label="Components"><svg></svg></summary><div class="tool-menu-content"><button id="components">Components</button></div></details></div></header>');
+ globalThis.document=dom.window.document;
+ const toolbar=document.querySelector('.toolbar-menus'),original=[...toolbar.children];
+ const table=document.getElementById('open-table');let clicks=0;table.onclick=()=>clicks++;
+ configureToolbarIcons();
+ assert.deepEqual([...toolbar.children],original);
+ assert.equal(document.querySelector('.toolbar-more'),null);
+ assert.equal(toolbar.classList.contains('compact-toolbar'),false);
+ assert.equal(toolbar.querySelectorAll(':scope > .tool-menu').length,4);
+ for(const action of [table,document.getElementById('open-search'),toolbar.querySelector('[aria-label="Photo locations and saved pins"]')]){
+  assert.equal(action.textContent.trim(),'');assert.ok(action.querySelector('svg'));assert.ok(action.getAttribute('aria-label'));assert.ok(action.title);assert.equal(action.parentElement,toolbar);
+ }
+ table.click();assert.equal(clicks,1);
+ assert.equal(document.getElementById('copy-map-data').hidden,true);
+ assert.equal(document.getElementById('open-search').getAttribute('aria-keyshortcuts'),'Meta+f Control+f /');
+ configureToolbarIcons();assert.deepEqual([...toolbar.children],original);assert.equal(table.querySelectorAll('svg').length,1);
+ dom.window.close();
+});
 test('guide covers Mac and Windows save, search and new photo shortcuts',()=>{assert.deepEqual(shortcutGuide.find(x=>x[0]==='Save draft'),['Save draft','⌘ S','Ctrl S']);assert.ok(shortcutGuide.find(x=>x[0].startsWith('Photo locations')&&x[1]==='P'&&x[2]==='P'));assert.ok(shortcutGuide.every(row=>row.length===3&&row.every(Boolean)));});
