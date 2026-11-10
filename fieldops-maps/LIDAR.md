@@ -22,3 +22,15 @@ Elevation band scale/offset metadata and international feet conversion are appli
 ## Validation
 
 `node --test tests/lidar.test.mjs` covers actual Float32 GeoTIFF decoding, PixelIsArea/PixelIsPoint, units, NoData, RGB rejection, profile distances/grade, section orientation, slope/aspect, mesh holes, cancellation and panel lifecycle. `tests/browser-lidar.html` is a deterministic synthetic DEM drawing harness (development only). Browser verification: drawing a two-vertex line and finishing it automatically generated a 648-sample profile with chart and exports. No site DEM was supplied for survey validation.
+
+## Hosted 3D elevation XYZ
+
+Choose **Elevation source → 3D elevation XYZ**, paste an HTTPS `{z}/{x}/{y}` URL, select **Terrain-RGB** or **Terrarium**, native sample zoom, tile size (256/512) and optional provider NoData elevation. Zoom to the site and use **Load terrain XYZ**. This validates a sample at the map centre. Profiles, cross-sections, point measurements and the bounded surface preview then use the hosted elevation data.
+
+**Add streaming 3D terrain layer** saves the source URL and current map footprint as a project layer and opens 3D. The first visible terrain source in layer order drives the globe inside that footprint. Hide that layer to return to default terrain. Ordinary imagery layers drape over the selected terrain. This is separate from the coarse, static surface preview. Streaming uses 33 × 33 heightmap vertices per display tile; sample zoom is capped at the source's configured native zoom. Source heights must already match the globe's vertical reference; no geoid transformation is performed.
+
+Outside the saved footprint, in missing source coverage, and after tile errors, 3D uses global terrain (or ellipsoid heights where global heights are unavailable), with a status message. Analytical profiles do **not** substitute global elevations: missing source samples remain NoData. The original source datum is retained on extracted results.
+
+Use lossless, unbuffered PNG or WebP elevation tiles in Web Mercator with XYZ north-origin Y and CORS enabled. JPEG, TMS inverted Y, quantized-mesh, Cesium 3D Tiles and ordinary coloured imagery are not elevation XYZ inputs. URL keys are saved when a streaming source is added to a project: use only keys intended for browser clients. Cloudflare account credentials are not needed. Local profile sessions cache 64 decoded tiles and cap requests at 512; reload with a lower zoom or smaller area if the limit is reached. Streaming requests dispose their tile cache after producing each display heightmap.
+
+Encoding references: https://docs.mapbox.com/data/tilesets/guides/access-elevation-data/ and https://github.com/tilezen/joerd/blob/master/docs/formats.md .

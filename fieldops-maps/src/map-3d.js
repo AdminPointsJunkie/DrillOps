@@ -21,7 +21,7 @@ export function installMap3D({map,getLayers,getBasemap,acceptFeature,onPick,canO
    globalThis.CESIUM_BASE_URL=baseURL+'cesium/';
    if(!doc.querySelector('link[data-cesium-style]')){const style=doc.createElement('link');style.rel='stylesheet';style.href=globalThis.CESIUM_BASE_URL+'Widgets/widgets.css';style.dataset.cesiumStyle='true';doc.head.append(style);}
    const {createScene3D}=await loadScene();if(ticket!==revision||destroyed)return;
-   const created=await createScene3D(canvas,{onPick,onTerrain:available=>{terrain.textContent=available?'Terrain · Esri World Elevation':'Terrain unavailable · WGS 84 ellipsoid';},onError:message=>report(message,true)});
+   const created=await createScene3D(canvas,{onPick,onTerrain:(available,label)=>{terrain.textContent=available?('Terrain · '+(label||'Esri World Elevation')):'Terrain unavailable · WGS 84 ellipsoid';},onError:message=>report(message,true)});
    if(ticket!==revision||destroyed){created.destroy();return;}
    engine=created;active=true;layersButton.hidden=false;area.classList.add('is-3d');doc.body.classList.add('viewing-3d');controls(false);opening=false;buttons();
    engine.basemap(imagery.value==='project'?getBasemap():{type:'satellite'});const center=map.getCenter();engine.fit(getLayers(),{lng:center.lng,lat:center.lat,range:Math.max(200,40075000/2**map.getZoom()*2)});

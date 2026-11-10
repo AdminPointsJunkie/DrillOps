@@ -1,3 +1,4 @@
+import {xyzTerrainProvider} from './lidar-terrain-provider.js';
 import {availableImagery} from './imagery.js';
 import * as C from 'cesium';
 import {geometryParts,sourceGeometry,triangulateFace,heightMode,ecef,coordinateList,coordinateKey,displayedFeatures} from './scene3d-model.js';
@@ -13,12 +14,13 @@ export async function createScene3D(container,{onPick,onTerrain,onError}={}){
  viewer.scene.globe.depthTestAgainstTerrain=true;viewer.scene.globe.baseColor=C.Color.fromCssColorString('#dce2dc');
  viewer.scene.backgroundColor=C.Color.fromCssColorString('#101b25');viewer.scene.highDynamicRange=false;
  let destroyed=false,terrainReady=false,generation=0,basemapKey='',baseImagery=null,offset=0;const cache=new Map(),terrainHeights=new Map();
+ let defaultTerrain=null,customTerrain=null,terrainKey='';
  const handler=new C.ScreenSpaceEventHandler(viewer.scene.canvas);
  handler.setInputAction(event=>{const picked=viewer.scene.pick(event.position),id=picked?.id;if(id?.feature&&id?.layer)onPick?.(id.layer,id.feature);},C.ScreenSpaceEventType.LEFT_CLICK);
  const terrainPromise=(async()=>{
   try{
    const provider=await C.ArcGISTiledElevationTerrainProvider.fromUrl(terrainURL);
-   if(destroyed)return;viewer.terrainProvider=provider;terrainReady=true;onTerrain?.(true);viewer.scene.requestRender();
+   if(destroyed)return;defaultTerrain=provider;viewer.terrainProvider=provider;terrainReady=true;onTerrain?.(true);viewer.scene.requestRender();
   }catch(error){if(!destroyed){onTerrain?.(false);onError?.('Terrain could not load. The globe is using the WGS 84 ellipsoid.');}}
  })();
  function basemap(state={type:'satellite'}){
@@ -45,6 +47,7 @@ export async function createScene3D(container,{onPick,onTerrain,onError}={}){
  }
  function remove(record){if(record?.root&&!record.root.isDestroyed())viewer.scene.primitives.remove(record.root);if(record?.imagery)viewer.imageryLayers.remove(record.imagery,true);}
  async function buildLayer(layer,entries,ticket){
+  if(layer.metadata?.terrain_xyz)return {};
   if(layer.kind==='raster'||layer.metadata?.xyz){
    let provider;
    if(layer.metadata?.xyz){const s=layer.metadata.xyz;provider=new C.UrlTemplateImageryProvider({url:s.url.replace('{r}',''),credit:escapeCredit(s.attribution),maximumLevel:s.maxZoom});}
@@ -92,6 +95,9 @@ export async function createScene3D(container,{onPick,onTerrain,onError}={}){
  }
  async function sync(layers,{accept=()=>true,heightOffset=0,onProgress}={}){
   const ticket=++generation;if(offset!==heightOffset){offset=heightOffset;for(const record of cache.values())remove(record);cache.clear();}
+  await terrainPromise;if(ticket!==generation||destroyed)return;
+  const terrainLayer=layers.find(l=>l.metadata?.terrain_xyz),nextTerrainKey=terrainLayer?JSON.stringify([terrainLayer.metadata.terrain_xyz,terrainLayer.bounds]):'';
+  if(nextTerrainKey!==terrainKey){customTerrain?.dispose();customTerrain=null;terrainKey=nextTerrainKey;terrainHeights.clear();for(const record of cache.values())remove(record);cache.clear();if(terrainLayer){customTerrain=xyzTerrainProvider(terrainLayer.metadata.terrain_xyz,terrainLayer.bounds,defaultTerrain,onError);viewer.terrainProvider=customTerrain.provider;terrainReady=true;onTerrain?.(true,'Project elevation XYZ · global fallback');}else{viewer.terrainProvider=defaultTerrain||new C.EllipsoidTerrainProvider();terrainReady=!!defaultTerrain;onTerrain?.(terrainReady);}}
   const wanted=new Set(layers.map(l=>l.id));for(const [id,record] of cache)if(!wanted.has(id)){remove(record);cache.delete(id);}
   for(const layer of layers){
    if(ticket!==generation||destroyed)return;
@@ -117,5 +123,5 @@ export async function createScene3D(container,{onPick,onTerrain,onError}={}){
  }
  function focusView(view){const center=C.Cartesian3.fromDegrees(view.lng,view.lat);viewer.camera.lookAt(center,new C.HeadingPitchRange(viewer.camera.heading,-Math.PI/4,view.range));viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);viewer.scene.requestRender();}
  function top(){const middle=new C.Cartesian2(viewer.canvas.clientWidth/2,viewer.canvas.clientHeight/2),ray=viewer.camera.getPickRay(middle),target=ray&&viewer.scene.globe.pick(ray,viewer.scene);if(target){const range=Math.max(100,C.Cartesian3.distance(viewer.camera.positionWC,target));viewer.camera.lookAt(target,new C.HeadingPitchRange(0,-Math.PI/2,range));viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);}viewer.scene.requestRender();}
- return {viewer,basemap,sync,fit,focusFeature,focusView,top,resize:()=>{viewer.resize();viewer.scene.requestRender();},get stats(){return [...cache.values()].flatMap(r=>r.stats?[r.stats]:[]);},get center(){const ray=viewer.camera.getPickRay(new C.Cartesian2(viewer.canvas.clientWidth/2,viewer.canvas.clientHeight/2)),p=ray&&viewer.scene.globe.pick(ray,viewer.scene);if(!p)return null;const c=C.Cartographic.fromCartesian(p);return {lng:C.Math.toDegrees(c.longitude),lat:C.Math.toDegrees(c.latitude),height:viewer.camera.positionCartographic.height};},destroy(){destroyed=true;generation++;handler.destroy();cache.clear();viewer.destroy();}};
+ return {viewer,basemap,sync,fit,focusFeature,focusView,top,resize:()=>{viewer.resize();viewer.scene.requestRender();},get stats(){return [...cache.values()].flatMap(r=>r.stats?[r.stats]:[]);},get center(){const ray=viewer.camera.getPickRay(new C.Cartesian2(viewer.canvas.clientWidth/2,viewer.canvas.clientHeight/2)),p=ray&&viewer.scene.globe.pick(ray,viewer.scene);if(!p)return null;const c=C.Cartographic.fromCartesian(p);return {lng:C.Math.toDegrees(c.longitude),lat:C.Math.toDegrees(c.latitude),height:viewer.camera.positionCartographic.height};},destroy(){destroyed=true;generation++;customTerrain?.dispose();handler.destroy();cache.clear();viewer.destroy();}};
 }
