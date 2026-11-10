@@ -24,7 +24,5 @@ export function configureToolbarIcons(){
   ['copy-map-data','download','Download map data']
  ])iconButton(document.getElementById(id),workspaceIcon(icon),label,shortcut,hint);
  iconButton(tools.querySelector('[aria-label="Map settings"]'),workspaceIcon('settings'),'Map settings');
- const photoIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></svg>';
- iconButton(tools.querySelector('[aria-label="Photo locations and saved pins"]'),photoIcon,'Photo locations and saved pins','p','Photo locations and saved pins · P');
  for(const [id,shortcut] of [['save-draft','Meta+s Control+s'],['sync-project','Meta+Shift+s Control+Shift+s']])document.getElementById(id)?.setAttribute('aria-keyshortcuts',shortcut);
 }

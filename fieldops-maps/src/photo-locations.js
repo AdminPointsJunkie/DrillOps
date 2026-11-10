@@ -1,19 +1,12 @@
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 import {coordinateInput,clusterPhotos,pinScope,createPersonalPinStore} from './photo-location-model.js';
 import './photo-locations.css';
+import {downscaleLocalPhoto,importPhotoBatch} from './photo-drop.js';
+export {downscaleLocalPhoto} from './photo-drop.js';
 
-export async function downscaleLocalPhoto(file){
- if(file.size>50*1024*1024)throw Error(`${file.name} exceeds 50 MB.`);
- if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Choose JPEG, PNG or WebP photos. Export HEIC photos as JPEG first.');
- const bitmap=await createImageBitmap(file);
- try{
-  const render=async(side,quality)=>{const ratio=Math.min(1,side/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(bitmap,0,0,canvas.width,canvas.height);const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',quality));if(!blob)throw Error('Photo could not be resized.');return blob;};
-  return {id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,'')+'.jpg',blob:await render(2048,.85),thumbnail:await render(256,.75)};
- }finally{bitmap.close();}
-}
-export function installPhotoLocations({L,map,getScope,getLayers,isVisible,acceptFeature,download,featureSearch,getEngine,canStart=()=>true,toast}){
+export function installPhotoLocations({L,map,getScope,getLayers,isVisible,acceptFeature,download,featureSearch,getEngine,canStart=()=>true,onChanged=()=>{},onBusy=()=>{},toast}){
  const storage=createPersonalPinStore(),photos=L.layerGroup().addTo(map),pins=L.layerGroup().addTo(map);
- let scope=null,local=[],shown=true,revision=0,timer,dialogs=new Set(),urls=[],searchMarker,request,lastRequest=0;
+ let scope=null,local=[],shown=true,revision=0,timer,dialogs=new Set(),urls=[],searchMarker,request,lastRequest=0,importing=false;
  const cachedPlaces=new Map(),imageCache=new Map();
  let downloading=0;const waiting=[];
  async function cachedDownload(path){
@@ -25,13 +18,58 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   finally{downloading--;waiting.shift()?.();}
  }
  const button=(title,text,run)=>{const b=document.createElement('button');b.type='button';b.className='square';b.title=title;b.setAttribute('aria-label',title);b.textContent=text;b.onclick=run;return b;};
- const photoButton=button('Photo locations and saved pins','▣',openPhotos);document.querySelector('.map-tools')?.append(photoButton);
- const toggle=document.createElement('label');toggle.className='photo-layer-toggle';toggle.innerHTML='<input type="checkbox" checked> Photo locations';toggle.querySelector('input').onchange=e=>{shown=e.target.checked;draw();};document.querySelector('#layers')?.before(toggle);
+ const controls=document.createElement('section');controls.className='photo-layer-controls';controls.setAttribute('aria-label','Photo layer');
+ controls.innerHTML='<div class="photo-layer-heading"><label class="photo-layer-toggle"><input type="checkbox" checked> Photo locations</label><button type="button" data-photo-add aria-label="Import photos" title="Import photos from GPS metadata">＋</button><button type="button" data-photo-browse aria-label="Photo locations and saved pins" title="Browse photos and saved pins">▣</button></div><small data-photo-status role="status" aria-live="polite">Drop photos onto the map · saved on this device</small><input data-photo-input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden>';
+ document.querySelector('#layers')?.before(controls);
+ const toggle=controls.querySelector('.photo-layer-toggle'),photoInput=controls.querySelector('[data-photo-input]'),photoStatus=controls.querySelector('[data-photo-status]');
+ toggle.querySelector('input').onchange=e=>{shown=e.target.checked;draw();};
+ controls.querySelector('[data-photo-add]').onclick=()=>photoInput.click();
+ controls.querySelector('[data-photo-browse]').onclick=openPhotos;
+ photoInput.onchange=()=>{const files=[...photoInput.files];photoInput.value='';void importFiles(files);};
  function dialog(title,body){const d=toolDialog(title,body);dialogs.add(d);d.addEventListener('close',()=>dialogs.delete(d),{once:true});return d;}
  function valid(at){return at===scope&&at===getScope();}
  async function refresh(){
   const next=getScope();if(next!==scope){scope=next;imageCache.clear();revision++;local=[];shown=true;toggle.querySelector('input').checked=true;photos.clearLayers();pins.clearLayers();urls.forEach(URL.revokeObjectURL);urls=[];for(const d of dialogs)d.close();request?.abort();if(searchMarker)map.removeLayer(searchMarker);searchMarker=null;const at=scope;try{const values=await storage.list(at);if(valid(at)){local=values;draw();}}catch(e){if(valid(at))toast(e.message);}return;}
   clearTimeout(timer);timer=setTimeout(draw,80);
+ }
+ async function reloadLocal(at){const values=await storage.list(at);if(valid(at)){local=values;draw();}}
+ async function importFiles(files){
+  if(!files.length)return true;
+  if(importing){toast('Wait for the current photo import to finish.');return false;}
+  if(!canStart())return false;
+  if(scope!==getScope())await refresh();
+  const at=scope;if(!at){toast('Sign in and choose a project first.');return false;}
+  importing=true;onBusy(true);controls.querySelector('[data-photo-add]').disabled=true;
+  try{
+   const result=await importPhotoBatch(Array.from(files),{scope:at,isCurrent:()=>valid(at),storage,
+    progress:(index,total)=>{photoStatus.textContent=`Reading photo ${index} of ${total}…`;}});
+   if(result.cancelled||!valid(at))return false;
+   if(result.saved.length){shown=true;toggle.querySelector('input').checked=true;await reloadLocal(at);if(valid(at))map.fitBounds(result.saved.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
+   if(!valid(at))return false;
+   const saved=`${result.saved.length} photo${result.saved.length===1?'':'s'} placed from GPS metadata`;
+   photoStatus.textContent=saved;
+   if(result.unlocated.length)await locateMissingPhotos(result.unlocated,at,result.saved.length,result.errors);
+   else toast(saved+(result.errors.length?`. Could not import: ${result.errors.map(error=>error.name+' — '+error.message).join('; ')}`:'. Saved on this device.'));
+   return valid(at);
+  }catch(error){if(valid(at)){photoStatus.textContent='Photo import could not finish';toast(error.message);}return false;}
+  finally{importing=false;controls.querySelector('[data-photo-add]').disabled=false;onBusy(false);}
+ }
+ function locateMissingPhotos(unlocated,at,savedCount,errors){
+  const d=dialog('Photos without GPS locations',`<p>${savedCount} photo${savedCount===1?'':'s'} already placed from GPS metadata. These photos need a location. Enter latitude, longitude for any you want to add, or skip them.</p><div class="photo-unlocated-list">${unlocated.map((pin,i)=>`<label>${esc(pin.name)}<input data-location="${i}" placeholder="Latitude, longitude" aria-label="Location for ${esc(pin.name)}"></label>`).join('')}</div>${errors.length?`<p>${errors.map(error=>esc(error.name+': '+error.message)).join('<br>')}</p>`:''}`);
+  const q=selector=>d.querySelector(selector);q('[type=submit]').textContent='Save chosen locations';
+  d.querySelectorAll('[data-dismiss]').forEach(button=>{if(!button.getAttribute('aria-label'))button.textContent='Skip';});
+  q('form').onsubmit=async event=>{
+   event.preventDefault();q('[type=submit]').disabled=true;
+   try{
+    if(!valid(at))throw Error('Project changed. Drop the photos again in the correct project.');
+    const selected=[...d.querySelectorAll('[data-location]')].filter(input=>input.value.trim()).map(input=>({...unlocated[Number(input.dataset.location)],...coordinateInput(input.value),locationSource:'manual'}));
+    if(!selected.length)throw Error('Enter a location for at least one photo, or choose Skip.');
+    for(const pin of selected){if(!valid(at))break;await storage.save(at,pin);}
+    if(valid(at)){shown=true;toggle.querySelector('input').checked=true;await reloadLocal(at);if(valid(at))map.fitBounds(selected.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
+    d.close();
+   }catch(error){q('.error').textContent=error.message;}finally{q('[type=submit]').disabled=false;}
+  };
+  return new Promise(resolve=>d.addEventListener('close',resolve,{once:true}));
  }
  function entries(){
   const rows=[];
@@ -47,7 +85,8 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
  function draw(){
   if(scope!==getScope()){void refresh();return;}
   const token=++revision;photos.clearLayers();pins.clearLayers();urls.forEach(URL.revokeObjectURL);urls=[];const owned=urls;
-  for(const pin of local){const marker=L.circleMarker([pin.lat,pin.lng],{radius:7,color:'#fff',weight:2,fillColor:'#db7d31',fillOpacity:1}).addTo(pins);marker.on('click',()=>editPin(pin));}
+  for(const pin of local.filter(pin=>pin.source!=='photo')){const marker=L.circleMarker([pin.lat,pin.lng],{radius:7,color:'#fff',weight:2,fillColor:'#db7d31',fillOpacity:1}).addTo(pins);marker.on('click',()=>editPin(pin));}
+  onChanged();
   if(!shown)return;
   const visible=entries().filter(p=>map.getBounds().pad(.2).contains([p.lat,p.lng]));
   const groups=clusterPhotos(visible,p=>map.project([p.lat,p.lng],map.getZoom()));
@@ -67,14 +106,14 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   }
  }
  function openPhotos(){
-  const d=dialog('Photo locations',`<label><input data-show type="checkbox" ${shown?'checked':''}> Show photo locations</label><p>Photos group together as you zoom out. Tap a preview to browse.</p><button type="button" data-pin>Drop a pin at map centre</button><p class="field-note">New pins and downscaled photos are saved in this browser on this device. Nothing uploads automatically. Clearing browser data removes them.</p><div data-pins></div>`);
+  const d=dialog('Photo locations',`<label><input data-show type="checkbox" ${shown?'checked':''}> Show photo locations</label><p>Drop photos onto the map to place them using GPS metadata. Photos group together as you zoom out. Tap a preview to browse.</p><button type="button" data-pin>Drop a pin at map centre</button><p class="field-note">New pins and downscaled photos are saved in this browser on this device. Nothing uploads automatically. Clearing browser data removes them.</p><div data-pins></div>`);
   d.querySelector('[type=submit]').remove();d.querySelector('[data-show]').onchange=e=>{shown=e.target.checked;toggle.querySelector('input').checked=shown;draw();};
   d.querySelector('[data-pin]').onclick=()=>{if(!scope)return toast('Sign in and choose a project first.');if(!canStart())return;const c=map.getCenter();d.close();editPin({id:crypto.randomUUID(),name:'',note:'',lat:c.lat,lng:c.lng,photos:[]});};
   for(const pin of local){const row=document.createElement('div'),edit=document.createElement('button'),locate=document.createElement('button');edit.type=locate.type='button';edit.textContent=pin.name;locate.textContent='Show on map';edit.onclick=()=>{d.close();editPin(pin);};locate.onclick=()=>{map.setView([pin.lat,pin.lng],18);d.close();};row.append(edit,locate);d.querySelector('[data-pins]').append(row);}
  }
  function editPin(original){
   const at=scope,pin={...original,photos:[...(original.photos||[])]},owned=[];
-  const d=dialog('Saved pin',`<label>Name<input name="name" value="${esc(pin.name)}" maxlength="160" required></label><label>Notes<textarea name="note" maxlength="4000">${esc(pin.note)}</textarea></label><p>${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}</p><label>Add selected photos<input data-photos type="file" accept="image/jpeg,image/png,image/webp" multiple></label><small>Up to 10 photos. Copies are reduced to 2048 pixels; originals are unchanged. Saved only in this browser.</small><div class="photo-edit-list"></div><button type="button" data-delete>Delete pin</button>`);
+  const d=dialog('Saved pin',`<label>Name<input name="name" value="${esc(pin.name)}" maxlength="160" required></label><label>Notes<textarea name="note" maxlength="4000">${esc(pin.note)}</textarea></label><p>${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}</p><label>Add selected photos<input data-photos type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple></label><small>Up to 10 photos. Copies are reduced to 2048 pixels; originals are unchanged. Saved only in this browser.</small><div class="photo-edit-list"></div><button type="button" data-delete>Delete pin</button>`);
   const q=s=>d.querySelector(s);q('[type=submit]').textContent='Save on this device';let busy=false;
   d.addEventListener('close',()=>owned.forEach(URL.revokeObjectURL),{once:true});
   function render(){owned.forEach(URL.revokeObjectURL);owned.length=0;q('.photo-edit-list').replaceChildren();for(const photo of pin.photos){const row=document.createElement('div'),img=document.createElement('img'),remove=document.createElement('button');img.src=URL.createObjectURL(photo.thumbnail||photo.blob);owned.push(img.src);img.alt=photo.name;remove.type='button';remove.textContent='Remove';remove.onclick=()=>{pin.photos=pin.photos.filter(p=>p.id!==photo.id);render();};row.append(img,remove);q('.photo-edit-list').append(row);}}
@@ -99,5 +138,5 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
    }catch(error){if(token===generation&&d.open)q('.error').textContent=error.name==='AbortError'?'Search timed out. Try again or use coordinates.':error.message;}finally{if(token===generation&&d.open)q('[type=submit]').disabled=false;}
   };
  }
- map.on('moveend',draw);void refresh();return {refresh,openSearch,openPhotos};
+ map.on('moveend',draw);void refresh();return {refresh,openSearch,openPhotos,importFiles,hasContent:()=>local.length>0};
 }
