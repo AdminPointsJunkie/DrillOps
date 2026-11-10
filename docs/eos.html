@@ -857,8 +857,8 @@
 
     <section class="page tracking-page" id="page-time-register">
 <header class="tracking-heading"><div><div class="tracking-eyebrow">EOS / PERSONNEL</div><h1>People &amp; hours</h1></div><div><button class="btn-secondary" id="tr-export" disabled>Export CSV</button><button class="btn-secondary" id="tr-refresh">Refresh</button></div></header>
-<div class="tracking-toolbar"><label>Contractor<select id="tr-contractor"><option value="">All contractors</option></select></label><label>Rig<select id="tr-rig"><option value="">All rigs</option></select></label><label>Person<select id="tr-person"><option value="">All people</option></select></label><label>Project<select id="tr-project"><option value="">All projects</option></select></label><label>From<input type="date" id="tr-from"></label><label>To<input type="date" id="tr-to"></label><button class="btn-secondary" id="tr-reset">Show all</button></div>
-<p id="tr-message" role="status"></p><div id="tr-content" hidden><div class="tracking-kpis" id="tr-totals"></div><div class="tracking-panel"><h2>By person &amp; project</h2><div class="tracking-table-wrap"><table class="tracking-table"><thead><tr><th>Contractor / person</th><th>Project</th><th>First / last date</th><th>Dates worked</th><th>Reported hours</th><th>Worked day units</th><th></th></tr></thead><tbody id="tr-summary"></tbody></table></div></div><details class="tracking-panel" id="tr-detail" open><summary>Daily entries <span id="tr-count"></span></summary><div class="tracking-table-wrap"><table class="tracking-table"><thead><tr><th>Date</th><th>Contractor</th><th>Person / role</th><th>Project</th><th>Site</th><th>Rig</th><th>Hours</th><th>Day units</th><th>Source</th></tr></thead><tbody id="tr-rows"></tbody></table></div><button class="btn-secondary" id="tr-more" hidden>Show more</button></details></div>
+<div class="tracking-toolbar"><label>Contractor<select id="tr-contractor"><option value="">All contractors</option></select></label><label>Rig<select id="tr-rig"><option value="">All rigs</option></select></label><label>Person / rig<select id="tr-person"><option value="">All people / rigs</option></select></label><label>Project<select id="tr-project"><option value="">All projects</option></select></label><label>From<input type="date" id="tr-from"></label><label>To<input type="date" id="tr-to"></label><button class="btn-secondary" id="tr-reset">Show all</button></div>
+<p id="tr-message" role="status"></p><div id="tr-content" hidden><div class="tracking-kpis" id="tr-totals"></div><div class="tracking-panel"><h2>By person / rig &amp; project</h2><div class="tracking-table-wrap"><table class="tracking-table"><thead><tr><th>Contractor / person / rig</th><th>Project</th><th>First / last date</th><th>Dates worked</th><th>Reported hours</th><th>Worked day units</th><th></th></tr></thead><tbody id="tr-summary"></tbody></table></div></div><details class="tracking-panel" id="tr-detail" open><summary>Daily entries <span id="tr-count"></span></summary><div class="tracking-table-wrap"><table class="tracking-table"><thead><tr><th>Date</th><th>Contractor</th><th>Person / rig / role</th><th>Project</th><th>Site</th><th>Rig</th><th>Hours</th><th>Day units</th><th>Source</th></tr></thead><tbody id="tr-rows"></tbody></table></div><button class="btn-secondary" id="tr-more" hidden>Show more</button></details></div>
 </section>
 
 
@@ -880,7 +880,7 @@
 <script src="./workspace/runtime.js?v=20261109-po-closed1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/time-register.js?v=20261110-2"></script>
+<script src="./workspace/time-register.js?v=20261110-rig-hours"></script>
 <script src="./workspace/eos-data-cache.js?v=20261108-speed1"></script>
 <script src="./workspace/eos-scope.js?v=20261108-suite1"></script>
 <script src="./workspace/eos-production.js?v=20261108-timecolours1"></script>
