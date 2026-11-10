@@ -10,14 +10,14 @@ from eos_time_register import load_register
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab_rates (
- id BIGSERIAL PRIMARY KEY, lab TEXT NOT NULL, category TEXT NOT NULL CHECK(category IN ('Gas','Geotech','CQ')),
+ id BIGSERIAL PRIMARY KEY, lab TEXT NOT NULL, category TEXT NOT NULL CHECK(category IN ('Gas','Geotech','CQ','FI','Spon Comb')),
  test_name TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'sample', unit_price NUMERIC(14,2) NOT NULL CHECK(unit_price>=0),
  active BOOLEAN NOT NULL DEFAULT TRUE, revision INTEGER NOT NULL DEFAULT 1, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS lab_rates_identity ON lab_rates(lower(trim(lab)),category,lower(trim(test_name)),lower(trim(unit)));
 CREATE TABLE IF NOT EXISTS lab_samples (
  id BIGSERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), sample_id TEXT NOT NULL, hole_id TEXT NOT NULL DEFAULT '',
- category TEXT NOT NULL CHECK(category IN ('Gas','Geotech','CQ')), lab TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Collected',
+ category TEXT NOT NULL CHECK(category IN ('Gas','Geotech','CQ','FI','Spon Comb')), lab TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Collected',
  taken_on DATE, sent_on DATE, due_on DATE, results_on DATE, result_reference TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
  tests JSONB NOT NULL DEFAULT '[]', projected_cost NUMERIC(16,2), revision INTEGER NOT NULL DEFAULT 1, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -56,7 +56,7 @@ def ensure_tracking_schema(get_conn):
         with conn.cursor() as cur:
             cur.execute(SCHEMA)
 
-CATEGORIES = {'Gas','Geotech','CQ'}
+CATEGORIES = {'Gas','Geotech','CQ','FI','Spon Comb'}
 STATUSES = {'Collected','Dispatched','Received by lab','Testing','Results received','Reviewed','Cancelled'}
 
 def text(payload, key, required=False, maximum=500):

@@ -112,6 +112,7 @@
       "budget",
       "boreholes",
       "drilling-schedule",
+      "project-registers",
       "labs",
       "reports",
       "admin"
@@ -132,6 +133,10 @@
       [
         "drilling-schedule",
         "Rig scheduler"
+      ],
+      [
+        "project-registers",
+        "Boreholes & samples"
       ],
       [
         "labs",

@@ -39,6 +39,7 @@ from training_api import create_training_router, ensure_training_schema
 from rig_schedule import create_schedule_router, ensure_schedule_schema
 from account_accruals import create_accrual_router, ensure_accrual_schema
 from project_tracking_api import create_tracking_router, ensure_tracking_schema
+from project_registers import create_register_router, ensure_register_schema
 from exploration_metres import summarize_exploration_metres
 from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
@@ -1441,6 +1442,7 @@ init_db()
 ensure_dar_schema(get_conn)
 ensure_training_schema(get_conn)
 ensure_tracking_schema(get_conn)
+ensure_register_schema(get_conn)
 ensure_accrual_schema(get_conn)
 ensure_schedule_schema(get_conn)
 
@@ -12049,5 +12051,6 @@ app.include_router(create_mobile_router(get_conn))
 app.include_router(create_admin_router(get_conn))
 app.include_router(create_training_router(get_conn))
 app.include_router(create_tracking_router(get_conn))
+app.include_router(create_register_router(get_conn))
 app.include_router(create_accrual_router(get_conn))
 app.include_router(create_schedule_router(get_conn))
