@@ -5,11 +5,12 @@ from day_rate_costs import WORKED_DAYS_CTE
 
 CREW_SQL = """
 SELECT c.id,c.date,c.contractor,c.name person,c.role,c.hours,c.site_name,c.source_file,
-       scope.scopes
+       scope.scopes,scope.rigs
 FROM crew c
 LEFT JOIN (
  SELECT contractor,source_file,date,
- jsonb_agg(DISTINCT jsonb_build_object('project',COALESCE(project,''),'program',COALESCE(program,''))) scopes
+ jsonb_agg(DISTINCT jsonb_build_object('project',COALESCE(project,''),'program',COALESCE(program,''))) scopes,
+ array_agg(DISTINCT NULLIF(trim(drill_rig),'')) FILTER (WHERE NULLIF(trim(drill_rig),'') IS NOT NULL) rigs
  FROM activities WHERE contractor IN ('Mitchells Drilling','DEPCO Drilling')
  GROUP BY contractor,source_file,date
 ) scope ON scope.contractor=c.contractor AND scope.source_file=c.source_file AND scope.date=c.date
@@ -38,11 +39,11 @@ def register_rows(crew,days):
         rows.append(dict(id='crew-'+str(r['id']),date=iso_date(r.get('date')),contractor=r['contractor'],
             person=r.get('person') or 'Name not recorded',role=r.get('role') or '',
             project=scope.get('project') or '',program=scope.get('program') or '',
-            hours=numeric(r.get('hours')),days=None,site=r.get('site_name') or '',
+            rigs=sorted(set(r.get('rigs') or [])),hours=numeric(r.get('hours')),days=None,site=r.get('site_name') or '',
             source=r.get('source_file') or '',basis='Crew hours',allocation='Multiple projects' if len(scopes)>1 else ''))
     for r in days:
         rows.append(dict(id='day-'+str(r['id']),date=iso_date(r.get('date')),contractor=r['contractor'],person=r['person'],
-            role='',project=r.get('project') or '',program=r.get('program') or '',hours=None,days=numeric(r.get('units')),
+            role='',rigs=[],project=r.get('project') or '',program=r.get('program') or '',hours=None,days=numeric(r.get('units')),
             site=r.get('site_name') or '',source='Worked day entry',basis='Worked days',allocation=''))
     return sorted(rows,key=lambda r:(r['date'],r['contractor'],r['person']),reverse=True)
 

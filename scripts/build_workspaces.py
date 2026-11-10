@@ -45,7 +45,7 @@ for area,cfg in APPS.items():
  s=shell.replace('{{navigation}}',nav).replace('{{area}}',area).replace('{{label}}',title).replace('{{home}}',home)
  s=s.replace('{{app-wordmark}}',wordmark(title,'./'+area+'.html',stacked=True))
  if area=='eos':
-  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/time-register.css?v=20261110-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/time-register.js?v=20261110-1"></script>\n<script src="./workspace/start.js')
+  s=s.replace('</head>','<link rel="stylesheet" href="./workspace/time-register.css?v=20261110-2"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/time-register.js?v=20261110-2"></script>\n<script src="./workspace/start.js')
   scope=(SRC/'eos-scope.html').read_text()
   s=s.replace('  </div>\n</div>\n\n<!-- Header -->','  </div>\n'+scope+'\n</div>\n\n<!-- Header -->')
  local_links=''.join(link(area,p,l,'app-nav-link') for p,l in cfg['nav'] if p not in settings_pages)

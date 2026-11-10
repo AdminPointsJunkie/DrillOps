@@ -190,7 +190,7 @@ def create_tracking_router(get_conn):
                     v.update(project_id=pid,tests=Json(tests),projected_cost=total);row=persist(cur,'lab_samples',v,rid);audit(cur,row,'lab_sample');return row
         except UniqueViolation:raise HTTPException(409,'This sample ID already exists in the project.')
 
-    @router.get('/crew/time-register', description='Personnel dates, reported crew hours and confirmed worked days across EOS projects.')
+    @router.get('/crew/time-register', description='Personnel dates, rigs, reported crew hours and confirmed worked days across EOS projects.')
     def time_register(request:Request):
         with get_conn() as conn:
             with conn.cursor() as cur:

@@ -2,9 +2,10 @@ from eos_time_register import register_rows, numeric
 from test_project_tracking_api import client, Cursor
 
 def test_hours_and_day_units_remain_separate_and_dates_normalise():
-    rows=register_rows([dict(id=1,date='10/11/2026',contractor='Mitchells Drilling',person='Crew A',hours='12.5',scopes=[dict(project='Ironbark',program='Exploration')])],[dict(id=2,date='2026-11-10',contractor='Fortem',person='Nuwan',units='1',project='Ironbark')])
+    rows=register_rows([dict(id=1,date='10/11/2026',contractor='Mitchells Drilling',person='Crew A',hours='12.5',rigs=['1218'],scopes=[dict(project='Ironbark',program='Exploration')])],[dict(id=2,date='2026-11-10',contractor='Fortem',person='Nuwan',units='1',project='Ironbark')])
     assert {r['date'] for r in rows}=={'2026-11-10'}
     crew=next(r for r in rows if r['basis']=='Crew hours');day=next(r for r in rows if r['basis']=='Worked days')
+    assert crew['rigs']==['1218'] and day['rigs']==[]
     assert crew['hours']==12.5 and crew['days'] is None
     assert day['hours'] is None and day['days']==1
 
