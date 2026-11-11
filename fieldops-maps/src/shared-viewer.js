@@ -1,3 +1,4 @@
+import './ui-consistency.css';
 import {cloudDEMLayer} from './cloud-dem-layer.js';
 import {installBasemaps} from './basemaps.js';
 import {applyMapConstraints} from './project-controls.js';
