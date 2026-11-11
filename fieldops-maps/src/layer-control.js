@@ -20,7 +20,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry">${legendSymbol(layer,c)}<span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onVisibility,onCopy,onDuplicate,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -51,6 +51,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
   const separator=()=>menu.append(doc.createElement('hr'));
   const visibility=async(mode)=>{for(const other of [...getLayers()]){const visible=mode==='only'?other===layer:mode==='others'?other!==layer:other.visible===false;if(mode==='toggle'&&other!==layer)continue;if((other.visible!==false)===visible)continue;if(onVisibility)await onVisibility(other,visible);else root.querySelector(`[data-id="${other.id}"] [data-action="visibility"]`)?.click();}};
   action('Zoom to fit','[data-action="zoom"]',{key:'F'});
+  if(layer.metadata?.cloud_dem&&onCloudDEM)custom('DEM display and analysis…',()=>onCloudDEM(layer),{edit:true});
   custom(layer.visible===false?'Show':'Hide',()=>visibility('toggle'),{key:'H'});
   custom('Show only this',()=>visibility('only'));custom('Show others',()=>visibility('others'));separator();
   if(layer.kind==='vector'){custom('Open table',()=>onTable?onTable(layer):card.querySelector('[data-open-table]')?.click(),{key:'T'});if(onAttributes)custom('Edit attributes…',()=>onAttributes(layer),{edit:true});}
