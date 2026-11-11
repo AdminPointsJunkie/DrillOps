@@ -1,6 +1,8 @@
 // Verified anonymous ArcGIS REST directories; individual layers retain provider terms.
 export const publicSources=[
- {id:'usgs-all',name:'USGS · Data catalogue',region:'United States and global',description:'All National Map services, research datasets, DEM, LiDAR and Landsat',catalogue:'usgs'},
+ {id:'copernicus',name:'Copernicus',region:'Global',description:'Sentinel imagery, land cover, atmosphere and environmental data',catalogue:'copernicus',thumbnail:'https://s3.waw3-2.cloudferro.com/swift/v1/stac-png/S2_L2A.jpg',credit:'Copernicus Sentinel imagery'},
+ {id:'aws-open-data',name:'AWS Open Data',region:'Global',description:'Earth Search collections and the full AWS Open Data registry',catalogue:'aws',thumbnail:'https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/55/J/BN/2024/8/S2B_55JBN_20240830_0_L2A/thumbnail.jpg',credit:'Sentinel-2 · Earth Search on AWS'},
+ {id:'usgs-all',name:'USGS · Data catalogue',region:'United States and global',description:'All National Map services, research datasets, DEM, LiDAR and Landsat',catalogue:'usgs',thumbnail:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/export?bbox=-112.3,35.9,-111.6,36.4&bboxSR=4326&imageSR=3857&size=600,280&format=jpg&f=image',credit:'USGS National Map'},
  {id:'usgs-earthquakes',name:'USGS · Earthquakes and hazards',region:'United States and global',description:'Earthquake hazards and related map services',root:'https://earthquake.usgs.gov/arcgis/rest/services'},
  {id:'qglobe',name:'QGlobe',region:'Australia',description:'Queensland geology, property, water and infrastructure',root:'https://spatial-gis.information.qld.gov.au/arcgis/rest/services'},
  {id:'wa',name:'Western Australia · SLIP',region:'Australia',description:'Western Australian public spatial services',root:'https://services.slip.wa.gov.au/public/rest/services'},
