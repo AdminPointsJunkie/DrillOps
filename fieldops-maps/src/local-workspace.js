@@ -86,7 +86,12 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
   from,
   auth:{onAuthStateChange(callback){queueMicrotask(()=>callback('INITIAL_SESSION',{user:{id:'local-testing'}}));}},
   rpc(name,args){return result(async()=>{
-   if(name==='maps_supporting_file'){const m=(await all('maps')).find(m=>m.id===args.p_map);if(!m)throw Error('Project unavailable');const files=m.supporting_files||[];m.supporting_files=args.p_action==='remove'?files.filter(f=>f.path!==args.p_file.path):files.some(f=>f.path===args.p_file.path)?files:[...files,args.p_file];await put('maps',m);return m.supporting_files;}
+   if(name==='maps_supporting_file'){const m=(await all('maps')).find(m=>m.id===args.p_map);if(!m)throw Error('Map unavailable');const files=m.supporting_files||[],f=args.p_file,group=String(f.group??'').trim();if(group.length>80)throw Error('Keep headings to 80 characters or fewer.');
+    if(args.p_action==='remove')m.supporting_files=files.filter(item=>item.path!==f.path);
+    else if(args.p_action==='group'||args.p_action==='rename_group')m.supporting_files=files.map(item=>(args.p_action==='group'?item.path===f.path:(item.group||'')===f.previous)?{...item,group}:item);
+    else if(args.p_action==='add')m.supporting_files=files.some(item=>item.path===f.path)?files:[...files,{...f,...(group?{group}:{})}];
+    else throw Error('Unknown supporting-file action');await put('maps',m);return m.supporting_files;}
+
 
    if(name==='maps_layer_bin')return layerBin(args);
    if(['replace_vector_versioned','apply_map_style'].includes(name))return dataWorkflow(name,args);
