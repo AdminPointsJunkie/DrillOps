@@ -1,5 +1,6 @@
 import {escapeHTML as esc,toolDialog} from './explore-dialogs.js';
-export const marketingLabel='Email me product news, updates and special offers.';
+import {MARKETING_LABEL} from './signup-consent.js';
+export const marketingLabel=MARKETING_LABEL;
 export function profileData(user,fields,now=new Date().toISOString()){
  const old=user.user_metadata||{},opted=fields.marketing===true;
  return {full_name:fields.name.trim(),contact_phone:fields.phone.trim(),job_title:fields.title.trim(),marketing_opt_in:opted,...(old.marketing_opt_in!==opted?{marketing_preference_updated_at:now,marketing_consent_text:marketingLabel,marketing_consent_source:'account-settings'}:{})};
@@ -15,6 +16,7 @@ export async function saveProfile(db,user,fields,{photo,removePhoto=false}={}){
   const email=fields.email.trim(),changed=email.toLowerCase()!==user.email?.toLowerCase();
   const result=await db.auth.updateUser({data,...(changed?{email}:{})},{emailRedirectTo:new URL('./',location.href).href});
   if(result.error)throw result.error;
+  if(db.rpc){const prefs=await db.rpc('fieldmaps_signup_status');if(prefs.error)throw prefs.error;if(prefs.data?.complete){const saved=await db.rpc('set_fieldmaps_marketing',{p_opt_in:fields.marketing===true,p_enabled:prefs.data.marketing_enabled});if(saved.error)throw saved.error;}}
   if(old&&(uploaded||removePhoto)&&old.startsWith(user.id+'/'))await bucket.remove([old]).catch(()=>{});
   return {user:result.data.user,emailPending:!!result.data.user?.new_email};
  }catch(error){if(uploaded)await bucket.remove([uploaded]).catch(()=>{});throw error;}
@@ -32,7 +34,7 @@ export function installAccountProfile({db,getUser,onSaved=()=>{},socialAuth}){
  }
  function open(){
   const user=getUser();if(!user)return;dialog?.close();const m=user.user_metadata||{};
-  const d=toolDialog('Account settings',`<fieldset class="profile-fields"><div class="profile-photo-row"><span class="profile-avatar" data-avatar></span><label>Profile photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button type="button" data-remove>Remove photo</button></div><small>JPG, PNG or WebP · up to 5 MB. No photo? Your initials appear in a circle.</small><label>Full name<input name="full_name" required maxlength="120" autocomplete="name" value="${esc(m.full_name||m.name||'')}"></label><label>Email address<input name="email" type="email" required autocomplete="email" value="${esc(user.email||'')}"></label><small>Email changes may require confirmation using links sent to your current and new addresses.</small><label>Phone (optional)<input name="phone" type="tel" maxlength="50" autocomplete="tel" value="${esc(m.contact_phone||'')}"></label><label>Job title (optional)<input name="job_title" maxlength="120" value="${esc(m.job_title||'')}"></label><label class="profile-opt-in"><input name="marketing" type="checkbox" ${m.marketing_opt_in===true?'checked':''}><span>${marketingLabel}</span></label><small>Optional. Change this preference here at any time. Essential account and service emails will still be sent.</small></fieldset><p data-profile-status role="status"></p><section data-social-auth></section>`);
+  const d=toolDialog('DrillOps account',`<fieldset class="profile-fields"><div class="profile-photo-row"><span class="profile-avatar" data-avatar></span><label>Profile photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button type="button" data-remove>Remove photo</button></div><small>JPG, PNG or WebP · up to 5 MB. No photo? Your initials appear in a circle.</small><label>Full name<input name="full_name" required maxlength="120" autocomplete="name" value="${esc(m.full_name||m.name||'')}"></label><label>Email address<input name="email" type="email" required autocomplete="email" value="${esc(user.email||'')}"></label><small>Email changes may require confirmation using links sent to your current and new addresses.</small><label>Phone number<input name="phone" type="tel" required maxlength="50" autocomplete="tel" value="${esc(m.contact_phone||'')}"></label><label>Job title (optional)<input name="job_title" maxlength="120" value="${esc(m.job_title||'')}"></label><label class="profile-opt-in"><input name="marketing" type="checkbox" ${m.marketing_opt_in===true?'checked':''}><span>${marketingLabel}</span></label></fieldset><p data-profile-status role="status"></p><section data-social-auth></section>`);
   dialog=d;d.classList.add('account-profile');const q=s=>d.querySelector(s);q('[type=submit]').textContent='Save changes';let photo,removePhoto=false,url,preparing=false;
   d.addEventListener('input',()=>{d.dataset.profileDirty='true';});d.addEventListener('change',()=>{d.dataset.profileDirty='true';});
   socialAuth?.mount(q('[data-social-auth]'),user);

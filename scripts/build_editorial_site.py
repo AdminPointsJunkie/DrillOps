@@ -44,7 +44,7 @@ def build_products():
   related='<section class="dd-related"><h3>Explore the collection</h3>'+''.join(f'<a href="./{p[0]}">{n} ↗</a>' for n,p in PRODUCTS.items() if n!=name)+'</section>'
   page(path,name+' · DrillOps',desc,hero+'<div class="dd-content">'+detail+'</div>'+related,name)
 def build_documents():
- for name in ['support','privacy','fieldops-support','fieldops-privacy']:
+ for name in ['support','privacy','fieldops-support','fieldops-privacy','fieldmaps-terms']:
   body=(CONTENT/(name+'.html')).read_text()
   title=re.sub('<[^>]+>','',re.search(r'<h1[^>]*>(.*?)</h1>',body,re.S).group(1))
   page(name+'.html',title+' · DrillOps',title+' information and help.','<div class="dd-content">'+body+'</div>')

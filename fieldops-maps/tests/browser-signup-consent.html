@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Account setup preview</title><link rel="stylesheet" href="/maps/src/style.css"><link rel="stylesheet" href="/maps/src/appearance.css"><body><button id="settings">Workspace settings</button><p id="status"></p><script type="module">
+import '/maps/src/style.css';
+import '/maps/src/appearance.css';
+import {installSignupConsent} from '/maps/src/signup-consent.js';
+const user={id:'preview',email:'alex@example.com',user_metadata:{full_name:'Alex Taylor'}};let state={complete:false,marketing_opt_in:false,marketing_enabled:true};const db={rpc:async(name,args)=>{if(name==='complete_fieldmaps_signup')state={...state,complete:true,marketing_opt_in:args.p_marketing};if(name==='set_fieldmaps_marketing')state={...state,marketing_opt_in:args.p_opt_in,marketing_enabled:args.p_enabled};return {data:state};}};
+const ui=installSignupConsent({db,getUser:()=>user,onSaved:()=>document.querySelector('#status').textContent='Saved',onSignOut:()=>ui.reset()});document.querySelector('#settings').onclick=()=>ui.openSettings();ui.check(user);
+</script></body></html>
