@@ -14,3 +14,23 @@ test('supporting files stay closed until requested, retain explicit opening on r
  toggle.click();project={id:'two',name:'Second'};ui.refresh();assert.equal(panel.hidden,true);assert.ok(panel.querySelector('[data-panel-drag]'));
  }finally{globalThis.document=previous;dom.window.close();}
 });
+
+test('headings group existing files, search by heading and persist renames without changing file paths',async()=>{
+ const {groupSupportingFiles}=await import('../src/supporting-files.js');const {IDBFactory}=await import('fake-indexeddb');const {createLocalWorkspace}=await import('../src/local-workspace.js');
+ const db=createLocalWorkspace(new IDBFactory()),p=(await db.from('maps').insert({name:'Grouped'}).select().single()).data;
+ for(const f of [{path:'a',name:'Plan.pdf',group:'Plans'},{path:'b',name:'Permit.pdf',group:'Permits'},{path:'c',name:'Notes.txt'}])assert.equal((await db.rpc('maps_supporting_file',{p_map:p.id,p_action:'add',p_file:f})).error,null);
+ let r=await db.rpc('maps_supporting_file',{p_map:p.id,p_action:'group',p_file:{path:'c',group:'Plans'}});assert.equal(groupSupportingFiles(r.data,'plans')[0][1].length,2);
+ r=await db.rpc('maps_supporting_file',{p_map:p.id,p_action:'rename_group',p_file:{previous:'Plans',group:'Site plans'}});assert.deepEqual(r.data.map(f=>f.path),['a','b','c']);assert.equal(groupSupportingFiles(r.data,'Site plans')[0][1].length,2);
+ r=await db.rpc('maps_supporting_file',{p_map:p.id,p_action:'group',p_file:{path:'a',group:''}});assert.equal(groupSupportingFiles(r.data).at(-1)[0],'');
+ assert.ok((await db.rpc('maps_supporting_file',{p_map:p.id,p_action:'group',p_file:{path:'a',group:'x'.repeat(81)}})).error);
+});
+test('file grouping renders headings and saves the selected file without exposing editor controls to viewers',async()=>{
+ const {JSDOM}=await import('jsdom'),{installSupportingFiles}=await import('../src/supporting-files.js');const dom=new JSDOM('<div id="app"><main></main><nav class="map-navigation"></nav></div>'),old=documentSafe();globalThis.document=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.remove();};let editable=true,calls=[];const project={id:'one',name:'Map',supporting_files:[{path:'a',name:'Plan.pdf',size:12},{path:'b',name:'Permit.pdf',size:12,group:'Permits'}]};
+ try{const ui=installSupportingFiles({db:{rpc:async(_,args)=>{calls.push(args);return {data:project.supporting_files.map(f=>f.path===args.p_file.path?{...f,group:args.p_file.group}:f)};}},getProject:()=>project,getUser:()=>({id:'u'}),canEdit:()=>editable});
+ document.querySelector('[aria-label="Group Plan.pdf"]').click();document.querySelector('dialog [name=group]').value='Plans';await document.querySelector('dialog form').onsubmit({preventDefault(){}});
+ assert.equal(calls[0].p_action,'group');assert.equal(calls[0].p_file.path,'a');assert.deepEqual([...document.querySelectorAll('.supporting-group summary')].map(e=>e.textContent),['Permits (1)','Plans (1)']);
+ editable=false;ui.refresh();assert.equal(document.querySelector('[aria-label="Group Plan.pdf"]'),null);assert.equal(document.querySelector('.supporting-group-upload').hidden,true);
+ }finally{globalThis.document=old;dom.window.close();}
+ function documentSafe(){return globalThis.document;}
+});

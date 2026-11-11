@@ -8,3 +8,5 @@
 .supporting-panel .field-note,.supporting-panel .supporting-file small{color:var(--felt-muted,var(--muted))}
 .supporting-panel .supporting-upload,.supporting-panel .supporting-file,.supporting-panel .supporting-file button{border-color:var(--felt-line,var(--line))}
 @media(max-width:760px){#supporting-files-panel.supporting-panel{top:110px;right:8px;max-height:calc(100dvh - 126px)}}
+
+.supporting-group{margin:10px 0;border:1px solid var(--felt-line,#ddd);border-radius:6px;padding:9px;background:var(--felt-panel,#fafaf8)}.supporting-group>summary{font-size:13px;font-weight:650;cursor:pointer;overflow-wrap:anywhere}.supporting-group .supporting-file:last-child{border-bottom:0}.supporting-panel .supporting-rename{font-size:10px;background:none;border:0;color:var(--felt-muted,#666);padding:5px 0}.supporting-group-upload{display:block;font-size:12px;margin:10px 0}.supporting-group-upload input{width:100%;margin-top:5px;font-size:12px;padding:7px;border:1px solid var(--felt-line,#ddd);border-radius:5px}.supporting-upload{border-color:var(--felt-line,#ccc)}
