@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import {JSDOM} from 'jsdom';
+import {openLiDAR} from '../src/lidar-ui.js';
 import {readFileSync} from 'node:fs';
 import {writeArrayBuffer} from 'geotiff';
 import proj4 from 'proj4';
@@ -56,4 +58,19 @@ test('saved layer defers reads while hidden and disposes a source hidden during 
  cloudDEMLayer({layerGroup:()=>group,latLngBounds:x=>x},{bounds:[0,0,1,1],metadata:{cloud_dem:{url:'https://example.com/catalog.json'}}},()=>{},{loadModule:async()=>module});
  assert.equal(opened,0);const adding=handlers.get('add')();await Promise.resolve();assert.equal(opened,1);
  handlers.get('remove')();resolve({dispose(){disposed++;}});await adding;assert.equal(disposed,1);assert.equal(rendered,0);
+});
+
+test('editing a cloud collection returns its current footprint without adding a duplicate',async()=>{
+ const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.show=function(){this.open=true;};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
+ const group={addTo(){return this;},clearLayers(){}};let saved,added=0,disposed=0;
+ const source={name:'Replacement',url:'https://example.com/new.json',cloud:true,bounds:[10,20,11,21],width:64,height:64,code:4326,datum:'AHD',catalog:{tiles:[{}]},coordinate:(x,y)=>[10+x/63,21-y/63],dispose(){disposed++;}};
+ const d=openLiDAR({L:{layerGroup:()=>group},map:{on(){},off(){},getContainer:()=>({style:{}}),removeLayer(){},fitBounds(){}},getLayers:()=>[],canCreate:()=>true,onResult:()=>{added++;},initialCloud:{url:source.url,mode:'grey',opacity:.5},loadCloudDEM:async()=>source,onSaveCloud:async(...args)=>{saved=args;}});
+ d.querySelector('[name=showDEM]').checked=false;
+ try{
+  await new Promise(r=>setTimeout(r,0));await d.querySelector('[data-add-cloud]').onclick();
+  assert.equal(added,0);assert.equal(saved[0].url,source.url);assert.equal(saved[0].mode,'grey');assert.deepEqual(saved[1].bounds,source.bounds);
+  assert.deepEqual(saved[1].fc.features[0].geometry.coordinates[0],[[10,20],[11,20],[11,21],[10,21],[10,20]]);assert.equal(disposed,1);
+ }finally{if(d.open)d.close();dom.window.close();}
 });
