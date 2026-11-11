@@ -34,5 +34,5 @@ export function installProjectHome({onProfile,paintAvatar,getState,onOpen,onNew,
 
  function open(){root.hidden=false;doc.querySelector('#app').inert=true;doc.body.classList.add('project-home-open');render();void capture();}
  function close(){generation++;root.hidden=true;doc.querySelector('#app').inert=false;doc.body.classList.remove('project-home-open');onResume();}
- return {open,close,capture,refresh:render,visited,get active(){return !root.hidden;}};
+ return {open,openMaps(){section=getState().workspace||previewLocal?'all':'projects';open();},close,capture,refresh:render,visited,get active(){return !root.hidden;}};
 }

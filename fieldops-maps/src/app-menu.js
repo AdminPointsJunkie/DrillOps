@@ -4,7 +4,7 @@ import {installDisplayUnits} from './display-units.js';
 import {toolDialog} from './explore-dialogs.js';
 export function installAppMenu({accountContent,canCreate,home}){
  const header=document.querySelector('header'),brand=header.querySelector('.brand'),root=document.createElement('details');root.className='tool-menu app-menu';
- const summary=document.createElement('summary');summary.className='brand';summary.setAttribute('aria-label','DrillOps menu');summary.innerHTML=brand.innerHTML+'<span class="app-menu-chevron" aria-hidden="true">⌄</span>';root.append(summary);brand.replaceWith(root);
+ const summary=document.createElement('summary');summary.className='brand';summary.setAttribute('aria-label','DrillOps menu');summary.innerHTML='<span>FieldMaps</span><span class="app-menu-chevron" aria-hidden="true">⌄</span>';root.append(summary);brand.replaceWith(root);
  const content=document.createElement('div');content.className='tool-menu-content app-menu-content';root.append(content);const actions=[];
  function action(parent,label,run,{source,edit=false}={}){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label',label);addToolIcon(b);parent.append(b);const available=()=>!edit||canCreate();const enabled=()=>available()&&(!source||!source.hidden&&!source.disabled);b.onclick=()=>{if(!enabled())return;root.open=false;run();};actions.push({label,run,enabled,button:b,source,edit});return b;}
  function proxy(parent,label,id,edit=false){const source=document.getElementById(id);if(source)action(parent,label,()=>source.click(),{source,edit});}

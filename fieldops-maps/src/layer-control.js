@@ -20,7 +20,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry">${legendSymbol(layer,c)}<span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -33,7 +33,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
  const grip=doc.createElement('button');grip.type='button';grip.className='panel-drag-handle';grip.dataset.panelDrag='';grip.textContent='⠿';grip.title='Drag to move layers';grip.setAttribute('aria-label','Move layers panel (drag or use arrow keys)');tabs.append(grip);
 
  const basemap=doc.querySelector('#basemap');
- if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';if(onBasemap){const b=doc.createElement('button');b.type='button';b.textContent='◉  Basemap';b.onclick=onBasemap;footer.append(b);}else{const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};footer.append(picker);}sidebar.append(footer);}
+ if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';if(onBasemap){const b=doc.createElement('button');b.type='button';b.textContent='◉  Basemap';b.onclick=onBasemap;footer.append(b);}else{const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};footer.append(picker);}const brand=sidebar.querySelector('.sidebar-brand');brand?brand.before(footer):sidebar.append(footer);}
 
 
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
@@ -55,6 +55,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
   custom(layer.visible===false?'Show':'Hide',()=>visibility('toggle'),{key:'H'});
   custom('Show only this',()=>visibility('only'));custom('Show others',()=>visibility('others'));separator();
   if(layer.kind==='vector'){custom('Open table',()=>onTable?onTable(layer):card.querySelector('[data-open-table]')?.click(),{key:'T'});if(onAttributes)custom('Edit attributes…',()=>onAttributes(layer),{edit:true});}
+  if(onAddToLibrary)custom('Add to library…',()=>onAddToLibrary(layer),{edit:true});
   action('Export…','[data-action="export"]');separator();
   if(onCopy&&layer.kind==='vector')custom('Copy',()=>onCopy(layer),{key:'⌘ C'});
   if(onDuplicate)custom('Duplicate',()=>onDuplicate(layer),{key:'⌘ D',edit:true});
