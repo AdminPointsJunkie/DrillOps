@@ -1,3 +1,4 @@
+import {showInvitationLink} from './invitation-link.js';
 export function invitationEmails(value){
  const emails=[...new Set(value.split(/[,;\s]+/).map(v=>v.trim().toLowerCase()).filter(Boolean))];
  if(!emails.length)throw Error('Enter at least one email address.');
@@ -8,7 +9,7 @@ export function invitationEmails(value){
 }
 export function openInviteDialog({doc=document,name,roleOptions,projectChecks,create,send,onChanged}){
  const dialog=doc.createElement('dialog');dialog.className='invite-dialog';dialog.setAttribute('aria-labelledby','invite-heading');
- dialog.innerHTML='<form><header><h2 id="invite-heading"></h2><button type="button" data-close aria-label="Close invitations">×</button></header><p>Add email addresses separated by commas. Invitations expire after 7 days.</p><div class="invite-fields"><label>Emails<textarea name="emails" rows="2" required placeholder="alex@example.com, sam@example.com"></textarea></label><label>Role<select name="role">'+roleOptions+'</select></label></div><p data-role-help></p><details data-projects><summary>Assign projects</summary>'+projectChecks+'</details><p data-result role="status" aria-live="polite"></p><footer><button type="button" data-close>Cancel</button><button class="primary" type="submit">Send invitations</button></footer></form>';
+ dialog.innerHTML='<form><header><h2 id="invite-heading"></h2><button type="button" data-close aria-label="Close invitations">×</button></header><p>Add email addresses separated by commas. Invitations expire after 7 days.</p><div class="invite-fields"><label>Emails<textarea name="emails" rows="2" required placeholder="alex@example.com, sam@example.com"></textarea></label><label>Role<select name="role">'+roleOptions+'</select></label></div><p data-role-help></p><details data-projects><summary>Assign projects</summary>'+projectChecks+'</details><p data-result role="status" aria-live="polite"></p><div data-invite-links></div><footer><button type="button" data-close>Cancel</button><button class="primary" type="submit">Send invitations</button></footer></form>';
  dialog.querySelector('h2').textContent='Invite members to '+name;doc.body.append(dialog);
  const form=dialog.querySelector('form'),result=dialog.querySelector('[data-result]');let busy=false,attempted=false;
  const close=()=>{if(!busy)dialog.close();};dialog.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
@@ -17,7 +18,7 @@ export function openInviteDialog({doc=document,name,roleOptions,projectChecks,cr
  form.onsubmit=async e=>{e.preventDefault();if(busy)return;let emails;try{emails=invitationEmails(form.elements.emails.value);}catch(e){result.textContent=e.message;return;}
   const role=form.elements.role.value,projects=['editor','operator'].includes(role)?[...form.querySelectorAll('[name=project]:checked')].map(e=>e.value):[];
   busy=true;attempted=true;form.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=true);const messages=[];
-  for(const email of emails){result.textContent='Sending invitation to '+email+'…';let created=false;try{const invitation=await create({email,name:'',role,projects});created=true;await send(invitation.id);messages.push(email+': sent.');}catch(error){messages.push(email+': '+(created?'Created, but email delivery failed. Use Resend in Invitations. ':'Not confirmed. Check Invitations before retrying. ')+(error.message||String(error)));}}
+  for(const email of emails){result.textContent='Sending invitation to '+email+'…';let created=false;try{const invitation=await create({email,name:'',role,projects});created=true;await send(invitation.id);messages.push(email+': sent.');const link=doc.createElement('button');link.type='button';link.textContent='View / copy invite link · '+email;link.onclick=()=>showInvitationLink({...invitation,email});dialog.querySelector('[data-invite-links]').append(link);}catch(error){messages.push(email+': '+(created?'Created, but email delivery failed. Use Resend in Invitations. ':'Not confirmed. Check Invitations before retrying. ')+(error.message||String(error)));}}
   result.textContent=messages.join('\n');form.elements.emails.value='';busy=false;form.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=false);dialog.querySelector('footer [data-close]').textContent='Done';
  };dialog.showModal();form.elements.emails.focus();return dialog;
 }

@@ -1,7 +1,6 @@
-const redirect='https://www.drillops.com.au/maps/';
 export function installRegistration(db,{doc=document,socialAuth}={}){
  const $=s=>doc.querySelector(s),dialog=$('#auth'),form=$('#auth-form');let working=false;
- const url=new URL(doc.defaultView.location.href);let signinRequested=url.searchParams.get('signin')==='1';
+ const url=new URL(doc.defaultView.location.href),invitation=url.searchParams.get('invitation');const redirect='https://www.drillops.com.au/maps/'+(/^[0-9a-f-]{36}$/i.test(invitation||'')?'?invitation='+encodeURIComponent(invitation):'');let signinRequested=url.searchParams.get('signin')==='1';
  if(signinRequested){url.searchParams.delete('signin');doc.defaultView.history.replaceState(doc.defaultView.history.state,'',url.href);}
  form.innerHTML=`<div class="dialog-heading"><h2 id="auth-title">Sign in</h2><button type="button" id="auth-close" class="square" aria-label="Close sign in">×</button></div><section data-social-auth></section><label>Email<input type="email" id="email" required autocomplete="email"></label><label>Password<input type="password" id="password" minlength="8" required autocomplete="current-password"></label><div id="auth-error" role="status" aria-live="polite"></div><div class="dialog-actions"><button id="email-link" type="button" class="secondary">Email sign-in link</button><button id="auth-submit" type="submit" class="primary">Sign in</button></div>`;
  const message=t=>$('#auth-error').textContent=t;
