@@ -1,0 +1,17 @@
+# Pipeline planner preview
+
+Entry point: Analysis → Pipeline planner in FieldMaps web.
+
+Place start (gas riser) and destination (flare/plant), then draw an allowed polygon. Finish each shape. Optionally draw a preferred line, existing cleared-ground polygons and exclusion polygons. Load an original numeric elevation GeoTIFF, confirm elevation units and band, and compare routes. The aerial remains the map background and is not interpreted automatically.
+
+The corridor is 10 m wide, centred on the pipeline. Its complete footprint must fit inside the allowed area and avoid exclusions. Endpoints also require clearance. New disturbance assumes the full width is the working footprint. Unmarked ground counts as new disturbance.
+
+Four fixed preference settings produce Balanced, Shortest, Least new disturbance and Gentler profile candidates. These labels describe objectives, not guaranteed global optima. Candidates may coincide. Routing uses an eight-neighbour grid with exact endpoint connections; shortest means shortest on that grid. Segment costs use terrain-following length, sampled corridor disturbance, ascent, downhill-to-uphill transitions, and optional preference-line proximity. Shortest ignores the preferred line. Final disturbance area is the buffered route minus the union of marked cleared polygons. No bend-radius, pipe engineering or hydraulic design is performed.
+
+Elevation is bilinearly sampled from the original numeric GeoTIFF, with scale/offset and optional feet-to-metres conversion. Missing coverage is blocked. Edge profiles are sampled at intervals no greater than 2 m; this does not increase native DEM accuracy. Absolute maximum grade is optional (0 means unlimited). Potential low points require both a fall and a subsequent rise at least as large as the chosen threshold. Endpoints are not classified as drains. Small dips, noise, unsampled features, physical pipe sag and actual installation levels require field review. Routing low-point penalties are heuristic; report counts are measured over the complete resulting profile.
+
+The preview supports simple polygons, 5–30 m grid spacing, up to 18,000 grid cells, and local extents up to 5 km across between latitudes −75° and +75°. It uses a local metric approximation and a small clearance margin. It does not simplify or smooth routes after constraint checks. Routes can be angular and require engineering refinement. Computation runs in a cancellable worker. Changing inputs invalidates results.
+
+Add selected plan creates an ordinary vector layer containing the centreline, corridor and potential low-point markers. Use the existing layer Save and export tools. Layer metadata retains the planning inputs, settings, source DEM filename/size/timestamp, chosen option and measured profile. It does not embed the original DEM or provide a dedicated reopen/edit workflow yet.
+
+Validation: `node --test tests/pipeline*.test.mjs` covers corridor/exclusion clearance, endpoints, grade and no-data barriers, disturbance overlap, profile low points, a longer route avoiding a climb, original GeoTIFF interpolation/units, drawing controls, cancellation and result saving. Production build passed, including ES-module worker chunks. The planner opens from Analysis in the browser. Full suite: 383 passed; three existing test-harness failures report `openShortcutGuide is not defined`, reproduced on the unchanged main branch. Nine planner tests pass.
