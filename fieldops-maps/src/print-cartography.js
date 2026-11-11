@@ -1,5 +1,5 @@
 import {layerStyle,geometryKinds,vectorStyle} from './layer-style.js';
-import {featureAppearance,categoryKey} from './attribute-style.js';
+import {featureAppearance,categoryKey,continuousStops,continuousScale} from './attribute-style.js';
 export const xml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 export const bearing=value=>((Number(value)||0)%360+360)%360;
 export function rotatePoint(x,y,degrees){const a=degrees*Math.PI/180;return [x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)];}
@@ -16,6 +16,7 @@ export function legendEntries(layer){
  const rules=layer.metadata?.style?.rules,features=layer.fc?.features||[],kinds=[...geometryKinds(layer.fc)],base=layerStyle(layer);
  const entry=(key,label,appearance,count)=>({...base,color:layer.color,...appearance,key:`${layer.id}:${key}`,label,count,kinds:kinds.length?kinds:['raster']});
  if(!rules||rules.mode==='single')return [entry('single',layer.name,{},features.length)];
+ if(rules.mode==='continuous'){continuousScale(rules);return [{...entry('continuous',rules.field,{},features.length),gradient:continuousStops(rules),min:rules.min,max:rules.max}];}
  if(['categorized','graduated'].includes(rules.mode)){
   const classes=rules.classes||[],counts=classes.map(()=>0);let missing=0;
   for(const f of features){const v=f.properties?.[rules.field],i=rules.mode==='categorized'?classes.findIndex(c=>c.key===categoryKey(v)):v==null||String(v).trim()===''||!Number.isFinite(Number(v))?-1:classes.findIndex((c,i)=>Number(v)>=c.min&&(Number(v)<c.max||(i===classes.length-1&&Number(v)<=c.max)));if(i<0)missing++;else counts[i]++;}
@@ -34,11 +35,11 @@ export function legendSVG(layers,item,width,height,{title='Legend',description='
  if(description){out+=textSVG(description,8,y,width-16,size);y+=wrapText(description,width-16,size).length*size*1.25+7;}
  for(const layer of layers){if(item.hiddenLayers?.includes(layer.id))continue;const entries=legendEntries(layer).filter(e=>!item.hiddenEntries?.includes(e.key)),classified=layer.metadata?.style?.rules&&layer.metadata.style.rules.mode!=='single';
   if(classified){out+=textSVG(layer.name,8,y,width-16,size,'font-weight="bold"');y+=wrapText(layer.name,width-16,size).length*size*1.25+5;}
-  for(const entry of entries){const label=(item.entryLabels?.[entry.key]??entry.label)+(item.showCounts?` (${entry.count})`:''),lines=wrapText(label,width-52,size),row=Math.max(size*1.25*lines.length,entry.kinds.includes('point')?entry.pointSize+4:18),cy=y+row/2-size*.35;
-   if(entry.kinds.includes('point'))out+=symbolSVG(entry,24,cy);
+  for(const entry of entries){if(entry.gradient){const id='gradient-'+layers.indexOf(layer);out+=`<defs><linearGradient id="${id}">${entry.gradient.map((c,i)=>`<stop offset="${i/(entry.gradient.length-1)*100}%" stop-color="${xml(c)}"/>`).join('')}</linearGradient></defs><rect x="8" y="${y}" width="${width-16}" height="12" fill="url(#${id})"/>`;y+=27;out+=textSVG(entry.min,8,y,width/2-8,size)+`<text x="${width-8}" y="${y}" text-anchor="end" font-family="Arial" font-size="${size}">${xml(entry.max)}</text>`;y+=14;continue;}const label=(item.entryLabels?.[entry.key]??entry.label)+(item.showCounts?` (${entry.count})`:''),lines=wrapText(label,width-72,size),row=Math.max(size*1.25*lines.length,entry.kinds.includes('point')?entry.pointSize+4:18),cy=y+row/2-size*.35;
+   if(entry.kinds.includes('point'))out+=symbolSVG(entry,34,cy);
    else if(entry.kinds.includes('shape')||entry.kinds.includes('raster'))out+=`<rect x="10" y="${cy-6}" width="28" height="12" fill="${xml(entry.fillColor||entry.color)}" fill-opacity="${entry.kinds.includes('raster')?1:entry.fillOpacity}" stroke="${xml(entry.color)}" stroke-width="${entry.lineWidth}" stroke-dasharray="${entry.lineStyle==='dashed'?'8 6':entry.lineStyle==='dotted'?'2 5':'none'}"/>`;
    else out+=`<path d="M10 ${cy}H38" fill="none" stroke="${xml(entry.color)}" stroke-width="${entry.lineWidth}" stroke-dasharray="${entry.lineStyle==='dashed'?'8 6':entry.lineStyle==='dotted'?'2 5':'none'}" opacity="${entry.opacity}"/>`;
-   out+=textSVG(label,46,y+size*.65,width-52,size);y+=row+5;
+   out+=textSVG(label,66,y+size*.65,width-72,size);y+=row+5;
   }y+=5;
  }
  return {markup:out,height:y+4,overflow:y+4>height};

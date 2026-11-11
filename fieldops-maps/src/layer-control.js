@@ -1,13 +1,14 @@
 import {installFloatingInspectors} from './floating-inspectors.js';
-import {featureAppearance} from './attribute-style.js';
+import {featureAppearance,continuousStops,continuousScale} from './attribute-style.js';
 import {installPanelDragging} from './panel-drag.js';
 import {geometryKinds,layerStyle,lineStyles} from './layer-style.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const colour=value=>/^#[0-9a-f]{6}$/i.test(value)?value:'#78958a';
-export function legendSymbol(layer,override={}){
+export function legendSymbol(layer,override={},sized=false){
  const sample=layer.fc?.features.find(f=>!f.properties?.Text)||layer.fc?.features[0];
  layer=featureAppearance(layer,sample);
  const style={...layerStyle(layer),...override},color=colour(override.color||layer.color),kinds=geometryKinds(layer.fc);
+ if(sized&&kinds.has('point')&&!kinds.has('line')&&!kinds.has('shape')&&style.symbol==='circle'){const diameter=Math.max(4,Math.min(48,Number(style.pointSize)||12)),box=diameter+2;return `<svg class="legend-sized-symbol" style="width:${box}px;height:${box}px" viewBox="-1 -1 ${box} ${box}" width="${box}" height="${box}" aria-hidden="true"><circle cx="${diameter/2}" cy="${diameter/2}" r="${diameter/2}" fill="${color}" stroke="white" stroke-width="1.5" opacity="${style.opacity}"/></svg>`;}
  let shape;
  if(layer.kind==='raster')shape='<rect x="3" y="3" width="18" height="18" rx="3" fill="none"/><path d="m4 18 6-7 4 4 3-3 4 6" fill="none"/>';
  else if(kinds.has('line'))shape=`<path d="M2 12h20" fill="none" stroke-width="${Math.max(2,style.lineWidth)}" ${lineStyles[style.lineStyle]?`stroke-dasharray="${lineStyles[style.lineStyle]}"`:''}/>`;
@@ -17,8 +18,9 @@ export function legendSymbol(layer,override={}){
 }
 export function legendContents(layer){
  const rules=layer.metadata?.style?.rules;
+ if(rules?.mode==='continuous'){try{continuousScale(rules);const stops=continuousStops(rules);return `<div class="legend-field">${esc(rules.field)}</div><div class="legend-gradient" role="img" aria-label="${esc(rules.field)}: ${esc(rules.min)} to ${esc(rules.max)}" style="background:linear-gradient(to right,${stops.join(',')})"></div><div class="legend-gradient-labels"><span>${esc(rules.min)}</span><span>${esc(rules.max)}</span></div>`;}catch{return '';}}
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
- return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry">${legendSymbol(layer,c)}<span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
+ return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
 export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');

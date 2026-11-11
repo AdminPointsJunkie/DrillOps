@@ -2,7 +2,7 @@ import {naturalBreaks,manualBreaks} from './class-breaks.js';
 import {compileExpression} from './style-expression.js';
 export const attributeSymbols=['circle','square','triangle','diamond','cross'];
 export const attributeFields=fc=>[...new Set((fc?.features||[]).flatMap(f=>Object.keys(f.properties||{})))].filter(key=>!key.startsWith('_fieldmaps_'));
-export const stylePalettes={categorical:['#147d72','#c17d28','#6c61aa','#ce6359','#3087ba','#ad397d','#638c30','#805443'],green:['#e5f5e0','#a1d99b','#74c476','#31a354','#006d2c'],blue:['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'],heat:['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026']};
+export const stylePalettes={viridis:['#440154','#3b528b','#21918c','#5ec962','#fde725'],categorical:['#147d72','#c17d28','#6c61aa','#ce6359','#3087ba','#ad397d','#638c30','#805443'],green:['#e5f5e0','#a1d99b','#74c476','#31a354','#006d2c'],blue:['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'],heat:['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026']};
 const palette=['#147d72','#c17d28','#6c61aa','#ce6359','#3087ba','#ad397d','#638c30','#805443'];
 const numeric=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&Number.isFinite(Number(v));
 export const categoryKey=v=>v===null||v===undefined?'null':`${typeof v}:${String(v)}`;
@@ -32,9 +32,16 @@ function validStyle(value){
  if(numeric(value.pointSize))result.pointSize=Math.max(4,Math.min(48,Number(value.pointSize)));
  return result;
 }
+export const numericStyleValue=v=>(typeof v==='number'||typeof v==='string')&&String(v).trim()!==''&&Number.isFinite(Number(v));
+export function continuousRange(fc,field){let min=Infinity,max=-Infinity;for(const f of fc?.features||[]){const v=f.properties?.[field];if(numericStyleValue(v)){min=Math.min(min,Number(v));max=Math.max(max,Number(v));}}if(!Number.isFinite(min))throw Error('This column has no numeric values.');return {min,max};}
+export function continuousStops(rules){const colors=rules.colors||stylePalettes[rules.palette]||stylePalettes.viridis;if(!Array.isArray(colors)||colors.length<2||colors.length>20||colors.some(c=>!/^#[0-9a-f]{6}$/i.test(c)))throw Error('Choose a valid colour palette.');return rules.reverse?[...colors].reverse():[...colors];}
+export function continuousScale(rules){const {min,max}=rules;if(!numericStyleValue(min)||!numericStyleValue(max)||Number(min)>Number(max))throw Error('Enter a valid minimum and maximum.');const colors=continuousStops(rules).map(c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)));
+ return value=>{if(!numericStyleValue(value))return null;const t=Number(min)===Number(max)?.5:Math.max(0,Math.min(1,(Number(value)-Number(min))/(Number(max)-Number(min)))),position=t*(colors.length-1),index=Math.min(colors.length-2,Math.floor(position)),fraction=position-index;return '#'+colors[index].map((c,i)=>Math.round(c+(colors[index+1][i]-c)*fraction).toString(16).padStart(2,'0')).join('');};
+}
 const cache=new WeakMap();
 export function attributeEvaluator(rules,fields){
  if(!rules||rules.mode==='single')return ()=>({});
+ if(rules.mode==='continuous'){const color=continuousScale(rules);return props=>{const value=color(props?.[rules.field]);return value?{color:value}:{};};}
  if(rules.mode==='expression'){
   const compiled=Object.entries(rules.expressions||{}).filter(([,v])=>String(v).trim()).map(([k,v])=>[k,compileExpression(v,fields)]);
   return props=>validStyle(Object.fromEntries(compiled.map(([k,fn])=>[k,fn(props)])));
