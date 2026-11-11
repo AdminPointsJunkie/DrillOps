@@ -1,0 +1,11 @@
+<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FieldMaps sharing and legend check</title><div id="checks"><button id="share">Share map</button><button id="style">Style by value</button><section id="legend" style="width:240px;padding:20px"></section></div><script type="module">
+import '../src/style.css';import '../src/explore.css';import '../src/map-workspace.css';import '../src/layer-control.css';import '../src/appearance.css';import '../src/ui-consistency.css';
+import {openShareMap} from '../src/share-map.js';import {openAttributeStyle} from '../src/attribute-style-dialog.js';import {legendContents} from '../src/layer-control.js';
+document.documentElement.dataset.theme='dark';document.documentElement.style.colorScheme='dark';
+const layer={id:'sample',name:'Survey points',color:'#aaaaaa',fc:{type:'FeatureCollection',features:[0,25,50,75,100].map(value=>({type:'Feature',properties:{value},geometry:{type:'Point',coordinates:[0,0]}}))},metadata:{style:{symbol:'circle',rules:{mode:'continuous',field:'value',min:0,max:100,palette:'viridis'}}}};
+function draw(){document.querySelector('#legend').innerHTML=legendContents(layer);}draw();
+document.querySelector('#style').onclick=()=>openAttributeStyle(layer,async rules=>{layer.metadata.style.rules=rules;draw();});
+const db={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:null})})})}),rpc:async()=>({data:[]})};
+document.querySelector('#share').onclick=()=>openShareMap({db,project:{id:'sample',name:'Survey map'},canEdit:()=>true,local:false});
+document.querySelector('#share').click();
+</script></html>

@@ -1,3 +1,4 @@
+import {legendContents,legendSymbol} from './layer-control.js';
 import {formatField} from './number-format.js';
 import {appendGroupLegend} from './group-legend.js';
 import {attributeFields,matchesView,legendItems,tableRows,textValue,featureTitle,featureInfo,featureBounds} from './explore-data.js';
@@ -38,7 +39,7 @@ export function installMapExplorer({L,map,canOpenTable=()=>true,getLayers,isVisi
   for(const l of vectors()){
    const card=[...document.querySelectorAll('.layer-card')].find(c=>c.dataset.id===l.id);if(!card)continue;
    let legend=card.querySelector('.layer-legend');if(!legend){legend=document.createElement('details');legend.className='layer-legend';legend.open=Boolean(l.metadata?.style?.rules);card.append(legend);}
-   const entries=legendItems({...l,fc:{...l.fc,features:l.fc.features.filter(f=>componentFilter(l,f))}},view(l));legend.innerHTML=`<summary>Legend <small>${(view(l).filter?.conditions?.length||view(l).search)?'· filtered':''}</small></summary>${entries.map(c=>`<label><input type="checkbox" data-legend-key="${esc(c.key)}" ${c.visible?'checked':''}><span class="legend-swatch" style="color:${/^#[\da-f]{6}$/i.test(c.color)?c.color:'#147d72'}">${({circle:'●',square:'■',triangle:'▲',diamond:'◆',cross:'✚'})[c.symbol]||'●'}</span><span>${esc(c.label)}</span><small>${c.count}</small></label>`).join('')}<div class="legend-actions"><button type="button" data-open-table>▦ Table</button><button type="button" data-open-filter>⏷ Filter</button>${canEdit(l)?'<button type="button" data-save-default>Save default</button>':''}</div>`;
+   const entries=legendItems({...l,fc:{...l.fc,features:l.fc.features.filter(f=>componentFilter(l,f))}},view(l));legend.innerHTML=`<summary>Legend <small>${(view(l).filter?.conditions?.length||view(l).search)?'· filtered':''}</small></summary>${l.metadata?.style?.rules?.mode==='continuous'?legendContents(l):''}${entries.map(c=>`<label><input type="checkbox" data-legend-key="${esc(c.key)}" ${c.visible?'checked':''}><span class="legend-symbol-cell">${legendSymbol(l,c,true)}</span><span>${esc(c.label)}</span><small>${c.count}</small></label>`).join('')}<div class="legend-actions"><button type="button" data-open-table>▦ Table</button><button type="button" data-open-filter>⏷ Filter</button>${canEdit(l)?'<button type="button" data-save-default>Save default</button>':''}</div>`;
    if(onGroupChange)appendGroupLegend(legend,l,{canEdit:canEdit(l),onChange:onGroupChange});
   }
  }

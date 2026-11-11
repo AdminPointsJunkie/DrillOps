@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {continuousScale,continuousRange,featureAppearance} from '../src/attribute-style.js';
+import {legendContents,legendSymbol} from '../src/layer-control.js';
+import {legendEntries,legendSVG} from '../src/print-cartography.js';
+import {publicTileLayer,loadLibrary} from '../src/public-data.js';
+const rules={mode:'continuous',field:'value',min:0,max:100,colors:['#000000','#ffffff']};
+const layer={id:'test',name:'Test',color:'#123456',fc:{type:'FeatureCollection',features:[0,50,100,null].map(value=>({type:'Feature',properties:{value},geometry:{type:'Point',coordinates:[0,0]}}))},metadata:{style:{symbol:'circle',pointSize:12,rules}}};
+test('continuous interpolation clamps endpoints and skips missing data',()=>{const scale=continuousScale(rules);assert.equal(scale(50),'#808080');assert.equal(scale(-10),'#000000');assert.equal(scale('200'),'#ffffff');for(const v of [null,undefined,'',false,'bad'])assert.equal(scale(v),null);assert.equal(continuousScale({...rules,reverse:true})(0),'#ffffff');assert.equal(continuousScale({...rules,min:5,max:5})(5),'#808080');assert.throws(()=>continuousScale({...rules,min:101}));assert.deepEqual(continuousRange(layer.fc,'value'),{min:0,max:100});assert.equal(featureAppearance(layer,layer.fc.features[1]).color,'#808080');});
+test('gradient legends remain a single range on screen and in print',()=>{assert.match(legendContents(layer),/linear-gradient/);assert.equal(legendEntries(layer).length,1);const svg=legendSVG([layer],{},240,400).markup;assert.match(svg,/<linearGradient/);assert.match(svg,/100/);});
+test('circle legends preserve styled diameters with space for strokes',()=>{assert.match(legendSymbol(layer,{symbol:'circle',pointSize:48},true),/r="24"/);assert.match(legendSymbol(layer,{symbol:'circle',pointSize:8},true),/r="4"/);});
+test('ETOPO is a tiled relief layer with attribution and native zoom limit',async()=>{const l=publicTileLayer('etopo');assert.equal(l.kind,'raster');assert.equal(l.metadata.xyz.maxZoom,10);assert.match(l.metadata.xyz.url,/tile\/\{z\}\/\{y\}\/\{x\}/);assert.match(l.metadata.xyz.attribution,/NOAA/);assert.notEqual(l.id,publicTileLayer('etopo').id);await assert.rejects(loadLibrary('etopo'),/tile layer/);});

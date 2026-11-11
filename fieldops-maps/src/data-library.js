@@ -1,8 +1,9 @@
+import {xyzLayer} from './xyz.js';
 import {publicSources} from './public-sources.js';
 import {openQGlobe} from './qglobe.js';
 import {vectorStyle,pointMarker} from './layer-style.js';
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
-import {dataLibrary,loadLibrary} from './public-data.js';
+import {dataLibrary,loadLibrary,publicTileLayer} from './public-data.js';
 import {workspaceIcon} from './workspace-layout.js';
 const category=x=>x.category||({countries:'Boundaries',states:'Boundaries',rivers:'Water',lakes:'Water',graticule:'Reference'})[x.id]||'General';
 export function openDataLibrary({L,canCreate,getScope,onResult,workspaceLibrary,getUser=()=>null,getWorkspace=()=>null,onWorkspaceResult,getBounds,favourites}){
@@ -33,11 +34,11 @@ export function openDataLibrary({L,canCreate,getScope,onResult,workspaceLibrary,
  async function choose(item){
   clearPreview();const version=request;selected=item;draw();q('[data-detail]').innerHTML='<div class="library-placeholder">Loading preview…</div>';q('.error').textContent='';
   try{
-   const layer=publicItem(item)?{kind:'vector',fc:await loadLibrary(item.id,{signal:abort.signal}),color:({countries:'#b98945',states:'#9567b5',rivers:'#248eb0',lakes:'#318eca',graticule:'#7b8596'})[item.id],metadata:{style:{fillOpacity:.5}}}:await workspaceLibrary.load(item);
+   const layer=publicItem(item)?item.kind==='tiles'?publicTileLayer(item.id):{kind:'vector',fc:await loadLibrary(item.id,{signal:abort.signal}),color:({countries:'#b98945',states:'#9567b5',rivers:'#248eb0',lakes:'#318eca',graticule:'#7b8596'})[item.id],metadata:{style:{fillOpacity:.5}}}:await workspaceLibrary.load(item);
    valid();if(version!==request)return;prepared=layer;
-   q('[data-detail]').innerHTML=`<div class="library-map" data-preview aria-label="Layer preview"></div><div class="library-description"><h3>${esc(item.name)}</h3><p>${esc(item.description||(layer.drawing?'Original DWG drawing':'Library layer'))}</p><small>${esc(category(item))}${item.created_at?' · Saved '+esc(new Date(item.created_at).toLocaleDateString()):' · '+esc(item.license)}</small>${publicItem(item)?'<p><a href="https://www.naturalearthdata.com/about/terms-of-use/" target="_blank" rel="noopener noreferrer">Source and licence ↗</a></p>':''}<div class="library-detail-actions"><button type="button" class="primary" data-add-library ${tab==='archived'?'hidden':''}>＋ Add to map</button>${!publicItem(item)&&workspaceLibrary.canManage(item)?`<button type="button" data-share-library ${tab==='archived'?'hidden':''}>Share…</button><button type="button" data-archive>${tab==='archived'?'Restore':'Archive'}</button>`:''}</div><small>${layer.drawing?'Import this drawing into a project or select it when resolving linked drawings.':publicItem(item)?'Editable reference data.':'Styles are copied. Changes to this map will not alter the library.'}</small></div>`;
+   q('[data-detail]').innerHTML=`<div class="library-map" data-preview aria-label="Layer preview"></div><div class="library-description"><h3>${esc(item.name)}</h3><p>${esc(item.description||(layer.drawing?'Original DWG drawing':'Library layer'))}</p><small>${esc(category(item))}${item.created_at?' · Saved '+esc(new Date(item.created_at).toLocaleDateString()):' · '+esc(item.license)}</small>${publicItem(item)?`<p><a href="${esc(item.sourceUrl||'https://www.naturalearthdata.com/about/terms-of-use/')}" target="_blank" rel="noopener noreferrer">Source ↗</a></p>`:''}<div class="library-detail-actions"><button type="button" class="primary" data-add-library ${tab==='archived'?'hidden':''}>＋ Add to map</button>${!publicItem(item)&&workspaceLibrary.canManage(item)?`<button type="button" data-share-library ${tab==='archived'?'hidden':''}>Share…</button><button type="button" data-archive>${tab==='archived'?'Restore':'Archive'}</button>`:''}</div><small>${layer.drawing?'Import this drawing into a project or select it when resolving linked drawings.':publicItem(item)?item.kind==='tiles'?'Shaded relief · not an analysis DEM.':'Editable reference data.':'Styles are copied. Changes to this map will not alter the library.'}</small></div>`;
    if(layer.drawing){q('[data-preview]').innerHTML=`<div class="library-placeholder"><strong>DWG drawing</strong><small>${esc(layer.files[0].name)}</small><small>Original CAD file · ${(layer.files[0].size/1024/1024).toFixed(1)} MB</small></div>`;q('[data-add-library]').textContent='Import drawing';}
-   else if(layer.metadata?.xyz){q('[data-preview]').innerHTML='<div class="library-placeholder">Tile service<br><small>Connects to its provider when added to your map.</small></div>';}
+   else if(layer.metadata?.xyz){previewMap=L.map(q('[data-preview]'),{scrollWheelZoom:false});xyzLayer(L,layer).addTo(previewMap);previewMap.setView([-25,134],3);}
    else{
     previewMap=L.map(q('[data-preview]'),{zoomControl:true,attributionControl:false,scrollWheelZoom:false});
     if(layer.fc){const geo=L.geoJSON(layer.fc,{style:f=>vectorStyle(layer,f),pointToLayer:(f,latlng)=>pointMarker(L,layer,latlng,{},f)}).addTo(previewMap);const bounds=geo.getBounds();bounds.isValid()?previewMap.fitBounds(bounds,{padding:[18,18],maxZoom:16}):previewMap.setView([0,0],1);}
@@ -52,7 +53,7 @@ export function openDataLibrary({L,canCreate,getScope,onResult,workspaceLibrary,
   if(e.target.closest('[data-share-library]')){openLibrarySharing(workspaceLibrary,selected);return;}
   const action=e.target.closest('[data-add-library],[data-archive]');if(!action)return;action.disabled=true;
   try{valid();if(action.hasAttribute('data-archive')){await workspaceLibrary.archive(selected,tab!=='archived');valid();clearPreview();selected=null;q('[data-detail]').innerHTML='<div class="library-placeholder">Library updated</div>';await refresh();}
-   else{if(!prepared)throw Error('Wait for the preview.');if(publicItem(selected))await onResult(structuredClone(prepared.fc),selected.name,{color:prepared.color,metadata:{reference:{...selected},style:{fillOpacity:.5}}});else{const layer=prepared;if(layer.drawing)d.close();await onWorkspaceResult(layer);}d.close();}}
+   else{if(!prepared)throw Error('Wait for the preview.');if(publicItem(selected)&&selected.kind!=='tiles')await onResult(structuredClone(prepared.fc),selected.name,{color:prepared.color,metadata:{reference:{...selected},style:{fillOpacity:.5}}});else{const layer=prepared;if(layer.drawing)d.close();await onWorkspaceResult(layer);}d.close();}}
   catch(e){q('.error').textContent=e.message;}finally{action.disabled=false;}
  };
  d.addEventListener('close',()=>{closed=true;abort.abort();clearPreview();});void refresh();return d;
