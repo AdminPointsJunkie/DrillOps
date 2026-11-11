@@ -2,9 +2,9 @@
 #app>header{padding:0 16px;gap:12px}
 #app>header .brand{font-size:17px;letter-spacing:-.5px}
 #app>header .brand small{display:none}
-#app>header .header-project{border-left:1px solid #e4e9e6;padding-left:12px;max-width:240px;flex:1;min-width:100px}
+#app>header .header-project{border-left:1px solid #e8e8e8;padding-left:12px;max-width:240px;flex:1;min-width:100px}
 #app>header .header-project #map-select{font-size:13px;font-weight:600}
-#app>header .map-tools.toolbar-menus{gap:2px;margin:0 auto;padding:3px 6px;border:1px solid #e4e9e6;background:#f8faf9;border-radius:9px}
+#app>header .map-tools.toolbar-menus{gap:2px;margin:0 auto;padding:3px 6px;border:1px solid #e8e8e8;background:#f8faf9;border-radius:9px}
 #app>header .sync-controls{border-left:0;padding-left:0;gap:8px}
 #app>header .sync-controls button{height:34px;padding:0 14px!important;font-size:11px;border-radius:7px}
 #app>header .sync-controls strong{font-size:11px}
@@ -13,32 +13,32 @@
 #sidebar>.tabs{margin-left:-12px;margin-right:-12px;padding-left:16px;padding-right:12px;align-items:center;min-height:48px;margin-bottom:8px;padding-top:0;top:-15px}
 #sidebar>.tabs .active{border:0;padding:0;font-size:12px}
 #sidebar>.tabs button{align-self:center}
-.layer-search{display:flex;align-items:center;gap:7px;border:1px solid #e4e9e6;border-radius:7px;margin:0 0 8px;padding:0 9px;background:#f8faf9;color:#78857e}
+.layer-search{display:flex;align-items:center;gap:7px;border:1px solid #e8e8e8;border-radius:7px;margin:0 0 8px;padding:0 9px;background:#f8faf9;color:#828282}
 .layer-search input{border:0;background:none;padding:9px 0;width:100%;min-width:0;font-size:12px;outline:none;box-shadow:none;margin:0}
-.layer-search:focus-within{border-color:#719783;box-shadow:0 0 0 2px #315d4910}
-#layers>.order-hint{font-size:10px;color:#859189;line-height:1.4;margin:5px 3px 12px}
+.layer-search:focus-within{border-color:#8d8d8d;box-shadow:0 0 0 2px #52525210}
+#layers>.order-hint{font-size:10px;color:#8e8e8e;line-height:1.4;margin:5px 3px 12px}
 #layers .layer-card{border:1px solid transparent;border-bottom-color:#edf0ee;border-radius:7px;margin:0 0 3px;padding:8px 6px;background:white;transition:background .12s,border-color .12s}
 #layers .layer-card:hover{background:#f6f9f7}
-#layers .layer-card:focus-within,#layers .layer-card:has([aria-expanded=true]){background:#f0f6f2;border-color:#cedfd3}
+#layers .layer-card:focus-within,#layers .layer-card:has([aria-expanded=true]){background:#f4f4f4;border-color:#dbdbdb}
 #layers .layer-top strong{font-size:12px;line-height:1.45;font-weight:600}
-#layers .layer-top small{font-size:10px;color:#77867d}
+#layers .layer-top small{font-size:10px;color:#828282}
 #layers .geometry-symbol{font-size:17px}
 #layers .layer-option-buttons button,#layers .small-button{border-radius:5px}
-#layers .layer-option-buttons button:hover,#layers .small-button:hover{background:#e1ece5}
-#layers .drag-handle{color:#a3afa7}
-#layers .layer-group{border:0;border-left:2px solid #e5ece7;border-radius:0;background:none;margin:8px 0}
+#layers .layer-option-buttons button:hover,#layers .small-button:hover{background:#e9e9e9}
+#layers .drag-handle{color:#acacac}
+#layers .layer-group{border:0;border-left:2px solid #eaeaea;border-radius:0;background:none;margin:8px 0}
 #layers .group-heading{background:none;font-size:12px;padding:7px 2px}
-.layer-search-empty{padding:18px 6px;text-align:center;font-size:12px;color:#77867d}
-.map-navigation{padding:4px!important;border:1px solid #dce5df!important;border-radius:9px!important;box-shadow:0 3px 14px #18352312!important;background:#fff!important}
+.layer-search-empty{padding:18px 6px;text-align:center;font-size:12px;color:#828282}
+.map-navigation{padding:4px!important;border:1px solid #e3e3e3!important;border-radius:9px!important;box-shadow:0 3px 14px #2e2e2e12!important;background:#fff!important}
 .map-navigation .square{width:32px;height:32px;border-radius:6px}
-.map-navigation .square:hover{background:#edf4ef}
-.tool-menu-content{box-shadow:0 8px 28px #18352320;border-radius:10px}
+.map-navigation .square:hover{background:#f2f2f2}
+.tool-menu-content{box-shadow:0 8px 28px #2e2e2e20;border-radius:10px}
 .tool-menu-content button{font-size:12px;min-height:34px}
 @media(min-width:1100px){#app>header{height:60px}#app>main{height:calc(100dvh - 60px)}#app>header .sync-controls>div{max-width:180px;min-width:110px}#app>header .sync-controls small{max-width:180px;white-space:normal;overflow:visible}.tool-menu-content{top:43px}}
 @media(min-width:761px) and (max-width:1099px){#app>header{height:106px;align-items:flex-start;padding-top:12px}#app>main{height:calc(100dvh - 106px)}#app>header .map-tools.toolbar-menus{position:absolute;top:58px;left:50%;transform:translateX(-50%)}#app>header .sync-controls>div{display:block;max-width:230px}#app>header .sync-controls small{white-space:normal;max-width:230px;overflow:visible}.tool-menu-content{top:40px}.app-menu-content{top:48px}}
 @media(max-width:760px){#app>header{padding:9px 10px 0;gap:5px}#app>header .brand{font-size:13px}#app>header .header-project{padding-left:5px;min-width:60px}#app>header .header-project #map-select{font-size:11px}#app>header .map-tools.toolbar-menus{padding:3px;top:50px;gap:1px}#app>header .sync-controls button{padding:0 10px!important;height:30px}.tool-menu-content{top:96px}#sidebar .layer-card{padding:10px 6px}.profile-photo-row{flex-wrap:wrap}.profile-photo-row label{flex-basis:70%}}
-.paste-data-dialog{width:min(680px,94vw)}.paste-data-dialog textarea{font:12px/1.5 ui-monospace,monospace}.paste-table{max-width:100%;overflow:auto;max-height:190px;border:1px solid #e0e8e2;border-radius:6px}.paste-table table{border-collapse:collapse;font-size:11px;white-space:nowrap}.paste-table th,.paste-table td{padding:7px 10px;border-bottom:1px solid #e5ece7;text-align:left}.paste-table th{background:#f1f6f3}.paste-data-dialog [data-preview]{padding:8px 12px;border:1px solid #d4e0d8;border-radius:6px;font-size:12px}.analysis-dialog [data-result-preview]{padding:12px;background:#fff7e7;border:1px solid #ecd7b4;border-radius:7px;font-size:12px;line-height:1.6;margin-top:12px}.analysis-dialog::backdrop{background:transparent;backdrop-filter:none}.classification-options{flex-wrap:wrap}.attribute-dialog [data-classify] .classification-options label{min-width:100px;flex:1}
-@media(min-width:761px){.analysis-dialog{position:fixed;top:80px;right:16px;left:auto;bottom:auto;margin:0;width:320px;max-height:calc(100dvh - 100px);padding:20px;border-radius:10px;box-shadow:0 8px 30px #18352325}.analysis-dialog h2{font-size:18px}.analysis-dialog p,.analysis-dialog small{font-size:11px;line-height:1.5}.analysis-dialog .dialog-heading{margin-bottom:8px}}
+.paste-data-dialog{width:min(680px,94vw)}.paste-data-dialog textarea{font:12px/1.5 ui-monospace,monospace}.paste-table{max-width:100%;overflow:auto;max-height:190px;border:1px solid #e6e6e6;border-radius:6px}.paste-table table{border-collapse:collapse;font-size:11px;white-space:nowrap}.paste-table th,.paste-table td{padding:7px 10px;border-bottom:1px solid #eaeaea;text-align:left}.paste-table th{background:#f5f5f5}.paste-data-dialog [data-preview]{padding:8px 12px;border:1px solid #dddddd;border-radius:6px;font-size:12px}.analysis-dialog [data-result-preview]{padding:12px;background:#fff7e7;border:1px solid #ecd7b4;border-radius:7px;font-size:12px;line-height:1.6;margin-top:12px}.analysis-dialog::backdrop{background:transparent;backdrop-filter:none}.classification-options{flex-wrap:wrap}.attribute-dialog [data-classify] .classification-options label{min-width:100px;flex:1}
+@media(min-width:761px){.analysis-dialog{position:fixed;top:80px;right:16px;left:auto;bottom:auto;margin:0;width:320px;max-height:calc(100dvh - 100px);padding:20px;border-radius:10px;box-shadow:0 8px 30px #2e2e2e25}.analysis-dialog h2{font-size:18px}.analysis-dialog p,.analysis-dialog small{font-size:11px;line-height:1.5}.analysis-dialog .dialog-heading{margin-bottom:8px}}
 .attribute-dialog::backdrop{background:transparent;backdrop-filter:none}
 @media(min-width:761px){.attribute-dialog{position:fixed;left:auto;right:16px;top:80px;bottom:auto;margin:0;width:420px;max-width:calc(100vw - 340px);max-height:calc(100dvh - 100px);padding:20px;border-radius:10px}.attribute-dialog .dialog-heading h2{font-size:19px}.attribute-dialog .attribute-actions{position:sticky;bottom:-20px;background:white;padding:12px 0}}
 /* Tool labels keep their text, with a consistent decorative symbol beside it. */
@@ -55,4 +55,4 @@
 #layers .layer-card:not(.layer-expanded)>.crs-tag{display:none}
 #layers .layer-top strong{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 #layers .layer-top small{line-height:1.4}
-.collapse-layer-controls{align-self:flex-end;font-size:10px;color:#597565;padding:3px 2px 7px}
+.collapse-layer-controls{align-self:flex-end;font-size:10px;color:#6e6e6e;padding:3px 2px 7px}

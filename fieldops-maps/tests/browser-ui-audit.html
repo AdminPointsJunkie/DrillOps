@@ -1,0 +1,12 @@
+<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FieldMaps interface check</title><div id="app"><main><section class="map-area"></section></main><button id="people">Settings</button></div><script type="module">
+import '../src/style.css';import '../src/explore.css';import '../src/workspace.css';import '../src/workspaces.css';import '../src/workspace-settings-page.css';import '../src/invite-dialog.css';import '../src/platform-admin.css';import '../src/appearance.css';import '../src/ui-consistency.css';
+import {installAccounts} from '../src/accounts.js';import {openInviteDialog} from '../src/invite-dialog.js';import {installMapComponents} from '../src/map-components.js';import {toolDialog} from '../src/explore-dialogs.js';
+const params=new URLSearchParams(location.search),theme=params.get('theme')||'dark';document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;
+const state={workspace:{id:'preview',name:'Example project'},role:'owner',people:[{id:'owner',email:'owner@example.test',name:'Owner',role:'owner',status:'active',projects:[],confirmed:true}],projects:[{id:'map',name:'Survey map'}],invitations:[{id:'invite',email:'member@example.test',name:'',role:'editor',status:'pending',delivery:'sent',expires_at:'2027-01-01'}],events:[]};
+const db={rpc:async name=>({data:name==='workspace_settings'?state:name==='workspace_fieldops_access'?[]:name==='workspace_member_report'?{people:[],unattributed_file_bytes:0}:null})};
+const mode=params.get('mode')||'invitations';
+if(mode==='invite')openInviteDialog({name:state.workspace.name,roleOptions:'<option value="operator">Operator</option><option value="editor">Editor</option>',projectChecks:'',create:async()=>{throw Error('Preview only');},send:async()=>{},onChanged(){}});
+else if(mode==='chart'){const ui=installMapComponents({getScope:()=> 'preview',getLayers:()=>[{id:'survey',name:'Survey points',fc:{type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[0,0]},properties:{Name:'A',RL:100}}]}}],explorer:{setComponentFilter(){}}});ui.open('bar');}
+else if(mode==='form')toolDialog('Tool settings','<label>Name<input value="Survey"></label><label>Layer<select><option>Survey points</option></select></label>');
+else{const ui=installAccounts(db,()=>({id:'owner'}),document,{getWorkspace:()=>state.workspace,getContext:()=>({workspaces:[{...state.workspace,role:'owner'}]})});ui.openWorkspace('preview',mode);}
+</script></html>

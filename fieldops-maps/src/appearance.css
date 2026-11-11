@@ -15,7 +15,7 @@
 [data-theme=dark] :is(#empty-map,.home-content,.home-main,.home-sidebar,.home-header){background:#1c1c1c;color:#ededed;border-color:#424242}
 [data-theme=dark] :is(.home-card,.home-toolbar,.home-search,.home-project,.project-card){background:#252525;color:#ededed;border-color:#424242}
 [data-theme=dark] :is(.leaflet-control-zoom a,.leaflet-control-attribution){background:#1c1c1c!important;color:#dedede!important}
-@media print{[data-theme=dark] body{background:#fff;color:#19201d}}
+@media print{[data-theme=dark] body{background:#fff;color:#1e1e1e}}
 [data-theme=dark] :is(.tool-menu-content button,.tool-menu summary,.app-submenu summary,.map-tools button,.map-tools summary,.home-sidebar nav button,.home-account,.home-topbar h1,.home-welcome h2,.home-welcome p,.home-project-copy,.home-guides button){color:#dedede!important}
 [data-theme=dark] :is(.home-sidebar,.home-topbar,.home-welcome,.home-guides button,.home-project,.home-searchbar,.home-workspace-popover,#sidebar>.tabs){background:#1c1c1c!important;color:#ededed!important;border-color:#3b3b3b!important}
 [data-theme=dark] :is(.home-project small,.home-workspace small,.home-topbar [data-project-count],.home-guides button span){color:#b5b5b5!important}

@@ -11,7 +11,7 @@ export function createAppearance({root,storage,media,save=async()=>{}}){
 let appearance;
 export function configureAppearance(options){appearance=createAppearance(options);return appearance;}
 export function installAppearanceSettings(container){
- const label=document.createElement('label');label.className='appearance-setting';label.innerHTML='Appearance<select aria-label="Appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><small>System follows your computer. Signed-in preferences are saved to your account.</small><span role="status"></span>';container.append(label);
+ const label=document.createElement('label');label.className='appearance-setting';label.innerHTML='Appearance<select aria-label="Appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><small>System follows your device.</small><span role="status"></span>';container.append(label);
  const select=label.querySelector('select'),status=label.querySelector('[role=status]');appearance.subscribe(value=>select.value=value);
  select.onchange=async()=>{const value=select.value;select.disabled=true;status.textContent='Saving…';try{await appearance.choose(value);status.textContent='Saved';}catch(e){select.value=appearance.preference;status.textContent='Could not save appearance. Try again.';}finally{select.disabled=false;}};
 }

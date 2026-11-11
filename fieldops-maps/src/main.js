@@ -93,6 +93,7 @@ import './project-home.css';
 import './map-workspace.css';
 import './appearance.css';
 import './layer-control.css';
+import './ui-consistency.css';
 import {installWorkspaceLayout} from './workspace-layout.js';
 import {createClient} from '@supabase/supabase-js';
 import {SUPABASE_URL,SUPABASE_KEY,LOCAL_TESTING} from './config.js';

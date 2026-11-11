@@ -1,4 +1,4 @@
-.shortcut-table{overflow:auto;max-height:60vh}.shortcut-table table{width:100%;border-collapse:collapse;font-size:13px}.shortcut-table th,.shortcut-table td{text-align:left;padding:9px;border-bottom:1px solid #dce5df}.shortcut-table th{position:sticky;top:0;background:var(--panel-bg,#fff)}.shortcut-table kbd{font-family:inherit;white-space:nowrap;font-size:12px;padding:3px 5px;border:1px solid #cdd8d0;border-radius:4px}
+.shortcut-table{overflow:auto;max-height:60vh}.shortcut-table table{width:100%;border-collapse:collapse;font-size:13px}.shortcut-table th,.shortcut-table td{text-align:left;padding:9px;border-bottom:1px solid #e3e3e3}.shortcut-table th{position:sticky;top:0;background:var(--panel-bg,#fff)}.shortcut-table kbd{font-family:inherit;white-space:nowrap;font-size:12px;padding:3px 5px;border:1px solid #d5d5d5;border-radius:4px}
 @media(max-width:760px){.shortcut-table th,.shortcut-table td{padding:7px 5px}}
 
 /* Location search remains available through the menu and keyboard shortcuts. */
