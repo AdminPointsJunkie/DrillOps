@@ -74,3 +74,18 @@ test('editing a cloud collection returns its current footprint without adding a 
   assert.deepEqual(saved[1].fc.features[0].geometry.coordinates[0],[[10,20],[11,20],[11,21],[10,21],[10,20]]);assert.equal(disposed,1);
  }finally{if(d.open)d.close();dom.window.close();}
 });
+test('a cold full-file response is cancelled and retried as a bounded range',async t=>{
+ const bytes=readFileSync(new URL('./fixtures/cloud-dem.tif',import.meta.url));let requests=0,sent=0,cancelled=false;
+ const server=http.createServer((req,res)=>{
+  if(++requests===1){res.writeHead(200,{'Content-Length':bytes.length});res.flushHeaders();const timer=setInterval(()=>{const next=bytes.subarray(sent,sent+4096);sent+=next.length;res.write(next);if(sent>=bytes.length){clearInterval(timer);res.end();}},5);res.on('close',()=>{clearInterval(timer);cancelled=true;});return;}
+  const match=/bytes=(\d+)-(\d+)/.exec(req.headers.range),start=Number(match[1]),end=Math.min(Number(match[2]),bytes.length-1);
+  res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${bytes.length}`,'Content-Length':end-start+1});res.end(bytes.subarray(start,end+1));
+ });await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});
+ const dem=await openDEM(`http://127.0.0.1:${server.address().port}/dem.tif`);t.after(()=>dem.dispose());
+ assert.ok(Math.abs(await dem.sample(dem.coordinate(100,100))-123.5)<1e-6);assert.ok(requests>=2);assert.ok(cancelled);assert.ok(sent<bytes.length/2);
+});
+test('incorrect partial-response offsets are rejected before decoding',async t=>{
+ const server=http.createServer((req,res)=>{res.writeHead(206,{'Content-Range':'bytes 10-20/100','Content-Length':11});res.end(Buffer.alloc(11));});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});
+ await assert.rejects(openDEM(`http://127.0.0.1:${server.address().port}/dem.tif`));
+});

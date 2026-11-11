@@ -1,11 +1,31 @@
-import {fromBlob,fromUrl} from 'geotiff';
+import {fromBlob,fromCustomClient} from 'geotiff';
 import proj4 from 'proj4';
 import {rasterProjection} from './raster-sample.js';
+// Some CDNs initially ignore Range. Cancel that body and retry once; never accept a full file.
+function rangeClient(url){return {async request({headers,signal}){
+ const requested=/^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+ if(!requested)throw Error('A bounded elevation byte range is required.');
+ const start=Number(requested[1]),end=Number(requested[2]);
+ for(let attempt=0;attempt<2;attempt++){
+  const response=await fetch(url,{headers,signal,...(attempt?{cache:'no-store'}:{})});
+  if(response.status===200){await response.body?.cancel();if(!attempt)continue;throw Error('The DEM server does not support partial downloads.');}
+  const range=/^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('Content-Range')||'');
+  if(response.status!==206||!range||Number(range[1])!==start||Number(range[2])!==Math.min(end,Number(range[3])-1)){
+   await response.body?.cancel();throw Error('The DEM server returned an invalid byte range.');
+  }
+  const length=Number(range[2])-start+1;
+  return {ok:true,status:206,getHeader:name=>response.headers.get(name),async getData(){
+   const reader=response.body.getReader(),data=new Uint8Array(length);let offset=0;
+   while(true){const {done,value}=await reader.read();if(done)break;if(offset+value.length>length){await reader.cancel();throw Error('The DEM response exceeded its requested byte range.');}data.set(value,offset);offset+=value.length;}
+   if(offset!==length)throw Error('The DEM byte range was incomplete.');return data.buffer;
+  }};
+ }
+}};}
 // Windowed reads keep the original grid resolution without decoding an entire DEM.
 export async function openDEM(file,{units='metres',datum='Unknown',band=1}={}){
  const controller=new AbortController(),remote=typeof file==='string';
  let tiff;
- try{tiff=remote?await fromUrl(file,{allowFullFile:false,blockSize:65536,cacheSize:32},controller.signal):await fromBlob(file);}catch(error){controller.abort();throw error;}
+ try{tiff=remote?await fromCustomClient(rangeClient(file),{allowFullFile:false,blockSize:65536,cacheSize:32},controller.signal):await fromBlob(file);}catch(error){controller.abort();throw error;}
  const image=await tiff.getImage(),keys=image.getGeoKeys()||{},fd=image.fileDirectory;
  if(fd.ModelTransformation)throw Error('Rotated GeoTIFFs must be reprojected to a north-up DEM first.');
  if([2,3,6].includes(fd.PhotometricInterpretation))throw Error('This is a colour image. Select a numeric elevation DEM, not imagery or hillshade.');

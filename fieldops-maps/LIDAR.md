@@ -37,7 +37,7 @@ Encoding references: https://docs.mapbox.com/data/tilesets/guides/access-elevati
 
 ## Cloud DEM collections
 
-Choose **Elevation source → Cloud DEM collection**. The Ironbark 2024 collection URL is prefilled. Click **Load cloud DEM** to stream its COG tiles as one elevation source. The full dataset is not downloaded: visible map windows use overview levels, while spot elevations, profiles, sections and slope calculations sample original-resolution cells. Servers must support HTTP byte ranges and browser CORS; whole-file fallback is disabled.
+Choose **Elevation source → Cloud DEM collection**. The Ironbark 2024 collection URL is prefilled. Click **Load cloud DEM** to stream its COG tiles as one elevation source. The full dataset is not downloaded: visible map windows use overview levels, while spot elevations, profiles, sections and slope calculations sample original-resolution cells. Servers must support HTTP byte ranges and browser CORS; whole-file fallback is disabled. A full-file response is cancelled immediately and retried once. Partial-response offsets and byte counts are checked before decoding.
 
 Use **Terrain colours** or **Greyscale**, optional minimum/maximum heights, and opacity to adjust the display. **Add DEM to project** retains the collection URL and display settings as one project layer. Reopen a saved layer’s **DEM display and analysis…** menu to adjust its appearance or measure elevations, then choose **Update DEM layer**. Save and Sync use the existing project workflow. Hidden layers do not start downloads; removing a layer disposes its source caches. The 3D surface tool remains a bounded inspection mesh, not a streaming terrain provider.
 
@@ -45,4 +45,4 @@ The collection format is `fieldmaps-dem-catalog`, version 1. It contains `name`,
 
 AGD84 / AMG zones 48–58 are supported using EPSG:1669's approximate AGD84-to-WGS84 transform (nominal 3 m accuracy). The native DEM grid and elevations are retained. This is not a site-specific survey calibration or vertical datum conversion. Ironbark's vertical datum must be confirmed from its source survey metadata; do not assume AHD from the horizontal CRS.
 
-Tests cover lazy collection loading, NoData holes, HTTP range requests against a real tiled COG, repeat-read caching, whole-file response rejection, coordinate transformation against GDAL/PROJ, and closing a hidden layer during a pending source load. `tests/browser-cog.html` is an optional development harness using the first real Ironbark tile; it writes no production project data.
+Tests cover lazy collection loading, NoData holes, HTTP range requests against a real tiled COG, repeat-read caching, whole-file response rejection and cancellation/retry on a cold CDN response, coordinate transformation against GDAL/PROJ, and closing a hidden layer during a pending source load. `tests/browser-cog.html` is an optional development harness using the first real Ironbark tile; it writes no production project data.
