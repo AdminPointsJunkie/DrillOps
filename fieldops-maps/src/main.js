@@ -860,8 +860,11 @@ function renderWorkspaces(){
  $('#company-select').value=currentWorkspace?.id||'';$('#company-role').textContent=workspaceContext?.platform_admin?'DrillOps platform admin':currentWorkspace?`${currentWorkspace.role==='map_viewer'?'Shared map viewer':currentWorkspace.role[0].toUpperCase()+currentWorkspace.role.slice(1)} · Project`:'Accept an invitation or contact your workspace admin';
  $('#workspace-invitations').hidden=!user||!workspaceContext?.invitations?.length;$('#workspace-invitations').textContent=`Invitations (${workspaceContext?.invitations?.length||0})`;
 }
+let invitationLinkOpened=false;
 async function loadWorkspaces(preferred){
  const accountId=user?.id;if(!accountId)return;let {data,error}=await db.rpc('workspace_context');if(user?.id!==accountId)return;if(error)throw error;if(!data?.workspaces)throw Error('Workspace access could not load. Reload the page.');
+ const invitationId=new URLSearchParams(location.search).get('invitation');
+ if(invitationId&&!invitationLinkOpened){invitationLinkOpened=true;const invitation=data.invitations?.find(i=>i.id===invitationId);if(invitation)setTimeout(()=>accountUI.openInvitations([invitation]),0);else toast('This invitation is unavailable or belongs to another email address.');}
  const previous=currentWorkspace;workspaceContext=data;let selected=preferred||currentWorkspace?.id;try{selected||=localStorage.getItem('drillops-company:'+accountId);}catch{}
  currentWorkspace=data.workspaces.find(w=>w.id===selected)||data.workspaces[0]||null;if(previous&&(previous.id!==currentWorkspace?.id||previous.role!==currentWorkspace?.role)){clearMap();activeMap=null;syncProject();}renderWorkspaces();updateAccess();refreshSaveStatus();if(!busy)setBusy(false);
  if(currentWorkspace)void reportWebDevice(db,currentWorkspace.id);
