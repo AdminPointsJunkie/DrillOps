@@ -36,6 +36,7 @@ export function installAccounts(db,getUser,doc=document,options={}){
   if(tab==='overview'){
    if(!state){body.innerHTML='<p>Select a workspace to manage its settings.</p>';return;}
    body.innerHTML=workspaceBasics(state);
+   body.querySelector('[data-library-default]').onsubmit=e=>{e.preventDefault();act(()=>checked(db.rpc('set_library_default',{p_workspace:workspace,p_visibility:e.target.elements.visibility.value})),'Library default updated.');};
    void mountWorkspaceLogo(body,getUser()?.id,workspace);
    body.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
    body.querySelector('[data-rename]').onsubmit=e=>{e.preventDefault();act(()=>mutate('rename',{name:e.target.elements.name.value.trim()}),'Project name updated.');};

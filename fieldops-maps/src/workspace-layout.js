@@ -30,12 +30,11 @@ export function installWorkspaceLayout(doc=document){
   const b=$('#'+id);b.innerHTML=workspaceIcon(name);if(!b.getAttribute('aria-label'))b.setAttribute('aria-label',b.title||id);}
  $('#dropzone').innerHTML=workspaceIcon('upload')+'<div><strong>Add data</strong><span>Drop files here or browse</span></div>';
  $('#add-xyz').innerHTML=workspaceIcon('layers')+'<span>Add tile layer</span>';
- $('.workspace-label').textContent='MAP';$('.sidebar-bottom').innerHTML='<span class="workspace-footer-dot"></span><span>DrillOps FieldMaps</span><button type="button" class="workspace-help" aria-label="Open help">Help</button>';
- $('.workspace-help').onclick=()=>$('#help').click();
+ $('.sidebar-bottom').className='sidebar-brand';$('.sidebar-brand').innerHTML='<a class="brand" href="/maps/" aria-label="DrillOps FieldMaps home"><span>DrillOps <span class="brand-maps">FieldMaps</span></span></a>';$('.map-area').append($('.sidebar-brand'));
 
  // Keep the layer rail dedicated to layers; move project and import controls out.
- const picker=$('.map-picker');picker.classList.add('header-project');header.insertBefore(picker,header.children[1]);
- $('.workspace-label').remove();$('.sidebar-bottom').remove();
+ const picker=$('.map-picker');picker.classList.add('header-project');header.insertBefore(picker,header.children[1]);const crumb=doc.createElement('button');crumb.type='button';crumb.id='header-project-name';crumb.textContent='Projects';crumb.title='Open project maps';picker.prepend(crumb);const chevron=doc.createElement('span');chevron.className='breadcrumb-chevron';chevron.textContent='›';chevron.setAttribute('aria-hidden','true');crumb.after(chevron);
+ $('.workspace-label').remove();
  $('#project-crs').closest('form').append($('#project-default'));
  const imports=doc.createElement('section');imports.className='map-import-status';imports.setAttribute('aria-label','Import queue');imports.append($('#import-job'),$('#queue'));$('.map-area').append(imports);
  const collapse=doc.createElement('button');collapse.type='button';collapse.id='collapse-layers';collapse.title='Collapse layers';collapse.setAttribute('aria-label','Collapse layers');collapse.innerHTML='‹';$('#sidebar .tabs').append(collapse);
