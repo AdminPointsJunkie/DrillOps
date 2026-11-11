@@ -1,3 +1,4 @@
+import {cloudDEMLayer} from './cloud-dem-layer.js';
 import {installBasemaps} from './basemaps.js';
 import {applyMapConstraints} from './project-controls.js';
 import {installViewerTable,downloadMapData} from './viewer-data.js';
@@ -21,7 +22,8 @@ async function refresh(){if(loading)return;loading=true;try{
  if(version===data.version)return;const first=version===null;clear();version=data.version;currentProject=data.project;description.textContent=currentProject?.map_settings?.description||'';tableButton.hidden=currentProject?.map_settings?.table?.enabled===false;copyButton.hidden=currentProject?.map_settings?.allowDuplicate===false;basemaps.apply(currentProject?.map_settings?.basemap);applyMapConstraints(map,currentProject?.map_settings);const all=L.latLngBounds([]);
  const order=(data.layer_layout||[]).flatMap(n=>typeof n==='string'?[n]:n.children||[]),items=[...(data.layers||[])].sort((a,b)=>order.indexOf(b.id)-order.indexOf(a.id));
  for(const item of items){let layer;
-  if(item.metadata?.xyz){layer=xyzLayer(L,item,message=>$('#message').textContent=message);}
+  if(item.metadata?.cloud_dem){layer=cloudDEMLayer(L,item,message=>$('#message').textContent=message);}
+  else if(item.metadata?.xyz){layer=xyzLayer(L,item,message=>$('#message').textContent=message);}
   else if(item.kind==='raster'&&item.url){layer=L.imageOverlay(item.url,[[item.bounds[1],item.bounds[0]],[item.bounds[3],item.bounds[2]]],{opacity:item.opacity??.85});}
   else if(item.metadata?.annotation){layer=annotationLayer(L,item,{onClick:(f,e)=>L.popup().setLatLng(e.latlng).setContent(featureInfo(item,f,document)).openOn(map)});}
   else if(item.fc){const fc={...item.fc,features:item.fc.features.filter(f=>matchesView(item,f,item.metadata?.style?.view||{}))};layer=L.geoJSON(fc,{style:f=>vectorStyle(item,f),pointToLayer:(f,ll)=>pointMarker(L,item,ll,{},f),onEachFeature:(f,l)=>l.bindPopup(()=>featureInfo(item,f,document))});}

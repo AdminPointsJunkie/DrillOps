@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>Ironbark cloud DEM verification</title><style>body{margin:0;font:14px system-ui;color:#21372c}#map{height:100vh;width:calc(100vw - 440px);background:#e8eee9}.tool-dialog{position:fixed;top:10px;right:10px;left:auto;width:390px;max-height:90vh;overflow:auto;border:1px solid #bbc8bf;border-radius:10px;padding:15px}.tool-dialog label{display:block;margin:9px 0}.tool-dialog input:not([type=checkbox]),select{display:block;width:96%;padding:6px}.dialog-heading{display:flex;justify-content:space-between}.tool-dialog button{padding:7px;margin:3px}.error{color:#a22}#verification{position:fixed;bottom:0;left:0;background:white;padding:10px;z-index:1000;max-width:55vw}</style><div id="map"></div><output id="verification">Testing live Cloudflare elevation data.</output><script type="module">
+import L from 'leaflet';import 'leaflet/dist/leaflet.css';import '../src/lidar.css';
+import {openLiDAR} from '../src/lidar-ui.js';
+const map=L.map('map').setView([-21.74,148.16],14);
+const d=openLiDAR({L,map,getLayers:()=>[],canCreate:()=>true,onResult:async(fc,name,options)=>{document.querySelector('#verification').textContent='Add to project verified: '+name+' · '+JSON.stringify(options.metadata.cloud_dem);}});
+const kind=d.querySelector('[name=sourceType]');kind.value='cloud';kind.dispatchEvent(new Event('input',{bubbles:true}));kind.dispatchEvent(new Event('change',{bubbles:true}));d.querySelector('[name=cloudURL]').value=location.origin+'/maps/tests/fixtures/ironbark-cloud-test.json';
+await d.querySelector('[data-load]').onclick();
+setInterval(()=>{const rs=performance.getEntriesByType('resource').filter(r=>r.name.includes('.cog.tif'));document.querySelector('#verification').textContent='Live Cloudflare COG requests: '+rs.length+' · source tile size: 446 MB. DEM values are streamed in blocks.';},2000);
+</script>

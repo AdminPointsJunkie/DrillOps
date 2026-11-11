@@ -2,6 +2,8 @@ import {fromBlob} from 'geotiff';
 import proj4 from 'proj4';
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 export function rasterProjection(code){
+ // EPSG:1669 AGD84 → WGS84, converted from coordinate-frame to position-vector rotations.
+ if(code>=20348&&code<=20358)return `+proj=utm +zone=${code-20300} +south +a=6378160 +rf=298.25 +towgs84=-117.763,-51.51,139.061,0.292,0.443,0.277,-0.191 +units=m +no_defs`;
  if(code===4326)return 'EPSG:4326';if(code===3857)return 'EPSG:3857';
  if(code>=32601&&code<=32660)return `+proj=utm +zone=${code-32600} +datum=WGS84 +units=m`;
  if(code>=32701&&code<=32760)return `+proj=utm +zone=${code-32700} +south +datum=WGS84 +units=m`;
