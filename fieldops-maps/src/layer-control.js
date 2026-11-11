@@ -22,11 +22,11 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
- let selected=null,mode='list',returnFocus=null;
+ let selected=null,mode='list',editView='list',returnFocus=null;
  const old=tabs.querySelector('.active'),count=old.querySelector('#layer-count');
  const tablist=doc.createElement('div');tablist.className='layer-view-tabs';tablist.setAttribute('role','tablist');tablist.setAttribute('aria-label','Layer display');
  for(const [id,label] of [['legend','Legend'],['list','List']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.id='layer-tab-'+id;b.dataset.view=id;b.setAttribute('role','tab');b.setAttribute('aria-controls','layers');tablist.append(b);}
@@ -41,7 +41,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
  function select(card){selected=card.dataset.id;for(const row of root.querySelectorAll('.layer-card'))row.classList.toggle('selected',row===card);}
- function setMode(value){mode=value;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();}
+ function setMode(value){const editing=canShowList();if(editing)editView=value;mode=editing?value:'legend';const listTab=doc.querySelector('#layer-tab-list');listTab.hidden=!editing;listTab.disabled=!editing;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();}
  tablist.onclick=e=>{if(e.target.dataset.view)setMode(e.target.dataset.view);};
  tablist.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();setMode(e.key==='Home'?'legend':e.key==='End'?'list':mode==='list'?'legend':'list');doc.querySelector('#layer-tab-'+mode).focus();}};
  function open(card,x,y,trigger){
@@ -77,6 +77,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,onComponents=()=>{
  menu.onkeydown=e=>{const items=[...menu.querySelectorAll('button,summary')].filter(item=>item.tagName==='SUMMARY'||!item.closest('details')||item.closest('details').open),index=items.indexOf(doc.activeElement);if(e.key==='Escape'){e.preventDefault();close(true);}else if(e.key==='ArrowRight'&&doc.activeElement?.tagName==='SUMMARY'){e.preventDefault();doc.activeElement.parentElement.open=true;}else if(e.key==='ArrowLeft'&&doc.activeElement?.closest('details')){e.preventDefault();const group=doc.activeElement.closest('details');group.open=false;group.querySelector('summary').focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(index+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}else if(e.key==='Tab')close();};
  doc.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))close();});doc.defaultView.addEventListener('resize',()=>close());doc.addEventListener('scroll',()=>close(),true);
  function refresh(){
+  setMode(editView);
   close();
   if(!root.querySelector('.felt-section-heading')){
    const headings=doc.createElement('div');headings.className='felt-section-headings';
