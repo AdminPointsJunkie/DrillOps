@@ -1,6 +1,6 @@
 import {escapeHTML as esc} from './explore-dialogs.js';
 export const TERMS_VERSION='2026-11-12';
-export const accountBrand='<div class="signup-brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor"/><path fill="#fff" fill-rule="evenodd" d="M8 6h7c7 0 11 4 11 10s-4 10-11 10H8V6Zm6 5v10h1c4 0 6-2 6-5s-2-5-6-5h-1Z"/></svg><span>DrillOps</span></div>';
+export const accountBrand='<div class="signup-brand"><span>DrillOps</span></div>';
 export const MARKETING_LABEL='I consent to DrillOps using my contact details to send me marketing communications.';
 export function validPhone(phone){return String(phone).replace(/\D/g,'').length>=7&&String(phone).replace(/\D/g,'').length<=15&&String(phone).length<=50;}
 export function installSignupConsent({db,doc=document,getUser,onSaved=()=>{},onSignOut=()=>db.auth.signOut()}){
