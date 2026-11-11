@@ -210,11 +210,11 @@ function refreshLabels(){scene3D?.refresh();const bounds=map.getBounds().pad(.1)
 map.on('moveend zoomend',refreshLabels);
 function refreshSaveStatus(){
  const status=$('#save-status');if(!status)return;
- if(isReadOnly()){status.textContent=activeMap?(isPermissionReadOnly()?'Published · read only':'View mode'):'Choose a published map';$('#sync-project').disabled=true;$('#save-draft').disabled=true;$('#retry-save').hidden=true;$('#sync-status').textContent=activeMap?.published_version?`SYNC version ${activeMap.published_version}`:'';return;}
+ const syncButton=$('#sync-project');syncButton.hidden=mapEditing||!activeMap||!user||isPermissionReadOnly();syncButton.disabled=LOCAL_TESTING||syncButton.hidden||busy||syncing||draftSaving||workspacePending()||saves.state().pending||!!projectControls?.saving;
+ if(isReadOnly()){status.textContent=activeMap?(isPermissionReadOnly()?'Published · read only':'View mode'):'Choose a published map';$('#save-draft').disabled=true;$('#retry-save').hidden=true;$('#sync-status').textContent=activeMap?.published_version?`SYNC version ${activeMap.published_version}`:'';return;}
  const state=saves.state(),unsaved=layers.some(l=>!l.saved&&!isLocalGeoTIFF(l)),failed=state.failed||layers.some(l=>l.saveError);
  status.textContent=syncing?'Syncing…':draftSaving?'Saving draft…':state.pending||layers.some(l=>l.saving)||layoutPending?'Saving…':failed?'Save failed':syncError?'Sync failed — retry SYNC':unsaved||queue.length?'Unsaved changes':!user?'Sign in to save':!activeMap?'Choose a map':LOCAL_TESTING?'Saved in this browser':'Saved';
  $('#retry-save').hidden=!failed;$('#retry-save').disabled=syncing||state.pending;
- $('#sync-project').disabled=LOCAL_TESTING||!user||!activeMap||busy||syncing||queue.length>0;
  $('#save-draft').disabled=!user||!activeMap||busy||syncing||draftSaving||queue.length>0||layers.some(l=>l.saving);
  const date=activeMap?.last_synced_at;
  $('#sync-status').textContent=!activeMap?'':date?`${syncDirty||Number(activeMap.draft_revision)!==Number(activeMap.last_synced_revision)?'Changes not synced · ':''}Last sync ${new Date(date).toLocaleString()}`:'Not synced to operators';
@@ -231,12 +231,13 @@ $('#save-draft').onclick=async()=>{
  finally{draftSaving=false;setBusy(false);$('#sidebar').inert=false;refreshSaveStatus();}
 };
 $('#sync-project').onclick=async()=>{
- if(isReadOnly()||syncing||busy||projectControls?.saving||!activeMap||!user)return;
+ if(LOCAL_TESTING||mapEditing||isPermissionReadOnly()||syncing||busy||draftSaving||projectControls?.saving||!activeMap||!user)return;
+ if(workspacePending()||saves.state().pending)return toast('Finish saving edits with Done before syncing.');
  if(geometryEditor?.pending)return toast('Save or discard drawing edits before syncing.');
  if(queue.length)return toast('Finish or discard queued imports before syncing.');
  syncing=true;syncError=false;setBusy(true,'Syncing map…');$('#sidebar').inert=true;refreshSaveStatus();
  try{
-  await retrySaves();await saves.flush();await saveLayout();await saves.flush();
+  await saves.flush();
   const release=await syncProjectRelease(db,activeMap.id,user.id,message=>$('#save-status').textContent=message);
   activeMap.last_synced_at=release.published_at;activeMap.last_synced_revision=release.source_revision;activeMap.draft_revision=release.source_revision;syncDirty=false;
   toast(`SYNC complete — version ${release.version} is ready for assigned operators.`);
