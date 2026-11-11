@@ -23,6 +23,8 @@ export function configureToolbarIcons(){
   ['open-measure','measure','Measure distance or area','m','Measure distance or area · M'],
   ['copy-map-data','download','Download map data']
  ])iconButton(document.getElementById(id),workspaceIcon(icon),label,shortcut,hint);
+ const nav=document.querySelector('.map-navigation'),search=document.getElementById('open-search');
+ if(nav&&search){const help=nav.querySelector('#help');if(help){help.before(search);help.hidden=true;help.style.display='none';}else nav.append(search);}
  iconButton(tools.querySelector('[aria-label="Map settings"]'),workspaceIcon('settings'),'Map settings');
  for(const [id,shortcut] of [['save-draft','Meta+s Control+s'],['sync-project','Meta+Shift+s Control+Shift+s']])document.getElementById(id)?.setAttribute('aria-keyshortcuts',shortcut);
 }

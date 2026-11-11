@@ -18,18 +18,16 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   finally{downloading--;waiting.shift()?.();}
  }
  const button=(title,text,run)=>{const b=document.createElement('button');b.type='button';b.className='square';b.title=title;b.setAttribute('aria-label',title);b.textContent=text;b.onclick=run;return b;};
- const controls=document.createElement('section');controls.className='photo-layer-controls';controls.setAttribute('aria-label','Photo layer');
- controls.innerHTML='<div class="photo-layer-heading"><label class="photo-layer-toggle"><input type="checkbox" checked> Photo locations</label><button type="button" data-photo-add aria-label="Import photos" title="Import photos from GPS metadata">＋</button><button type="button" data-photo-browse aria-label="Photo locations and saved pins" title="Browse photos and saved pins">▣</button></div><small data-photo-status role="status" aria-live="polite">Drop photos onto the map · saved on this device</small><input data-photo-input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden>';
- document.querySelector('#layers')?.before(controls);
- const toggle=controls.querySelector('.photo-layer-toggle'),photoInput=controls.querySelector('[data-photo-input]'),photoStatus=controls.querySelector('[data-photo-status]');
- toggle.querySelector('input').onchange=e=>{shown=e.target.checked;draw();};
- controls.querySelector('[data-photo-add]').onclick=()=>photoInput.click();
+ const controls=document.createElement('section');controls.className='felt-basemap photo-layer-controls';controls.setAttribute('aria-label','Photo layer');controls.hidden=true;
+ controls.innerHTML='<button type="button" data-photo-browse aria-label="Photo locations">▣  Photo locations</button><input data-photo-input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden>';
+ const basemap=document.querySelector('.felt-basemap');if(basemap)basemap.before(controls);else document.querySelector('#layers')?.after(controls);
+ const photoInput=controls.querySelector('[data-photo-input]');
  controls.querySelector('[data-photo-browse]').onclick=openPhotos;
  photoInput.onchange=()=>{const files=[...photoInput.files];photoInput.value='';void importFiles(files);};
  function dialog(title,body){const d=toolDialog(title,body);dialogs.add(d);d.addEventListener('close',()=>dialogs.delete(d),{once:true});return d;}
  function valid(at){return at===scope&&at===getScope();}
  async function refresh(){
-  const next=getScope();if(next!==scope){scope=next;imageCache.clear();revision++;local=[];shown=true;toggle.querySelector('input').checked=true;photos.clearLayers();pins.clearLayers();urls.forEach(URL.revokeObjectURL);urls=[];for(const d of dialogs)d.close();request?.abort();if(searchMarker)map.removeLayer(searchMarker);searchMarker=null;const at=scope;try{const values=await storage.list(at);if(valid(at)){local=values;draw();}}catch(e){if(valid(at))toast(e.message);}return;}
+  const next=getScope();if(next!==scope){scope=next;imageCache.clear();revision++;local=[];shown=true;controls.hidden=true;photos.clearLayers();pins.clearLayers();urls.forEach(URL.revokeObjectURL);urls=[];for(const d of dialogs)d.close();request?.abort();if(searchMarker)map.removeLayer(searchMarker);searchMarker=null;const at=scope;try{const values=await storage.list(at);if(valid(at)){local=values;draw();}}catch(e){if(valid(at))toast(e.message);}return;}
   clearTimeout(timer);timer=setTimeout(draw,80);
  }
  async function reloadLocal(at){const values=await storage.list(at);if(valid(at)){local=values;draw();}}
@@ -39,20 +37,18 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   if(!canStart())return false;
   if(scope!==getScope())await refresh();
   const at=scope;if(!at){toast('Sign in and choose a project first.');return false;}
-  importing=true;onBusy(true);controls.querySelector('[data-photo-add]').disabled=true;
+  importing=true;onBusy(true);
   try{
-   const result=await importPhotoBatch(Array.from(files),{scope:at,isCurrent:()=>valid(at),storage,
-    progress:(index,total)=>{photoStatus.textContent=`Reading photo ${index} of ${total}…`;}});
+   const result=await importPhotoBatch(Array.from(files),{scope:at,isCurrent:()=>valid(at),storage});
    if(result.cancelled||!valid(at))return false;
-   if(result.saved.length){shown=true;toggle.querySelector('input').checked=true;await reloadLocal(at);if(valid(at))map.fitBounds(result.saved.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
+   if(result.saved.length){shown=true;await reloadLocal(at);if(valid(at))map.fitBounds(result.saved.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
    if(!valid(at))return false;
    const saved=`${result.saved.length} photo${result.saved.length===1?'':'s'} placed from GPS metadata`;
-   photoStatus.textContent=saved;
    if(result.unlocated.length)await locateMissingPhotos(result.unlocated,at,result.saved.length,result.errors);
    else toast(saved+(result.errors.length?`. Could not import: ${result.errors.map(error=>error.name+' — '+error.message).join('; ')}`:'. Saved on this device.'));
    return valid(at);
-  }catch(error){if(valid(at)){photoStatus.textContent='Photo import could not finish';toast(error.message);}return false;}
-  finally{importing=false;controls.querySelector('[data-photo-add]').disabled=false;onBusy(false);}
+  }catch(error){if(valid(at)){toast(error.message);}return false;}
+  finally{importing=false;onBusy(false);}
  }
  function locateMissingPhotos(unlocated,at,savedCount,errors){
   const d=dialog('Photos without GPS locations',`<p>${savedCount} photo${savedCount===1?'':'s'} already placed from GPS metadata. These photos need a location. Enter latitude, longitude for any you want to add, or skip them.</p><div class="photo-unlocated-list">${unlocated.map((pin,i)=>`<label>${esc(pin.name)}<input data-location="${i}" placeholder="Latitude, longitude" aria-label="Location for ${esc(pin.name)}"></label>`).join('')}</div>${errors.length?`<p>${errors.map(error=>esc(error.name+': '+error.message)).join('<br>')}</p>`:''}`);
@@ -65,17 +61,17 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
     const selected=[...d.querySelectorAll('[data-location]')].filter(input=>input.value.trim()).map(input=>({...unlocated[Number(input.dataset.location)],...coordinateInput(input.value),locationSource:'manual'}));
     if(!selected.length)throw Error('Enter a location for at least one photo, or choose Skip.');
     for(const pin of selected){if(!valid(at))break;await storage.save(at,pin);}
-    if(valid(at)){shown=true;toggle.querySelector('input').checked=true;await reloadLocal(at);if(valid(at))map.fitBounds(selected.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
+    if(valid(at)){shown=true;await reloadLocal(at);if(valid(at))map.fitBounds(selected.map(pin=>[pin.lat,pin.lng]),{padding:[50,50],maxZoom:18});}
     d.close();
    }catch(error){q('.error').textContent=error.message;}finally{q('[type=submit]').disabled=false;}
   };
   return new Promise(resolve=>d.addEventListener('close',resolve,{once:true}));
  }
- function entries(){
+ function entries(includeHidden=false){
   const rows=[];
   for(const pin of local)for(const file of pin.photos||[])rows.push({id:file.id,lat:pin.lat,lng:pin.lng,file,pin,name:pin.name});
-  for(const layer of getLayers())if(isVisible(layer)&&Number(layer.opacity??1)>0)for(const feature of layer.fc?.features||[]){
-   if(feature.geometry?.type!=='Point'||!acceptFeature(layer,feature))continue;
+  for(const layer of getLayers())if(includeHidden||(isVisible(layer)&&Number(layer.opacity??1)>0))for(const feature of layer.fc?.features||[]){
+   if(feature.geometry?.type!=='Point'||(!includeHidden&&!acceptFeature(layer,feature)))continue;
    const [lng,lat]=feature.geometry.coordinates;if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
    for(const file of feature.properties?._fieldmaps_files||[])if(typeof file.path==='string'&&(/^image\//i.test(file.type||'')||/\.(jpg|jpeg|png|heic|webp)$/i.test(file.name||'')))rows.push({id:file.path,lat,lng,file,name:layer.name});
   }
@@ -86,6 +82,7 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   if(scope!==getScope()){void refresh();return;}
   const token=++revision;photos.clearLayers();pins.clearLayers();urls.forEach(URL.revokeObjectURL);urls=[];const owned=urls;
   for(const pin of local.filter(pin=>pin.source!=='photo')){const marker=L.circleMarker([pin.lat,pin.lng],{radius:7,color:'#fff',weight:2,fillColor:'#db7d31',fillOpacity:1}).addTo(pins);marker.on('click',()=>editPin(pin));}
+  controls.hidden=entries(true).length===0;
   onChanged();
   if(!shown)return;
   const visible=entries().filter(p=>map.getBounds().pad(.2).contains([p.lat,p.lng]));
@@ -106,8 +103,9 @@ export function installPhotoLocations({L,map,getScope,getLayers,isVisible,accept
   }
  }
  function openPhotos(){
-  const d=dialog('Photo locations',`<label><input data-show type="checkbox" ${shown?'checked':''}> Show photo locations</label><p>Drop photos onto the map to place them using GPS metadata. Photos group together as you zoom out. Tap a preview to browse.</p><button type="button" data-pin>Drop a pin at map centre</button><p class="field-note">New pins and downscaled photos are saved in this browser on this device. Nothing uploads automatically. Clearing browser data removes them.</p><div data-pins></div>`);
-  d.querySelector('[type=submit]').remove();d.querySelector('[data-show]').onchange=e=>{shown=e.target.checked;toggle.querySelector('input').checked=shown;draw();};
+  const d=dialog('Photo locations',`<label><input data-show type="checkbox" ${shown?'checked':''}> Show photo locations</label><button type="button" data-photo-import>Import photos</button><button type="button" data-pin>Drop a pin at map centre</button><div data-pins></div>`);
+  d.querySelector('[type=submit]').remove();d.querySelector('[data-show]').onchange=e=>{shown=e.target.checked;draw();};
+  d.querySelector('[data-photo-import]').onclick=()=>photoInput.click();
   d.querySelector('[data-pin]').onclick=()=>{if(!scope)return toast('Sign in and choose a project first.');if(!canStart())return;const c=map.getCenter();d.close();editPin({id:crypto.randomUUID(),name:'',note:'',lat:c.lat,lng:c.lng,photos:[]});};
   for(const pin of local){const row=document.createElement('div'),edit=document.createElement('button'),locate=document.createElement('button');edit.type=locate.type='button';edit.textContent=pin.name;locate.textContent='Show on map';edit.onclick=()=>{d.close();editPin(pin);};locate.onclick=()=>{map.setView([pin.lat,pin.lng],18);d.close();};row.append(edit,locate);d.querySelector('[data-pins]').append(row);}
  }
