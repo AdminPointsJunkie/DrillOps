@@ -30,7 +30,7 @@ export function installWorkspaceLayout(doc=document){
   const b=$('#'+id);b.innerHTML=workspaceIcon(name);if(!b.getAttribute('aria-label'))b.setAttribute('aria-label',b.title||id);}
  $('#dropzone').innerHTML=workspaceIcon('upload')+'<div><strong>Add data</strong><span>Drop files here or browse</span></div>';
  $('#add-xyz').innerHTML=workspaceIcon('layers')+'<span>Add tile layer</span>';
- $('.workspace-label').textContent='PROJECT';$('.sidebar-bottom').innerHTML='<span class="workspace-footer-dot"></span><span>DrillOps FieldMaps</span><button type="button" class="workspace-help" aria-label="Open help">Help</button>';
+ $('.workspace-label').textContent='MAP';$('.sidebar-bottom').innerHTML='<span class="workspace-footer-dot"></span><span>DrillOps FieldMaps</span><button type="button" class="workspace-help" aria-label="Open help">Help</button>';
  $('.workspace-help').onclick=()=>$('#help').click();
 
  // Keep the layer rail dedicated to layers; move project and import controls out.

@@ -13,7 +13,7 @@ export function openInviteDialog({doc=document,name,roleOptions,projectChecks,cr
  const form=dialog.querySelector('form'),result=dialog.querySelector('[data-result]');let busy=false,attempted=false;
  const close=()=>{if(!busy)dialog.close();};dialog.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
  dialog.oncancel=e=>{if(busy)e.preventDefault();};dialog.onclose=()=>{dialog.remove();if(attempted)onChanged();};
- function role(){const limited=['operator','editor'].includes(form.elements.role.value);dialog.querySelector('[data-projects]').hidden=!limited;dialog.querySelector('[data-role-help]').textContent=limited?'Access applies to assigned projects. Operators can view published maps; editors can edit.':'This role can manage the workspace and all its projects.';}form.elements.role.onchange=role;role();
+ function role(){const limited=['operator','editor'].includes(form.elements.role.value);dialog.querySelector('[data-projects]').hidden=true;dialog.querySelector('[data-role-help]').textContent=limited?'Access covers every map in this project. Operators view published maps; editors can edit.':'This role can manage the project and all its maps.';}form.elements.role.onchange=role;role();
  form.onsubmit=async e=>{e.preventDefault();if(busy)return;let emails;try{emails=invitationEmails(form.elements.emails.value);}catch(e){result.textContent=e.message;return;}
   const role=form.elements.role.value,projects=['editor','operator'].includes(role)?[...form.querySelectorAll('[name=project]:checked')].map(e=>e.value):[];
   busy=true;attempted=true;form.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=true);const messages=[];

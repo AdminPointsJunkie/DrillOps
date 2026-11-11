@@ -13,9 +13,9 @@ test('workspace settings scope writes, protect owner and platform accounts, and 
  installAccounts(db,()=>({id:'self'}),doc,{getWorkspace:()=>state.workspace,getContext:()=>({platform_admin:true,workspaces:[{id:'w',name:'Company',status:'active'}]})});await doc.querySelector('#people').onclick();doc.querySelector('[data-tab=people]').click();
  assert.equal(doc.querySelector('img'),null);assert.equal(doc.querySelector('[data-member=self] .workspace-actions button').disabled,true);
  let form=doc.querySelector('[data-member=other]');form.onsubmit({preventDefault(){}});await tick();
- const write=calls.find(c=>c[0]==='workspace_mutate')[1];assert.equal(write.p_workspace,'w');assert.equal(write.p_action,'member');assert.deepEqual(write.p_payload.projects,['p']);
+ const write=calls.find(c=>c[0]==='workspace_mutate')[1];assert.equal(write.p_workspace,'w');assert.equal(write.p_action,'member');assert.deepEqual(write.p_payload.projects,[]);
  fail=true;form=doc.querySelector('[data-member=other]');form.onsubmit({preventDefault(){}});await tick();assert.match(doc.querySelector('[data-message]').textContent,/Denied/);assert.equal(form.querySelector('button').disabled,false);
- doc.querySelector('[data-tab=projects]').click();assert.ok(doc.querySelector('[data-project=p]'));assert.equal(doc.querySelector('[data-tab=companies]'),null);
+ doc.querySelector('[data-tab=projects]').click();assert.match(doc.querySelector('.workspace-settings-content').textContent,/Project members have access to every map/);assert.equal(doc.querySelector('[data-tab=companies]'),null);
  dom.window.close();
 });
 test('invitation endpoint authorizes the stored company invitation and never trusts a submitted recipient',async()=>{
