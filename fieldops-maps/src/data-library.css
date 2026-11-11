@@ -19,3 +19,5 @@
 
 .library-placeholder>small{display:block;margin-top:8px}
 .library-share-person{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0}.library-share-person span{overflow-wrap:anywhere;min-width:0}.library-footer:empty{display:none}.library-bar [role=tab]{padding:8px 10px;font-size:12px}.library-detail-actions{flex-wrap:wrap}
+
+.usgs-library{width:min(820px,calc(100vw - 32px))!important}.usgs-portals{display:flex;flex-wrap:wrap;gap:10px 20px;font-size:12px}.usgs-portals a,.usgs-catalogue-row a{color:inherit}.usgs-catalogue{max-height:55dvh;overflow:auto}.usgs-catalogue-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--ui-border,#777)}.usgs-catalogue-row>div{min-width:0}.usgs-catalogue-row strong{font-size:13px}.usgs-catalogue-row small{display:block;margin-top:3px;color:var(--ui-muted,#999)}.usgs-catalogue-row button,.usgs-catalogue-row a{flex-shrink:0;font-size:12px;white-space:nowrap}@media(max-width:520px){.usgs-catalogue-row{align-items:flex-start;gap:8px}.usgs-catalogue-row strong{font-size:12px}}

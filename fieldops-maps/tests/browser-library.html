@@ -6,5 +6,5 @@ const params=new URLSearchParams(location.search);document.documentElement.datas
 const rows=[{id:'survey',name:'Survey collars',category:'Survey',kind:'vector',feature_count:125,created_by:'other',workspace_id:'p',visibility:'project'},{id:'boundary',name:'Project boundary',category:'Boundaries',kind:'vector',feature_count:1,created_by:'me',workspace_id:'p',visibility:'private'}];
 const library={list:async()=>rows,canManage:()=>true,defaultVisibility:async()=> 'project',save:async()=>{},load:async()=>({metadata:{xyz:{}},name:'Survey collars'})};
 if(params.get('mode')==='add')addLayerToLibrary({layer:{name:'Survey collars'},library,getScope:()=> 'p',canSave:()=>true});
-else openDataLibrary({L,onWorkspaceResult:async layer=>{document.body.insertAdjacentHTML('beforeend','<p>Added '+layer.name+'</p>');},canCreate:()=>true,getScope:()=> 'p',getUser:()=>({id:'me'}),getWorkspace:()=>({id:'p'}),workspaceLibrary:library,favourites:{list:async()=>[]}});
+else openDataLibrary({getBounds:()=>[-105.1,39.7,-105,39.8],L,onWorkspaceResult:async layer=>{document.body.insertAdjacentHTML('beforeend','<p>Added '+layer.name+'</p>');},canCreate:()=>true,getScope:()=> 'p',getUser:()=>({id:'me'}),getWorkspace:()=>({id:'p'}),workspaceLibrary:library,favourites:{list:async()=>[]}});
 </script></html>

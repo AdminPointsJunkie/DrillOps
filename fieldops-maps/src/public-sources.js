@@ -1,5 +1,7 @@
 // Verified anonymous ArcGIS REST directories; individual layers retain provider terms.
 export const publicSources=[
+ {id:'usgs-all',name:'USGS · Data catalogue',region:'United States and global',description:'All National Map services, research datasets, DEM, LiDAR and Landsat',catalogue:'usgs'},
+ {id:'usgs-earthquakes',name:'USGS · Earthquakes and hazards',region:'United States and global',description:'Earthquake hazards and related map services',root:'https://earthquake.usgs.gov/arcgis/rest/services'},
  {id:'qglobe',name:'QGlobe',region:'Australia',description:'Queensland geology, property, water and infrastructure',root:'https://spatial-gis.information.qld.gov.au/arcgis/rest/services'},
  {id:'wa',name:'Western Australia · SLIP',region:'Australia',description:'Western Australian public spatial services',root:'https://services.slip.wa.gov.au/public/rest/services'},
  {id:'abs',name:'Australian Bureau of Statistics',region:'Australia',description:'Statistical boundaries and census geography',root:'https://geo.abs.gov.au/arcgis/rest/services'},
