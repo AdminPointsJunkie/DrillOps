@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {installLayerControl,legendContents} from '../src/layer-control.js';
-function setup(edit=true){
+function setup(edit=true,canShowList=()=>true){
  const dom=new JSDOM(`<aside id="sidebar"><div class="tabs"><span class="active">Layers <b id="layer-count">1</b></span></div><div id="layers"><article class="layer-card" data-id="one"><div class="layer-top"><span class="geometry-symbol"></span><div><strong>Survey</strong></div><button data-action="visibility"></button><button data-action="settings"></button><button data-action="zoom"></button></div><button data-action="geometry"></button><button data-layer-options="style"></button><button data-layer-options="organise"></button><button data-action="export"></button></article></div></aside>`);
  const doc=dom.window.document,layer={id:'one',name:'Survey',kind:'vector',color:'#12ab34',fc:{features:[{geometry:{type:'Point'}}]}};
- let busy=false;const ui=installLayerControl({getLayers:()=>[layer],canEdit:()=>edit,isBusy:()=>busy,doc});
+ let busy=false;const ui=installLayerControl({getLayers:()=>[layer],canEdit:()=>edit,canShowList,isBusy:()=>busy,doc});
  return {dom,doc,ui,layer,busy:value=>busy=value};
 }
 test('right-click and more menu invoke existing editing actions; Escape restores focus',()=>{
@@ -34,4 +34,13 @@ test('clicking row or symbol opens editor once; settings fallback and permission
  card.querySelector('[data-action=settings]').onclick=()=>settings++;style.remove();layer.kind='raster';card.querySelector('.layer-top').click();assert.equal(settings,1);
  busy(true);card.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));assert.equal(settings,1);dom.window.close();
  const read=setup(false);let count=0;read.doc.querySelector('[data-layer-options=style]').onclick=()=>count++;read.doc.querySelector('.layer-card').dispatchEvent(new read.dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));assert.equal(count,0);read.dom.window.close();
+});
+
+test('view mode forces legend and prevents List keyboard access; editing restores tabs',()=>{
+ let editing=false;const {dom,doc,ui}=setup(true,()=>editing),sidebar=doc.querySelector('#sidebar'),list=doc.querySelector('#layer-tab-list'),legend=doc.querySelector('#layer-tab-legend');
+ assert.equal(sidebar.dataset.layerView,'legend');assert.equal(list.hidden,true);assert.equal(list.disabled,true);
+ legend.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.equal(sidebar.dataset.layerView,'legend');assert.equal(doc.activeElement,legend);
+ editing=true;ui.refresh();assert.equal(list.hidden,false);assert.equal(list.disabled,false);assert.equal(sidebar.dataset.layerView,'list');
+ editing=false;ui.refresh();assert.equal(sidebar.dataset.layerView,'legend');assert.equal(list.hidden,true);
+ editing=true;ui.refresh();legend.click();editing=false;ui.refresh();editing=true;ui.refresh();assert.equal(sidebar.dataset.layerView,'legend');dom.window.close();
 });
