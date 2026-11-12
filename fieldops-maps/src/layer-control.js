@@ -22,11 +22,11 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onGroup,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
- let selected=null,mode='list',editView='list',returnFocus=null;
+ let selected=new Set(),anchor=null,mode='list',editView='list',returnFocus=null;
  const old=tabs.querySelector('.active'),count=old.querySelector('#layer-count');
  const tablist=doc.createElement('div');tablist.className='layer-view-tabs';tablist.setAttribute('role','tablist');tablist.setAttribute('aria-label','Layer display');
  for(const [id,label] of [['legend','Legend'],['list','List']]){const b=doc.createElement('button');b.type='button';b.textContent=label;b.id='layer-tab-'+id;b.dataset.view=id;b.setAttribute('role','tab');b.setAttribute('aria-controls','layers');tablist.append(b);}
@@ -40,15 +40,31 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
 
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
- function select(card){selected=card.dataset.id;for(const row of root.querySelectorAll('.layer-card'))row.classList.toggle('selected',row===card);}
+ const visibleCards=()=>[...root.querySelectorAll('.layer-card')].filter(row=>!row.closest('[hidden]')&&doc.defaultView.getComputedStyle(row).display!=='none');
+ function paintSelection(){for(const row of root.querySelectorAll('.layer-card')){const active=selected.has(row.dataset.id);row.classList.toggle('selected',active);row.setAttribute('aria-selected',String(active));}}
+ function select(card,event={}){
+  const id=card.dataset.id,rows=visibleCards(),ids=rows.map(row=>row.dataset.id);
+  if(event.shiftKey&&anchor&&ids.includes(anchor)){const a=ids.indexOf(anchor),b=ids.indexOf(id);if(b<0)return;selected=new Set(ids.slice(Math.min(a,b),Math.max(a,b)+1));}
+  else if(event.metaKey||event.ctrlKey){selected.has(id)?selected.delete(id):selected.add(id);anchor=id;}
+  else{selected=new Set([id]);anchor=id;}
+  paintSelection();
+ }
+ function showMenu(x,y){menu.hidden=false;floating.refresh();const box=menu.getBoundingClientRect(),win=doc.defaultView;menu.style.left=Math.max(8,Math.min(x,win.innerWidth-box.width-8))+'px';menu.style.top=Math.max(8,Math.min(y,win.innerHeight-box.height-8))+'px';menu.querySelector('button')?.focus();}
+
  function setMode(value){const editing=canShowList();if(editing)editView=value;mode=editing?value:'legend';const listTab=doc.querySelector('#layer-tab-list');listTab.hidden=!editing;listTab.disabled=!editing;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();}
  tablist.onclick=e=>{if(e.target.dataset.view)setMode(e.target.dataset.view);};
  tablist.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();setMode(e.key==='Home'?'legend':e.key==='End'?'list':mode==='list'?'legend':'list');doc.querySelector('#layer-tab-'+mode).focus();}};
  function open(card,x,y,trigger){
   const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||isBusy()||layer.saving)return;
-  close();select(card);returnFocus=trigger||card;returnFocus.setAttribute('aria-expanded','true');
-  menu.replaceChildren();const menuHeading=doc.createElement('div');menuHeading.className='context-drag-heading';menuHeading.dataset.panelDrag='';menuHeading.textContent=layer.name;menuHeading.title='Drag to move menu';menu.append(menuHeading);
+  close();if(!selected.has(card.dataset.id))select(card);returnFocus=trigger||card;returnFocus.setAttribute('aria-expanded','true');
+  menu.replaceChildren();const menuHeading=doc.createElement('div');menuHeading.className='context-drag-heading';menuHeading.dataset.panelDrag='';menuHeading.textContent=selected.size>1?selected.size+' layers':layer.name;menuHeading.title='Drag to move menu';menu.append(menuHeading);
   const custom=(label,run,{key='',edit=false,parent=menu,danger=false}={})=>{if(edit&&!canEdit(layer))return;const b=doc.createElement('button');b.type='button';b.innerHTML=esc(label)+(key?'<kbd>'+esc(key)+'</kbd>':'');b.classList.toggle('danger',danger);b.setAttribute('role','menuitem');b.onclick=async()=>{close(true);if(isBusy()||layer.saving||!getLayers().includes(layer)||(edit&&!canEdit(layer)))return;try{await run();}catch(error){onError(error);}};parent.append(b);};
+  if(selected.size>1){
+   const ids=[...root.querySelectorAll('.layer-card')].map(row=>row.dataset.id).filter(id=>selected.has(id));
+   const editable=()=>canShowList()&&mode==='list'&&ids.every(id=>{const item=getLayers().find(l=>l.id===id);return item&&canEdit(item)&&!item.saving;});
+   if(onGroup&&editable())custom('Group',async()=>{if(!editable())return;await onGroup(ids);},{edit:true});
+   custom('Clear selection',()=>{selected.clear();anchor=null;paintSelection();});showMenu(x,y);return;
+  }
   const action=(label,selector,options={})=>{if(card.querySelector(selector))custom(label,()=>card.querySelector(selector)?.click(),options);};
   const separator=()=>menu.append(doc.createElement('hr'));
   const visibility=async(mode)=>{for(const other of [...getLayers()]){const visible=mode==='only'?other===layer:mode==='others'?other!==layer:other.visible===false;if(mode==='toggle'&&other!==layer)continue;if((other.visible!==false)===visible)continue;if(onVisibility)await onVisibility(other,visible);else root.querySelector(`[data-id="${other.id}"] [data-action="visibility"]`)?.click();}};
@@ -67,16 +83,21 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const more=submenu('Actions');
   for(const [label,selector] of [['Edit layer…','[data-action="settings"]'],['Edit geometry…','[data-action="geometry"]'],['Style…','[data-layer-options="style"]'],['Edit tile link…','[data-action="edit-xyz"]'],['Save layer','[data-action="save"]']])action(label,selector,{edit:true,parent:more});
   if(more.children.length===1)more.remove();
-  menu.hidden=false;floating.refresh();const box=menu.getBoundingClientRect(),win=doc.defaultView;menu.style.left=Math.max(8,Math.min(x,win.innerWidth-box.width-8))+'px';menu.style.top=Math.max(8,Math.min(y,win.innerHeight-box.height-8))+'px';menu.querySelector('button')?.focus();
+  showMenu(x,y);
  }
  function editCard(card){const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||!canEdit(layer)||isBusy()||layer.saving)return;const style=card.querySelector('[data-layer-options="style"]'),panel=card.querySelector('[data-layer-panel="style"]');if(style&&panel){for(const other of root.querySelectorAll('[data-layer-panel]'))other.hidden=other!==panel;for(const button of root.querySelectorAll('[data-layer-options]'))button.setAttribute('aria-expanded',String(button===style));const r=panel.getBoundingClientRect();if(r.right<40||r.left>doc.defaultView.innerWidth-40||r.bottom<40||r.top>doc.defaultView.innerHeight-40){panel.style.left='';panel.style.top='';panel.style.right='';}}else if(style)style.click();else card.querySelector('[data-action="settings"]')?.click();}
+ root.addEventListener('mousedown',e=>{if(e.shiftKey&&e.target.closest('.layer-card')&&!e.target.closest('input,textarea,select,[data-layer-panel]'))e.preventDefault();});
  root.addEventListener('contextmenu',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('[data-layer-panel],input,select'))return;e.preventDefault();open(card,e.clientX,e.clientY,card.querySelector('.layer-more'));});
- root.addEventListener('click',e=>{const card=e.target.closest('.layer-card');if(!card)return;select(card);const more=e.target.closest('.layer-more');if(more){const r=more.getBoundingClientRect();open(card,r.left,r.bottom+4,more);}else if(!e.target.closest('button,input,select,textarea,a,summary,[data-layer-panel],.drag-handle'))editCard(card);});
+ root.addEventListener('click',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('input,select,textarea,[data-layer-panel]'))return;const more=e.target.closest('.layer-more');
+  if(!more&&(e.shiftKey||e.metaKey||e.ctrlKey)&&canShowList()&&mode==='list'&&!e.target.closest('button,a,summary,.drag-handle')){e.preventDefault();select(card,e);for(const panel of root.querySelectorAll('[data-layer-panel]'))panel.hidden=true;for(const button of root.querySelectorAll('[data-layer-options]'))button.setAttribute('aria-expanded','false');close();return;}
+  if(!more||!selected.has(card.dataset.id))select(card);
+if(more){const r=more.getBoundingClientRect();open(card,r.left,r.bottom+4,more);}else if(!e.target.closest('button,input,select,textarea,a,summary,[data-layer-panel],.drag-handle'))editCard(card);});
  root.addEventListener('keydown',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('[data-layer-panel],input,select'))return;if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();const r=card.getBoundingClientRect();open(card,r.left+30,r.top+30,card);}else if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(card);editCard(card);}});
- root.addEventListener('keydown',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('input,textarea,select,[contenteditable=true],[data-layer-panel]')||e.altKey||e.shiftKey)return;const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||isBusy()||layer.saving)return;const key=e.key.toLowerCase(),mod=e.metaKey||e.ctrlKey;let run;if(mod&&key==='c'&&onCopy&&layer.kind==='vector')run=()=>onCopy(layer);else if(mod&&key==='d'&&onDuplicate&&canEdit(layer))run=()=>onDuplicate(layer);else if(!mod&&key==='f')run=()=>card.querySelector('[data-action="zoom"]')?.click();else if(!mod&&key==='h')run=()=>onVisibility?onVisibility(layer,layer.visible===false):card.querySelector('[data-action="visibility"]')?.click();else if(!mod&&key==='t'&&onTable)run=()=>onTable(layer);else if(!mod&&['delete','backspace'].includes(key)&&canEdit(layer))run=()=>card.querySelector('[data-action="remove"]')?.click();if(run){e.preventDefault();e.stopPropagation();Promise.resolve().then(run).catch(onError);}});
+ root.addEventListener('keydown',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('input,textarea,select,[contenteditable=true],[data-layer-panel]')||e.altKey||e.shiftKey||selected.size>1)return;const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||isBusy()||layer.saving)return;const key=e.key.toLowerCase(),mod=e.metaKey||e.ctrlKey;let run;if(mod&&key==='c'&&onCopy&&layer.kind==='vector')run=()=>onCopy(layer);else if(mod&&key==='d'&&onDuplicate&&canEdit(layer))run=()=>onDuplicate(layer);else if(!mod&&key==='f')run=()=>card.querySelector('[data-action="zoom"]')?.click();else if(!mod&&key==='h')run=()=>onVisibility?onVisibility(layer,layer.visible===false):card.querySelector('[data-action="visibility"]')?.click();else if(!mod&&key==='t'&&onTable)run=()=>onTable(layer);else if(!mod&&['delete','backspace'].includes(key)&&canEdit(layer))run=()=>card.querySelector('[data-action="remove"]')?.click();if(run){e.preventDefault();e.stopPropagation();Promise.resolve().then(run).catch(onError);}});
  menu.onkeydown=e=>{const items=[...menu.querySelectorAll('button,summary')].filter(item=>item.tagName==='SUMMARY'||!item.closest('details')||item.closest('details').open),index=items.indexOf(doc.activeElement);if(e.key==='Escape'){e.preventDefault();close(true);}else if(e.key==='ArrowRight'&&doc.activeElement?.tagName==='SUMMARY'){e.preventDefault();doc.activeElement.parentElement.open=true;}else if(e.key==='ArrowLeft'&&doc.activeElement?.closest('details')){e.preventDefault();const group=doc.activeElement.closest('details');group.open=false;group.querySelector('summary').focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(index+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}else if(e.key==='Tab')close();};
  doc.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))close();});doc.defaultView.addEventListener('resize',()=>close());doc.addEventListener('scroll',()=>close(),true);
  function refresh(){
+  const available=new Set(visibleCards().map(row=>row.dataset.id));selected=new Set([...selected].filter(id=>available.has(id)));if(!available.has(anchor))anchor=null;
   setMode(editView);
   close();
   if(!root.querySelector('.felt-section-heading')){
@@ -86,7 +107,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   }
   for(const card of root.querySelectorAll('.layer-card')){
    const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer)continue;
-   card.tabIndex=0;card.setAttribute('aria-label',layer.name);card.classList.toggle('selected',selected===layer.id);
+   card.tabIndex=0;card.setAttribute('aria-label',layer.name);card.classList.toggle('selected',selected.has(layer.id));card.setAttribute('aria-selected',String(selected.has(layer.id)));
    const top=card.querySelector('.layer-top'),symbol=top.querySelector('.geometry-symbol');symbol.innerHTML=legendSymbol(layer);
    if(!top.querySelector('.layer-more')){const b=doc.createElement('button');b.type='button';b.className='layer-more';b.textContent='⋯';b.setAttribute('aria-label','Options for '+layer.name);b.setAttribute('aria-haspopup','menu');b.setAttribute('aria-expanded','false');top.append(b);top.append(top.querySelector('.layer-visibility'));}
    let legend=card.querySelector('.layer-key');if(!legend){legend=doc.createElement('div');legend.className='layer-key';card.append(legend);}legend.innerHTML=legendContents(layer);
