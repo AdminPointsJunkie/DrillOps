@@ -1,3 +1,4 @@
+import {mergeableType} from './layer-merge.js';
 import {installFloatingInspectors} from './floating-inspectors.js';
 import {featureAppearance,continuousStops,continuousScale} from './attribute-style.js';
 import {installPanelDragging} from './panel-drag.js';
@@ -22,7 +23,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onGroup,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onGroup,onMerge,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -63,6 +64,8 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
    const ids=[...root.querySelectorAll('.layer-card')].map(row=>row.dataset.id).filter(id=>selected.has(id));
    const editable=()=>canShowList()&&mode==='list'&&ids.every(id=>{const item=getLayers().find(l=>l.id===id);return item&&canEdit(item)&&!item.saving;});
    if(onGroup&&editable())custom('Group',async()=>{if(!editable())return;await onGroup(ids);},{edit:true});
+   const mergeable=()=>editable()&&mergeableType(ids.map(id=>getLayers().find(l=>l.id===id)));
+   if(onMerge&&mergeable())custom('Merge',async()=>{if(!mergeable())return;await onMerge(ids);},{edit:true});
    custom('Clear selection',()=>{selected.clear();anchor=null;paintSelection();});showMenu(x,y);return;
   }
   const action=(label,selector,options={})=>{if(card.querySelector(selector))custom(label,()=>card.querySelector(selector)?.click(),options);};
