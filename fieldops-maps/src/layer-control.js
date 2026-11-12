@@ -23,7 +23,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onGroup,onMerge,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -71,6 +71,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const action=(label,selector,options={})=>{if(card.querySelector(selector))custom(label,()=>card.querySelector(selector)?.click(),options);};
   const separator=()=>menu.append(doc.createElement('hr'));
   const visibility=async(mode)=>{for(const other of [...getLayers()]){const visible=mode==='only'?other===layer:mode==='others'?other!==layer:other.visible===false;if(mode==='toggle'&&other!==layer)continue;if((other.visible!==false)===visible)continue;if(onVisibility)await onVisibility(other,visible);else root.querySelector(`[data-id="${other.id}"] [data-action="visibility"]`)?.click();}};
+  if(onRename)custom('Rename',()=>onRename(layer),{edit:true});
   action('Zoom to fit','[data-action="zoom"]',{key:'F'});
   if(layer.metadata?.cloud_dem&&onCloudDEM)custom('DEM display and analysis…',()=>onCloudDEM(layer),{edit:true});
   custom(layer.visible===false?'Show':'Hide',()=>visibility('toggle'),{key:'H'});
