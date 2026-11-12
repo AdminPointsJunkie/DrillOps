@@ -8,3 +8,25 @@ test('onboarding requires explicit terms and phone, defaults marketing off, pres
 test('workspace off preserves individual opt-in but suppresses marketing separately',async()=>{const {ui,doc,calls}=setup({complete:true,marketing_opt_in:true,marketing_enabled:true});await ui.openSettings();const f=doc.querySelector('form');f.elements.enabled.checked=false;f.dispatchEvent(new doc.defaultView.Event('submit',{cancelable:true}));await tick();assert.deepEqual(calls[1],['set_fieldmaps_marketing',{p_opt_in:true,p_enabled:false}]);});
 test('account changes cannot submit another person’s details',async()=>{const {ui,doc,calls,user,changeUser}=setup();await ui.check(user);const f=doc.querySelector('form');f.elements.phone.value='0400123456';f.elements.terms.checked=true;changeUser();f.dispatchEvent(new doc.defaultView.Event('submit',{cancelable:true}));await tick();assert.equal(calls.length,1);});
 test('phone validation accepts formatted international numbers and rejects incomplete numbers',()=>{assert.equal(validPhone('+61 (0) 400 123 456'),true);assert.equal(validPhone('123'),false);assert.equal(validPhone('1234567890123456'),false);});
+test('completed accounts never open onboarding during a slow check or a fresh page load',async()=>{
+ for(let load=0;load<2;load++){
+  const {doc,user}=setup();let resolve,calls=0,opened=0;
+  doc.defaultView.HTMLDialogElement.prototype.showModal=function(){opened++;this.open=true;};
+  const ui=installSignupConsent({doc,getUser:()=>user,db:{rpc:()=>{calls++;return new Promise(r=>resolve=r);}}});
+  const first=ui.check(user),second=ui.check(user);
+  assert.equal(doc.querySelector('dialog'),null);assert.equal(calls,1);
+  resolve({data:{complete:true}});assert.equal(await first,true);assert.equal(await second,true);
+  assert.equal(opened,0);assert.equal(await ui.check(user),true);assert.equal(calls,1);
+ }
+});
+test('overlapping sign-in checks still show the form for an incomplete account',async()=>{
+ const {doc,user}=setup();let resolve;
+ const ui=installSignupConsent({doc,getUser:()=>user,db:{rpc:()=>new Promise(r=>resolve=r)}});
+ const a=ui.check(user),b=ui.check(user);resolve({data:{complete:false}});await Promise.all([a,b]);
+ assert.equal(doc.querySelector('h2').textContent,'Your DrillOps account');assert.ok(doc.querySelector('input[name=terms]'));
+});
+test('a response arriving after sign-out cannot reopen onboarding',async()=>{
+ const {doc,user,changeUser}=setup();let resolve;
+ const ui=installSignupConsent({doc,getUser:()=>user,db:{rpc:()=>new Promise(r=>resolve=r)}});
+ const a=ui.check(user);changeUser();await ui.check(null);resolve({data:{complete:false}});await a;assert.equal(doc.querySelector('dialog'),null);
+});
