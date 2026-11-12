@@ -1,6 +1,6 @@
 begin;
 do $$
-declare op uuid:=gen_random_uuid(); owner_user uuid:=gen_random_uuid(); project uuid; shared_map uuid:=gen_random_uuid(); unshared uuid; denied boolean:=false;
+declare op uuid:=gen_random_uuid(); owner_user uuid:=gen_random_uuid(); project uuid; shared_map uuid:=gen_random_uuid(); unshared uuid; denied boolean:=false; op_session uuid:=gen_random_uuid(); owner_session uuid:=gen_random_uuid();
 begin
  insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,raw_app_meta_data) values(owner_user,owner_user::text||'@example.test',now(),'{}','{}');
  insert into public.workspaces(name,owner_id) values('Operator permission test',owner_user) returning id into project;
@@ -8,7 +8,9 @@ begin
  insert into public.maps(id,name,owner_id,workspace_id) values(shared_map,'Shared test map',owner_user,project);
  insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,raw_app_meta_data) values(op,op::text||'@example.test',now(),'{"fieldmaps_signup":"operator","full_name":"Test Operator","contact_phone":"0400123456","terms_version":"2026-11-12","marketing_opt_in":false}','{}');
  insert into public.workspace_members(workspace_id,user_id,role) values(project,op,'editor');
+ insert into auth.sessions(id,user_id,created_at) values(op_session,op,now());
  perform set_config('request.jwt.claim.sub',op::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',op,'session_id',op_session,'role','authenticated')::text,true);
  assert maps_private.is_field_operator(),'operator classification missing';
  assert maps_private.ws_role(project)='operator','editor membership bypasses operator cap';
  assert maps_private.ws_role(unshared) is null,'unshared project exposed';
@@ -29,7 +31,9 @@ begin
  insert into public.map_shares(map_id,user_id,created_by) values(shared_map,op,owner_user);
  assert maps_private.ws_project(shared_map,true),'individual map sharing broken';
  assert not maps_private.ws_project(shared_map,false),'individual sharing allows draft access';
+ insert into auth.sessions(id,user_id,created_at) values(owner_session,owner_user,now());
  perform set_config('request.jwt.claim.sub',owner_user::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',owner_user,'session_id',owner_session,'role','authenticated')::text,true);
  assert not maps_private.is_field_operator(),'ordinary account changed';
  perform public.create_personal_project('Normal project still allowed');
 end $$;

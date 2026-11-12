@@ -32,3 +32,8 @@ test('sign-in links wait for restored session, are consumed once, and close stal
   ui.restoreSession(null);assert.equal(doc.querySelector('#auth').open,false,'consumed link cannot reopen login');dom.window.close();
  }
 });
+test('a displaced login opens sign-in with an explanation that survives auth reset',()=>{
+ const dom=new JSDOM('<dialog id="auth"><form id="auth-form"></form></dialog>',{url:'https://www.drillops.com.au/maps/?session_replaced=1'}),doc=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ const ui=installRegistration({auth:{}},{doc});ui.restoreSession(null);ui.reset();assert.equal(doc.querySelector('#auth').open,true);assert.match(doc.querySelector('#auth-error').textContent,/another device/);assert.equal(dom.window.location.search,'');dom.window.close();
+});
