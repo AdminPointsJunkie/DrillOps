@@ -53,3 +53,8 @@ test('models with labels off do not traverse geometry for point labels',()=>{
  const layer={eachLayer(){throw Error('Unexpected full model traversal');}};
  assert.equal(pointLabels(layer,{metadata:{style:{}}},{},{}),0);
 });
+test('grouping selected layers preserves their order and prunes only emptied source groups',async()=>{
+ const {groupLayers}=await import('../src/layer-tree.js');const empty={id:'empty',children:[]},tree=['a',{id:'old',name:'Old',children:['b','c']},'d','e',empty];
+ const g=groupLayers(tree,['d','b','c','b'],'new');assert.deepEqual(g.children,['b','c','d']);assert.deepEqual(flattenTree(tree),['a','b','c','d','e']);assert.deepEqual(tree,['a',g,'e',empty]);assert.equal(g.collapsed,false);
+ const before=JSON.stringify(tree);assert.equal(groupLayers(tree,['missing'],'unused'),null);assert.equal(JSON.stringify(tree),before);
+});

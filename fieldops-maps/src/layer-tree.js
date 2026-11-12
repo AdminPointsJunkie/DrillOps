@@ -38,3 +38,12 @@ export function normaliseTree(raw,ids){
  for(const id of ids)if(take(id))tree.push(id);
  return tree;
 }
+// Gather selected layers in their existing display order, at the first selected root position.
+export function groupLayers(tree,ids,id,name='Group'){
+ const chosen=new Set(ids),children=flattenTree(tree).filter(x=>chosen.has(x));
+ if(!children.length)return null;
+ const first=tree.findIndex(n=>typeof n==='string'?chosen.has(n):n.children.some(x=>chosen.has(x)));
+ const group={id,name,children,visible:true,collapsed:false},next=[];
+ tree.forEach((node,index)=>{if(index===first)next.push(group);if(typeof node==='string'){if(!chosen.has(node))next.push(node);}else{const remaining=node.children.filter(x=>!chosen.has(x));if(remaining.length||!node.children.length){node.children=remaining;next.push(node);}}});
+ tree.splice(0,tree.length,...next);return group;
+}
