@@ -90,6 +90,17 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
  }
  function editCard(card){const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||!canEdit(layer)||isBusy()||layer.saving)return;const style=card.querySelector('[data-layer-options="style"]'),panel=card.querySelector('[data-layer-panel="style"]');if(style&&panel){for(const other of root.querySelectorAll('[data-layer-panel]'))other.hidden=other!==panel;for(const button of root.querySelectorAll('[data-layer-options]'))button.setAttribute('aria-expanded',String(button===style));const r=panel.getBoundingClientRect();if(r.right<40||r.left>doc.defaultView.innerWidth-40||r.bottom<40||r.top>doc.defaultView.innerHeight-40){panel.style.left='';panel.style.top='';panel.style.right='';}}else if(style)style.click();else card.querySelector('[data-action="settings"]')?.click();}
  root.addEventListener('mousedown',e=>{if(e.shiftKey&&e.target.closest('.layer-card')&&!e.target.closest('input,textarea,select,[data-layer-panel]'))e.preventDefault();});
+ function openGroup(group,x,y){
+  if(!canShowList()||mode!=='list'||isBusy())return;
+  const available=()=>group.isConnected&&canShowList()&&mode==='list'&&!isBusy()&&![...group.querySelectorAll('.layer-card')].some(row=>getLayers().find(l=>l.id===row.dataset.id)?.saving);
+  if(!available())return;
+  close();returnFocus=group.querySelector('.group-collapse');menu.replaceChildren();
+  const actions=[['Rename','[data-group-action="rename"]'],[returnFocus?.getAttribute('aria-expanded')==='true'?'Collapse':'Expand','[data-group-action="collapse"]'],[group.querySelector('[data-group-action="visibility"]')?.getAttribute('aria-pressed')==='true'?'Hide group':'Show group','[data-group-action="visibility"]'],['Move up','.group-actions > [data-direction="-1"]'],['Move down','.group-actions > [data-direction="1"]'],['Ungroup','[data-group-action="remove"]']];
+  for(const [label,selector] of actions){const target=group.querySelector(selector);if(!target)continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.setAttribute('role','menuitem');b.onclick=()=>{close(true);if(available())target.click();};menu.append(b);}
+  showMenu(x,y);
+ }
+ root.addEventListener('contextmenu',e=>{if(e.target.closest('.layer-card,input,textarea,select'))return;const group=e.target.closest('[data-group]');if(!group)return;e.preventDefault();openGroup(group,e.clientX,e.clientY);});
+ root.addEventListener('keydown',e=>{if(e.target.closest('.layer-card,input,textarea,select')||!(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')))return;const group=e.target.closest('[data-group]');if(!group)return;e.preventDefault();const r=e.target.getBoundingClientRect();openGroup(group,r.left,r.bottom);});
  root.addEventListener('contextmenu',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('[data-layer-panel],input,select'))return;e.preventDefault();open(card,e.clientX,e.clientY,card.querySelector('.layer-more'));});
  root.addEventListener('click',e=>{const card=e.target.closest('.layer-card');if(!card||e.target.closest('input,select,textarea,[data-layer-panel]'))return;const more=e.target.closest('.layer-more');
   if(!more&&(e.shiftKey||e.metaKey||e.ctrlKey)&&canShowList()&&mode==='list'&&!e.target.closest('button,a,summary,.drag-handle')){e.preventDefault();select(card,e);for(const panel of root.querySelectorAll('[data-layer-panel]'))panel.hidden=true;for(const button of root.querySelectorAll('[data-layer-options]'))button.setAttribute('aria-expanded','false');close();return;}
