@@ -1,0 +1,36 @@
+begin;
+do $$
+declare op uuid:=gen_random_uuid(); owner_user uuid:=gen_random_uuid(); project uuid; shared_map uuid:=gen_random_uuid(); unshared uuid; denied boolean:=false;
+begin
+ insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,raw_app_meta_data) values(owner_user,owner_user::text||'@example.test',now(),'{}','{}');
+ insert into public.workspaces(name,owner_id) values('Operator permission test',owner_user) returning id into project;
+ insert into public.workspaces(name,owner_id) values('Unshared permission test',owner_user) returning id into unshared;
+ insert into public.maps(id,name,owner_id,workspace_id) values(shared_map,'Shared test map',owner_user,project);
+ insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,raw_app_meta_data) values(op,op::text||'@example.test',now(),'{"fieldmaps_signup":"operator","full_name":"Test Operator","contact_phone":"0400123456","terms_version":"2026-11-12","marketing_opt_in":false}','{}');
+ insert into public.workspace_members(workspace_id,user_id,role) values(project,op,'editor');
+ perform set_config('request.jwt.claim.sub',op::text,true);
+ assert maps_private.is_field_operator(),'operator classification missing';
+ assert maps_private.ws_role(project)='operator','editor membership bypasses operator cap';
+ assert maps_private.ws_role(unshared) is null,'unshared project exposed';
+ assert maps_private.ws_project(shared_map,true),'shared published map unavailable';
+ assert not maps_private.ws_project(shared_map,false),'operator can access editable draft';
+ assert (public.fieldmaps_signup_status()->>'complete')::boolean,'signup consent not persisted';
+ assert exists(select 1 from public.personal_workspaces where user_id=op),'personal workspace missing';
+ update auth.users set raw_user_meta_data=raw_user_meta_data-'fieldmaps_signup' where id=op;
+ assert maps_private.is_field_operator(),'editable metadata bypasses restriction';
+ begin perform public.create_personal_project('Forbidden');exception when insufficient_privilege then denied:=true;end;
+ assert denied,'operator created a project';denied:=false;
+ execute 'set local role authenticated';
+ begin insert into public.maps(name,owner_id,workspace_id) values('Forbidden map',op,project);exception when insufficient_privilege then denied:=true;end;
+ assert denied,'operator created a map';
+ execute 'reset role';
+ delete from public.workspace_members where workspace_id=project and user_id=op;
+ assert not maps_private.ws_project(shared_map,true),'removed project grant remains usable';
+ insert into public.map_shares(map_id,user_id,created_by) values(shared_map,op,owner_user);
+ assert maps_private.ws_project(shared_map,true),'individual map sharing broken';
+ assert not maps_private.ws_project(shared_map,false),'individual sharing allows draft access';
+ perform set_config('request.jwt.claim.sub',owner_user::text,true);
+ assert not maps_private.is_field_operator(),'ordinary account changed';
+ perform public.create_personal_project('Normal project still allowed');
+end $$;
+rollback;
