@@ -34,3 +34,9 @@ test('file grouping renders headings and saves the selected file without exposin
  }finally{globalThis.document=old;dom.window.close();}
  function documentSafe(){return globalThis.document;}
 });
+
+test('files without a group are direct rows and double-click opens a PDF preview',async()=>{
+ const {JSDOM}=await import('jsdom'),{installSupportingFiles}=await import('../src/supporting-files.js');const dom=new JSDOM('<div id="app"><main></main><nav class="map-navigation"></nav></div>'),previous=globalThis.document;globalThis.document=dom.window.document;const downloads=[];dom.window.HTMLDialogElement.prototype.show=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
+ try{installSupportingFiles({db:{storage:{from:()=>({download:async path=>{downloads.push(path);return {data:new Blob(['pdf'],{type:'application/octet-stream'})};}})}},getProject:()=>({id:'a',name:'Map',supporting_files:[{name:'Plan.pdf',path:'plan',size:3}]}),getUser:()=>null,canEdit:()=>false});const row=document.querySelector('[data-list]>.supporting-file');assert.ok(row);assert.equal(document.querySelector('.supporting-group'),null);row.dispatchEvent(new dom.window.MouseEvent('dblclick',{bubbles:true}));await new Promise(r=>setTimeout(r,0));assert.deepEqual(downloads,['plan']);assert.equal(document.querySelector('.supporting-preview iframe').title,'Plan.pdf');assert.match(document.querySelector('iframe').src,/^blob:/);document.querySelector('dialog').close();assert.equal(document.querySelector('dialog'),null);
+ }finally{globalThis.document=previous;dom.window.close();}
+});
