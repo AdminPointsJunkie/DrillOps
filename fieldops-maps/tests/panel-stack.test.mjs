@@ -1,4 +1,14 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {installPanelStack} from '../src/panel-stack.js';
+test('export hides inert map popovers and restores only previously visible panels on close',async()=>{
+ const dom=new JSDOM('<body><div id="app"><aside id="sidebar">Layers</aside><aside class="supporting-panel"><button>Close</button></aside><section class="attribute-table" hidden>Table</section></div></body>'),doc=dom.window.document,proto=dom.window.HTMLElement.prototype,matches=proto.matches;let order=[];
+ proto.matches=function(s){return s===':popover-open'?order.includes(this):matches.call(this,s);};proto.showPopover=function(){order.push(this);};proto.hidePopover=function(){order=order.filter(p=>p!==this);};
+ try{const ui=installPanelStack(doc),app=doc.querySelector('#app'),side=doc.querySelector('#sidebar'),files=doc.querySelector('.supporting-panel'),table=doc.querySelector('.attribute-table');assert.deepEqual(order,[side,files]);
+ app.setAttribute('inert','');await Promise.resolve();assert.equal(order.length,0);ui.bringToFront(files);assert.equal(order.length,0);
+ const editor=doc.createElement('section');editor.className='print-editor';doc.body.append(editor);await Promise.resolve();assert.equal(order.length,0);
+ editor.remove();app.removeAttribute('inert');await Promise.resolve();assert.deepEqual(order,[side,files]);assert.equal(order.includes(table),false);assert.equal(files.hidden,false);assert.equal(side.parentElement,app);
+ files.querySelector('button').onclick=()=>{files.hidden=true;};files.querySelector('button').click();await Promise.resolve();assert.equal(order.includes(files),false);
+ }finally{dom.window.close();}
+});
 test('newly opened panels and clicked panels share one order without moving DOM nodes',async()=>{
  const dom=new JSDOM('<body><aside id="sidebar"><button>Layers</button><section data-layer-panel="style" hidden><input></section></aside><section class="attribute-table" hidden><button>Table</button></section></body>'),doc=dom.window.document,proto=dom.window.HTMLElement.prototype,matches=proto.matches;let order=[];
  proto.matches=function(s){return s===':popover-open'?order.includes(this):matches.call(this,s);};proto.showPopover=function(){order.push(this);};proto.hidePopover=function(){order=order.filter(p=>p!==this);};

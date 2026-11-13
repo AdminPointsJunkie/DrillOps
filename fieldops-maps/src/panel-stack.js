@@ -29,7 +29,9 @@ export function installPanelStack(doc=document){
  function eligible(p){
   // A closed popover's UA display:none must not be mistaken for app visibility.
   if(p.matches('.tool-menu-content')&&!p.closest('.tool-menu')?.open)return false;
-  if(!p.isConnected||p.closest('[hidden]')||p.matches('dialog')&&!p.open)return false;
+  // Full-screen workspaces make the map inert. Its top-layer popovers must
+  // disappear too, otherwise they cover the workspace with unusable controls.
+  if(!p.isConnected||p.closest('[hidden],[inert]')||p.matches('dialog')&&!p.open)return false;
   if(supported&&!opened(p)){p.removeAttribute('popover');const shown=win.getComputedStyle(p).display!=='none';p.setAttribute('popover','manual');return shown;}
   return visible(p);
  }
@@ -55,7 +57,7 @@ export function installPanelStack(doc=document){
  const activate=e=>{const p=e.target.closest?.('[data-panel-stack]');if(p)bringToFront(p.id==='sidebar-resizer'?doc.getElementById('sidebar'):p);};
  doc.addEventListener('pointerdown',activate,true);doc.addEventListener('focusin',activate,true);
  doc.addEventListener('click',activate,true);
- const observer=new win.MutationObserver(refresh);observer.observe(doc.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open']});
+ const observer=new win.MutationObserver(refresh);observer.observe(doc.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open','inert']});
  const bodyObserver=new win.MutationObserver(refresh);bodyObserver.observe(doc.body,{attributes:true,attributeFilter:['class']});
  win.addEventListener('resize',()=>{for(const p of order){if(!eligible(p))continue;const r=p.getBoundingClientRect();if(r.left<4||r.right>win.innerWidth-4){p.style.left=Math.max(4,Math.min(r.left,win.innerWidth-r.width-4))+'px';p.style.right='auto';}if(r.top<4||r.top>win.innerHeight-40){p.style.top=Math.max(4,Math.min(r.top,win.innerHeight-40))+'px';p.style.bottom='auto';}}});
  const api={refresh,bringToFront,register(p){register(p);refresh();}};installed.set(doc,api);refresh();return api;
