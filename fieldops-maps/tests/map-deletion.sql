@@ -1,0 +1,27 @@
+begin;
+do $$ declare w uuid; u uuid; sid uuid; m uuid:=gen_random_uuid(); other uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); p text; shared text; result jsonb; blocked boolean:=false; begin
+ select m.workspace_id,m.user_id,a.session_id into w,u,sid from public.workspace_members m join maps_private.fieldmaps_active_sessions a on a.user_id=m.user_id join maps_private.drillops_access d on d.user_id=m.user_id where m.role='owner' and m.status='active' and d.active and 'fieldmaps'=any(d.apps) limit 1;
+ if u is null then raise exception 'No test administrator available'; end if;
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','session_id',sid)::text,true);
+ insert into public.maps(id,owner_id,workspace_id,name) values(m,u,w,'Deletion verification temporary'),(other,u,w,'Shared file verification temporary');
+ insert into public.layers(id,map_id,name,kind,source_crs) values(l,m,'Temporary layer','vector','EPSG:4326');
+ insert into public.features(layer_id,geometry,properties) values(l,extensions.st_setsrid(extensions.st_geomfromgeojson('{"type":"Point","coordinates":[150,-22]}'),4326),'{}');
+ insert into public.project_previews(map_id,image) values(m,'data:image/jpeg;base64,AAAA');
+ p:=u::text||'/'||m::text||'/test.csv';shared:=u::text||'/'||m::text||'/shared.csv';
+ insert into maps_private.map_uploads(path,map_id) values(p,m),(shared,m),(shared,other);
+ insert into maps_private.file_accounts values(p,w,u);
+ result:=public.maps_delete_map(m,'prepare');
+ if not (result->'paths' ? p) or result->'paths' ? shared then raise exception 'Wrong cleanup paths';end if;
+ begin update public.maps set name='Should be blocked' where id=m;exception when others then blocked:=true;end;
+ if not blocked then raise exception 'Deletion did not block edits';end if;
+ if public.maps_delete_map(m,'prepare')<>result then raise exception 'Retry manifest changed';end if;
+ result:=public.maps_delete_map(m,'finish');
+ if result->>'deleted'<>'true' or exists(select 1 from public.maps where id=m) or exists(select 1 from public.layers where id=l) or exists(select 1 from public.features where layer_id=l) or exists(select 1 from public.project_previews where map_id=m) or exists(select 1 from maps_private.map_deletions where map_id=m) or exists(select 1 from maps_private.file_accounts where path=p) then raise exception 'Cleanup left records behind';end if;
+ if not exists(select 1 from maps_private.map_uploads where map_id=other and path=shared) then raise exception 'Shared file reference removed';end if;
+ perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);blocked:=false;
+ begin perform public.maps_delete_map(other,'prepare');exception when insufficient_privilege then blocked:=true;end;
+ if not blocked then raise exception 'Unauthorized deletion allowed';end if;
+end $$;
+select 'PASS: cleanup, cascades, shared files, retry, edit guard, access guard' as result;
+rollback;

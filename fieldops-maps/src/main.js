@@ -1,3 +1,4 @@
+import {deleteMapCompletely} from './map-deletion.js';
 import {openBulkLayerStyle} from './bulk-layer-style.js';
 import {captureMapPreview} from './map-preview.js';
 import {analyzeCSVRows} from './geo.js';
@@ -764,11 +765,10 @@ $('#delete-project').onclick=async()=>{
  if(!editingProject||!activeMap||!isAdmin()||busy||syncing||$('#save-project').disabled)return;
  if(workspacePending()||saves.state().pending)return toast('Save or discard pending edits and imports before deleting this map.');
  const project=activeMap;
- if(!window.confirm(`Delete “${project.name}”? This permanently deletes the map and its layers, including its published phone release. Downloaded copies may remain on devices. This cannot be undone.`))return;
+ if(!window.confirm(`Are you sure you want to delete “${project.name}”? This permanently removes the map, its layers and features, attachments, uploaded files, previews and published releases. This cannot be undone. Files shared with other maps and copies already downloaded to devices are kept.`))return;
  const button=$('#delete-project');button.disabled=true;$('#save-project').disabled=true;$('#project-error').textContent='';setBusy(true,'Deleting map…');
  try{
-  const {data,error}=await db.from('maps').delete().eq('id',project.id).select('id').single();
-  if(error)throw error;if(data?.id!==project.id)throw Error('Deletion could not be confirmed. Refresh and try again.');
+  await deleteMapCompletely(db,project.id,{local:LOCAL_TESTING});
   clearMap();activeMap=null;maps=maps.filter(p=>p.id!==project.id);$('#map-select').querySelectorAll('option').forEach(o=>{if(o.value===project.id)o.remove();});$('#map-select').value='';syncProject();homeUI?.refresh();$('#name-dialog').close();toast('Map deleted.');
  }catch(e){$('#project-error').textContent=errorText(e);}
  finally{button.disabled=false;$('#save-project').disabled=false;setBusy(false);}
