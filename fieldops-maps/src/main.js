@@ -747,7 +747,7 @@ function renderProjectCRS(){
 }
 $('#project-crs').oninput=renderProjectCRS;
 function openProject(edit=false,fromImport=false){
- if(isPermissionReadOnly()||(edit&&(!isAdmin()||isReadOnly())))return;
+ if(isPermissionReadOnly()||(edit&&!isAdmin()))return;
  if(geometryEditor?.pending||fieldTools?.pending||(busy&&!fromImport)||layoutPending||styleSaves.size||saves.state().failed||layers.some(l=>l.saving))return toast('Wait for the current import or save to finish.');
  if(!user){$('#auth').showModal();return;}
  if(!edit&&activeMap&&(layers.some(l=>!l.saved&&!isLocalGeoTIFF(l))||queue.length))return toast('Finish queued imports and save or remove unsaved layers before creating another map.');
