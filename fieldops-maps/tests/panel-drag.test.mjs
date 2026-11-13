@@ -29,3 +29,9 @@ test('dragging a table preserves its constrained width instead of expanding to i
  fire('pointerdown',30,210);fire('pointermove',30,110);fire('pointerup',30,110);assert.equal(panel.style.width,'1000px');assert.equal(panel.getBoundingClientRect().width,1000);assert.equal(panel.style.top,'100px');
  let closed=false;panel.querySelector('button').onclick=()=>closed=true;panel.querySelector('button').click();assert.equal(closed,true);dom.window.close();
 });
+
+test('full-page settings remain untouched while their loading content changes',async()=>{
+ const dom=new JSDOM('<body><dialog id="workspace-settings"><p>Loading project settings...</p></dialog><dialog id="platform-dashboard"></dialog></body>'),doc=dom.window.document;installPanelDragging(doc);
+ const panel=doc.querySelector('#workspace-settings');panel.open=true;await Promise.resolve();panel.classList.add('ws-fullscreen');panel.innerHTML='<header><h2>Project</h2></header>';await Promise.resolve();
+ assert.equal(panel.getAttribute('style'),null);assert.equal(panel.querySelector('[data-panel-drag]'),null);assert.equal(panel.dataset.dragPositioned,undefined);assert.equal(doc.querySelector('#platform-dashboard').children.length,0);dom.window.close();
+});

@@ -1,6 +1,6 @@
 // Shared dragging for floating map windows and dialogs.
 export function installPanelDragging(doc=document){
- const selectors='#sidebar,[data-layer-panel],.layer-context-menu,.supporting-panel,.map-floating-panel,.attribute-table,.feature-info,.feature-search,.field-tools-panel,.geometry-editor,.map-compare-panel,dialog';
+ const selectors='#sidebar,[data-layer-panel],.layer-context-menu,.supporting-panel,.map-floating-panel,.attribute-table,.feature-info,.feature-search,.field-tools-panel,.geometry-editor,.map-compare-panel,dialog:not(#workspace-settings):not(#platform-dashboard):not(.ws-fullscreen)';
  const win=doc.defaultView,positions=new Map();let drag=null;
  const key=p=>p.id||p.dataset.layerPanel;
  function place(panel,left,top){let r=panel.getBoundingClientRect();if(panel.matches('.attribute-table')){panel.style.boxSizing='border-box';panel.style.width=Math.min(r.width,win.innerWidth-8)+'px';panel.style.maxWidth='calc(100vw - 8px)';r=panel.getBoundingClientRect();}const x=Math.max(4,Math.min(left,win.innerWidth-r.width-4)),y=Math.max(4,Math.min(top,win.innerHeight-Math.min(r.height,win.innerHeight-8)-4));Object.assign(panel.style,{position:'fixed',margin:'0',transform:'none',left:x+'px',top:y+'px',right:'auto',bottom:'auto',maxHeight:Math.max(100,win.innerHeight-y-4)+'px'});if(panel.id==='sidebar'){panel.style.setProperty('--sidebar-top',y+'px');panel.style.removeProperty('max-height');}if(key(panel))positions.set(key(panel),{left:x,top:y});}
