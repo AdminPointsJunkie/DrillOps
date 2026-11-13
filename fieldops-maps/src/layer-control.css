@@ -170,3 +170,5 @@ body.felt-workspace #app>header{height:44px;background:var(--felt-panel);color:v
 
 .felt-layer-control .layer-card:hover .layer-top>div,.felt-layer-control .layer-card:focus-within .layer-top>div{padding-right:46px}
 .felt-layer-control .layer-top>.layer-visibility svg{width:14px;height:14px}
+
+.bulk-style-field{display:flex;align-items:center;gap:16px;margin:14px 0}.bulk-style-field label{display:flex;align-items:center;gap:8px;flex:1;margin:0}.bulk-style-field label input{width:auto}.bulk-style-field>input{width:100px}

@@ -23,7 +23,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onDelete,onDeleteGroup,onUngroup,canUngroup=()=>false,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onStyle,onDelete,onDeleteGroup,onUngroup,canUngroup=()=>false,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -48,7 +48,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const ids=[...selected],items=ids.map(id=>getLayers().find(l=>l.id===id));
   if(ids.length<2||!canShowList()||mode!=='list'||items.some(l=>!l||!canEdit(l)))return;
   const bar=doc.createElement('div');bar.className='layer-selection-actions';bar.setAttribute('aria-label','Selected layer actions');const count=doc.createElement('span');count.textContent=ids.length+' layers selected';bar.append(count);
-  for(const [label,run] of [['Delete',onDelete&&(()=>onDelete(ids))],['Ungroup',onUngroup&&canUngroup(ids)&&(()=>onUngroup(ids))]]){if(!run)continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=isBusy()||items.some(l=>l.saving);b.onclick=async()=>{if(isBusy()||items.some(l=>!getLayers().includes(l)||!canEdit(l)||l.saving))return;try{await run();refresh();}catch(error){onError(error);}};bar.append(b);}root.prepend(bar);
+  for(const [label,run] of [['Style',onStyle&&items.every(l=>l.kind==='vector'&&!l.metadata?.annotation)&&(()=>onStyle(ids))],['Delete',onDelete&&(()=>onDelete(ids))],['Ungroup',onUngroup&&canUngroup(ids)&&(()=>onUngroup(ids))]]){if(!run)continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=isBusy()||items.some(l=>l.saving);b.onclick=async()=>{if(isBusy()||items.some(l=>!getLayers().includes(l)||!canEdit(l)||l.saving))return;try{await run();refresh();}catch(error){onError(error);}};bar.append(b);}root.prepend(bar);
  }
  function select(card,event={}){
   const id=card.dataset.id,rows=visibleCards(),ids=rows.map(row=>row.dataset.id);
@@ -70,6 +70,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   if(selected.size>1){
    const ids=[...root.querySelectorAll('.layer-card')].map(row=>row.dataset.id).filter(id=>selected.has(id));
    const editable=()=>canShowList()&&mode==='list'&&ids.every(id=>{const item=getLayers().find(l=>l.id===id);return item&&canEdit(item)&&!item.saving;});
+   if(onStyle&&editable()&&ids.every(id=>{const l=getLayers().find(l=>l.id===id);return l.kind==='vector'&&!l.metadata?.annotation;}))custom('Style selected layers',()=>{if(editable())return onStyle(ids);},{edit:true});
    if(onGroup&&editable())custom('Group',async()=>{if(!editable())return;await onGroup(ids);},{edit:true});
    const mergeable=()=>editable()&&mergeableType(ids.map(id=>getLayers().find(l=>l.id===id)));
    if(onMerge&&mergeable())custom('Merge',async()=>{if(!mergeable())return;await onMerge(ids);},{edit:true});
