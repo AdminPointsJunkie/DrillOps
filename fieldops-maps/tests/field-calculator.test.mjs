@@ -9,3 +9,10 @@ test('calculator updates filtered rows only, preserves originals and adds nulls 
 test('overwrite and type checks are explicit; a failing row changes nothing',()=>{const before=structuredClone(fc);assert.throws(()=>calculateColumn(fc,{name:'Depth',expression:'1'}),/already exists/);assert.throws(()=>calculateColumn(fc,{name:'New',expression:'100 / ("Depth" - 100)'}),/Row 1/);assert.throws(()=>calculateColumn(fc,{name:'New',expression:'1.2',type:'integer'}),/whole number/);assert.equal(calculateColumn(fc,{name:'Depth',existing:true,expression:'"Depth" + 1'}).fc.features[0].properties.Depth,101);for(const name of ['__proto__','constructor','_private',''])assert.throws(()=>validateColumn(name,fields));assert.deepEqual(fc,before);});
 
 test('drilling dates classify by year with explicit day/month format and valid leap days',()=>{const year=compile('year(to_date("Date Drilled", \'dd/MM/yyyy\'))',['Date Drilled']);assert.equal(year({'Date Drilled':'01/01/2021'}),2021);assert.equal(year({'Date Drilled':'31/12/2024'}),2024);assert.equal(year({'Date Drilled':'29/02/2024'}),2024);assert.equal(year({'Date Drilled':null}),null);assert.throws(()=>year({'Date Drilled':'29/02/2023'}),/Invalid date/);assert.throws(()=>year({'Date Drilled':'31/04/2021'}),/Invalid date/);assert.throws(()=>year({'Date Drilled':'2021/01/01'}),/does not match/);assert.equal(compile('year(to_date(\'1/1/2021\', \'d/M/yyyy\'))')({}),2021);});
+
+test('Date columns normalise Australian and ISO dates and reject invalid dates atomically',()=>{
+ const source={type:'FeatureCollection',features:['01/01/2021','2024-02-29',null].map(Date=>({type:'Feature',properties:{Date},geometry:null}))};
+ const result=calculateColumn(source,{name:'Drilled',expression:'"Date"',type:'date'});
+ assert.deepEqual(result.fc.features.map(f=>f.properties.Drilled),['2021-01-01','2024-02-29',null]);
+ source.features[1].properties.Date='29/02/2023';assert.throws(()=>calculateColumn(source,{name:'Drilled',expression:'"Date"',type:'date'}),/Row 2.*Invalid date/);assert.equal(source.features[0].properties.Drilled,undefined);
+});

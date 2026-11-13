@@ -6,4 +6,4 @@ export function formatNumber(value,settings){
  const text=new Intl.NumberFormat('en-AU',{style:settings.percent?'percent':'decimal',useGrouping:settings.grouping!==false,minimumFractionDigits:settings.trimZeros?0:decimals,maximumFractionDigits:decimals,notation:settings.compact?'compact':'standard'}).format(n);
  return (settings.prefix||'')+text+(settings.suffix||'');
 }
-export const formatField=(layer,field,value)=>formatNumber(value,layer?.metadata?.style?.numberFormats?.[field]);
+export const formatField=(layer,field,value)=>layer?.metadata?.field_types?.[field]==='date'&&/^\d{4}-\d{2}-\d{2}$/.test(value)?value.split('-').reverse().join('/'):formatNumber(value,layer?.metadata?.style?.numberFormats?.[field]);

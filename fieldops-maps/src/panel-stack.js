@@ -13,7 +13,8 @@ export function installPanelStack(doc=document){
  function position(p){const state=states.get(p);if(state.positioned)return;
   // Remove the closed-popover display rule briefly to measure the original box.
   if(supported)p.removeAttribute('popover');
-  const rect=p.getBoundingClientRect(),css=win.getComputedStyle(p);
+  let rect=p.getBoundingClientRect();const css=win.getComputedStyle(p);
+  if(p.matches('dialog')){Object.assign(p.style,{position:'fixed',margin:'0',transform:'none',maxHeight:'calc(100dvh - 8px)',boxSizing:'border-box',overflow:'auto'});p.style.top=Math.max(4,Math.min(rect.top,win.innerHeight-rect.height-4))+'px';p.style.left=Math.max(4,Math.min(rect.left,win.innerWidth-rect.width-4))+'px';p.style.right='auto';p.style.bottom='auto';rect=p.getBoundingClientRect();}
   if(css.position==='absolute'||css.position==='fixed'||p.matches('dialog')){
    const bottom=p.matches('.attribute-table');
    Object.assign(p.style,{position:'fixed',margin:'0',top:bottom?'auto':rect.top+'px',bottom:bottom?Math.max(0,win.innerHeight-rect.bottom)+'px':'auto'});

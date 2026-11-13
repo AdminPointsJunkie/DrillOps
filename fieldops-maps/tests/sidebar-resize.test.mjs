@@ -24,6 +24,6 @@ test('sidebar drag resizes, clamps, persists and supports keyboard and reset',()
 
 test('floating sidebar resize handle follows panel movement and height',async()=>{
  const dom=new JSDOM('<aside class="felt-layer-control"></aside><div id="handle"></div>',{url:'https://example.test',pretendToBeVisual:true}),w=dom.window;
- const side=w.document.querySelector('aside'),handle=w.document.querySelector('#handle');let rect={left:5,right:290,top:56,height:300};side.getBoundingClientRect=()=>rect;
- try{installSidebarResize(handle,side,()=>{},w);await new Promise(r=>w.requestAnimationFrame(r));assert.equal(handle.style.left,'286px');assert.equal(handle.style.height,'284px');rect={left:100,right:500,top:80,height:450};side.style.left='100px';await Promise.resolve();assert.equal(handle.style.left,'496px');assert.equal(handle.style.top,'88px');assert.equal(handle.style.height,'434px');}finally{dom.window.close();}
+ const side=w.document.querySelector('aside'),handle=w.document.querySelector('#handle');let rect={left:5,right:290,width:285,top:56,height:300};side.getBoundingClientRect=()=>rect;
+ try{installSidebarResize(handle,side,()=>{},w);await new Promise(r=>w.requestAnimationFrame(r));assert.equal(handle.style.left,'286px');assert.equal(handle.style.height,'284px');rect={left:100,right:500,width:400,top:80,height:450};side.style.left='100px';await Promise.resolve();assert.equal(handle.style.left,'496px');assert.equal(handle.style.top,'88px');assert.equal(side.style.getPropertyValue('--sidebar-top'),'80px');assert.equal(handle.style.height,'434px');}finally{dom.window.close();}
 });

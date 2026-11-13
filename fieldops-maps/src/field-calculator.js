@@ -1,4 +1,4 @@
-import {compileFieldExpression} from './field-expression.js';
+import {compileFieldExpression,normaliseDate} from './field-expression.js';
 import {attributeFields} from './explore-data.js';
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 export function validateColumn(name,fields,{existing=false}={}){
@@ -10,7 +10,7 @@ export function calculateColumn(fc,{name,expression,type='number',existing=false
  if(!targets.length)throw Error('No rows match the selected scope.');
  const values=[],errors=[];
  for(const index of targets){if(!Number.isInteger(index)||!fc.features[index])throw Error('The table rows changed. Preview again.');try{let value=evaluate(fc.features[index].properties);
-  if(value!==null){if(type==='text')value=String(value);else if(type==='boolean'){if(value===true||value===false){}else if(value==='true'||value==='false')value=value==='true';else throw Error('Result is not true or false.');}else if(type==='number'||type==='integer'){if(typeof value==='string'&&!value.trim())throw Error('Result is empty text, not a number.');value=Number(value);if(!Number.isFinite(value)||type==='integer'&&!Number.isInteger(value))throw Error(type==='integer'?'Result is not a whole number.':'Result is not a number.');}else throw Error('Choose a supported column type.');}
+  if(value!==null){if(type==='date')value=normaliseDate(value);else if(type==='text')value=String(value);else if(type==='boolean'){if(value===true||value===false){}else if(value==='true'||value==='false')value=value==='true';else throw Error('Result is not true or false.');}else if(type==='number'||type==='integer'){if(typeof value==='string'&&!value.trim())throw Error('Result is empty text, not a number.');value=Number(value);if(!Number.isFinite(value)||type==='integer'&&!Number.isInteger(value))throw Error(type==='integer'?'Result is not a whole number.':'Result is not a number.');}else throw Error('Choose a supported column type.');}
   values.push({index,value});
  }catch(error){errors.push(`Row ${index+1}: ${error.message}`);}}
  if(errors.length)throw Error(`${errors.length} row${errors.length===1?'':'s'} could not be calculated. Nothing changed.\n`+errors.slice(0,5).join('\n'));
@@ -18,7 +18,7 @@ export function calculateColumn(fc,{name,expression,type='number',existing=false
  for(const {index,value} of values){next.features[index].properties??={};next.features[index].properties[name]=value;}
  return {fc:next,name,type,count:values.length,samples:values.slice(0,5)};
 }
-const typeOptions='<option value="number">Decimal number</option><option value="integer">Whole number</option><option value="text">Text</option><option value="boolean">True / false</option>';
+const typeOptions='<option value="number">Decimal number</option><option value="integer">Whole number</option><option value="text">Text</option><option value="date">Date</option><option value="boolean">True / false</option>';
 export function openAddColumn(layer,onApply){
  const d=toolDialog('Add column','<label>Column name<input name="column" maxlength="120" required></label><label>Type<select name="type">'+typeOptions+'</select></label><p>Creates an empty column for every row. Use the field calculator to populate it.</p>');
  d.querySelector('form').onsubmit=async e=>{e.preventDefault();const button=d.querySelector('[type=submit]');button.disabled=true;try{const name=validateColumn(d.querySelector('[name=column]').value,attributeFields(layer.fc)),type=d.querySelector('[name=type]').value,fc=structuredClone(layer.fc);for(const feature of fc.features){feature.properties??={};feature.properties[name]=null;}await onApply(fc,{[name]:type});d.close();}catch(error){d.querySelector('.error').textContent=error.message;}finally{button.disabled=false;}};return d;

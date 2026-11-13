@@ -1,3 +1,9 @@
+export const dateParts=(value,format='yyyy-MM-dd')=>{
+  const patterns={'dd/MM/yyyy':[/^(\d{2})\/(\d{2})\/(\d{4})$/,[3,2,1]],'d/M/yyyy':[/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,[3,2,1]],'yyyy-MM-dd':[/^(\d{4})-(\d{2})-(\d{2})$/,[1,2,3]],'MM/dd/yyyy':[/^(\d{2})\/(\d{2})\/(\d{4})$/,[3,1,2]]};
+  const pattern=patterns[format];if(!pattern)throw Error('Supported date formats: dd/MM/yyyy, d/M/yyyy, yyyy-MM-dd and MM/dd/yyyy.');const match=pattern[0].exec(String(value).trim());if(!match)throw Error('Date does not match '+format+': '+String(value));
+  const [year,month,day]=pattern[1].map(i=>Number(match[i]));const leap=year%4===0&&(year%100!==0||year%400===0),days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];if(year<1||month<1||month>12||day<1||day>days[month-1])throw Error('Invalid date: '+String(value));return [year,month,day];
+ };
+export function normaliseDate(value){if(value==null||String(value).trim()==='')return null;return dateParts(value,String(value).includes('/')?'d/M/yyyy':'yyyy-MM-dd').map((v,i)=>String(v).padStart(i===0?4:2,'0')).join('-');}
 // Supported QGIS-style scalar expressions. Parsed as data; never executed as JavaScript.
 export function compileFieldExpression(source,fields=[]){
  const text=String(source).trim().replace(/^=/,'');if(!text||text.length>4000)throw Error('Enter a formula of up to 4,000 characters.');
@@ -22,11 +28,7 @@ export function compileFieldExpression(source,fields=[]){
  const nil=v=>v===null||v===undefined;
  const number=v=>{if(nil(v))return null;if(typeof v==='string'&&!v.trim())throw Error('Empty text is not a number; use nullif or coalesce.');const n=Number(v);if(!Number.isFinite(n))throw Error('Not a valid number: '+String(v).slice(0,40));return n;};
  const equal=(a,b)=>a===b||(!nil(a)&&!nil(b)&&String(a).trim()!==''&&String(b).trim()!==''&&Number.isFinite(Number(a))&&Number(a)===Number(b));
- const dateParts=(value,format='yyyy-MM-dd')=>{
-  const patterns={'dd/MM/yyyy':[/^(\d{2})\/(\d{2})\/(\d{4})$/,[3,2,1]],'d/M/yyyy':[/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,[3,2,1]],'yyyy-MM-dd':[/^(\d{4})-(\d{2})-(\d{2})$/,[1,2,3]],'MM/dd/yyyy':[/^(\d{2})\/(\d{2})\/(\d{4})$/,[3,1,2]]};
-  const pattern=patterns[format];if(!pattern)throw Error('Supported date formats: dd/MM/yyyy, d/M/yyyy, yyyy-MM-dd and MM/dd/yyyy.');const match=pattern[0].exec(String(value).trim());if(!match)throw Error('Date does not match '+format+': '+String(value));
-  const [year,month,day]=pattern[1].map(i=>Number(match[i]));const leap=year%4===0&&(year%100!==0||year%400===0),days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];if(year<1||month<1||month>12||day<1||day>days[month-1])throw Error('Invalid date: '+String(value));return [year,month,day];
- };
+
  function run(n,props){
   if(n.op==='value')return n.value;if(n.op==='field')return Object.hasOwn(props,n.field)?props[n.field]:null;
   if(n.op==='case'){for(const [condition,value] of n.branches)if(run(condition,props))return run(value,props);return run(n.otherwise,props);}

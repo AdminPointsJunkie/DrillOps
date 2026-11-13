@@ -7,6 +7,7 @@ export function installSidebarResize(handle,sidebar,onResize,win=handle.ownerDoc
  function positionHandle(){
   if(!sidebar.classList.contains('felt-layer-control'))return;
   const rect=sidebar.getBoundingClientRect();
+  if(rect.width>0){const top=Math.max(0,rect.top)+'px';if(sidebar.style.getPropertyValue('--sidebar-top')!==top)sidebar.style.setProperty('--sidebar-top',top);}
   handle.style.left=`${rect.right-4}px`;handle.style.top=`${rect.top+8}px`;handle.style.height=`${Math.max(0,rect.height-16)}px`;
  }
  if(win.ResizeObserver)new win.ResizeObserver(positionHandle).observe(sidebar);
