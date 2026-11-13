@@ -1,4 +1,4 @@
-import Papa from 'papaparse';
+import {readDelimited} from './csv-reader.js';
 export const ROW_LIMIT=20000;
 const stem=name=>name.replace(/\.[^.]+$/,'');
 const collection=features=>({type:'FeatureCollection',features});
@@ -40,9 +40,8 @@ export async function readSpecial(file,files=[file]){
  if(['geojsonl','geojsons','geojsonseq','ndjson','jsonl'].includes(ext))return vector(readSequence(await file.text()),'GeoJSONSeq');
  if(['csv','tsv','psv','txt'].includes(ext)){
   const delimiter=ext==='tsv'?'\t':ext==='psv'?'|':'';
-  const parsed=Papa.parse(await file.text(),{header:true,skipEmptyLines:'greedy',delimiter});
-  if(parsed.errors.length)throw Error(parsed.errors[0].message);
-  return [tableItem(name,parsed.data,files,ext.toUpperCase())];
+  const parsed=await readDelimited(file,delimiter);
+  return [{...tableItem(name,parsed.rows,files,ext.toUpperCase()),...parsed}];
  }
  if(['xlsx','xls','xlsm','numbers','ods'].includes(ext)){
   const XLSX=await import('xlsx');const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,sheetRows:ROW_LIMIT+2});

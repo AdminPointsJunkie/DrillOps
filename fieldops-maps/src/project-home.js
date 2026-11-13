@@ -32,7 +32,7 @@ export function installProjectHome({onWorkspaceSettings,onProfile,paintAvatar,ge
  let capturing=false;
  async function capture(){const s=getState();if(capturing||!s.active||!s.user||!s.canCreate||!capturePreview||!previews)return;const captureScope=scope(),id=s.active.id;capturing=true;try{const image=await capturePreview();if(!validPreview(image)||scope()!==captureScope||getState().active?.id!==id||!getState().canCreate)return;await previews.save(captureScope,id,image);if(scope()===captureScope&&!root.hidden)render();}catch{if(scope()===captureScope&&!root.hidden){const error=root.querySelector('[data-home-error]');if(error)error.textContent='Could not save the map preview. Return to the map and try again.';}}finally{capturing=false;}}
 
- function open(){root.hidden=false;doc.querySelector('#app').inert=true;doc.body.classList.add('project-home-open');render();void capture();}
+ function open(){root.hidden=false;doc.querySelector('#app').inert=true;doc.body.classList.add('project-home-open');const toast=doc.querySelector('#toast');if(toast)toast.hidden=true;render();void capture();}
  function close(){generation++;root.hidden=true;doc.querySelector('#app').inert=false;doc.body.classList.remove('project-home-open');onResume();}
  return {open,openMaps(){section=getState().workspace||previewLocal?'all':'projects';open();},close,capture,refresh:render,visited,get active(){return !root.hidden;}};
 }

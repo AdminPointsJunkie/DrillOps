@@ -19,7 +19,7 @@ function harness({failLine=false,failReadback=false}={}){
  const elements=new Map(),uploaded=[],removed=[],saved=[],notices=[],layouts=[];
  const context={readSavedVector,isArchiveFile,isLocalGeoTIFF,assertCloudFile,attachmentPaths,console,structuredClone,crypto:{randomUUID},splitDXFSections,CLOUD_FILE_LIMIT:50000000,LOCAL_TESTING:false,busy:false,queue:[{kind:'vector'}],reviewIndex:0,preview:null,user:{id:'user'},activeMap:{id:'project'},layerTree:[],layers:[],rendered:new Map(),
   $:selector=>{if(!elements.has(selector))elements.set(selector,{close(){},textContent:'',disabled:false});return elements.get(selector);},
-  settings:()=>({crs:'EPSG:4326'}),convertCurrent:async()=>makeLayer(),setBusy:()=>{},renderQueue:()=>{},fit:()=>{},renderLayers:()=>{},updateEmpty:()=>{},refreshSaveStatus:()=>{},ensureMap:async()=>{},canEditLayer:()=>true,repairDXFLayer:async()=>0,
+  showCSVResult:()=>{},settings:()=>({crs:'EPSG:4326'}),convertCurrent:async()=>makeLayer(),setBusy:()=>{},renderQueue:()=>{},fit:()=>{},renderLayers:()=>{},updateEmpty:()=>{},refreshSaveStatus:()=>{},ensureMap:async()=>{},canEditLayer:()=>true,repairDXFLayer:async()=>0,
   toast:message=>notices.push(message),errorText:e=>e.message,registerUpload:async()=>{},explorer:{rekey(){}},mapComponents:{rekey(){}},
   saveLayout:async()=>layouts.push(structuredClone(context.layerTree)),
   replaceTreeId:(oldID,newID)=>{for(const node of context.layerTree){if(node.children){const i=node.children.indexOf(oldID);if(i>=0)node.children[i]=newID;}}},

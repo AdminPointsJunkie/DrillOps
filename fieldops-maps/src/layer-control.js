@@ -23,7 +23,7 @@ export function legendContents(layer){
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onDelete,onDeleteGroup,onUngroup,canUngroup=()=>false,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -42,7 +42,14 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
  const visibleCards=()=>[...root.querySelectorAll('.layer-card')].filter(row=>!row.closest('[hidden]')&&doc.defaultView.getComputedStyle(row).display!=='none');
- function paintSelection(){for(const row of root.querySelectorAll('.layer-card')){const active=selected.has(row.dataset.id);row.classList.toggle('selected',active);row.setAttribute('aria-selected',String(active));}}
+ function paintSelection(){paintSelectionActions();for(const row of root.querySelectorAll('.layer-card')){const active=selected.has(row.dataset.id);row.classList.toggle('selected',active);row.setAttribute('aria-selected',String(active));}}
+ function paintSelectionActions(){
+  root.querySelector('.layer-selection-actions')?.remove();
+  const ids=[...selected],items=ids.map(id=>getLayers().find(l=>l.id===id));
+  if(ids.length<2||!canShowList()||mode!=='list'||items.some(l=>!l||!canEdit(l)))return;
+  const bar=doc.createElement('div');bar.className='layer-selection-actions';bar.setAttribute('aria-label','Selected layer actions');const count=doc.createElement('span');count.textContent=ids.length+' layers selected';bar.append(count);
+  for(const [label,run] of [['Delete',onDelete&&(()=>onDelete(ids))],['Ungroup',onUngroup&&canUngroup(ids)&&(()=>onUngroup(ids))]]){if(!run)continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.disabled=isBusy()||items.some(l=>l.saving);b.onclick=async()=>{if(isBusy()||items.some(l=>!getLayers().includes(l)||!canEdit(l)||l.saving))return;try{await run();refresh();}catch(error){onError(error);}};bar.append(b);}root.prepend(bar);
+ }
  function select(card,event={}){
   const id=card.dataset.id,rows=visibleCards(),ids=rows.map(row=>row.dataset.id);
   if(event.shiftKey&&anchor&&ids.includes(anchor)){const a=ids.indexOf(anchor),b=ids.indexOf(id);if(b<0)return;selected=new Set(ids.slice(Math.min(a,b),Math.max(a,b)+1));}
@@ -52,7 +59,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
  }
  function showMenu(x,y){menu.style.maxHeight='calc(100dvh - 16px)';menu.hidden=false;floating.refresh();const box=menu.getBoundingClientRect(),win=doc.defaultView,top=Math.max(8,Math.min(y,win.innerHeight-box.height-8));menu.style.left=Math.max(8,Math.min(x,win.innerWidth-box.width-8))+'px';menu.style.top=top+'px';menu.style.maxHeight=Math.max(0,win.innerHeight-top-8)+'px';menu.scrollTop=0;menu.querySelector('button')?.focus();}
 
- function setMode(value){const editing=canShowList();if(editing)editView=value;mode=editing?value:'legend';const listTab=doc.querySelector('#layer-tab-list');listTab.hidden=!editing;listTab.disabled=!editing;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();}
+ function setMode(value){const editing=canShowList();if(editing)editView=value;mode=editing?value:'legend';const listTab=doc.querySelector('#layer-tab-list');listTab.hidden=!editing;listTab.disabled=!editing;sidebar.dataset.layerView=mode;root.setAttribute('aria-labelledby','layer-tab-'+mode);for(const b of tablist.children){b.setAttribute('aria-selected',String(b.dataset.view===mode));b.tabIndex=b.dataset.view===mode?0:-1;}close();paintSelectionActions();}
  tablist.onclick=e=>{if(e.target.dataset.view)setMode(e.target.dataset.view);};
  tablist.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();setMode(e.key==='Home'?'legend':e.key==='End'?'list':mode==='list'?'legend':'list');doc.querySelector('#layer-tab-'+mode).focus();}};
  function open(card,x,y,trigger){
@@ -66,6 +73,8 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
    if(onGroup&&editable())custom('Group',async()=>{if(!editable())return;await onGroup(ids);},{edit:true});
    const mergeable=()=>editable()&&mergeableType(ids.map(id=>getLayers().find(l=>l.id===id)));
    if(onMerge&&mergeable())custom('Merge',async()=>{if(!mergeable())return;await onMerge(ids);},{edit:true});
+   if(onDelete&&editable())custom('Delete selected layers',async()=>{if(editable())await onDelete(ids);},{edit:true,danger:true});
+   if(onUngroup&&canUngroup(ids)&&editable())custom('Ungroup',async()=>{if(editable())await onUngroup(ids);},{edit:true});
    custom('Clear selection',()=>{selected.clear();anchor=null;paintSelection();});showMenu(x,y);return;
   }
   const action=(label,selector,options={})=>{if(card.querySelector(selector))custom(label,()=>card.querySelector(selector)?.click(),options);};
@@ -90,6 +99,13 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   showMenu(x,y);
  }
  function editCard(card){const layer=getLayers().find(l=>l.id===card.dataset.id);if(!layer||!canEdit(layer)||isBusy()||layer.saving)return;const style=card.querySelector('[data-layer-options="style"]'),panel=card.querySelector('[data-layer-panel="style"]');if(style&&panel){for(const other of root.querySelectorAll('[data-layer-panel]'))other.hidden=other!==panel;for(const button of root.querySelectorAll('[data-layer-options]'))button.setAttribute('aria-expanded',String(button===style));const r=panel.getBoundingClientRect();if(r.right<40||r.left>doc.defaultView.innerWidth-40||r.bottom<40||r.top>doc.defaultView.innerHeight-40){panel.style.left='';panel.style.top='';panel.style.right='';}}else if(style)style.click();else card.querySelector('[data-action="settings"]')?.click();}
+ // Modified clicks select rows even when the pointer is over a row button.
+ root.addEventListener('click',e=>{
+  if(!(e.shiftKey||e.ctrlKey||e.metaKey)||!canShowList()||mode!=='list'||isBusy()||e.target.closest('input,textarea,select,[data-layer-panel]'))return;
+  const card=e.target.closest('.layer-card'),group=e.target.closest('[data-group]');
+  if(card){e.preventDefault();e.stopImmediatePropagation();select(card,e);close();return;}
+  if(group&&e.target.closest('.group-heading,.group-collapse')){e.preventDefault();e.stopImmediatePropagation();const rows=[...group.querySelectorAll('.layer-card')];if(!rows.length)return;if(e.shiftKey&&anchor)select(rows.at(-1),e);else for(const row of rows)selected.add(row.dataset.id);if(!anchor)anchor=rows[0].dataset.id;paintSelection();close();}
+ },true);
  root.addEventListener('mousedown',e=>{if(e.shiftKey&&e.target.closest('.layer-card')&&!e.target.closest('input,textarea,select,[data-layer-panel]'))e.preventDefault();});
  function openGroup(group,x,y){
   if(!canShowList()||mode!=='list'||isBusy())return;
@@ -98,6 +114,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   close();returnFocus=group.querySelector('.group-collapse');menu.replaceChildren();
   const actions=[['Rename','[data-group-action="rename"]'],[returnFocus?.getAttribute('aria-expanded')==='true'?'Collapse':'Expand','[data-group-action="collapse"]'],[group.querySelector('[data-group-action="visibility"]')?.getAttribute('aria-pressed')==='true'?'Hide group':'Show group','[data-group-action="visibility"]'],['Move up','.group-actions > [data-direction="-1"]'],['Move down','.group-actions > [data-direction="1"]'],['Ungroup','[data-group-action="remove"]']];
   for(const [label,selector] of actions){const target=group.querySelector(selector);if(!target)continue;const b=doc.createElement('button');b.type='button';b.textContent=label;b.setAttribute('role','menuitem');b.onclick=()=>{close(true);if(available())target.click();};menu.append(b);}
+  if(onDeleteGroup){const b=doc.createElement('button');b.type='button';b.textContent='Delete group';b.className='danger';b.setAttribute('role','menuitem');b.onclick=async()=>{close(true);if(!available())return;try{await onDeleteGroup(group.dataset.group);}catch(error){onError(error);}};menu.append(b);}
   showMenu(x,y);
  }
  root.addEventListener('contextmenu',e=>{if(e.target.closest('.layer-card,input,textarea,select'))return;const group=e.target.closest('[data-group]');if(!group)return;e.preventDefault();openGroup(group,e.clientX,e.clientY);});
@@ -139,7 +156,7 @@ if(more){const r=more.getBoundingClientRect();open(card,r.left,r.bottom+4,more);
    }
    const title=top.querySelector('strong');title.title=layer.name+' · Right-click for options';
   }
-  dragging.refresh();floating.refresh();
+  paintSelectionActions();dragging.refresh();floating.refresh();
  }
- setMode(mode);refresh();return {refresh};
+ setMode(mode);refresh();return {refresh,setMode};
 }

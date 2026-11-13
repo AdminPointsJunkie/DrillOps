@@ -1,0 +1,12 @@
+AGD84 datum transformation grid
+
+File: au_icsm_National_84_02_07_01.tif
+Copyright: Intergovernmental Committee on Surveying and Mapping (ICSM)
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+Source: https://cdn.proj.org/au_icsm_National_84_02_07_01.tif
+Upstream documentation: https://github.com/OSGeo/PROJ-data/tree/master/au_icsm
+Downloaded 2026-11-14. Distributed unchanged.
+SHA-256: e15e4c2d91be51d4b6fb238cd8e0eddbf8033d7ed5cb24f146ba26e679b79e0f
+
+The grid is mounted for coordinate transformations only, not displayed or uploaded as a user layer.

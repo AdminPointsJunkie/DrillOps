@@ -1,3 +1,4 @@
+import {installProjGrid} from './proj-grid.js';
 import {readDWGReferences} from './cad-references.js';
 import {convertDWG,preserveCADColours} from './dwg-import.js';
 import {repairDXFHatches} from './dxf-hatches.js';
@@ -12,7 +13,7 @@ import {groupFiles,unsupportedReason} from './import-formats.js';
 import {csvGeoJSON,validateCollection,errorText,preserveCollapsedDXFLines} from './geo.js';
 import {fileLayerName} from './layer-name.js';
 let engine;
-export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));return initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{DXF_MERGE_BLOCK_GEOMETRIES:'FALSE',PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}});})().catch(e=>{engine=null;throw e;});
+export const gdal=()=>engine??=(async()=>{const r=await fetch(import.meta.env.BASE_URL+'gdal-engine.bin');if(!r.ok)throw Error('Could not load the GIS engine. Reload and try again.');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const wasmUrl=URL.createObjectURL(new Blob([bytes],{type:'application/wasm'}));const gridResponse=await fetch(import.meta.env.BASE_URL+'proj/au_icsm_National_84_02_07_01.tif');if(!gridResponse.ok)throw Error('Could not load the AGD84 coordinate grid. Reload and retry.');const grid=new File([await gridResponse.blob()],'au_icsm_National_84_02_07_01.tif');return installProjGrid(await initGdalJs({paths:{wasm:wasmUrl,data:dataUrl,js:workerUrl},env:{PROJ_DATA:'/usr/share/proj:/input',DXF_MERGE_BLOCK_GEOMETRIES:'FALSE',PROJ_ONLY_BEST_DEFAULT:'YES',PROJ_NETWORK:'OFF',OGR_CT_OP_SELECTION:'BEST_ACCURACY'}}),grid);})().catch(e=>{engine=null;throw e;});
 const id=()=>crypto.randomUUID().replaceAll('-','');
 // GDAL marks sheet/layout entities with PaperSpace=1; model-space entities are NULL or 0.
 // Filter before reprojection so sheet coordinates cannot distort extents or fail conversion.
@@ -94,7 +95,7 @@ export async function convert(item,settings,progress=()=>{}){
  if(item.image)return convertImage(item,settings);
  const source=settings.crs.trim();if(!source)throw Error('Choose the source coordinate system before importing.');
  if(item.kind==='raster'&&!item.hasTransform)throw Error('This raster has no georeferencing. Supply a georeferenced raster or its world file.');
- const csv=item.fc||(item.rows?csvGeoJSON(item.rows,settings.x,settings.y):null);
+ const csv=item.fc||(item.rows?csvGeoJSON(item.rows,settings.x,settings.y,{skipInvalid:settings.skipInvalid,rowNumbers:item.rowNumbers,rowIssues:item.rowIssues,geographic:/^EPSG:4326$/i.test(source)}):null);
  if(csv&&/^EPSG:4326$/i.test(source)&&!settings.epoch&&!settings.pipeline&&!settings.gcps)return {fc:csv,bounds:validateCollection(csv)};
  progress('Loading coordinate transformation engine…');
  const G=await gdal();let ds=item.ds;

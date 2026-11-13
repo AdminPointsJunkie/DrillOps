@@ -51,7 +51,7 @@ test('XYZ validates templates, transport and zoom; escapes provider attribution'
  assert.throws(()=>xyzSettings({url,minZoom:5,maxZoom:4}));
  assert.throws(()=>xyzSettings({url,maxZoom:23}));
  let options;
- xyzLayer({tileLayer:(u,o)=>{options=o;return {once(){}};}},{name:'Test',opacity:.4,metadata:{xyz:{url,attribution:'<img onerror=bad>',maxZoom:18}}});
+ xyzLayer({tileLayer:(u,o)=>{options=o;return {on(){}};}},{name:'Test',opacity:.4,metadata:{xyz:{url,attribution:'<img onerror=bad>',maxZoom:18}}});
  assert.equal(options.opacity,.4);assert.equal(options.maxNativeZoom,18);
  assert.equal(options.attribution,'&lt;img onerror=bad&gt;');
 });
@@ -116,3 +116,5 @@ test('XYZ add, save, edit, visibility, target, opacity and project reload never 
   assert.equal($('.layer-group'),null);assert.equal($('#layers').querySelectorAll('.layer-card').length,2);
  }finally{w.close();delete globalThis.document;}
 });
+
+test('tile coverage gaps do not warn unless the whole load fails',()=>{const events={},warnings=[];const layer={_map:{},on(name,fn){events[name]=fn;return this;}};xyzLayer({tileLayer:()=>layer},{name:'Aerial',metadata:{xyz:{url:'https://example.com/{z}/{x}/{y}.png'}}},message=>warnings.push(message));events.loading();events.tileerror();events.tileload();events.load();assert.equal(warnings.length,0);events.loading();events.tileerror();events.load();assert.equal(warnings.length,1);events.load();assert.equal(warnings.length,1);events.remove();events.load();assert.equal(warnings.length,1);});

@@ -15,6 +15,11 @@ export function xyzLayer(L,item,onError=()=>{},options={}){
  const settings=xyzSettings(item.metadata.xyz);
  const layer=L.tileLayer(settings.url,{...options,minZoom:settings.minZoom,maxZoom:22,maxNativeZoom:settings.maxZoom,
   opacity:item.opacity??1,attribution:escapeHTML(settings.attribution),zIndex:10});
- layer.once('tileerror',()=>onError(`Tiles for “${item.name}” could not load. Check the URL, access key, coverage and zoom range in Edit tiles.`));
+ let failed=0,loaded=0,reported=false;
+ layer.on('loading',()=>{failed=0;loaded=0;});
+ layer.on('tileload',()=>{loaded++;reported=false;});
+ layer.on('tileerror',()=>failed++);
+ layer.on('load',()=>{if(failed&&!loaded&&!reported&&layer._map){reported=true;onError(`No imagery loaded for “${item.name}” in this view. Try zooming out or moving within its coverage. If it still fails, check the tile URL and access key in Edit tiles.`);}});
+ layer.on('remove',()=>{failed=0;loaded=0;reported=false;});
  return layer;
 }
