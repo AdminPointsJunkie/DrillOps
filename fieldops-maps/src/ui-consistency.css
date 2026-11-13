@@ -73,3 +73,5 @@ dialog.attribute-dialog{width:min(560px,calc(100vw - 32px));max-width:calc(100vw
 [data-panel-stack][popover]{margin:0}[data-panel-stack][popover]::backdrop{background:transparent;pointer-events:none}
 
 [data-panel-drag]{cursor:move;touch-action:none}dialog[data-drag-positioned]{box-sizing:border-box;max-width:calc(100vw - 8px);overflow:auto}
+
+[data-panel-stack][popover]::backdrop{backdrop-filter:none}

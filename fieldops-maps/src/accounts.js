@@ -71,7 +71,7 @@ export function installAccounts(db,getUser,doc=document,options={}){
  }
  dialog.addEventListener('cancel',e=>{if(working||!leave())e.preventDefault();else{generation++;dirty=false;}});
  doc.querySelector('#people').textContent='Project settings';
- async function openWorkspace(id=getWorkspace()?.id,section='overview'){if(!canOpen()||!leave())return;dirty=false;workspace=id||null;tab=section;dialog.innerHTML='<p>Loading project settings…</p>';if(!dialog.open)dialog.showModal();try{await load();}catch(e){dialog.innerHTML=`<p>${esc(e.message)}</p><button data-close>Close</button>`;dialog.querySelector('button').onclick=()=>dialog.close();}}
+ async function openWorkspace(id=getWorkspace()?.id,section='overview'){if(!canOpen()||!leave())return;dirty=false;workspace=id||null;tab=section;dialog.classList.add('ws-fullscreen');dialog.innerHTML='<p style="padding:28px 32px">Loading project settings…</p>';if(!dialog.open)dialog.showModal();try{await load();}catch(e){dialog.innerHTML=`<p>${esc(e.message)}</p><button data-close>Close</button>`;dialog.querySelector('button').onclick=()=>dialog.close();}}
  doc.querySelector('#people').onclick=()=>openWorkspace();
  async function openInvitations(invites){
   dialog.classList.remove('ws-fullscreen');

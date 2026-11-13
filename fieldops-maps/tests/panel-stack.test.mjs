@@ -9,3 +9,9 @@ test('newly opened panels and clicked panels share one order without moving DOM 
  table.hidden=true;await Promise.resolve();assert.equal(order.includes(table),false);
  }finally{dom.window.close();}
 });
+
+test('toolbar menus open above Layers and close with their details owner',async()=>{
+ const dom=new JSDOM('<body><details class="tool-menu"><summary>Menu</summary><div class="tool-menu-content"><button>Settings</button></div></details><aside id="sidebar">Layers</aside></body>'),doc=dom.window.document,proto=dom.window.HTMLElement.prototype,matches=proto.matches;let order=[];
+ proto.matches=function(s){return s===':popover-open'?order.includes(this):matches.call(this,s);};proto.showPopover=function(){order.push(this);};proto.hidePopover=function(){order=order.filter(p=>p!==this);};
+ try{installPanelStack(doc);const owner=doc.querySelector('details'),menu=doc.querySelector('.tool-menu-content'),side=doc.querySelector('aside');assert.equal(order.includes(menu),false);owner.open=true;await Promise.resolve();assert.equal(order.at(-1),menu);assert.equal(order.includes(side),true);owner.open=false;await Promise.resolve();assert.equal(order.includes(menu),false);owner.open=true;await Promise.resolve();assert.equal(order.at(-1),menu);}finally{dom.window.close();}
+});
