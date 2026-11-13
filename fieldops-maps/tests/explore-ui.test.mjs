@@ -43,3 +43,15 @@ test('measurement remains local; annotation save checks role and carries drawn c
   tools.open('annotation');$('[data-annotation-name]').value='Gate';$('[data-annotation-note]').value='Keep out';handlers.click({latlng:{lng:148,lat:-22}});admin=false;$('[data-tool-finish]').click();await tick(0);assert.match($('[data-tool-error]').textContent,/Only admins/);assert.equal(saved.length,1);
  }finally{env.close();}
 });
+
+test('table adds columns, previews calculations and saves typed row edits; viewers cannot edit',async()=>{
+ const env=setup(),{dom,L,map}=env,w=dom.window,$=s=>document.querySelector(s);
+ const layer={id:'holes',name:'Holes',kind:'vector',color:'#147d72',metadata:{},fc:{type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[148,-22]},properties:{Depth:10}},{type:'Feature',geometry:{type:'Point',coordinates:[148,-22]},properties:{Depth:20}}]}};
+ let editable=true,writes=0;
+ try{const api=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>editable,redraw(){},saveStyle(){},showInfo(){},saveAttributes:async(l,fc,types)=>{writes++;l.fc=fc;l.metadata.field_types={...l.metadata.field_types,...types};}});api.openTable();
+ $('[data-add-column]').click();$('dialog [name=column]').value='Result';$('dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick(0);assert.equal(writes,1);assert.equal(layer.fc.features[0].properties.Result,null);
+ $('[data-calculator]').click();const mode=$('dialog [name=mode]');mode.value='existing';mode.dispatchEvent(new w.Event('change',{bubbles:true}));$('dialog [name=existing]').value='Result';$('dialog [name=expression]').value='"Depth" * 2';assert.equal($('dialog [type=submit]').disabled,true);$('[data-preview-calc]').click();assert.match($('[data-calculation-preview]').textContent,/2 rows/);assert.equal(writes,1);$('dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick(0);assert.equal(writes,2);assert.equal(layer.fc.features[1].properties.Result,40);
+ $('.attribute-table tbody [data-show]').click();$('[data-edit-row]').click();const input=$('dialog [aria-label=Result]');input.value='33';input.dispatchEvent(new w.Event('input'));$('dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick(0);assert.equal(layer.fc.features[0].properties.Result,33);
+ editable=false;api.refresh();for(const name of ['data-add-column','data-calculator','data-edit-row'])assert.equal($(`[${name}]`).hidden,true);
+ }finally{env.close();}
+});
