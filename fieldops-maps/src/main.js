@@ -333,9 +333,22 @@ function mergeSelectedLayers(ids){
   for(const layer of sources)if(layer._load)await layer._load();
   if(!valid())throw Error('Layer selection or access changed. Select the layers again.');
   const fc=mergeSelectedFeatures(sources);
-  await addAnalysisResult(fc,name,{color:sources[0].color,opacity:sources[0].opacity,vertical_datum:sources.every(l=>l.vertical_datum===sources[0].vertical_datum)?sources[0].vertical_datum:'Unknown',metadata:{merge:{source_ids:ids,created_at:new Date().toISOString()}}});
+  const merged=await addAnalysisResult(fc,name,{color:sources[0].color,opacity:sources[0].opacity,vertical_datum:sources.every(l=>l.vertical_datum===sources[0].vertical_datum)?sources[0].vertical_datum:'Unknown',metadata:{merge:{source_ids:ids,created_at:new Date().toISOString()}}});
   d.close();
+  await offerRemoveMergedSources(merged,sources,scope);
  }catch(error){d.querySelector('.error').textContent=errorText(error);}finally{button.disabled=false;}};
+}
+async function offerRemoveMergedSources(merged,sources,scope){
+ if(scope!==analysisScope()||!layers.includes(merged)||!canCreate())return;
+ if(!confirm(`Merge complete. Remove the ${sources.length} original layers? The merged layer will be saved first. Saved originals can be restored from Recently deleted for 30 days. Cancel keeps the originals.`))return;
+ let removed=0;
+ try{
+  const check=()=>{if(scope!==analysisScope()||!layers.includes(merged)||!canCreate()||sources.some(l=>!layers.includes(l)||!canEditLayer(l)||l.saving))throw Error('Map or layer access changed.');};
+  check();await saveLayer(merged);check();
+  if(!merged.saved||merged.saveError)throw Error('The merged layer could not be saved.');
+  for(const layer of sources){if(scope!==analysisScope()||!layers.includes(merged)||!canCreate())throw Error('Map access changed.');await trashLayer(layer,{confirmed:true});removed++;}
+  toast(`Merged layer saved; ${removed} original layers removed.`);
+ }catch(error){toast(`Merged layer kept. ${removed} original layers removed; remaining originals kept. ${errorText(error)}`);}
 }
 function groupSelectedLayers(ids){
  if(!canCreate()||ids.some(id=>{const l=layers.find(item=>item.id===id);return !l||l.saving||!canEditLayer(l);}))throw Error('Select editable layers and finish pending saves first.');
@@ -855,8 +868,8 @@ async function addAnalysisResult(fc,name,options={}){
  if(fc.raster){addLayer({id:crypto.randomUUID(),name,kind:'raster',blob:fc.blob,url:URL.createObjectURL(fc.blob),bounds:fc.bounds,source_crs:'EPSG:4326',crsLabel:'WGS 84 · heatmap',vertical_datum:'Unknown',metadata:{...options.metadata,format:'Heatmap'},color:'#d58922',opacity:.8,visible:true,saved:false,files:[]});toast('Heatmap added. Save, then Sync when ready.');return;}
  const bounds=[Infinity,Infinity,-Infinity,-Infinity];for(const f of fc.features){const b=featureBounds(f);if(b){bounds[0]=Math.min(bounds[0],b[0]);bounds[1]=Math.min(bounds[1],b[1]);bounds[2]=Math.max(bounds[2],b[2]);bounds[3]=Math.max(bounds[3],b[3]);}}
  if(!bounds.every(Number.isFinite))throw Error('The result has no usable coordinates.');
- addLayer({id:crypto.randomUUID(),name:name||'Analysis result',kind:'vector',fc,bounds,source_crs:'EPSG:4326',crsLabel:'WGS 84 · analysis',vertical_datum:options.vertical_datum||'RL',metadata:{manual:true,...options.metadata,style:{...options.metadata?.style}},color:options.color||'#315d49',opacity:options.opacity??.9,visible:true,saved:false,files:[]});
- toast('Result added. Use Save on the new layer to keep it.');
+ const result={id:crypto.randomUUID(),name:name||'Analysis result',kind:'vector',fc,bounds,source_crs:'EPSG:4326',crsLabel:'WGS 84 · analysis',vertical_datum:options.vertical_datum||'RL',metadata:{manual:true,...options.metadata,style:{...options.metadata?.style}},color:options.color||'#315d49',opacity:options.opacity??.9,visible:true,saved:false,files:[]};addLayer(result);
+ toast('Result added. Use Save on the new layer to keep it.');return result;
 }
 mapComponents=installMapComponents({getLayers:()=>layers,getScope:analysisScope,explorer});
 featureExtract=installFeatureExtract({L,map,canCreate,getScope:analysisScope,onResult:addAnalysisResult,notify:toast});
