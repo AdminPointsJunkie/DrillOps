@@ -9,3 +9,9 @@ test('operator workspace shows shared projects without creation controls or edit
  const dom=new JSDOM('<div id="app"></div>',{url:'https://example.test/maps/'}),prior=globalThis.document;globalThis.document=dom.window.document;
  try{const ui=installProjectHome({getState:()=>({authReady:true,user:{id:'operator'},canCreateProjects:false,canCreate:false,admin:false,workspaces:[{id:'shared',name:'Shared project',role:'operator',access:'project'}],projects:[]}),onResume(){}});ui.open();assert.equal(document.querySelector('[data-create-workspace]'),null);assert.equal(document.querySelector('[data-new]'),null);assert.equal(document.querySelector('.home-welcome'),null);assert.match(document.body.textContent,/Shared project/);ui.close();}finally{globalThis.document=prior;dom.window.close();}
 });
+
+test('thumbnail settings open the selected map settings without opening the map card; viewers have no cog',async()=>{
+ const dom=new JSDOM('<div id="app"></div>',{url:'https://example.test/maps/'}),prior=globalThis.document;globalThis.document=dom.window.document;let admin=true;const settings=[],opened=[];
+ try{const ui=installProjectHome({getState:()=>({user:{id:'u'},workspace:{id:'w'},projects:[{id:'a',name:'North map'}],admin}),onMapSettings:async id=>settings.push(id),onOpen:id=>opened.push(id),onResume(){}});ui.openMaps();const cog=document.querySelector('[data-map-settings=a]');assert.ok(cog);assert.equal(cog.closest('[data-project]'),null);cog.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(settings,['a']);assert.deepEqual(opened,[]);assert.equal(ui.active,true);admin=false;ui.refresh();assert.equal(document.querySelector('[data-map-settings]'),null);
+ }finally{globalThis.document=prior;dom.window.close();}
+});
