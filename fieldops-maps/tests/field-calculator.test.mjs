@@ -16,3 +16,19 @@ test('Date columns normalise Australian and ISO dates and reject invalid dates a
  assert.deepEqual(result.fc.features.map(f=>f.properties.Drilled),['2021-01-01','2024-02-29',null]);
  source.features[1].properties.Date='29/02/2023';assert.throws(()=>calculateColumn(source,{name:'Drilled',expression:'"Date"',type:'date'}),/Row 2.*Invalid date/);assert.equal(source.features[0].properties.Drilled,undefined);
 });
+
+test('skip problem rows applies valid calculations and preserves failed existing values',()=>{
+ const source={type:'FeatureCollection',features:[{properties:{Date:'01/01/2021',Year:1999}},{properties:{Date:'',Year:2000}},{properties:{Date:'31/02/2022',Year:2001}},{properties:{Date:'01/01/2024',Year:2002}}]},before=structuredClone(source);
+ const options={name:'Year',existing:true,expression:`year(to_date("Date", 'dd/MM/yyyy'))`,type:'integer'};
+ assert.throws(()=>calculateColumn(source,options),/Nothing changed/);
+ const result=calculateColumn(source,{...options,skipErrors:true});assert.equal(result.count,2);assert.equal(result.skipped,2);assert.match(result.errors[0],/Row 2/);assert.deepEqual(result.fc.features.map(f=>f.properties.Year),[2021,2000,2001,2024]);assert.deepEqual(source,before);
+ const added=calculateColumn(source,{...options,name:'New Year',existing:false,indices:[0,1,2],skipErrors:true});assert.deepEqual(added.fc.features.map(f=>f.properties['New Year']),[2021,null,null,null]);assert.equal(added.skipped,2);
+ assert.throws(()=>calculateColumn(source,{...options,expression:'unknown_function(1)',skipErrors:true}));
+});
+
+test('skip checkbox requires a new preview, reports skipped rows and applies only valid values',async()=>{
+ const {JSDOM}=await import('jsdom'),{openFieldCalculator}=await import('../src/field-calculator.js');const dom=new JSDOM('<body></body>'),previous=globalThis.document;globalThis.document=dom.window.document;dom.window.HTMLDialogElement.prototype.show=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};let saved;
+ try{const layer={fc:{type:'FeatureCollection',features:[{properties:{Date:'01/01/2021'}},{properties:{Date:''}}]}};const d=openFieldCalculator(layer,[0,1],async fc=>saved=fc),q=s=>d.querySelector(s);q('[name=column]').value='Year';q('[name=expression]').value=`year(to_date("Date", 'dd/MM/yyyy'))`;q('[name=type]').value='integer';q('[data-preview-calc]').click();assert.equal(q('[type=submit]').disabled,true);assert.match(q('.error').textContent,/Row 2/);q('[name=skip-errors]').checked=true;q('[name=skip-errors]').dispatchEvent(new dom.window.Event('change',{bubbles:true}));assert.equal(q('[type=submit]').disabled,true);q('[data-preview-calc]').click();assert.equal(q('[type=submit]').disabled,false);assert.match(q('[data-calculation-preview]').textContent,/1 problem rows will be skipped/);assert.match(q('.calculation-skipped').textContent,/Row 2/);await q('form').onsubmit({preventDefault(){}});assert.deepEqual(saved.features.map(f=>f.properties.Year),[2021,null]);
+ q('[name=expression]').value='1 / 0';q('[data-preview-calc]').click();assert.equal(q('[type=submit]').disabled,true);
+ }finally{globalThis.document=previous;dom.window.close();}
+});
