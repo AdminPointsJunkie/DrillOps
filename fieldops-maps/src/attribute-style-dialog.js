@@ -46,6 +46,6 @@ export function openAttributeStyle(layer,onApply,{onPreview=()=>()=>{}}={}){
  }
  q('[data-preview-button]').onclick=preview;
  form.onsubmit=async e=>{e.preventDefault();const rules=preview();if(rules===undefined)return;const button=form.querySelector('[type=submit]');button.disabled=true;try{await onApply(rules);dialog.close();}catch(error){message.textContent=error.message;}finally{button.disabled=false;}};
- dialog.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>{clearMapPreview();dialog.remove();},{once:true});drawClasses();modeChanged();dialog.showModal();
+ dialog.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>{clearMapPreview();dialog.remove();},{once:true});drawClasses();modeChanged();dialog.show();
  return dialog;
 }

@@ -20,7 +20,7 @@ test('selected public provider is used for queries and source previews',async()=
  await qglobeDirectory('',{root,fetcher:async url=>{queried=url;return {ok:true,text:async()=>'{"folders":[],"services":[]}'};}});assert.equal(queried,root+'?f=json');assert.ok(qglobePreview('govunits/MapServer/0',bounds,root).startsWith(root+'/govunits/MapServer/export?'));
 });
 test('public directory dialog loads and closes without leaking late results',async()=>{
- const {JSDOM}=await import('jsdom');const {openQGlobe}=await import('../src/qglobe.js');const dom=new JSDOM();globalThis.document=dom.window.document;const old=globalThis.fetch;dom.window.HTMLDialogElement.prototype.showModal=function(){};dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
+ const {JSDOM}=await import('jsdom');const {openQGlobe}=await import('../src/qglobe.js');const dom=new JSDOM();globalThis.document=dom.window.document;const old=globalThis.fetch;dom.window.HTMLDialogElement.prototype.show=dom.window.HTMLDialogElement.prototype.showModal=function(){};dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
  let finish;globalThis.fetch=()=>new Promise(r=>finish=r);
  try{const d=openQGlobe({L:{},getBounds:()=>bounds,valid:()=>{},onResult:()=>{}});d.close();finish({ok:true,text:async()=>'{"folders":["Location"]}'});await new Promise(r=>setTimeout(r,0));assert.equal(document.querySelector('dialog'),null);}finally{globalThis.fetch=old;delete globalThis.document;dom.window.close();}
 });

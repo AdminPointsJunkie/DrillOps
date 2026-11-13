@@ -8,7 +8,7 @@ test('library sections distinguish private, direct shares, project entries, arch
  const options={userId:'me',workspaceId:'p',publicRows:[{id:'public'}],isFavourite:r=>['mine','public'].includes(r.id)},ids=t=>librarySection(rows,t,options).map(r=>r.id);
  assert.deepEqual(ids('yours'),['mine']);assert.deepEqual(ids('shared'),['other-private']);assert.deepEqual(ids('project'),['project']);assert.deepEqual(ids('archived'),['archived']);assert.deepEqual(ids('favourites'),['public','mine']);assert.deepEqual(ids('public'),['public']);
 });
-function setup(){const dom=new JSDOM('<body></body>',{url:'https://example.test'});globalThis.document=dom.window.document;globalThis.FormData=dom.window.FormData;dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};return dom;}
+function setup(){const dom=new JSDOM('<body></body>',{url:'https://example.test'});globalThis.document=dom.window.document;globalThis.FormData=dom.window.FormData;dom.window.HTMLDialogElement.prototype.show=dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};return dom;}
 const tick=()=>new Promise(r=>setTimeout(r,0));
 test('library has six sections and no upload/save controls or automatic map layers',async()=>{
  const dom=setup();const d=openDataLibrary({L:{},canCreate:()=>true,getScope:()=> 'p',getUser:()=>({id:'me'}),getWorkspace:()=>({id:'p'}),workspaceLibrary:{list:async()=>rows,canManage:()=>false},favourites:{list:async()=>[]}});await tick();

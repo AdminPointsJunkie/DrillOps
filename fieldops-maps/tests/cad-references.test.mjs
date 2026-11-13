@@ -23,7 +23,7 @@ test('cancel aborts the drawing and skipped files never enter the reference bund
 });
 test('reference dialog shows stored path, library matches, inclusion and cancel without auto-reading files',async()=>{
  const dom=new JSDOM('<body></body>'),w=dom.window;globalThis.document=w.document;globalThis.window=w;
- w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
+ w.HTMLDialogElement.prototype.show=w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
  const row={id:'one',name:'Current survey',presentation:{drawing:{filename:'survey.dwg'}}};let loads=0;
  const resolve=createReferenceResolver({library:{listDrawings:async()=>[row],loadDrawing:async()=>{loads++;return file('survey.dwg');}}});
  const pending=resolve({drawing:'host.dwg',references:[ref]});await new Promise(r=>setTimeout(r,0));const d=w.document.querySelector('dialog');assert.equal(d.querySelector('[readonly]').value,ref.path);assert.match(d.textContent,/matching drawing/);assert.equal(loads,0);assert.equal(d.querySelector('[data-include]').disabled,true);

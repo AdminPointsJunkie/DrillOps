@@ -21,7 +21,7 @@ test('selection reset preserves other tools and refresh drops hidden features',a
   document.querySelector('#map-select-tool').click();assert.equal(dragging,false);assert.equal(boxZoom,false);
   selection.select(l,0);assert.equal(document.querySelector('[data-count]').textContent,'1 selected');assert.equal(paneOptions.at(-1).pane,'map-selection');
   visible=false;selection.refresh();assert.equal(document.querySelector('[data-count]').textContent,'Select features');
-  selection.reset();assert.equal(dragging,true);assert.equal(boxZoom,true);
+  document.querySelector('.selection-panel [data-close]').click();assert.equal(selection.active,false);assert.equal(document.querySelector('.selection-panel').hidden,true);assert.equal(document.querySelector('#map-select-tool').getAttribute('aria-pressed'),'false');assert.equal(document.querySelector('.map-area').classList.contains('map-selecting'),false);assert.equal(dragging,true);assert.equal(boxZoom,true);
   dragging=false;selection.reset();assert.equal(dragging,false,'inactive selector must not enable panning over another tool');
  }finally{globalThis.document=previous;dom.window.close();}
 });

@@ -7,7 +7,7 @@ import {classifyFeatures} from '../src/attribute-style.js';
 const tick=ms=>new Promise(r=>setTimeout(r,ms));
 function setup(){
  const dom=new JSDOM('<div id="layers"><article class="layer-card" data-id="holes"></article></div><div class="map-area"><div id="map"></div></div>',{pretendToBeVisual:true});globalThis.document=dom.window.document;
- dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
+ dom.window.HTMLDialogElement.prototype.show=dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
  const handlers={},fits=[],make=()=>({addTo(){return this;}}),L={geoJSON:make,circleMarker:make,layerGroup:make,polygon:make,polyline:make};
  const map={on:(name,fn)=>handlers[name]=fn,fitBounds:b=>fits.push(b),removeLayer(){},getBounds:()=>({getWest:()=>147,getEast:()=>150,getSouth:()=>-23,getNorth:()=>-21})};
  return {dom,L,map,handlers,fits,close(){dom.window.close();delete globalThis.document;}};

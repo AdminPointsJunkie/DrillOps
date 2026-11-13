@@ -42,7 +42,7 @@ test('feature colours survive Leaflet style callback; formulas clamp size and re
 });
 test('dialog classifies, edits, validates formulas, applies and cancels without mutating original layer',async()=>{
  const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;
- dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ dom.window.HTMLDialogElement.prototype.show=dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new dom.window.Event('close'));};
  const layer={name:'CSV <holes>',color:'#123456',fc,metadata:{}};let applied;
  const dialog=openAttributeStyle(layer,rules=>{applied=rules;});const form=dialog.querySelector('form'),get=n=>form.elements.namedItem(n);
