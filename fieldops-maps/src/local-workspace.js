@@ -89,6 +89,9 @@ export function createLocalWorkspace(indexedDB = globalThis.indexedDB) {
    if(name==='maps_supporting_file'){const m=(await all('maps')).find(m=>m.id===args.p_map);if(!m)throw Error('Map unavailable');const files=m.supporting_files||[],f=args.p_file,group=String(f.group??'').trim();if(group.length>80)throw Error('Keep headings to 80 characters or fewer.');
     if(args.p_action==='remove')m.supporting_files=files.filter(item=>item.path!==f.path);
     else if(args.p_action==='group'||args.p_action==='rename_group')m.supporting_files=files.map(item=>(args.p_action==='group'?item.path===f.path:(item.group||'')===f.previous)?{...item,group}:item);
+    else if(args.p_action==='rename'){const name=String(f.name??'').trim();if(!name||name.length>240||/[\\/]/.test(name))throw Error('Enter a valid file name');if(!files.some(i=>i.path===f.path))throw Error('File unavailable');m.supporting_files=files.map(i=>i.path===f.path?{...i,name}:i);}
+    else if(args.p_action==='move'){const item=files.find(i=>i.path===f.path);if(!item)throw Error('File unavailable');if(f.before===f.path)return files;const rest=files.filter(i=>i.path!==f.path),at=f.before?rest.findIndex(i=>i.path===f.before):rest.length;if(at<0)throw Error('Destination file unavailable');rest.splice(at,0,{...item,group});m.supporting_files=rest;}
+    else if(args.p_action==='remove_group'){if(!f.previous)throw Error('Choose a named group');m.supporting_files=files.filter(i=>(i.group||'')!==f.previous);}
     else if(args.p_action==='add')m.supporting_files=files.some(item=>item.path===f.path)?files:[...files,{...f,...(group?{group}:{})}];
     else throw Error('Unknown supporting-file action');await put('maps',m);return m.supporting_files;}
 
