@@ -23,7 +23,13 @@ export async function createSigningIdentity({name,email,password}){
  return {p12:new Uint8Array(Buffer.from(forge.asn1.toDer(p12).getBytes(),'binary')),certificate:new Uint8Array(certificate),fingerprint:await digest(certificate),expires:cert.validity.notAfter.toISOString()};
 }
 
-export async function signDocument({source,method,name,email,pageIndex,x,y,text,png,p12,password,now=new Date().toISOString()}){
+export function signatureBounds({crop,x,y,width=Math.min(250,crop.width-16),height=76}){
+ if(![x,y,width,height,crop.x,crop.y,crop.width,crop.height].every(Number.isFinite)||width<80||height<32||crop.width<96||crop.height<48)throw Error('Choose a valid signature position and size.');
+ width=Math.min(width,crop.width-16);height=Math.min(height,crop.height-16);
+ return {x:Math.max(crop.x+8,Math.min(x,crop.x+crop.width-width-8)),y:Math.max(crop.y+8,Math.min(y-height,crop.y+crop.height-height-8)),width,height};
+}
+
+export async function signDocument({source,method,name,email,pageIndex,x,y,width,height,text,png,p12,password,now=new Date().toISOString()}){
  if(!['typed','drawn','certificate'].includes(method))throw Error('Choose a signature method.');
  if(source.byteLength>50*1024*1024)throw Error('Signing supports PDFs up to 50 MB.');
  const doc=await PDFDocument.load(source,{updateMetadata:false});
@@ -43,20 +49,19 @@ export async function signDocument({source,method,name,email,pageIndex,x,y,text,
   certificateSubject=cert.subject.getField('CN')?.value||'Certificate signer';
   certificateFingerprint=await digest(Buffer.from(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes(),'binary'));
  }
- const crop=page.getCropBox(),width=Math.min(250,crop.width-16),height=76;
- if(!Number.isFinite(x)||!Number.isFinite(y)||crop.height<height+16||width<80)throw Error('Choose a valid signature position.');
- x=Math.max(crop.x+8,Math.min(x,crop.x+crop.width-width-8));y=Math.max(crop.y+8,Math.min(y-height,crop.y+crop.height-height-8));
+ ({x,y,width,height}=signatureBounds({crop:page.getCropBox(),x,y,width,height}));
+ const sx=width/250,sy=height/76,padding=6*sx;
  const font=await doc.embedFont(StandardFonts.Helvetica),italic=await doc.embedFont(StandardFonts.TimesRomanItalic);
  page.drawRectangle({x,y,width,height,color:rgb(1,1,1),opacity:.94,borderColor:rgb(.7,.7,.7),borderWidth:.5});
  if(method==='drawn'){
-  if(!png?.byteLength)throw Error('Draw your signature first.');const image=await doc.embedPng(png),ratio=Math.min((width-12)/image.width,40/image.height);
-  page.drawImage(image,{x:x+6,y:y+30,width:image.width*ratio,height:image.height*ratio});
+  if(!png?.byteLength)throw Error('Draw your signature first.');const image=await doc.embedPng(png),ratio=Math.min((width-2*padding)/image.width,40*sy/image.height);
+  page.drawImage(image,{x:x+padding,y:y+30*sy,width:image.width*ratio,height:image.height*ratio});
  }else{
   const value=ascii(method==='typed'?text:certificateSubject).trim();if(!value)throw Error('Enter your signature.');
-  const size=Math.min(20,(width-12)/Math.max(1,italic.widthOfTextAtSize(value,1)));page.drawText(value,{x:x+6,y:y+44,font:italic,size});
+  const size=Math.min(20*Math.min(sx,sy),(width-2*padding)/Math.max(1,italic.widthOfTextAtSize(value,1)));page.drawText(value,{x:x+padding,y:y+44*sy,font:italic,size});
  }
  const details=[ascii(name).slice(0,90),new Date(now).toISOString().replace('T',' ').slice(0,19)+' UTC',method==='certificate'?'Digital certificate - verify trust in your PDF reader':'Electronic signature - DrillOps FieldMaps'];
- details.forEach((line,i)=>page.drawText(line,{x:x+6,y:y+27-i*10,font,size:Math.min(7,(width-12)/Math.max(1,font.widthOfTextAtSize(line,1)))}));
+ details.forEach((line,i)=>page.drawText(line,{x:x+padding,y:y+(27-i*10)*sy,font,size:Math.min(7*Math.min(sx,sy),(width-2*padding)/Math.max(1,font.widthOfTextAtSize(line,1)))}));
  if(method==='certificate'){
   const date=new Date(now);
   const [{pdflibAddPlaceholder},{SignPdf},{P12Signer}]=await Promise.all([import('@signpdf/placeholder-pdf-lib'),import('@signpdf/signpdf'),import('@signpdf/signer-p12')]);

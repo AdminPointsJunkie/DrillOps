@@ -53,3 +53,12 @@ test('save rejects altered stored bytes and revoked access before recording a si
  const args={db,project:{id:'map'},file:{name:'Plan.pdf',path:'source'},userId:'user',result,method:'typed',operationId:'operation'};
  await assert.rejects(saveSignedDocument(args),/could not be verified/);await assert.rejects(saveSignedDocument({...args,guard:()=>false}),/access changed/);assert.equal(records,0);
 });
+
+test('signature placement accepts chosen dimensions and clamps all edges of offset crop boxes',async()=>{
+ const {signatureBounds}=await import('../src/document-signing-core.js');
+ const crop={x:40,y:25,width:400,height:600};
+ assert.deepEqual(signatureBounds({crop,x:70,y:500,width:180,height:50}),{x:70,y:450,width:180,height:50});
+ assert.deepEqual(signatureBounds({crop,x:-100,y:1000,width:180,height:50}),{x:48,y:567,width:180,height:50});
+ assert.deepEqual(signatureBounds({crop,x:1000,y:-100,width:180,height:50}),{x:252,y:33,width:180,height:50});
+ for(const value of [{width:NaN},{height:0},{width:-1}])assert.throws(()=>signatureBounds({crop,x:70,y:500,...value}),/position and size/);
+});
