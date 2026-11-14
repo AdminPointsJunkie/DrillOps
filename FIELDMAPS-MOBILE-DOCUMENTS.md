@@ -36,10 +36,14 @@ The RPC currently requires map editing rights. If operators/viewers should sign,
 - Queue exact output bytes and operation ID for offline signing; show pending upload and receipt status separately. Test revoked access and account switching.
 - Preserve losslessly compressed downloads through the existing attachment download path. Signature validation must use decoded original PDF bytes.
 
-## Browser Word conversion -- pending
+## Browser Word conversion -- implemented and browser-verified
 
-The browser LibreOffice engine did not pass startup checks in Edge. It is **not deployed**. New Word uploads are stopped with a message to save and upload a PDF, so unconverted Word files are not stored. Existing Word attachments remain unchanged.
+The desktop web app converts new `.doc` and `.docx` Supporting Files to PDF in the browser before upload. Only the validated PDF is stored. Existing Word attachments remain unchanged. The upload integration provides conversion progress, cancellation, PDF validation and verification of uploaded bytes.
 
-The upload integration supports conversion progress, cancellation, PDF validation and verified uploads. Conversion must pass an actual browser check before enabling it. Local diagnostic work is in `fieldops-maps/preview-check/word-conversion-pending/`, `word-conversion-pending.js` and `scripts/prepare-office.mjs` (not published). The pinned engine tested was @matbee/libreoffice-converter 2.7.2; its Node worker converted the two-page fixture successfully, but its browser worker stalled during LibreOfficeKit initialization. Development-server watcher crashes were also isolated; startup still stalled with a stable server. Do not ship the diagnostic worker or assume Node success proves browser success.
+The self-hosted engine is `@matbee/libreoffice-converter` 2.7.2, prepared by `fieldops-maps/scripts/prepare-office.mjs`. Two guarded JavaScript fixes resolve browser startup stalls: set Emscripten `noInitialRun:true` to avoid starting LibreOffice twice, and pre-create eight pthread workers to avoid worker-pool deadlock during synchronous initialization. These follow upstream pull requests #21 and #20 respectively. Verbose LibreOffice tracing is disabled. WASM/data bytes are unchanged and gzip-compressed for delivery.
 
-The intended engine is self-hosted under `/maps/office/` in an isolated conversion tab. It downloads about 75 MiB on first use. Cache runtime assets only, never documents. Preserve image resolution and review Word font/layout fidelity before release. Native Word conversion is separate work.
+The engine runs under `/maps/office/` in a separate isolated conversion tab so map tiles, authentication and the map UI retain their existing headers. First use downloads about 75 MiB; the service worker caches runtime assets only, never documents. Conversion preserves image resolution; Word font/layout fidelity can vary.
+
+Verification on 15 November 2026: actual Edge browser converted a two-page DOCX, then a DOC/DOCX batch in the same engine session. PDF.js rendered both pages and extracted the expected text, table, headers and footers. Cached-engine batch conversion took 7.5 seconds (12.5 seconds when rendering the PDF while the production build ran). Sixteen focused conversion/upload/compression tests passed; production build passed. Synthetic test documents only; no customer files were changed. Diagnostic workers and local verification credentials are not shipped.
+
+Native Word conversion remains separate work for the Mac/mobile repository. The shared attachment/signed-PDF version contract above is unchanged.
