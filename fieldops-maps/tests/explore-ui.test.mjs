@@ -56,3 +56,24 @@ test('table adds columns, previews calculations and saves typed row edits; viewe
  editable=false;api.refresh();for(const name of ['data-add-column','data-calculator','data-edit-row','data-delete-column'])assert.equal($(`[${name}]`).hidden,true);
  }finally{env.close();}
 });
+
+test('classified years hide independently and collapse survives rebuilding rows',async()=>{
+ const env=setup(),{dom,L,map}=env;
+ try{
+  const fc={features:[2005,2006,2021].map(year=>({type:'Feature',properties:{Year:year},geometry:{type:'Point',coordinates:[148,-22]}}))};
+  const layer={id:'holes',name:'Holes',kind:'vector',fc,metadata:{style:{rules:{mode:'categorized',field:'Year',classes:classifyFeatures(fc,'Year','categorized')}}}};
+  const original=JSON.stringify(fc);let writes=0;
+  const api=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>true,redraw(){},saveStyle:async()=>writes++,showInfo(){}});
+  api.refresh();api.openTable();assert.ok(document.querySelector('.has-classified-legend'));
+  for(const year of [2005,2006])document.querySelector(`[data-legend-key="number:${year}"]`).click();
+  assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[false,false,true]);
+  assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,1);
+  document.querySelector('.layer-legend').open=false;await tick(10);
+  document.querySelector('.layer-card').replaceChildren();api.refresh();
+  assert.equal(document.querySelector('.layer-legend').open,false);
+  assert.equal(document.querySelector('[data-legend-key="number:2005"]').checked,false);
+  document.querySelector('.layer-legend').open=true;document.querySelector('[data-legend-key="number:2005"]').click();
+  assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[true,false,true]);
+  assert.equal(JSON.stringify(fc),original);assert.equal(writes,0);
+ }finally{env.close();}
+});
