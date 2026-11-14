@@ -216,7 +216,7 @@ function syncStack(){
  });
  refreshLabels();explorer?.refresh();mapComparison?.refresh();
 }
-function refreshLabels(){scene3D?.refresh();const bounds=map.getBounds().pad(.1);for(const l of layers)if((isVisible(l)||mapComparison?.includes(l.id))&&l.kind==='vector'&&!l.metadata?.annotation)pointLabels(rendered.get(l.id),l,bounds,document);}
+function refreshLabels(){scene3D?.refresh();const occupied=[],bounds=map.getBounds().pad(.1);for(const l of layers)if((isVisible(l)||mapComparison?.includes(l.id))&&l.kind==='vector'&&!l.metadata?.annotation)pointLabels(rendered.get(l.id),l,bounds,document,500,{map,occupied});}
 map.on('moveend zoomend',refreshLabels);
 function refreshSaveStatus(){
  const status=$('#save-status');if(!status)return;
@@ -428,8 +428,8 @@ function dropTarget(e){
 $('#layers').addEventListener('dragover',e=>{if(!draggedNode)return;e.preventDefault();e.dataTransfer.dropEffect='move';clearDropMarks();const target=dropTarget(e);if(target)target.el.classList.add('drop-'+target.position);});
 $('#layers').addEventListener('drop',e=>{if(!draggedNode)return;e.preventDefault();e.stopPropagation();const target=dropTarget(e);if(target&&moveNode(layerTree,draggedNode,target.id,target.position))arrangementChanged();draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
 $('#layers').addEventListener('dragend',()=>{draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
-const styleNumbers=new Set(['pointSize','lineWidth','fillOpacity']);
-const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField','rules','view','popup','numberFormats','useKMLStyle']);
+const styleNumbers=new Set(['pointSize','lineWidth','fillOpacity','labelSize','labelHaloWidth','labelMinZoom']);
+const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField','labelSize','labelColor','labelWeight','labelHaloColor','labelHaloWidth','labelPlacement','labelMinZoom','labelAvoidOverlap','rules','view','popup','numberFormats','useKMLStyle']);
 const styleSaves=new Map();
 $('#layers').addEventListener('click',e=>{
  const button=e.target.closest('[data-action="attribute-style"]');if(!button||busy)return;
@@ -441,7 +441,7 @@ async function changeLayerStyle(e){
  const l=layers.find(l=>l.id===card.dataset.id),action=e.target.dataset.action;if(!l||(!canEditLayer(l)&&action!=='visibility'))return;
  if(action==='visibility')l.visible=e.target.checked;
  else if(action==='color'||action==='opacity')l[action]=action==='opacity'?Number(e.target.value):e.target.value;
- else if(styleKeys.has(action)){l.metadata={...l.metadata,style:{...l.metadata?.style,[action]:action==='useKMLStyle'?e.target.checked:styleNumbers.has(action)?Number(e.target.value):e.target.value}};}
+ else if(styleKeys.has(action)){l.metadata={...l.metadata,style:{...l.metadata?.style,[action]:['useKMLStyle','labelAvoidOverlap'].includes(action)?e.target.checked:styleNumbers.has(action)?Number(e.target.value):e.target.value}};}
  else return;
  if(e.target.type==='range'){const output=e.target.parentElement.querySelector('output');if(output)output.textContent=Math.round(Number(e.target.value)*100)+'%';}
  map.removeLayer(rendered.get(l.id));const next=makeLayer(l);rendered.set(l.id,next);if(isVisible(l))next.addTo(map);syncStack();layerControl?.refresh();
