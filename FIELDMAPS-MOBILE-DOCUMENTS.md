@@ -1,6 +1,6 @@
 # DrillOps FieldMaps: mobile document signing handoff
 
-The iOS implementation is now in `FieldOps-1.1.3/iOS` on John's Mac. It builds successfully and its signing engine passes an iPhone simulator test. It has not been distributed through TestFlight or the App Store. Android implementation remains pending. The web implementation and shared backend are in this repository.
+The native iOS app is **FieldMaps By DrillOps**, bundle `au.com.drillops.mobile`, App Store Connect app `6796881116`. Its canonical source is `/Users/johnoleary/Documents/ChatGPT/Shared Map/drillops-viewer/DrillOps.xcodeproj`. Version 2.0 (32) contains document signing, reusable forms and work-area photos. Android implementation remains pending. The web implementation and shared backend are in this repository. FieldOps is a separate app; do not modify or release it for this work.
 
 ## Web behaviour and shared contract
 
@@ -36,11 +36,11 @@ The RPC accepts existing map editors and explicitly authorised, still-assigned o
 - The durable queue atomically retains the operation UUID, exact signed bytes, hashes and later server receipt. It is account-partitioned, file-protected and excluded from backups. Offline signing uses a previously checked PDF snapshot; upload re-checks current access and the backend rejects obsolete sources. Pending rows can retry after app restart without signing again.
 - Downloads retain URLSession's HTTP gzip decoding. Hashes and PDF validation use the decoded original bytes.
 - Rebuild the bundled engine with `node native-signing/build.mjs <iOS Signing directory>` from `fieldops-maps` after installing the pinned lockfile dependencies.
-- On the Mac, run `python3 Scripts/check_document_signing.py <fieldops-maps directory>` from the iOS project. This verifies the actual WebKit output with PDFKit and OpenSSL, including tampering, wrong passwords, expired IDs, queue persistence, uncertain-response retries, revoked access, hash mismatches and account switching. `DocumentSigningTests` additionally exercises the engine inside an iPhone simulator.
+- On the Mac, run `python3 Tests/check_document_signing.py <fieldops-maps directory>` from the iOS project. This verifies the actual WebKit output with PDFKit and OpenSSL, including tampering, wrong passwords, expired IDs, queue persistence, uncertain-response retries, revoked access, hash mismatches and account switching. The FieldMaps simulator build and signed Release archive are also verified.
 - Backend migrations: `20261114193559_native_document_signing.sql` and `20261114195111_signing_assignment_recheck.sql`. Both are applied to Shared Map. The private grant table intentionally has no direct client table access.
-- Validation: iOS simulator build and signing test passed; 61 existing native integration checks passed; all 19 focused web tests passed. The full web suite had 10 existing failures, reproduced on the unchanged baseline, unrelated to this signing change.
+- Validation for FieldMaps 2.0 (32): simulator build and Release archive passed; 53 production-store checks, 50 portal/model/style checks and 8 browser grouping checks passed. Native WebKit checks cover form filling and signing, with independent OpenSSL signature/tamper verification. Queue tests cover exact photo/form retries and preserved template references. Focused web form, signing and submission checks passed. The full web suite had 10 existing failures, reproduced on the unchanged baseline, unrelated to this signing change.
 
-Android signing, native Word conversion and native app distribution remain separate work.
+Android signing and native Word conversion remain separate work.
 
 ## Browser Word conversion -- implemented and browser-verified
 
@@ -66,4 +66,4 @@ Photos are atomically saved to an account-partitioned, protected, backup-exclude
 
 Shared migration `20261114203440_operator_work_photos.sql` adds `maps_submit_field_document`, `maps_set_form_template` and `can_submit_field_documents` in current documents. Explicitly assigned operators have append-only photo/form access, with no general map/template editing. Upload paths end in per-operation `photo.jpg` or `form.pdf`. Private receipts enforce request equality on retry; revoked assignments and disabled templates reject new submissions. Existing normal PDF signing permissions remain separate.
 
-Validation: focused PDF field, submission permission, immutable retry and previous document tests pass; 61 native sync checks and native WebKit/OpenSSL signing checks pass. Simulator tests cover actual form filling, signing, photo reduction/stamp metadata, optical-axis bearings and queue persistence/account isolation. The production web build passes. iOS changes are in the local native source; TestFlight/App Store distribution remains pending.
+Validation: focused PDF field, submission permission, immutable retry and previous document tests pass. FieldMaps native runtime checks cover actual form filling, signing, required fields, preserved template bytes, optical-axis bearings and photo/form queue persistence, exact retries and account isolation. The production web build, FieldMaps simulator build and signed Release archive pass. Physical iPhone camera/GPS validation remains a field-test item. The app is packaged as FieldMaps 2.0 (32); no public App Store submission is part of this release.
