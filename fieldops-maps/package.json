@@ -52,6 +52,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "fake-indexeddb": "6.2.4",
     "hyparquet-writer": "0.18.0",
     "jsdom": "26.1.0",

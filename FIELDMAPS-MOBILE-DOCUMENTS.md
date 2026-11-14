@@ -1,6 +1,6 @@
 # DrillOps FieldMaps: mobile document signing handoff
 
-The native app source is on John's Mac. Native implementation is intentionally pending; the web implementation and shared backend are in this repository.
+The iOS implementation is now in `FieldOps-1.1.3/iOS` on John's Mac. It builds successfully and its signing engine passes an iPhone simulator test. It has not been distributed through TestFlight or the App Store. Android implementation remains pending. The web implementation and shared backend are in this repository.
 
 ## Web behaviour and shared contract
 
@@ -24,17 +24,23 @@ See `fieldops-maps/src/document-signing-core.js`, `document-signing-save.js` and
    - `p_file`: `{name, path, size, type: "application/pdf"}`.
    - `p_signature`: `{method: "typed" | "drawn" | "certificate", source_sha256, output_sha256, certificate_fingerprint}`. The fingerprint is null for typed/drawn methods.
 6. Use the returned `files` list. The transaction updates the single current attachment, preserves its name/group/document ID, increments its version and returns the receipt. Old source bytes and metadata are retained in private history (`maps_document_history`). Concurrent signing against an obsolete source is rejected; reload and review the latest document before retrying. Retry the same request after an uncertain response; never generate another signature just to retry a save.
-7. Desktop Supporting Files refreshes on opening/focus and every 30 seconds while visible. Current published map releases still require Sync. The native implementation must fetch the shared current document/version separately from its cached release: do not let an offline app overwrite a newer version. Add a deliberate operator signing permission and authorized current-document endpoint before wiring the native workflow; editor-only web permissions are not sufficient for operators.
+7. Desktop Supporting Files refreshes on opening/focus and every 30 seconds while visible. Current published map releases still require Sync. The native implementation must fetch the shared current document/version separately from its cached release: do not let an offline app overwrite a newer version. Use `maps_current_documents(p_map)` to fetch `{files, can_sign}`. Administrators grant individual assigned operators signing access in Supporting Files → Operator signing permissions. Removing the grant, assignment, account access or current session prevents signing.
 
-The RPC currently requires map editing rights. If operators/viewers should sign, add a deliberate signing capability and matching storage/RPC checks; do not give them blanket map-edit rights. Re-check account/map access before completing an offline upload. Map deletion cascades private signature receipts.
+The RPC accepts existing map editors and explicitly authorised, still-assigned operators. Operator uploads are restricted to registered per-operation signed PDF paths; operators do not gain map-edit rights. Re-check account/map access before completing an offline upload. Map deletion cascades private signature receipts.
 
-## Native implementation work
+## Native iOS implementation
 
-- Add PDF preview, page selection, signature placement, explicit signing consent, draw/type inputs and PKCS#12 import/generation.
-- Use native secure key storage (Keychain/Secure Enclave where suitable). Never include keys/passwords in diagnostics, analytics, cloud storage or sync payloads.
-- Use a PDF signing library that produces compatible CMS signatures. Validate with an independent PDF reader and OpenSSL, including tampering, wrong password, expired IDs and retries.
-- Queue exact output bytes and operation ID for offline signing; show pending upload and receipt status separately. Test revoked access and account switching.
-- Preserve losslessly compressed downloads through the existing attachment download path. Signature validation must use decoded original PDF bytes.
+- Files refreshes the current-document endpoint on opening, foregrounding and every 30 seconds. The map release remains separate.
+- The signing sheet uses native PDFKit preview, page selection and placement, typed input, PencilKit drawing and explicit consent. The existing signing core runs in a bundled, nonpersistent WebKit context with network connections blocked.
+- RSA PKCS#12 import and self-signed generation are supported. Password-protected IDs are stored per account in device-only Keychain items; passwords are memory-only. No key or password enters uploads, diagnostics or sync records.
+- The durable queue atomically retains the operation UUID, exact signed bytes, hashes and later server receipt. It is account-partitioned, file-protected and excluded from backups. Offline signing uses a previously checked PDF snapshot; upload re-checks current access and the backend rejects obsolete sources. Pending rows can retry after app restart without signing again.
+- Downloads retain URLSession's HTTP gzip decoding. Hashes and PDF validation use the decoded original bytes.
+- Rebuild the bundled engine with `node native-signing/build.mjs <iOS Signing directory>` from `fieldops-maps` after installing the pinned lockfile dependencies.
+- On the Mac, run `python3 Scripts/check_document_signing.py <fieldops-maps directory>` from the iOS project. This verifies the actual WebKit output with PDFKit and OpenSSL, including tampering, wrong passwords, expired IDs, queue persistence, uncertain-response retries, revoked access, hash mismatches and account switching. `DocumentSigningTests` additionally exercises the engine inside an iPhone simulator.
+- Backend migrations: `20261114193559_native_document_signing.sql` and `20261114195111_signing_assignment_recheck.sql`. Both are applied to Shared Map. The private grant table intentionally has no direct client table access.
+- Validation: iOS simulator build and signing test passed; 61 existing native integration checks passed; all 19 focused web tests passed. The full web suite had 10 existing failures, reproduced on the unchanged baseline, unrelated to this signing change.
+
+Android signing, native Word conversion and native app distribution remain separate work.
 
 ## Browser Word conversion -- implemented and browser-verified
 
