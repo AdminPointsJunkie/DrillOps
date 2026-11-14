@@ -1,0 +1,38 @@
+begin;
+do $$
+declare u uuid:=gen_random_uuid(); desktop1 uuid:=gen_random_uuid(); desktop2 uuid:=gen_random_uuid(); mobile1 uuid:=gen_random_uuid(); mobile2 uuid:=gen_random_uuid();
+begin
+ insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data) values(u,u::text||'@example.test','{}','{}');
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(desktop1,u,now()-interval '4 minutes','Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/157');
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(mobile1,u,now()-interval '3 minutes','FieldMaps%20By%20DrillOps/31 CFNetwork/3896 Darwin/27');
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(desktop2,u,now()-interval '2 minutes','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',mobile1,'role','authenticated')::text,true);
+ assert public.fieldmaps_session_current(),'desktop login displaced mobile';
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(mobile2,u,now()-interval '1 minute','Mozilla/5.0 (iPhone) Mobile Safari');
+ assert not public.fieldmaps_session_current(),'second mobile did not displace first';
+ update auth.sessions set user_agent='Windows desktop',refreshed_at=now() where id=mobile1;
+ assert not public.fieldmaps_session_current(),'refresh bypassed mobile restriction';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',desktop1,'role','authenticated')::text,true);
+ assert public.fieldmaps_session_current(),'mobile displaced first desktop';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',desktop2,'role','authenticated')::text,true);
+ assert public.fieldmaps_session_current(),'mobile displaced second desktop';
+ update auth.sessions set not_after=now()-interval '1 second' where id=desktop2;
+ assert not public.fieldmaps_session_current(),'expired desktop allowed';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',mobile2,'role','authenticated')::text,true);
+ assert public.fieldmaps_session_current(),'latest mobile blocked';
+ delete from auth.sessions where id=mobile2;
+ assert not public.fieldmaps_session_current(),'deleted mobile accepted';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',mobile1,'role','authenticated')::text,true);
+ assert not public.fieldmaps_session_current(),'logout reactivated old mobile';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',desktop1,'role','authenticated')::text,true);
+ assert public.fieldmaps_session_current(),'mobile logout killed desktop';
+ delete from auth.sessions where id=desktop1;
+ assert not public.fieldmaps_session_current(),'deleted desktop accepted';
+ assert maps_private.fieldmaps_mobile_agent('Android');
+ assert maps_private.fieldmaps_mobile_agent('Mozilla/5.0 (iPad; CPU OS 18) Mobile');
+ assert not maps_private.fieldmaps_mobile_agent('Mozilla/5.0 (X11; Linux x86_64)');
+ assert not maps_private.fieldmaps_mobile_agent(null);
+end $$;
+select 'mobile/desktop session checks passed' as result;
+rollback;

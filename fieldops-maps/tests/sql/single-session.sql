@@ -6,13 +6,13 @@ begin
  insert into public.workspaces(name,owner_id) values('Single session permission test',uid) returning id into project;
  insert into public.workspace_members(workspace_id,user_id,role) values(project,uid,'owner');
  insert into public.maps(id,name,owner_id,workspace_id) values(m,'Single session map',uid,project);
- insert into auth.sessions(id,user_id,created_at,updated_at) values(first_session,uid,now()-interval '2 minutes',now());
+ insert into auth.sessions(id,user_id,created_at,updated_at,user_agent) values(first_session,uid,now()-interval '2 minutes',now(),'iPhone Mobile');
  execute 'reset role';
  perform set_config('request.jwt.claim.sub',uid::text,true);
  perform set_config('request.jwt.claims',jsonb_build_object('sub',uid,'session_id',first_session,'role','authenticated')::text,true);
  assert public.fieldmaps_session_current(),'first login cannot access';
  assert maps_private.ws_project(m,false),'current owner cannot access map';
- insert into auth.sessions(id,user_id,created_at,updated_at) values(next_session,uid,now(),now());
+ insert into auth.sessions(id,user_id,created_at,updated_at,user_agent) values(next_session,uid,now(),now(),'FieldMaps%20By%20DrillOps/31 CFNetwork/3896 Darwin/27');
  assert not public.fieldmaps_session_current(),'old session remains current';
  assert not maps_private.drillops_has_app('fieldmaps'),'old session has FieldMaps entitlement';
  assert not maps_private.ws_project(m,true),'old session reads published map';
@@ -24,7 +24,7 @@ begin
  execute 'reset role';
  update auth.sessions set refreshed_at=now(),updated_at=now()+interval '1 minute' where id=first_session;
  assert not public.fieldmaps_session_current(),'refresh reclaims an old session';
- insert into auth.sessions(id,user_id,created_at) values(older_session,uid,now()-interval '3 minutes');
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(older_session,uid,now()-interval '3 minutes','Android');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',uid,'session_id',next_session,'role','authenticated')::text,true);
  assert public.fieldmaps_session_current(),'older in-flight insert replaced newest login';
  assert maps_private.ws_project(m,false),'new login cannot access map';
