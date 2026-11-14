@@ -1,9 +1,7 @@
 import {showInvitationLink} from './invitation-link.js';
 import {mountWorkspaceLogo} from './workspace-logo.js';
 import {openInviteDialog} from './invite-dialog.js';
-import {workspaceBilling} from './workspace-billing.js';
 import {settingsShell,workspaceBasics,avatar,accessGuide} from './workspace-settings-layout.js';
-import {memberReportHTML} from './member-report.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const roles={owner:'Owner',admin:'Admin',editor:'Editor',operator:'Operator'};
 export function installAccounts(db,getUser,doc=document,options={}){
@@ -13,17 +11,17 @@ export function installAccounts(db,getUser,doc=document,options={}){
  const leave=()=>!dirty||doc.defaultView.confirm('Discard unsaved settings changes?');
  const checked=async req=>{const r=await req;if(r.error)throw r.error;return r.data;};
  const mutate=(action,payload={},id=workspace)=>checked(db.rpc('workspace_mutate',{p_workspace:id,p_action:action,p_payload:payload}));
- const roleOptions=value=>Object.entries(roles).filter(([r])=>r!=='owner'||state?.role==='owner'||getContext().platform_admin).map(([r,name])=>`<option value="${r}" ${r===value?'selected':''}>${name}</option>`).join('');
+ const roleOptions=value=>Object.entries(roles).filter(([r])=>r!=='owner'||value==='owner').map(([r,name])=>`<option value="${r}" ${r===value?'selected':''}>${name}</option>`).join('');
  const projectChecks=()=>'<p>Access covers all maps in this project.</p>';
  const projectsFrom=form=>[...form.querySelectorAll('[name=project]:checked')].map(e=>e.value);
  function message(text){const el=dialog.querySelector('[data-message]');if(el)el.textContent=text;}
  async function load(){const run=++generation,id=workspace;const result=id?await checked(db.rpc('workspace_settings',{p_workspace:id})):null;if(run!==generation||workspace!==id)return;if(result){const access=await checked(db.rpc('workspace_fieldops_access',{p_workspace:id}));if(run!==generation||workspace!==id)return;result.fieldops=Array.isArray(access)?access:[];}state=result;render();}
  async function act(fn,success){if(working)return;working=true;message('Saving…');dialog.querySelectorAll('button,input,select').forEach(e=>e.disabled=true);try{await fn();dirty=false;await onChanged();await load();message(success);}catch(e){message(e.message||String(e));}finally{working=false;dialog.querySelectorAll('button,input,select').forEach(e=>e.disabled=false);protect();}}
- function protect(){for(const form of dialog.querySelectorAll('[data-member]')){const person=state.people.find(p=>p.id===form.dataset.member);if(person.id===getUser()?.id||person.platform_admin||(person.role==='owner'&&state.role!=='owner'))form.querySelectorAll('button,input,select').forEach(e=>{if(!e.hasAttribute('data-fieldops-upload')&&!e.hasAttribute('data-save-fieldops'))e.disabled=true;});}}
+ function protect(){for(const form of dialog.querySelectorAll('[data-member]')){const person=state.people.find(p=>p.id===form.dataset.member);if(person.id===getUser()?.id||person.id===state.workspace.owner_id||person.platform_admin||(person.role==='owner'&&state.role!=='owner'))form.querySelectorAll('button,input,select').forEach(e=>{if(!e.hasAttribute('data-fieldops-upload')&&!e.hasAttribute('data-save-fieldops'))e.disabled=true;});}}
  async function send(id){const {data,error}=await db.functions.invoke('maps-invite',{body:{invitation_id:id}});if(error){let m=error.message;try{m=(await error.context.json()).error||m;}catch{}throw Error(m);}if(data?.error)throw Error(data.error);}
  function invite(){if(working||!state||!canOpen())return;const id=workspace;openInviteDialog({doc,name:state.workspace.name,roleOptions:roleOptions('operator'),projectChecks:projectChecks(),create:payload=>mutate('invite',payload,id),send,onChanged:async()=>{if(workspace===id){try{await load();}catch(e){message(e.message);}}}});}
  function render(){
-  const supported=['overview','projects','people','invitations','usage','activity','billing','developers','permissions'];if(!supported.includes(tab))tab='overview';
+  const supported=['overview','projects','people','invitations','activity','developers','permissions'];if(!supported.includes(tab))tab='overview';
   dialog.classList.add('ws-fullscreen');dialog.innerHTML=settingsShell(state,tab,getContext());if(doc.body.classList.contains('project-home-open')){const back=dialog.querySelector('.ws-back');if(back)back.textContent='Back to home ↗';const navBack=dialog.querySelector('.ws-nav-button[data-close]');if(navBack)navBack.innerHTML='<span class="ws-nav-icon">↗</span>Back to home';const option=dialog.querySelector('[data-section-switch] option[value=close]');if(option)option.textContent='Back to home';}
   dialog.querySelectorAll('[data-close]').forEach(button=>button.onclick=e=>{e.preventDefault();if(!working&&leave()){generation++;dirty=false;dialog.close();}});
   const go=next=>{if(!working&&leave()){dirty=false;tab=next;render();}};
@@ -52,13 +50,6 @@ export function installAccounts(db,getUser,doc=document,options={}){
    body.querySelectorAll('[data-resend]').forEach(b=>b.onclick=()=>act(()=>send(b.dataset.resend),'Invitation sent. Use the newest email.'));body.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=()=>act(()=>mutate('revoke',{id:b.dataset.revoke}),'Invitation revoked. It can no longer grant workspace access.'));
   }else if(tab==='projects'){
    body.innerHTML=`<div class="settings-section-title"><h3>Maps</h3><small>Project members have access to every map. Share an individual map from its Share control.</small></div>${state.projects.map(p=>`<div class="workspace-person"><strong>${esc(p.name)}</strong><small>${p.last_synced_at?'Published':'Not yet published'}</small></div>`).join('')||'<p>No maps yet.</p>'}`;
-  }else if(tab==='usage'){
-   body.innerHTML='<div class="ws-settings-intro"><span class="ws-eyebrow">WORKSPACE USAGE</span><h3>Uploads, storage and devices</h3><p>Recorded activity for this workspace. Processing time, total map views and plan quotas are not currently measured here.</p></div><button data-report-refresh class="secondary">Refresh report</button><div data-report role="status">Loading usage and devices...</div>';
-   const target=body.querySelector('[data-report]'),id=workspace;
-   const refresh=async()=>{target.textContent='Loading usage and devices...';try{const result=await checked(db.rpc('workspace_member_report',{p_workspace:id}));if(target.isConnected&&workspace===id)target.innerHTML=memberReportHTML(result);}catch(e){if(target.isConnected)target.textContent=e.message;}};
-   body.querySelector('[data-report-refresh]').onclick=refresh;refresh();
-  }else if(tab==='billing'){
-   body.innerHTML=workspaceBilling();
   }else if(tab==='developers'){
    body.innerHTML='<div class="ws-settings-intro"><span class="ws-eyebrow">DEVELOPERS</span><h3>Connect your workspace</h3><p>Workspace API tokens and webhooks are not available yet.</p></div>';
   }else if(tab==='permissions'){body.innerHTML=accessGuide();

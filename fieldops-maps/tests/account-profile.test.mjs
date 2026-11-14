@@ -27,3 +27,16 @@ test('account settings opens above home and can close and reopen',async()=>{
   const next=ui.open();await Promise.resolve();assert.equal(next.open,true);ui.close();assert.equal(next.isConnected,false);
  }finally{dom.window.close();delete globalThis.document;}
 });
+
+
+test('Billing and Usage live in Account settings and preserve unsaved profile details',async()=>{
+ const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
+ const calls=[];const db=fixture().db;db.rpc=async name=>{calls.push(name);return {data:{projects:[],file_bytes:0,file_count:0,upload_bytes:0}};};
+ try{
+  const ui=installAccountProfile({db,getUser:()=>user}),d=ui.open();d.querySelector('[name=full_name]').value='Unsaved name';
+  d.querySelector('[data-account-tab=billing]').click();assert.equal(d.querySelector('[data-account-page=billing]').hidden,false);assert.match(d.textContent,/Payments are not active yet/);assert.equal(d.querySelector('[type=submit]').hidden,true);
+  d.querySelector('[data-account-tab=usage]').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,['account_usage']);assert.match(d.textContent,/do not own any projects/);
+  d.querySelector('[data-account-tab=profile]').click();assert.equal(d.querySelector('[name=full_name]').value,'Unsaved name');assert.equal(d.querySelector('[type=submit]').hidden,false);ui.close();
+ }finally{dom.window.close();delete globalThis.document;}
+});
