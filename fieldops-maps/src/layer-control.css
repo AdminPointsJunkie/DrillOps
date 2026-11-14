@@ -194,3 +194,7 @@ body.felt-workspace #app>header{height:44px;background:var(--felt-panel);color:v
 .felt-layer-control .label-options input[type=checkbox]{width:16px;height:16px;appearance:auto;accent-color:var(--felt-text)}
 .felt-layer-control .label-options input[type=number]{max-width:75px}
 .felt-layer-control .label-options select{max-width:135px}
+.felt-layer-control .label-field-row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.felt-layer-control .label-field-row select{flex:1;min-width:0;max-width:none}
+.felt-layer-control .label-field-row button{flex:0 0 24px;padding:3px;font-size:17px}
+.felt-layer-control [data-label-add]{font-size:12px;padding:4px 0}

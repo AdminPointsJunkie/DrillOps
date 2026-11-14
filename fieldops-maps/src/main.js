@@ -429,8 +429,16 @@ $('#layers').addEventListener('dragover',e=>{if(!draggedNode)return;e.preventDef
 $('#layers').addEventListener('drop',e=>{if(!draggedNode)return;e.preventDefault();e.stopPropagation();const target=dropTarget(e);if(target&&moveNode(layerTree,draggedNode,target.id,target.position))arrangementChanged();draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
 $('#layers').addEventListener('dragend',()=>{draggedNode=null;clearDropMarks();$('#layers').classList.remove('reordering');});
 const styleNumbers=new Set(['pointSize','lineWidth','fillOpacity','labelSize','labelHaloWidth','labelMinZoom']);
-const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField','labelSize','labelColor','labelWeight','labelHaloColor','labelHaloWidth','labelPlacement','labelMinZoom','labelAvoidOverlap','rules','view','popup','numberFormats','useKMLStyle']);
+const styleKeys=new Set(['symbol','pointSize','lineStyle','lineWidth','fillColor','fillOpacity','labelField','labelFields','labelSize','labelColor','labelWeight','labelHaloColor','labelHaloWidth','labelPlacement','labelMinZoom','labelAvoidOverlap','rules','view','popup','numberFormats','useKMLStyle']);
 const styleSaves=new Map();
+$('#layers').addEventListener('click',e=>{
+ const button=e.target.closest('[data-label-add],[data-label-remove]');if(!button)return;
+ const card=button.closest('[data-id]'),layer=layers.find(l=>l.id===card?.dataset.id);if(!layer||busy||layer.saving||!canEditLayer(layer))return;
+ const list=button.closest('.label-field-list');
+ if(button.hasAttribute('data-label-add')){const row=list.querySelector('.label-field-row').cloneNode(true),select=row.querySelector('select');select.value='';select.setAttribute('aria-label','Label field '+(list.querySelectorAll('select').length+1));button.before(row);select.focus();}
+ else{const row=button.closest('.label-field-row');if(list.querySelectorAll('.label-field-row').length>1)row.remove();else row.querySelector('select').value='';const select=list.querySelector('select');select.dispatchEvent(new Event('change',{bubbles:true}));select.focus();}
+});
+
 $('#layers').addEventListener('click',e=>{
  const button=e.target.closest('[data-action="attribute-style"]');if(!button||busy)return;
  const card=button.closest('[data-id]'),layer=layers.find(l=>l.id===card?.dataset.id);if(!layer||layer.saving||!canEditLayer(layer))return;
@@ -441,6 +449,7 @@ async function changeLayerStyle(e){
  const l=layers.find(l=>l.id===card.dataset.id),action=e.target.dataset.action;if(!l||(!canEditLayer(l)&&action!=='visibility'))return;
  if(action==='visibility')l.visible=e.target.checked;
  else if(action==='color'||action==='opacity')l[action]=action==='opacity'?Number(e.target.value):e.target.value;
+ else if(action==='labelFields'){const fields=[...new Set([...card.querySelectorAll('[data-action=labelFields]')].map(el=>el.value).filter(Boolean))];l.metadata={...l.metadata,style:{...l.metadata?.style,labelFields:fields,labelField:fields[0]||''}};}
  else if(styleKeys.has(action)){l.metadata={...l.metadata,style:{...l.metadata?.style,[action]:['useKMLStyle','labelAvoidOverlap'].includes(action)?e.target.checked:styleNumbers.has(action)?Number(e.target.value):e.target.value}};}
  else return;
  if(e.target.type==='range'){const output=e.target.parentElement.querySelector('output');if(output)output.textContent=Math.round(Number(e.target.value)*100)+'%';}

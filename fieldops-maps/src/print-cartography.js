@@ -1,3 +1,4 @@
+import {labelText} from './label-style.js';
 import {layerStyle,geometryKinds,vectorStyle} from './layer-style.js';
 import {featureAppearance,categoryKey,continuousStops,continuousScale} from './attribute-style.js';
 export const xml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -58,7 +59,7 @@ export function layerSVG(layer,map){let result='',labels=0;const project=c=>fram
   const g=feature.geometry;let points=g?.type==='Point'?[g.coordinates]:g?.type==='MultiPoint'?g.coordinates:[];
   if(annotation&&g?.type==='LineString')points=[g.coordinates.at(-1)];
   if(annotation&&g?.type==='Polygon')points=[g.coordinates[0][0]];
-  const value=annotation?(annotation.type==='highlighter'?null:feature.properties?.note||layer.name):feature.properties?.[layer.metadata?.style?.labelField];
+  const value=annotation?(annotation.type==='highlighter'?null:feature.properties?.note||layer.name):labelText(layer,feature.properties);
   if(value!=null&&String(value)!=='')for(const c of points){const [x,y]=project(c);if(x<0||y<0||x>f.width||y>f.height||labels>=500)continue;labels++;result+=`<g transform="translate(${x} ${y}) rotate(${f.bearing||0})">${textSVG(typeof value==='object'?JSON.stringify(value):String(value),8,-5,300,annotation?.type==='text'?20:11)}</g>`;}
   if(annotation?.type==='arrow'&&g?.type==='LineString'&&g.coordinates.length>1){const a=project(g.coordinates.at(-2)),b=project(g.coordinates.at(-1)),angle=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;result+=`<path d="M0 0L-14 -6L-14 6Z" transform="translate(${b[0]} ${b[1]}) rotate(${angle})" fill="${xml(layer.color)}"/>`;}
  }return result;

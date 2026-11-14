@@ -1,3 +1,4 @@
+import {formatField} from './number-format.js';
 const number=(v,d,min,max)=>v!=null&&Number.isFinite(Number(v))?Math.max(min,Math.min(max,Number(v))):d;
 const color=(v,d)=>/^#[0-9a-f]{6}$/i.test(v)?v:d;
 export function labelStyle(item){const s=item.metadata?.style||{};return {
@@ -15,3 +16,6 @@ export function labelControls(item){const s=labelStyle(item);return `<details cl
 <label>Show from zoom<input type="number" min="0" max="24" data-action="labelMinZoom" aria-label="Minimum label zoom" value="${s.minZoom}"></label>
 <label>Avoid overlaps<input type="checkbox" data-action="labelAvoidOverlap" aria-label="Avoid overlapping labels" ${s.avoidOverlap?'checked':''}></label>
 <small>Automatic placement tries each side of a feature. Labels without room stay hidden until you zoom in. Zero zoom shows labels at every scale.</small></details>`;}
+
+export function labelFields(item){const s=item.metadata?.style||{};return [...new Set((Array.isArray(s.labelFields)?s.labelFields:[s.labelField]).filter(v=>typeof v==='string'&&v))];}
+export function labelText(item,properties={}){return labelFields(item).filter(field=>Object.hasOwn(properties,field)&&properties[field]!=null&&String(properties[field])!=='').map(field=>formatField(item,field,properties[field])).join('\n');}

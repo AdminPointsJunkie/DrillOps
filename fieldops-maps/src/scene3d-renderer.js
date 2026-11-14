@@ -1,3 +1,4 @@
+import {labelText} from './label-style.js';
 import {xyzTerrainProvider} from './lidar-terrain-provider.js';
 import {availableImagery} from './imagery.js';
 import * as C from 'cesium';
@@ -83,7 +84,7 @@ export async function createScene3D(container,{onPick,onTerrain,onError}={}){
      faceInstances.push(new C.GeometryInstance({id:pick,geometry:new C.Geometry({attributes:{position:new C.GeometryAttribute({componentDatatype:C.ComponentDatatype.DOUBLE,componentsPerAttribute:3,values})},indices,primitiveType:C.PrimitiveType.TRIANGLES,boundingSphere:C.BoundingSphere.fromVertices(values)}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(colour(style.fillColor,style.fillOpacity))}}));
     }
     if(edgeIndices.length){const values=new Float64Array(edgePositions);edgeInstances.push(new C.GeometryInstance({id:pick,geometry:new C.Geometry({attributes:{position:new C.GeometryAttribute({componentDatatype:C.ComponentDatatype.DOUBLE,componentsPerAttribute:3,values})},indices:edgePositions.length/3>65535?new Uint32Array(edgeIndices):new Uint16Array(edgeIndices),primitiveType:C.PrimitiveType.LINES,boundingSphere:C.BoundingSphere.fromVertices(values)}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(colour(style.color,style.opacity))}}));}
-    const label=layer.metadata?.style?.labelField,value=label&&feature.properties?.[label],first=parts.find(p=>p.type==='Point');
+    const value=labelText(layer,feature.properties),first=parts.find(p=>p.type==='Point');
     if(value&&first&&labels.length<500)labels.add({id:pick,position:cartesian(first.coordinates),text:String(value).slice(0,100),font:'13px sans-serif',fillColor:C.Color.WHITE,outlineColor:C.Color.BLACK,outlineWidth:3,style:C.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new C.Cartesian2(10,-8),horizontalOrigin:C.HorizontalOrigin.LEFT,distanceDisplayCondition:new C.DistanceDisplayCondition(0,15000)});
     if(fi%25===24){await new Promise(resolve=>setTimeout(resolve,0));if(ticket!==generation||destroyed){root.destroy();return {};}}
    }

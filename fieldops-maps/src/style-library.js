@@ -1,9 +1,10 @@
+import {labelFields} from './label-style.js';
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 import {attributeFields,attributeEvaluator} from './attribute-style.js';
 export function styleSnapshot(layer){const style=structuredClone(layer.metadata?.style||{});delete style.view;delete style.popup;return {color:layer.color,opacity:layer.opacity??.85,style};}
 export function validateStyleTarget(snapshot,layer){
  const fields=attributeFields(layer.fc),s=snapshot.style||{};
- if(s.labelField&&!fields.includes(s.labelField))throw Error(layer.name+': missing label column '+s.labelField);
+ for(const field of labelFields({metadata:{style:s}}))if(!fields.includes(field))throw Error(layer.name+': missing label column '+field);
  if(s.rules?.field&&!fields.includes(s.rules.field))throw Error(layer.name+': missing styling column '+s.rules.field);
  attributeEvaluator(s.rules,fields);
 }

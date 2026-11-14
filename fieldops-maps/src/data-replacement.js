@@ -1,3 +1,4 @@
+import {labelFields} from './label-style.js';
 import {attributeFields} from './attribute-style.js';
 import {geometryKinds} from './layer-style.js';
 export function replacementSummary(old,next){
@@ -6,7 +7,7 @@ export function replacementSummary(old,next){
  if(a!==b)throw Error('The replacement must contain the same geometry types as this layer.');
  const before=attributeFields(old.fc),after=attributeFields(next.fc),removed=before.filter(f=>!after.includes(f)),added=after.filter(f=>!before.includes(f));
  const refs=new Set(),s=old.metadata?.style||{};
- if(s.rules?.field)refs.add(s.rules.field);if(s.labelField)refs.add(s.labelField);
+ if(s.rules?.field)refs.add(s.rules.field);for(const field of labelFields(old))refs.add(field);
  for(const expr of Object.values(s.rules?.expressions||{}))for(const m of String(expr).matchAll(/\[([^\]]+)\]/g))refs.add(m[1]);
  for(const f of before)if(JSON.stringify(s.view||{}).includes(JSON.stringify(f))||JSON.stringify(s.popup||{}).includes(JSON.stringify(f)))refs.add(f);
  return {before:old.fc.features.length,after:next.fc.features.length,removed,added,missing:[...refs].filter(f=>!after.includes(f)),attachments:old.fc.features.filter(f=>f.properties?._fieldmaps_files?.length).length};
