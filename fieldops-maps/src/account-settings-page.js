@@ -26,6 +26,8 @@ export function createAccountSettingsPage(user,content){
    if(back&&navigated)win.history.back();else win.history.replaceState(win.history.state,'',returnURL);
   }
  };
+ // Keep map keyboard shortcuts from operating on the map behind this page.
+ page.addEventListener('keydown',event=>event.stopPropagation());
  page.querySelector('[data-dismiss]').onclick=()=>page.close({back:true});
  page.querySelector('h1').focus({preventScroll:true});
  return page;

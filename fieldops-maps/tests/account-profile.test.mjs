@@ -19,7 +19,7 @@ test('account settings is a full page and restores the map and home when leaving
   installPanelStack(document);const ui=installAccountProfile({db:fixture().db,getUser:()=>user});
   const d=ui.open();await Promise.resolve();assert.equal(d.tagName,'SECTION');assert.equal(d.id,'account-settings-page');assert.equal(d.hasAttribute('popover'),false);assert.equal(document.querySelector('dialog'),null);
   assert.equal(document.querySelector('.project-home').hasAttribute('inert'),true);assert.ok(document.body.classList.contains('account-settings-open'));assert.equal(dom.window.location.hash,'#account/profile');
-  assert.equal(d.querySelector('[name=email]').value,user.email);ui.close();assert.equal(d.isConnected,false);
+  let mapKeys=0;document.addEventListener('keydown',()=>mapKeys++);d.querySelector('[data-dismiss]').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Delete',bubbles:true}));assert.equal(mapKeys,0);assert.equal(d.querySelector('[name=email]').value,user.email);ui.close();assert.equal(d.isConnected,false);
   assert.equal(document.querySelector('.project-home').hasAttribute('inert'),false);assert.equal(document.querySelector('#app').hasAttribute('inert'),true,'preserve home ownership of map inert state');assert.equal(dom.window.location.hash,'');
   const next=ui.open();assert.equal(next.isConnected,true);next.querySelector('[data-dismiss]').click();await new Promise(r=>setTimeout(r,30));assert.equal(next.isConnected,false);assert.equal(dom.window.location.hash,'');
  }finally{dom.window.close();delete globalThis.document;}
