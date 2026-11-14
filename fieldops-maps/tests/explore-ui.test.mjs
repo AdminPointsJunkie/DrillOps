@@ -22,15 +22,15 @@ test('table, legend, filter, search and map selection stay linked; viewers never
   explorer.refresh();explorer.openTable();assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,100);
   $('[data-page="1"]').click();assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,40);
   const complete=$('[data-legend-key="string:Complete"]');complete.click();
-  assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,70);assert.equal(redraws,1);assert.equal(writes,0);
+  assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,70);assert.equal(redraws,1);assert.equal(writes,1);
   $('[data-filter]').click();$('[data-add]').click();const field=$('[data-key=field]'),op=$('[data-key=op]'),value=$('[data-key=value]');field.value='Depth';field.dispatchEvent(new w.Event('change',{bubbles:true}));op.value='gt';op.dispatchEvent(new w.Event('change',{bubbles:true}));const val=$('[data-key=value]');val.value='130';val.dispatchEvent(new w.Event('change',{bubbles:true}));$('.explore-dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick(0);
   assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,4);
-  $('[data-save-view]').click();await tick(0);assert.equal(writes,1);assert.equal(layer.metadata.style.view.filter.conditions[0].field,'Depth');
+  $('[data-save-view]').click();await tick(0);assert.equal(writes,2);assert.equal(layer.metadata.style.view.filter.conditions[0].field,'Depth');
   $('.attribute-table tbody tr button').click();assert.equal(fits.length,1);assert.match(info.title,/IB-/);assert.ok($('.attribute-table tr.selected'));
   explorer.openSearch();$('[data-global-search]').value='IB-133';$('[data-global-search]').dispatchEvent(new w.Event('input'));await tick(180);
   assert.equal(document.querySelectorAll('[data-result-layer]').length,1);$('[data-result-layer]').click();assert.equal(info.title,'IB-133');assert.equal($('.feature-search').hidden,true);
   editable=false;explorer.refresh();assert.equal($('[data-save-view]').hidden,true);assert.equal($('[data-info-settings]').hidden,true);assert.equal($('[data-save-default]'),null);
-  $('[data-reset]').click();assert.equal(writes,1);assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,4,'reset returns to saved defaults');
+  $('[data-reset]').click();assert.equal(writes,2);assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,4,'reset returns to saved defaults');
  }finally{env.close();}
 });
 test('measurement remains local; annotation save checks role and carries drawn coordinates',async()=>{
@@ -63,7 +63,7 @@ test('classified years hide independently and collapse survives rebuilding rows'
   const fc={features:[2005,2006,2021].map(year=>({type:'Feature',properties:{Year:year},geometry:{type:'Point',coordinates:[148,-22]}}))};
   const layer={id:'holes',name:'Holes',kind:'vector',fc,metadata:{style:{rules:{mode:'categorized',field:'Year',classes:classifyFeatures(fc,'Year','categorized')}}}};
   const original=JSON.stringify(fc);let writes=0;
-  const api=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>true,redraw(){},saveStyle:async()=>writes++,showInfo(){}});
+  const api=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>true,redraw(){},saveStyle:async(l,k,v)=>{writes++;l.metadata.style[k]=structuredClone(v);},showInfo(){}});
   api.refresh();api.openTable();assert.ok(document.querySelector('.has-classified-legend'));
   for(const year of [2005,2006])document.querySelector(`[data-legend-key="number:${year}"]`).click();
   assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[false,false,true]);
@@ -74,6 +74,23 @@ test('classified years hide independently and collapse survives rebuilding rows'
   assert.equal(document.querySelector('[data-legend-key="number:2005"]').getAttribute('aria-pressed'),'false');assert.ok(document.querySelector('[data-legend-key="number:2005"]').closest('.is-hidden'));assert.equal(document.querySelector('.layer-legend input[type=checkbox]'),null);
   document.querySelector('.layer-legend').open=true;document.querySelector('[data-legend-key="number:2005"]').click();
   assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[true,false,true]);
-  assert.equal(JSON.stringify(fc),original);assert.equal(writes,0);
+  assert.equal(JSON.stringify(fc),original);assert.equal(writes,3);
+  api.reset();api.refresh();assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[true,false,true],'reload restores saved visibility');
+ }finally{env.close();}
+});
+
+
+test('Save persists viewer class choices when editing starts, without saving personal search',async()=>{
+ const env=setup(),{L,map,dom}=env;
+ try{
+  const fc={features:[2005,2006,2021].map(Year=>({type:'Feature',properties:{Year},geometry:{type:'Point',coordinates:[148,-22]}}))};
+  const layer={id:'holes',name:'Holes',kind:'vector',fc,metadata:{style:{view:{filter:{conditions:[]}},rules:{mode:'categorized',field:'Year',classes:classifyFeatures(fc,'Year','categorized')}}}};
+  let editable=false,writes=0;
+  const api=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>editable,redraw(){},saveStyle:async(l,k,v)=>{writes++;l.metadata.style[k]=structuredClone(v);},showInfo(){}});
+  api.refresh();api.openTable();document.querySelector('[data-legend-key="number:2005"]').click();
+  await api.saveVisibilityChanges();assert.equal(writes,0,'viewers cannot save map defaults');
+  const search=document.querySelector('[data-table-search]');search.value='2006';search.dispatchEvent(new dom.window.Event('input'));await tick(200);
+  editable=true;await api.saveVisibilityChanges();assert.equal(writes,1);assert.equal(layer.metadata.style.view.search,undefined);assert.deepEqual(layer.metadata.style.view.filter,{conditions:[]});
+  api.reset();api.refresh();assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[false,true,true]);
  }finally{env.close();}
 });

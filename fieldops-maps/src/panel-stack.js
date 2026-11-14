@@ -38,7 +38,7 @@ export function installPanelStack(doc=document){
  function show(p){position(p);if(supported){if(!opened(p))p.showPopover();}else p.style.zIndex=String(700+order.indexOf(p));}
  function hide(p){if(opened(p))p.hidePopover();if(p.matches('.tool-menu-content'))states.get(p).positioned=false;}
  function bringToFront(p){
-  if(bringing||!p||modal()||doc.body.classList.contains('project-home-open'))return;register(p);if(!eligible(p)||front===p)return;
+  if(bringing||!p||modal()||doc.body.matches('.project-home-open,.account-settings-open'))return;register(p);if(!eligible(p)||front===p)return;
   order=order.filter(item=>item!==p);order.push(p);if(!supported)for(const item of order)item.style.zIndex=String(700+order.indexOf(item));
   const focused=doc.activeElement,restore=p.contains(focused);bringing=true;front=p;hide(p);show(p);
   if(p.id==='sidebar'){const handle=doc.getElementById('sidebar-resizer');if(handle){register(handle);if(eligible(handle)){hide(handle);show(handle);}}}
@@ -46,7 +46,7 @@ export function installPanelStack(doc=document){
  }
  function refresh(){if(refreshing)return;refreshing=true;try{
   for(const p of doc.querySelectorAll(panels))register(p);
-  const suspended=doc.body.classList.contains('project-home-open');
+  const suspended=doc.body.matches('.project-home-open,.account-settings-open');
   for(const p of [...order]){if(!p.isConnected){states.delete(p);order=order.filter(item=>item!==p);if(front===p)front=null;continue;}
    if(isModal(p))continue;
    if(suspended||!eligible(p)){hide(p);if(front===p)front=null;continue;}

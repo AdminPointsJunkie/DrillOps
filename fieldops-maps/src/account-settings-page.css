@@ -1,0 +1,50 @@
+/* A full page, isolated from the map's floating-panel and global form rules. */
+body.account-settings-open{overflow:hidden}
+body.account-settings-open>#app,body.account-settings-open>.project-home{visibility:hidden}
+#account-settings-page{position:fixed;inset:0;z-index:10000;display:grid;grid-template-columns:245px minmax(0,1fr);width:100vw;height:100dvh;max-height:none;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:var(--ui-surface,#fcfcfa);color:var(--ui-text,#292929);font:14px/1.5 system-ui,sans-serif;box-sizing:border-box}
+#account-settings-page *{box-sizing:border-box}
+#account-settings-page [hidden]{display:none!important}
+#account-settings-page .account-page-sidebar{display:flex;flex-direction:column;min-width:0;padding:30px 20px 20px;border-right:1px solid var(--ui-border,#dededc);overflow:auto}
+#account-settings-page .account-page-brand{display:grid;padding:0 10px 42px;line-height:1.3}
+#account-settings-page .account-page-brand strong{font-size:26px;letter-spacing:-1px}
+#account-settings-page .account-page-brand>span{font-size:18px;font-weight:300}
+#account-settings-page .account-page-brand small{font-size:8px;letter-spacing:2.8px;margin-top:12px}
+#account-settings-page .account-page-nav>small{display:block;font-size:10px;letter-spacing:1.6px;padding:0 10px 14px;color:var(--ui-muted,#737373)}
+#account-settings-page .account-settings-tabs{display:grid;gap:5px;margin:0;border:0}
+#account-settings-page .account-settings-tabs button{border:0;border-radius:6px;padding:12px 14px;text-align:left;background:transparent;font:inherit;color:inherit}
+#account-settings-page .account-settings-tabs button:hover{background:var(--ui-soft,#f2f2ef)}
+#account-settings-page .account-settings-tabs button[aria-current=page]{background:var(--ui-soft,#eaeae7);font-weight:600}
+#account-settings-page .account-page-identity{display:grid;gap:3px;margin-top:auto;padding:24px 10px 0;overflow-wrap:anywhere;font-size:12px}
+#account-settings-page .account-page-identity>span{font-size:11px;color:var(--ui-muted,#737373)}
+#account-settings-page .account-page-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#account-settings-page .account-page-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;min-height:100px;padding:20px 32px;border-bottom:1px solid var(--ui-border,#dededc)}
+#account-settings-page .account-page-header>div>span{font-size:12px;color:var(--ui-muted,#737373)}
+#account-settings-page h1{font-size:24px;line-height:1.3;font-weight:600;margin:3px 0 0;outline:none}
+#account-settings-page button{cursor:pointer}
+#account-settings-page button:focus-visible,#account-settings-page input:focus-visible{outline:2px solid var(--ui-text,#444);outline-offset:3px}
+#account-settings-page [data-dismiss]{padding:9px 14px;border:1px solid var(--ui-border,#dededc);border-radius:5px;background:transparent;color:inherit;white-space:nowrap}
+#account-settings-page .account-page-scroll{flex:1;min-height:0;overflow:auto;padding:28px 32px 40px}
+#account-settings-page .account-page-intro{max-width:1120px;margin-bottom:24px;color:var(--ui-muted,#737373)}
+#account-settings-page .account-page-intro p{margin:0}
+#account-settings-page form{display:block;max-width:1120px;width:100%;margin:0;padding:0}
+#account-settings-page [data-account-page=profile]{max-width:680px}
+#account-settings-page .profile-fields{margin:0;gap:20px}
+#account-settings-page .profile-fields label:not(.profile-opt-in){font-size:13px;font-weight:500;gap:7px}
+#account-settings-page .profile-fields input:not([type=checkbox]){min-height:40px;padding:9px 11px;border:1px solid var(--ui-border,#d7d7d4);border-radius:5px;background:var(--ui-surface,#fff);color:inherit;font:14px system-ui,sans-serif}
+#account-settings-page .profile-fields small{font-size:12px;color:var(--ui-muted,#737373);margin-top:-12px}
+#account-settings-page .profile-photo-row{gap:18px;flex-wrap:wrap}
+#account-settings-page .profile-avatar{width:64px;height:64px;font-size:20px}
+#account-settings-page .profile-photo-row label{min-width:200px}
+#account-settings-page .profile-photo-row button{border:0;background:transparent;color:var(--ui-muted,#737373);padding:8px 0}
+#account-settings-page .profile-opt-in{font-size:13px;font-weight:400;line-height:1.6}
+#account-settings-page .profile-opt-in input{margin-top:2px}
+#account-settings-page [data-social-auth]{margin-top:24px}
+#account-settings-page .account-page-actions{max-width:680px;border-top:1px solid var(--ui-border,#dededc);padding:20px 0;margin-top:24px;display:flex;justify-content:flex-end}
+#account-settings-page .account-page-actions button{background:var(--ui-text,#333);color:var(--ui-surface,#fff);border:0;border-radius:5px;padding:11px 20px;font:600 13px system-ui,sans-serif}
+#account-settings-page [data-social-auth]:empty,#account-settings-page .error:empty,#account-settings-page [data-account-initial]:empty{display:none}
+#account-settings-page .error{color:#b32525}
+#account-settings-page .ws-billing-grid{grid-template-columns:minmax(280px,440px) minmax(250px,1fr)}
+#account-settings-page .ws-settings-intro{margin-bottom:24px}
+#account-settings-page [data-account-page=usage]{min-width:0}
+@media(max-width:800px){#account-settings-page{grid-template-columns:200px minmax(0,1fr)}#account-settings-page .ws-billing-grid{grid-template-columns:1fr}#account-settings-page .account-page-scroll{padding:24px}#account-settings-page .account-page-header{padding:20px 24px}}
+@media(max-width:600px){#account-settings-page{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}#account-settings-page .account-page-sidebar{padding:14px 16px 0;border-right:0;border-bottom:1px solid var(--ui-border,#dededc);overflow:visible}#account-settings-page .account-page-brand{display:flex;align-items:baseline;gap:6px;padding:0 0 12px}#account-settings-page .account-page-brand strong{font-size:22px}#account-settings-page .account-page-brand>span{font-size:16px}#account-settings-page .account-page-brand small,#account-settings-page .account-page-nav>small,#account-settings-page .account-page-identity{display:none}#account-settings-page .account-settings-tabs{display:flex;gap:4px;padding-bottom:10px}#account-settings-page .account-settings-tabs button{padding:9px 14px}#account-settings-page .account-page-header{min-height:85px;padding:16px;gap:10px}#account-settings-page h1{font-size:22px}#account-settings-page .account-page-scroll{padding:20px 16px}#account-settings-page .profile-photo-row{gap:12px}#account-settings-page .profile-photo-row label{min-width:180px}#account-settings-page .ws-plan-card,#account-settings-page .ws-billing-details{padding:20px}}

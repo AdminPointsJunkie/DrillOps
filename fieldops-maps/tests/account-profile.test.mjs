@@ -13,24 +13,20 @@ test('removing photo clears metadata and removes only owned photo',async()=>{con
 import {JSDOM} from 'jsdom';
 import {installAccountProfile} from '../src/account-profile.js';
 import {installPanelStack} from '../src/panel-stack.js';
-test('account settings opens above home and can close and reopen',async()=>{
- const dom=new JSDOM('<body class="project-home-open"><section class="project-home">Home</section></body>');globalThis.document=dom.window.document;
- const proto=dom.window.HTMLElement.prototype,matches=proto.matches;
- proto.matches=function(selector){return selector===':modal'?this.dataset.modal==='true':matches.call(this,selector);};
- dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;this.dataset.modal='true';};
- dom.window.HTMLDialogElement.prototype.show=function(){throw Error('Account settings must open above home');};
- dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
+test('account settings is a full page and restores the map and home when leaving',async()=>{
+ const dom=new JSDOM('<body class="project-home-open"><div id="app" inert><section class="attribute-table">Map table</section></div><section class="project-home">Home</section></body>',{url:'https://example.test/maps/'});globalThis.document=dom.window.document;
  try{
   installPanelStack(document);const ui=installAccountProfile({db:fixture().db,getUser:()=>user});
-  const d=ui.open();await Promise.resolve();assert.equal(d.open,true);assert.equal(d.dataset.modal,'true');assert.equal(d.hasAttribute('popover'),false);
-  assert.equal(d.querySelector('[name=email]').value,user.email);d.querySelector('[data-dismiss]').click();assert.equal(d.isConnected,false);
-  const next=ui.open();await Promise.resolve();assert.equal(next.open,true);ui.close();assert.equal(next.isConnected,false);
+  const d=ui.open();await Promise.resolve();assert.equal(d.tagName,'SECTION');assert.equal(d.id,'account-settings-page');assert.equal(d.hasAttribute('popover'),false);assert.equal(document.querySelector('dialog'),null);
+  assert.equal(document.querySelector('.project-home').hasAttribute('inert'),true);assert.ok(document.body.classList.contains('account-settings-open'));assert.equal(dom.window.location.hash,'#account/profile');
+  assert.equal(d.querySelector('[name=email]').value,user.email);ui.close();assert.equal(d.isConnected,false);
+  assert.equal(document.querySelector('.project-home').hasAttribute('inert'),false);assert.equal(document.querySelector('#app').hasAttribute('inert'),true,'preserve home ownership of map inert state');assert.equal(dom.window.location.hash,'');
+  const next=ui.open();assert.equal(next.isConnected,true);next.querySelector('[data-dismiss]').click();await new Promise(r=>setTimeout(r,30));assert.equal(next.isConnected,false);assert.equal(dom.window.location.hash,'');
  }finally{dom.window.close();delete globalThis.document;}
 });
 
-
 test('Billing and Usage live in Account settings and preserve unsaved profile details',async()=>{
- const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;
+ const dom=new JSDOM('<body></body>',{url:'https://example.test/maps/'});globalThis.document=dom.window.document;
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
  const calls=[];const db=fixture().db;db.rpc=async name=>{calls.push(name);return {data:{projects:[],file_bytes:0,file_count:0,upload_bytes:0}};};
  try{
@@ -38,5 +34,17 @@ test('Billing and Usage live in Account settings and preserve unsaved profile de
   d.querySelector('[data-account-tab=billing]').click();assert.equal(d.querySelector('[data-account-page=billing]').hidden,false);assert.match(d.textContent,/Payments are not active yet/);assert.equal(d.querySelector('[type=submit]').hidden,true);
   d.querySelector('[data-account-tab=usage]').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,['account_usage']);assert.match(d.textContent,/do not own any projects/);
   d.querySelector('[data-account-tab=profile]').click();assert.equal(d.querySelector('[name=full_name]').value,'Unsaved name');assert.equal(d.querySelector('[type=submit]').hidden,false);ui.close();
+ }finally{dom.window.close();delete globalThis.document;}
+});
+
+
+test('account URLs restore the page, browser Back leaves and Forward reopens it',async()=>{
+ const dom=new JSDOM('<body><div id="app">Map with unsaved changes</div></body>',{url:'https://example.test/maps/'});globalThis.document=dom.window.document;
+ try{
+  const ui=installAccountProfile({db:fixture().db,getUser:()=>user}),d=ui.open('billing');
+  assert.equal(dom.window.location.hash,'#account/billing');assert.equal(d.querySelector('[data-account-page=billing]').hidden,false);
+  dom.window.history.back();await new Promise(r=>setTimeout(r,30));assert.equal(document.querySelector('#account-settings-page'),null);assert.equal(document.querySelector('#app').hasAttribute('inert'),false);assert.match(document.querySelector('#app').textContent,/unsaved changes/);
+  dom.window.history.forward();await new Promise(r=>setTimeout(r,30));assert.equal(document.querySelector('[data-account-page=billing]').hidden,false);ui.close();
+  dom.window.history.replaceState(null,'','#account/profile');ui.restore();assert.equal(document.querySelector('[data-account-page=profile]').hidden,false);ui.close();
  }finally{dom.window.close();delete globalThis.document;}
 });
