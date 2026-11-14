@@ -50,3 +50,24 @@ test('Word upload stores only the verified converted PDF, with progress, and nev
  for(const convertWord of [async()=>{throw Error('Cancelled');},async()=>new File(['bad'],'bad.pdf')])await assert.rejects(uploadSupportingFiles({...args,convertWord}));
  assert.equal(stored.size,1);assert.equal(entries.length,1);
 });
+
+test('section group deletion cannot delete photos hidden in another tab',async()=>{
+ const {JSDOM}=await import('jsdom'),{installSupportingFiles}=await import('../src/supporting-files.js');
+ const dom=new JSDOM('<div id="app"><main></main><nav class="map-navigation"></nav></div>'),previous=globalThis.document;globalThis.document=dom.window.document;
+ const project={id:'one',name:'Map',supporting_files:[{path:'plan',name:'Plan.pdf',size:12,group:'Site'},{path:'photo',name:'Work.jpg',type:'image/jpeg',size:12,group:'Site'},{path:'template',name:'Form.pdf',form_template:true,size:12},{path:'completed',name:'Signed.pdf',form_submission:{},size:12}]};
+ const calls=[];dom.window.confirm=()=>true;
+ try{
+  installSupportingFiles({db:{rpc:async(_,args)=>{calls.push(args);return {data:project.supporting_files.filter(f=>f.path!==args.p_file.path)};}},getProject:()=>project,getUser:()=>({id:'user'}),canEdit:()=>true});
+  document.querySelector('[aria-label="Supporting Files"].square').click();
+  assert.equal(document.querySelectorAll('.supporting-file').length,1);
+  document.querySelector('[data-section=forms]').click();assert.equal(document.querySelectorAll('.supporting-file').length,2);
+  document.querySelector('[data-section=photos]').click();assert.match(document.querySelector('.supporting-file strong').textContent,/Work.jpg/);
+  document.querySelector('[data-section=files]').click();
+  document.querySelector('.supporting-group>summary').dispatchEvent(new dom.window.MouseEvent('contextmenu',{bubbles:true}));
+  [...document.querySelectorAll('[role=menuitem]')].find(b=>b.textContent==='Delete group and files…').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(calls.map(c=>[c.p_action,c.p_file.path]),[['remove','plan']]);
+  assert.ok(project.supporting_files.some(f=>f.path==='photo'));
+  document.querySelector('[data-section=photos]').click();assert.equal(document.querySelector('[role=tab][aria-selected=true]').dataset.section,'photos');assert.equal(document.querySelectorAll('.supporting-file').length,1);
+ }finally{globalThis.document=previous;dom.window.close();}
+});
