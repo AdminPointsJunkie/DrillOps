@@ -12,7 +12,7 @@ test('right-click and more menu invoke existing editing actions; Escape restores
  const {dom,doc,ui}=setup();let clicked=0;doc.querySelector('[data-action=geometry]').onclick=()=>clicked++;
  const row=doc.querySelector('.layer-card');row.dispatchEvent(new dom.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:50}));
  const menu=doc.querySelector('[role=menu]');assert.equal(menu.hidden,false);assert.equal(row.classList.contains('selected'),true);
- [...menu.querySelectorAll('button')].find(b=>b.textContent==='Edit geometry…').click();assert.equal(clicked,1);assert.equal(menu.hidden,true);
+ [...menu.querySelectorAll('button')].find(b=>b.textContent==='Edit / add features…').click();assert.equal(clicked,1);assert.equal(menu.hidden,true);
  doc.querySelector('.layer-more').click();menu.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.equal(doc.activeElement.textContent,'Actions');menu.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));assert.equal(doc.activeElement.parentElement.open,true);menu.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(doc.activeElement,doc.querySelector('.layer-more'));
  ui.refresh();assert.equal(doc.querySelectorAll('.layer-more').length,1);dom.window.close();
 });

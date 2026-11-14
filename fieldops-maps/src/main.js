@@ -1,3 +1,4 @@
+import {editPinLabel} from './pin-label.js';
 import {installLabelFieldControls,readLabelFields} from './label-fields.js';
 import {updatedFieldTypes} from './table-columns.js';
 import {installFileDropOverlay} from './file-drop-overlay.js';
@@ -32,6 +33,7 @@ import './data-library.css';
 import {createWorkspaceLibrary} from './workspace-layer-library.js';
 import {installSupportingFiles} from './supporting-files.js';
 import './supporting-files.css';
+import './document-signing.css';
 import {configureAppearance} from './appearance.js';
 import {openNumberFormats} from './number-format-ui.js';
 import {openShareMap} from './share-map.js';
@@ -175,6 +177,15 @@ function setBusy(value,message){busy=value;refreshSaveStatus();$('#cloud-state')
 function popup(feature,item){
  if(!item)return document.createElement('div');
  const content=featureInfo(item,feature,document);
+ if(feature.geometry?.type==='Point'&&canEditLayer(item)){
+  const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Label pin…';button.onclick=()=>editPinLabel(feature,async next=>{
+   if(!canEditLayer(item)||!layers.includes(item)||busy||syncing||geometryEditor?.active)throw Error('Finish the current operation or reopen this pin.');
+   const index=item.fc.features.indexOf(feature);if(index<0)throw Error('This pin has changed. Select it again.');
+   const fc={...item.fc,features:item.fc.features.map((f,i)=>i===index?next:f)},metadata={...item.metadata,style:{...item.metadata?.style,pinLabels:true}};
+   setBusy(true,'Saving pin label…');try{await replaceLayer(item,{...item,fc,metadata},true);explorer?.select(item,index,false);toast('Pin label saved. Sync to publish it.');}finally{setBusy(false);}
+  });content.prepend(button);
+ }
+
  const change=async action=>{
   if(!canEditLayer(item)||!layers.includes(item))throw Error('This location is no longer editable.');
   if(busy||syncing||geometryEditor?.active)throw Error('Finish the current operation before changing attachments.');
@@ -837,6 +848,7 @@ mapContext=installMapContext({map,coordinates:coordinatesAt,canEdit:contextEdita
 updateAccess();explorer.refresh();
 
 async function openDrawing(target){
+ if(target?._load)await target._load();
  if(target?.metadata?.routing?.waypoints?.length>=2)return editSavedRoute(target);
  mapSelection?.reset();document.querySelector('.route-panel')?.close();
  featureExtract?.reset();

@@ -82,6 +82,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const separator=()=>menu.append(doc.createElement('hr'));
   const visibility=async(mode)=>{for(const other of [...getLayers()]){const visible=mode==='only'?other===layer:mode==='others'?other!==layer:other.visible===false;if(mode==='toggle'&&other!==layer)continue;if((other.visible!==false)===visible)continue;if(onVisibility)await onVisibility(other,visible);else root.querySelector(`[data-id="${other.id}"] [data-action="visibility"]`)?.click();}};
   if(onRename)custom('Rename',()=>onRename(layer),{edit:true});
+  if(layer.kind==='vector')action('Edit / add features…','[data-action="geometry"]',{edit:true});
   action('Zoom to fit','[data-action="zoom"]',{key:'F'});
   if(layer.metadata?.cloud_dem&&onCloudDEM)custom('DEM display and analysis…',()=>onCloudDEM(layer),{edit:true});
   custom(layer.visible===false?'Show':'Hide',()=>visibility('toggle'),{key:'H'});
@@ -95,7 +96,7 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const submenu=label=>{const d=doc.createElement('details'),summary=doc.createElement('summary');summary.textContent=label;d.append(summary);menu.append(d);return d;};
   if(canEdit(layer)){const group=submenu('Group'),membership=card.querySelector('[data-membership]');if(membership)for(const option of membership.options)custom(option.textContent,()=>{const current=card.querySelector('[data-membership]');if(current){current.value=option.value;current.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));}},{edit:true,parent:group});action('Organise…','[data-layer-options="organise"]',{edit:true,parent:group});}
   const more=submenu('Actions');
-  for(const [label,selector] of [['Edit layer…','[data-action="settings"]'],['Edit geometry…','[data-action="geometry"]'],['Style…','[data-layer-options="style"]'],['Edit tile link…','[data-action="edit-xyz"]'],['Save layer','[data-action="save"]']])action(label,selector,{edit:true,parent:more});
+  for(const [label,selector] of [['Edit layer…','[data-action="settings"]'],['Style…','[data-layer-options="style"]'],['Edit tile link…','[data-action="edit-xyz"]'],['Save layer','[data-action="save"]']])action(label,selector,{edit:true,parent:more});
   if(more.children.length===1)more.remove();
   showMenu(x,y);
  }

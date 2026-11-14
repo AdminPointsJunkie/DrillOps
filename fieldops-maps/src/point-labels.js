@@ -12,7 +12,7 @@ function measure(document,text,size,weight){
 function clearTooltip(marker){const el=marker.getTooltip?.()?.getElement?.();if(el?.style)el.style.visibility='hidden';marker.unbindTooltip?.();}
 export function pointLabels(layer,item,bounds,document,limit=500,{map=layer?._map,occupied=[]}={}){
  if(!layer)return 0;
- const field=labelFields(item).length,style=labelStyle(item);let count=0;
+ const field=labelFields(item).length||item.metadata?.style?.pinLabels,style=labelStyle(item);let count=0;
  if(!indexes.has(occupied))indexes.set(occupied,createLabelIndex(occupied));const index=indexes.get(occupied);
  if(!field&&!labelledLayers.has(layer))return 0;
  if(field)labelledLayers.add(layer);else labelledLayers.delete(layer);

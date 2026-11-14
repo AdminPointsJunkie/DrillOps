@@ -1,7 +1,7 @@
 import {toolDialog,escapeHTML as esc} from './explore-dialogs.js';
 import {installPanelStack} from './panel-stack.js';
 
-export function installSupportingActions({panel,getProject,canEdit,isBusy,run,onChanged,db,editGroup,view}){
+export function installSupportingActions({panel,getProject,canEdit,isBusy,run,onChanged,db,editGroup,view,sign,history}){
  const doc=panel.ownerDocument,win=doc.defaultView;let menu=null,dispose=null,dragged=null;
  function close(){dispose?.();dispose=null;menu?.remove();menu=null;}
  async function change(project,action,file){if(project!==getProject()||!canEdit())throw Error('Map access changed.');const result=await db.rpc('maps_supporting_file',{p_map:project.id,p_action:action,p_file:file});if(result.error)throw result.error;project.supporting_files=result.data;onChanged();}
@@ -15,7 +15,7 @@ export function installSupportingActions({panel,getProject,canEdit,isBusy,run,on
   doc.addEventListener('pointerdown',outside,true);doc.addEventListener('keydown',key);dispose=()=>{doc.removeEventListener('pointerdown',outside,true);doc.removeEventListener('keydown',key);};
  }
  function fileMenu(e,project,file,row){const items=[['View',()=>view(file)],['Download',()=>row.querySelector('[title=Download]').click()]];
-  if(canEdit()&&!isBusy()){const siblings=project.supporting_files.filter(f=>(f.group||'')===(file.group||'')),i=siblings.findIndex(f=>f.path===file.path);items.push(['Rename…',()=>rename(project,file)],['Group / move to group…',()=>editGroup(project,file)],['Ungroup',()=>save(project,'group',{path:file.path,group:''}),!file.group],['Move up',()=>save(project,'move',{path:file.path,group:file.group||'',before:siblings[i-1]?.path}),i<=0],['Move down',()=>save(project,'move',{path:file.path,group:file.group||'',before:siblings[i+2]?.path||null}),i===siblings.length-1],['Delete…',()=>remove(project,file)]);}show(e,items);
+  if(canEdit()&&!isBusy()){if(history&&file.document_id)items.push(['Version history…',()=>history(file)]);if(sign&&/\.pdf$/i.test(file.name))items.push(['Sign PDF…',()=>sign(file)]);const siblings=project.supporting_files.filter(f=>(f.group||'')===(file.group||'')),i=siblings.findIndex(f=>f.path===file.path);items.push(['Rename…',()=>rename(project,file)],['Group / move to group…',()=>editGroup(project,file)],['Ungroup',()=>save(project,'group',{path:file.path,group:''}),!file.group],['Move up',()=>save(project,'move',{path:file.path,group:file.group||'',before:siblings[i-1]?.path}),i<=0],['Move down',()=>save(project,'move',{path:file.path,group:file.group||'',before:siblings[i+2]?.path||null}),i===siblings.length-1],['Delete…',()=>remove(project,file)]);}show(e,items);
  }
  function drop(e,project,group,before=null){if(!dragged||isBusy()||!canEdit())return;e.preventDefault();e.stopPropagation();const path=dragged;dragged=null;void save(project,'move',{path,group,before});}
  function target(el,project,group,before){el.addEventListener('dragover',e=>{if(dragged){e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='move';}});el.addEventListener('drop',e=>drop(e,project,group,before));}

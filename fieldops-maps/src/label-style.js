@@ -18,4 +18,4 @@ export function labelControls(item){const s=labelStyle(item);return `<details cl
 <small>Automatic placement tries each side of a feature. Labels without room stay hidden until you zoom in. Zero zoom shows labels at every scale.</small></details>`;}
 
 export function labelFields(item){const s=item.metadata?.style||{};return [...new Set((Array.isArray(s.labelFields)?s.labelFields:[s.labelField]).filter(v=>typeof v==='string'&&v))];}
-export function labelText(item,properties={}){return labelFields(item).filter(field=>Object.hasOwn(properties,field)&&properties[field]!=null&&String(properties[field])!=='').map(field=>formatField(item,field,properties[field])).join('\n');}
+export function labelText(item,properties={}){if(typeof properties._fieldmaps_pin_label==='string'&&properties._fieldmaps_pin_label.trim())return properties._fieldmaps_pin_label_visible===false?'':properties._fieldmaps_pin_label;return labelFields(item).filter(field=>Object.hasOwn(properties,field)&&properties[field]!=null&&String(properties[field])!=='').map(field=>formatField(item,field,properties[field])).join('\n');}
