@@ -1,0 +1,12 @@
+DrillOps FieldMaps browser Word-to-PDF converter
+
+LibreOffice WebAssembly runtime and browser adapter: @matbee/libreoffice-converter 2.7.2.
+Copyright the LibreOffice contributors and upstream project contributors.
+Licensed under Mozilla Public License 2.0 (MPL-2.0.txt in this directory).
+Upstream runtime sources and build instructions:
+https://github.com/matbeedotcom/libreoffice-document-converter/tree/v2.7.2
+https://www.libreoffice.org/about-us/licenses/
+
+The runtime is gzip-compressed for transport. scripts/prepare-office.mjs documents and applies three JavaScript changes: disable automatic main() startup, pre-create eight pthread workers, and disable verbose LibreOffice tracing. The startup fixes follow upstream pull requests #20 and #21: https://github.com/matbeedotcom/libreoffice-document-converter/pulls. The WebAssembly and data files are unchanged.
+It runs only in the separate conversion tab, using a worker and a service worker limited to /maps/office/.
+No documents or signing keys are stored in the conversion cache.

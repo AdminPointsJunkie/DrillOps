@@ -11,7 +11,7 @@
     "build": "vite build",
     "test": "node --test tests/*.test.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "prebuild": "node scripts/prepare-engine.mjs"
+    "prebuild": "node scripts/prepare-engine.mjs && node scripts/prepare-office.mjs"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +20,7 @@
   "dependencies": {
     "@azure/msal-browser": "5.27.0",
     "@garmin/fitsdk": "21.218.0",
+    "@matbee/libreoffice-converter": "2.7.2",
     "@signpdf/placeholder-pdf-lib": "4.0.0",
     "@signpdf/signer-p12": "4.0.0",
     "@signpdf/signpdf": "4.0.0",
