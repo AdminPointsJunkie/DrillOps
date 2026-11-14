@@ -1,0 +1,33 @@
+begin;
+do $$ declare u uuid:=gen_random_uuid();s uuid:=gen_random_uuid();w uuid:=gen_random_uuid();m uuid:=gen_random_uuid();l uuid:=gen_random_uuid();a uuid:=gen_random_uuid();begin
+ insert into auth.users(id,email,email_confirmed_at) values(u,u::text||'@example.invalid',now());
+ insert into auth.sessions(id,user_id) values(s,u);
+ insert into maps_private.drillops_access(user_id,apps,active) values(u,array['fieldmaps'],true) on conflict(user_id) do update set apps=excluded.apps,active=true;
+ insert into maps_private.fieldmaps_active_sessions(user_id,session_id,signed_in_at) values(u,s,now()) on conflict(user_id) do update set session_id=excluded.session_id,signed_in_at=excluded.signed_in_at;
+ insert into public.workspaces(id,name) values(w,'Batch permission fixture');
+ insert into public.workspace_members(workspace_id,user_id,role,status) values(w,u,'owner','active');
+ perform set_config('request.jwt.claim.sub',u::text,true);perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','session_id',s)::text,true);
+ insert into public.maps(id,owner_id,workspace_id,name) values(m,u,w,'Temporary permission verification');
+ insert into public.layers(id,map_id,name,kind,source_crs,metadata) values(l,m,'Data','vector','EPSG:4326','{}'),(a,m,'Annotation','vector','EPSG:4326','{"annotation":{}}');
+ insert into public.features(layer_id,geometry,properties) values(l,extensions.st_setsrid(extensions.st_makepoint(148,-22),4326),'{}'),(a,extensions.st_setsrid(extensions.st_makepoint(148,-22),4326),'{}');
+ perform set_config('test.workspace',w::text,true);perform set_config('test.data',l::text,true);perform set_config('test.annotation',a::text,true);
+end $$;
+set local role authenticated;
+update public.features set properties='{"owner":true}' where layer_id=current_setting('test.annotation')::uuid;
+reset role;
+update public.workspace_members set role='editor' where workspace_id=current_setting('test.workspace')::uuid;
+set local role authenticated;
+do $$ declare l uuid:=current_setting('test.data')::uuid;a uuid:=current_setting('test.annotation')::uuid;blocked boolean;begin
+ update public.features set properties='{"editor":true}' where layer_id=l;
+ if not exists(select 1 from public.features where layer_id=l and properties->>'editor'='true') then raise exception 'Editor data edit failed';end if;
+ blocked:=false;begin update public.features set properties='{"forbidden":true}' where layer_id in(l,a);exception when insufficient_privilege then blocked:=true;end;
+ if not blocked or exists(select 1 from public.features where layer_id in(l,a) and properties ? 'forbidden') then raise exception 'Annotation update or atomic rollback failed';end if;
+ blocked:=false;begin delete from public.features where layer_id=a;exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Annotation delete allowed';end if;
+ blocked:=false;begin insert into public.features(layer_id,geometry,properties) values(a,extensions.st_setsrid(extensions.st_makepoint(148,-22),4326),'{}');exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Annotation insert allowed';end if;
+end $$;
+reset role;
+update public.workspace_members set role='operator' where workspace_id=current_setting('test.workspace')::uuid;
+set local role authenticated;
+do $$ begin if exists(select 1 from public.features where layer_id in(current_setting('test.data')::uuid,current_setting('test.annotation')::uuid)) then raise exception 'Operator raw feature access widened';end if;end $$;
+select 'PASS: owner edits, editor data access, annotation insert/update/delete protection, atomic rollback, operator isolation' as result;
+rollback;
