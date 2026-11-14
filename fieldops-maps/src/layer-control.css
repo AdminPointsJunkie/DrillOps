@@ -177,9 +177,15 @@ body.felt-workspace #app>header{height:44px;background:var(--felt-panel);color:v
 .felt-layer-control .layer-card.has-classified-legend>.layer-key{display:none}
 .felt-layer-control .layer-card.has-classified-legend>.layer-legend{display:block;margin:2px 8px 8px 26px;padding:0;border:0;color:var(--felt-text)}
 .felt-layer-control .layer-legend>summary{cursor:pointer;padding:6px 0;font-size:12px;color:var(--felt-muted);overflow-wrap:anywhere}
-.felt-layer-control .layer-legend>label{display:flex;align-items:center;gap:8px;min-height:28px;margin:0;font-size:12px;cursor:pointer}
-.felt-layer-control .layer-legend>label input{flex:0 0 14px;width:14px;height:14px;accent-color:var(--felt-text)}
-.felt-layer-control .layer-legend>label:has(input:not(:checked)){opacity:.5}
+.felt-layer-control .legend-class-row{display:flex;align-items:center;gap:8px;min-height:28px;margin:0;font-size:12px}
+
+.legend-class-label{flex:1;min-width:0;overflow-wrap:anywhere}
+.legend-class-row.is-hidden .legend-class-label{color:var(--felt-muted);text-decoration:line-through}
+.legend-class-row.is-hidden .legend-symbol-cell,.legend-class-row.is-hidden small{opacity:.45}
+.felt-layer-control .legend-class-visibility{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;padding:4px;border:0;background:transparent;color:var(--felt-text);opacity:0;cursor:pointer;border-radius:4px}
+.felt-layer-control .legend-class-row:hover .legend-class-visibility,.felt-layer-control .legend-class-row:focus-within .legend-class-visibility,.felt-layer-control .legend-class-row.is-hidden .legend-class-visibility{opacity:1}
+.felt-layer-control .legend-class-visibility:hover{background:var(--felt-hover)}
+@media(hover:none){.felt-layer-control .legend-class-visibility{opacity:1}}
 .felt-layer-control .layer-legend .legend-symbol-cell{min-width:26px;flex:0 0 26px}
 .felt-layer-control .layer-legend .legend-actions{margin-top:6px}
 .felt-layer-control .layer-legend .legend-actions button{font-size:11px;padding:3px 6px}

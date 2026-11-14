@@ -21,7 +21,7 @@ test('table, legend, filter, search and map selection stay linked; viewers never
   const explorer=installMapExplorer({L,map,getLayers:()=>[layer],isVisible:()=>true,canEdit:()=>editable,redraw:()=>redraws++,saveStyle:async(l,k,v)=>{writes++;l.metadata.style[k]=v;},showInfo:(title,content)=>{info={title,content};}});
   explorer.refresh();explorer.openTable();assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,100);
   $('[data-page="1"]').click();assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,40);
-  const complete=$('[data-legend-key="string:Complete"]');complete.checked=false;complete.dispatchEvent(new w.Event('change',{bubbles:true}));
+  const complete=$('[data-legend-key="string:Complete"]');complete.click();
   assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,70);assert.equal(redraws,1);assert.equal(writes,0);
   $('[data-filter]').click();$('[data-add]').click();const field=$('[data-key=field]'),op=$('[data-key=op]'),value=$('[data-key=value]');field.value='Depth';field.dispatchEvent(new w.Event('change',{bubbles:true}));op.value='gt';op.dispatchEvent(new w.Event('change',{bubbles:true}));const val=$('[data-key=value]');val.value='130';val.dispatchEvent(new w.Event('change',{bubbles:true}));$('.explore-dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick(0);
   assert.equal(document.querySelectorAll('.attribute-table tbody tr').length,4);
@@ -71,7 +71,7 @@ test('classified years hide independently and collapse survives rebuilding rows'
   document.querySelector('.layer-legend').open=false;await tick(10);
   document.querySelector('.layer-card').replaceChildren();api.refresh();
   assert.equal(document.querySelector('.layer-legend').open,false);
-  assert.equal(document.querySelector('[data-legend-key="number:2005"]').checked,false);
+  assert.equal(document.querySelector('[data-legend-key="number:2005"]').getAttribute('aria-pressed'),'false');assert.ok(document.querySelector('[data-legend-key="number:2005"]').closest('.is-hidden'));assert.equal(document.querySelector('.layer-legend input[type=checkbox]'),null);
   document.querySelector('.layer-legend').open=true;document.querySelector('[data-legend-key="number:2005"]').click();
   assert.deepEqual(fc.features.map(f=>api.acceptFeature(layer,f)),[true,false,true]);
   assert.equal(JSON.stringify(fc),original);assert.equal(writes,0);
