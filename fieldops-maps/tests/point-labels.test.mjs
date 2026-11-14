@@ -34,7 +34,7 @@ test('multiple labels render as one safe multiline block',()=>{
 });
 
  test('collision checks never measure live DOM and unchanged labels are reused',()=>{
- const f=fixture();try{let binds=0;for(const marker of f.markers){const bind=marker.bindTooltip;marker.bindTooltip=function(...args){binds++;bind.apply(this,args);this.tooltip.getElement=()=>{throw Error('Layout measurement causes map freezes');};};}
+ const f=fixture();try{let binds=0;for(const marker of f.markers){const bind=marker.bindTooltip;marker.bindTooltip=function(...args){binds++;bind.apply(this,args);this.tooltip.getElement=()=>({style:{},getBoundingClientRect(){throw Error('Layout measurement causes map freezes');}});};}
  pointLabels(f.layer,f.item,f.bounds,f.dom.window.document);assert.equal(binds,3);
  pointLabels(f.layer,f.item,f.bounds,f.dom.window.document);assert.equal(binds,3,'unchanged labels must not rebuild');
  }finally{f.dom.window.close();}
