@@ -8,7 +8,7 @@ begin
  insert into public.maps(id,name,owner_id,workspace_id) values(shared_map,'Shared test map',owner_user,project);
  insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,raw_app_meta_data) values(op,op::text||'@example.test',now(),'{"fieldmaps_signup":"operator","full_name":"Test Operator","contact_phone":"0400123456","terms_version":"2026-11-12","marketing_opt_in":false}','{}');
  insert into public.workspace_members(workspace_id,user_id,role) values(project,op,'editor');
- insert into auth.sessions(id,user_id,created_at) values(op_session,op,now());
+ insert into auth.sessions(id,user_id,created_at,user_agent) values(op_session,op,now(),'FieldMaps%20By%20DrillOps/34 CFNetwork');
  perform set_config('request.jwt.claim.sub',op::text,true);
  perform set_config('request.jwt.claims',jsonb_build_object('sub',op,'session_id',op_session,'role','authenticated')::text,true);
  assert maps_private.is_field_operator(),'operator classification missing';
