@@ -471,3 +471,10 @@ My workspace → Workspace settings controls personal workspace marketing suppre
 Sign-in offers **Forgot password?**, and the operator signup page links to `/maps/reset.html`. Sign-in, signup and password setup fields have accessible show/hide controls. Project owners/admins can expand a person under **Project settings → Members** and select **Send password reset link**. This requests the standard recovery email for the stored member address without modifying access, unsaved settings or the sender’s session. No password or recovery token is displayed to the admin. Supabase email limits and error messages still apply. Recovery emails return through the existing `/maps/` recovery router; app-only operators are directed back to FieldMaps for iPhone after saving their password.
 
 Validation: 27 focused authentication/account tests cover request errors, duplicate submissions, visibility, admin controls, account isolation and recovery on a separate device. No operator email was sent during automated tests.
+
+
+### Project sharing and invitation enrollment (17 November 2026)
+
+Share project now opens as a modal above the project home, without first loading a map. Delivered project invitations automatically enroll the matching verified account. Existing verified users are added when delivery is recorded; new recipients join when they verify their email. Pending valid invitations are also picked up on the next sign-in. Expired, revoked, failed/unsent invitations, inactive projects and banned/deleted/anonymous users grant no access. Existing member roles and suspended memberships are preserved. Enrollment uses only stored admin-created invitation records, writes an activity event, and exposes no new callable client endpoint.
+
+Validation: focused UI/account tests and isolated PostgreSQL tests passed; a live transaction verified email-confirmation enrollment, accepted status, idempotency and restricted function access, then rolled back all test records. Security advisors reported no new enrollment findings.

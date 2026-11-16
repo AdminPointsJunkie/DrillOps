@@ -9,7 +9,7 @@ export async function mountSharing(container,{db,kind,target,onChanged=()=>{}}){
  render();
 }
 export async function openProjectSharing({db,project,onChanged}){
- const d=toolDialog('Share project · '+project.name,'<section data-sharing></section>');d.querySelector('[type=submit]').remove();d.querySelector('form').onsubmit=e=>e.preventDefault();
+ const d=toolDialog('Share project · '+project.name,'<section data-sharing></section>',{modal:true});d.querySelector('[type=submit]').remove();d.querySelector('form').onsubmit=e=>e.preventDefault();
  try{await mountSharing(d.querySelector('[data-sharing]'),{db,kind:'project',target:project.id,onChanged});}catch(e){d.querySelector('.error').textContent=e.message;}return d;
 }
 export function createProjectDialog({db,onCreated}){
