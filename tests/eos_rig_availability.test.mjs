@@ -31,15 +31,18 @@ test('report wiring keeps the existing penetration section and always includes r
 });
 test('rendered report follows date and rig filters, handles empty data and escapes downtime evidence',()=>{
  const {JSDOM}=createRequire(new URL('../fieldops-maps/package.json',import.meta.url))('jsdom');
- const dom=new JSDOM(readFileSync(new URL('../docs/workspace/panels/eos-period.html',import.meta.url),'utf8'),{url:'http://localhost/eos.html'}),doc=dom.window.document;
+ const dom=new JSDOM(readFileSync(new URL('../docs/eos.html',import.meta.url),'utf8'),{url:'http://localhost/eos.html'}),doc=dom.window.document;
  const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const ctx=vm.createContext({document:doc,window:dom.window,console,EosProduction:p,EosRigAvailability:m,esc:escape,attr:escape,productionDisplayDate:v=>v,eosScopeVersion:0,activeContractor:'Drilling contractor',eosScope:{},eosScopeLabel:()=>'',contractorCategory:()=> 'Drilling',contractorByName:()=>({}),isPageActive:()=>true,renderEosStandbyDetails(){},prepareEosWeather(){},clearEosWeather(){},EosShiftCharges:{summarise:()=>new Map(),key:r=>r.drill_rig,periodCost:()=>({perMetre:null})}});
  vm.runInContext(readFileSync(new URL('../docs/workspace/eos-production.js',import.meta.url),'utf8'),ctx);vm.runInContext(readFileSync(new URL('../docs/workspace/eos-period.js',import.meta.url),'utf8'),ctx);
  ctx.fixture=[row(),row({code:'H_Repairs',total_metres:0,total_time:'2:00',notes:'<img src=x onerror=alert(1)>'}),row({drill_rig:'Rig 2',code:'H_Service_Maintenance',total_metres:0,total_time:'1:00',date:'2026-11-02'})];
  doc.getElementById('eos-period-rig').innerHTML='<option value="">All rigs</option><option>Rig 1</option><option>Rig 2</option>';
+ vm.runInContext(readFileSync(new URL('../docs/workspace/eos-sections.js',import.meta.url),'utf8'),ctx);
  vm.runInContext('eosPeriodRows=fixture;eosPeriodSourceRows=fixture;renderEosPeriodReport()',ctx);
  assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,2);assert.equal(doc.querySelector('#eos-rig-events-body img'),null);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/50.0%/);assert.ok(doc.querySelectorAll('.eos-utilisation-detail-legend>span').length<=5);assert.match(doc.getElementById('eos-period-performance').textContent,/Penetration rate/);
  doc.getElementById('eos-period-rig').value='Rig 2';vm.runInContext('renderEosPeriodReport()',ctx);assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,1);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/Rig 2/);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/0.0%/);
  doc.getElementById('eos-period-to').value='2026-11-01';vm.runInContext('renderEosPeriodReport()',ctx);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/No rig activity/);assert.match(doc.getElementById('eos-rig-availability-metrics').textContent,/—/);
+ doc.getElementById('eos-rig-availability-section').remove();delete ctx.EosRigAvailability;
+ assert.doesNotThrow(()=>vm.runInContext('renderEosPeriodReport()',ctx),'an older cached report layout must still render');
  dom.window.close();
 });

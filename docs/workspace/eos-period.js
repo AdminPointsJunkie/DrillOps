@@ -38,7 +38,7 @@ function renderEosPeriodReport(){
  const from=document.getElementById('eos-period-from').value,to=document.getElementById('eos-period-to').value,rig=document.getElementById('eos-period-rig').value;
  const error=from&&to&&from>to?'The start date must be on or before the end date.':eosPeriodError;
  const unavailable=eosPeriodLoading||error;
- productionSet('eos-period-message',eosPeriodLoading?'Preparing operations report…':error);
+ productionSet('eos-period-message',eosPeriodLoading?'Preparing operations report…':error||(!document.getElementById('eos-rig-availability-section')||typeof EosRigAvailability==='undefined'?'Report loaded. Refresh this page to load the latest report sections.':''));
  document.getElementById('eos-period-print').disabled=!!unavailable;
  document.getElementById('eos-period-document').hidden=!!unavailable;
  if(unavailable){eosPeriodSummary=null;renderEosStandbyDetails(null,false);document.getElementById('eos-print-page-style')?.remove();clearEosWeather();return;}
@@ -115,7 +115,8 @@ function renderEosCostTimeInsights(s,rows,charges,drilling){
 }
 
 function renderEosRigAvailability(rows,drilling){
- const section=document.getElementById('eos-rig-availability-section');section.hidden=!drilling;if(!drilling)return;
+ const section=document.getElementById('eos-rig-availability-section');if(!section)return;
+ section.hidden=!drilling||typeof EosRigAvailability==='undefined';if(section.hidden)return;
  const s=EosRigAvailability.summarise(rows),n=productionNumber,pct=v=>v===null?'—':n(v)+'%',labels={repairs:'Repairs / breakdown',maintenance:'Maintenance / servicing',inspections:'Inspections'};
  document.getElementById('eos-rig-availability-metrics').innerHTML=[['Recorded availability',pct(s.availability),s.missing?'Partial · missing durations':'Of recorded rig hours'],['Repairs / breakdown',n(s.repairs),'h'],['Maintenance / servicing',n(s.maintenance),'h'],['Inspections',n(s.inspections),'h']].map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+'</strong><small>'+unit+'</small></div>').join('');
  productionSet('eos-rig-availability-quality',s.missing?s.missing+' entries have no usable duration. Availability is partial; those hours are excluded.':'');

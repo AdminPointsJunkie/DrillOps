@@ -83,6 +83,8 @@ function renderEosOtherActivities(prefix,summary,unavailable=false){
 }
 
 function eosDailyTimeChart(s){
+ // Older cached app documents may load this script before the new helper exists.
+ if(typeof EosRigAvailability==='undefined')return eosTimeChart(s);
  s=EosRigAvailability.groupedTime(s);
  const totals=s.timeCategories||{},parts=EosRigAvailability.groups.filter(([label])=>totals[label]>0).map(([label,colour])=>[label,label,colour]),allHours=Object.values(totals).reduce((a,b)=>a+b,0);
  if(!s.daily.length||!parts.length)return '<p class="production-empty">No recorded time for these filters.</p>';
