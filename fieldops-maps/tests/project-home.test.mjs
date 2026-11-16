@@ -15,3 +15,12 @@ test('thumbnail settings open the selected map settings without opening the map 
  try{const ui=installProjectHome({getState:()=>({user:{id:'u'},workspace:{id:'w'},projects:[{id:'a',name:'North map'}],admin}),onMapSettings:async id=>settings.push(id),onOpen:id=>opened.push(id),onResume(){}});ui.openMaps();const cog=document.querySelector('[data-map-settings=a]');assert.ok(cog);assert.equal(cog.closest('[data-project]'),null);cog.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(settings,['a']);assert.deepEqual(opened,[]);assert.equal(ui.active,true);admin=false;ui.refresh();assert.equal(document.querySelector('[data-map-settings]'),null);
  }finally{globalThis.document=prior;dom.window.close();}
 });
+
+test('New project opens modally above the home screen and submits once',async()=>{
+ const {createProjectDialog}=await import('../src/project-sharing.js');
+ const dom=new JSDOM('<div id="app" inert></div><div class="project-home"></div>',{url:'https://example.test/maps/'}),prior=globalThis.document;globalThis.document=dom.window.document;let modal=false,created=null;const calls=[];
+ dom.window.HTMLDialogElement.prototype.showModal=function(){modal=true;this.open=true;};
+ dom.window.HTMLDialogElement.prototype.show=function(){throw Error('A non-modal dialog is hidden behind the project home screen');};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
+ try{const d=createProjectDialog({db:{rpc:async(name,args)=>{calls.push({name,args});return {data:'new-project'};}},onCreated:id=>{created=id;}});assert.equal(modal,true);d.querySelector('input').value=' New site ';await d.querySelector('form').onsubmit({preventDefault(){}});assert.deepEqual(calls,[{name:'create_personal_project',args:{p_name:'New site'}}]);assert.equal(created,'new-project');assert.equal(document.querySelector('dialog'),null);}finally{globalThis.document=prior;dom.window.close();}
+});

@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>FieldMaps project creation regression</title>
+<link rel="stylesheet" href="../src/style.css"><link rel="stylesheet" href="../src/explore.css"><link rel="stylesheet" href="../src/project-home.css">
+<div id="app">Map workspace</div>
+<script type="module">
+import {installProjectHome} from '../src/project-home.js';
+import {createProjectDialog} from '../src/project-sharing.js';
+window.calls=[];window.created=[];
+const db={rpc:async(name,args)=>{window.calls.push({name,args});return {data:'created-project'};}};
+const ui=installProjectHome({getState:()=>({authReady:true,user:{id:'test-owner'},canCreateProjects:true,canCreate:true,workspaces:[],projects:[]}),onResume(){},onCreateWorkspace:()=>createProjectDialog({db,onCreated:id=>{window.created.push(id);}})});
+ui.open();window.ready=true;
+</script>

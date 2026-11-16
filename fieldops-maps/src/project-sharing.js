@@ -13,6 +13,6 @@ export async function openProjectSharing({db,project,onChanged}){
  try{await mountSharing(d.querySelector('[data-sharing]'),{db,kind:'project',target:project.id,onChanged});}catch(e){d.querySelector('.error').textContent=e.message;}return d;
 }
 export function createProjectDialog({db,onCreated}){
- const d=toolDialog('New project','<label>Project name<input name="name" required maxlength="120" autofocus></label>');d.querySelector('[type=submit]').textContent='Create project';
+ const d=toolDialog('New project','<label>Project name<input name="name" required maxlength="120" autofocus></label>',{modal:true});d.querySelector('[type=submit]').textContent='Create project';
  d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=d.querySelector('[type=submit]');b.disabled=true;try{const r=await db.rpc('create_personal_project',{p_name:d.querySelector('[name=name]').value.trim()});if(r.error)throw r.error;d.close();await onCreated(r.data);}catch(e){d.querySelector('.error').textContent=e.message;}finally{b.disabled=false;}};return d;
 }
