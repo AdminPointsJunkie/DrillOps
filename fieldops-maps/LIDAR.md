@@ -46,3 +46,7 @@ The collection format is `fieldmaps-dem-catalog`, version 1. It contains `name`,
 AGD84 / AMG zones 48–58 are supported using EPSG:1669's approximate AGD84-to-WGS84 transform (nominal 3 m accuracy). The native DEM grid and elevations are retained. This is not a site-specific survey calibration or vertical datum conversion. Ironbark's vertical datum must be confirmed from its source survey metadata; do not assume AHD from the horizontal CRS.
 
 Tests cover lazy collection loading, NoData holes, HTTP range requests against a real tiled COG, repeat-read caching, whole-file response rejection and cancellation/retry on a cold CDN response, coordinate transformation against GDAL/PROJ, and closing a hidden layer during a pending source load. `tests/browser-cog.html` is an optional development harness using the first real Ironbark tile; it writes no production project data.
+
+## DEM display in Layers
+
+Use **Layers → ＋ DEM layer** to add the Ironbark collection or another compatible collection URL directly to the map. Choose colours, opacity and optional height limits, then **Add to Layers**. Use the layer visibility control to show or hide it and Save to retain it in the project. **DEM display** on the layer opens display-only settings; Analysis → LiDAR terrain tools remains available for profiles and measurements.

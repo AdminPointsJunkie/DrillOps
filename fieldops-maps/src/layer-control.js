@@ -11,19 +11,21 @@ export function legendSymbol(layer,override={},sized=false){
  const style={...layerStyle(layer),...override},color=colour(override.color||layer.color),kinds=geometryKinds(layer.fc);
  if(sized&&kinds.has('point')&&!kinds.has('line')&&!kinds.has('shape')&&style.symbol==='circle'){const diameter=Math.max(4,Math.min(48,Number(style.pointSize)||12)),box=diameter+2;return `<svg class="legend-sized-symbol" style="width:${box}px;height:${box}px" viewBox="-1 -1 ${box} ${box}" width="${box}" height="${box}" aria-hidden="true"><circle cx="${diameter/2}" cy="${diameter/2}" r="${diameter/2}" fill="${color}" stroke="white" stroke-width="1.5" opacity="${style.opacity}"/></svg>`;}
  let shape;
- if(layer.kind==='raster')shape='<rect x="3" y="3" width="18" height="18" rx="3" fill="none"/><path d="m4 18 6-7 4 4 3-3 4 6" fill="none"/>';
+ if(layer.kind==='raster'||layer.metadata?.cloud_dem)shape='<rect x="3" y="3" width="18" height="18" rx="3" fill="none"/><path d="m4 18 6-7 4 4 3-3 4 6" fill="none"/>';
  else if(kinds.has('line'))shape=`<path d="M2 12h20" fill="none" stroke-width="${Math.max(2,style.lineWidth)}" ${lineStyles[style.lineStyle]?`stroke-dasharray="${lineStyles[style.lineStyle]}"`:''}/>`;
  else if(kinds.has('shape'))shape=`<path d="m4 5 14-2 3 16-17 2Z" fill="${colour(style.fillColor)}" fill-opacity="${style.fillOpacity}"/>`;
  else shape=({square:'<rect x="6" y="6" width="12" height="12"/>',triangle:'<path d="m12 4 8 15H4Z"/>',diamond:'<path d="m12 3 9 9-9 9-9-9Z"/>',cross:'<path d="M12 4v16M4 12h16" fill="none" stroke-width="4"/>'})[style.symbol]||'<circle cx="12" cy="12" r="7"/>';
  return `<svg viewBox="0 0 24 24" width="24" height="24" fill="${color}" stroke="${color}" stroke-width="2" aria-hidden="true">${shape}</svg>`;
 }
 export function legendContents(layer){
+ if(layer.metadata?.cloud_dem){const dem=layer.metadata.cloud_dem,stops=dem.mode==='grey'?'#000,#fff':'#234874,#428873,#aeba70,#ac815b,#f9f7ef';return `<div class="legend-field">Elevation (m)</div><div class="legend-gradient" role="img" aria-label="Elevation colours" style="background:linear-gradient(to right,${stops})"></div><div class="legend-gradient-labels"><span>${esc(dem.min??'Auto low')}</span><span>${esc(dem.max??'Auto high')}</span></div>`;}
+
  const rules=layer.metadata?.style?.rules;
  if(rules?.mode==='continuous'){try{continuousScale(rules);const stops=continuousStops(rules);return `<div class="legend-field">${esc(rules.field)}</div><div class="legend-gradient" role="img" aria-label="${esc(rules.field)}: ${esc(rules.min)} to ${esc(rules.max)}" style="background:linear-gradient(to right,${stops.join(',')})"></div><div class="legend-gradient-labels"><span>${esc(rules.min)}</span><span>${esc(rules.max)}</span></div>`;}catch{return '';}}
  if(!['categorized','graduated'].includes(rules?.mode)||!rules.classes?.length)return '';
  return `<div class="legend-field">${esc(rules.field)}</div>`+rules.classes.map(c=>`<div class="legend-entry"><span class="legend-symbol-cell">${legendSymbol(layer,c,true)}</span><span>${esc(c.label??`${c.min} – ${c.max}`)}</span></div>`).join('');
 }
-export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onStyle,onDelete,onDeleteGroup,onUngroup,canUngroup=()=>false,onAddToLibrary,onError=()=>{},doc=document}){
+export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>true,onComponents=()=>{},onBasemap,onTable,onAttributes,onCloudDEM,onAddDEM,canAddDEM=()=>false,onVisibility,onCopy,onDuplicate,onRename,onGroup,onMerge,onStyle,onDelete,onDeleteGroup,onUngroup,canUngroup=()=>false,onAddToLibrary,onError=()=>{},doc=document}){
  const root=doc.querySelector('#layers'),sidebar=doc.querySelector('#sidebar'),tabs=sidebar.querySelector('.tabs');
  const dragging=installPanelDragging(doc);
  sidebar.classList.add('felt-layer-control');doc.body.classList.add('felt-workspace');
@@ -39,6 +41,8 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
  if(basemap){const footer=doc.createElement('div');footer.className='felt-basemap';if(onBasemap){const b=doc.createElement('button');b.type='button';b.textContent='◉  Basemap';b.onclick=onBasemap;footer.append(b);}else{const picker=basemap.cloneNode(true);picker.id='layer-basemap';picker.setAttribute('aria-label','Layer panel basemap');picker.onchange=()=>{basemap.value=picker.value;basemap.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));};footer.append(picker);}const brand=sidebar.querySelector('.sidebar-brand');brand?brand.before(footer):sidebar.append(footer);}
 
 
+ let addDEM;
+ if(onAddDEM){addDEM=doc.createElement('button');addDEM.type='button';addDEM.className='dem-add-layer';addDEM.textContent='＋ DEM layer';addDEM.onclick=async()=>{if(!canAddDEM()||isBusy())return;try{await onAddDEM();}catch(error){onError(error);}};tabs.after(addDEM);}
  const menu=doc.createElement('div');menu.className='layer-context-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Layer options');doc.body.append(menu);const floating=installFloatingInspectors(root,menu,doc);
  function close(focus=false){menu.hidden=true;returnFocus?.setAttribute('aria-expanded','false');if(focus&&returnFocus?.isConnected)returnFocus.focus();}
  const visibleCards=()=>[...root.querySelectorAll('.layer-card')].filter(row=>!row.closest('[hidden]')&&doc.defaultView.getComputedStyle(row).display!=='none');
@@ -82,9 +86,9 @@ export function installLayerControl({getLayers,canEdit,isBusy,canShowList=()=>tr
   const separator=()=>menu.append(doc.createElement('hr'));
   const visibility=async(mode)=>{for(const other of [...getLayers()]){const visible=mode==='only'?other===layer:mode==='others'?other!==layer:other.visible===false;if(mode==='toggle'&&other!==layer)continue;if((other.visible!==false)===visible)continue;if(onVisibility)await onVisibility(other,visible);else root.querySelector(`[data-id="${other.id}"] [data-action="visibility"]`)?.click();}};
   if(onRename)custom('Rename',()=>onRename(layer),{edit:true});
-  if(layer.kind==='vector')action('Edit / add features…','[data-action="geometry"]',{edit:true});
+  if(layer.kind==='vector'&&!layer.metadata?.cloud_dem)action('Edit / add features…','[data-action="geometry"]',{edit:true});
   action('Zoom to fit','[data-action="zoom"]',{key:'F'});
-  if(layer.metadata?.cloud_dem&&onCloudDEM)custom('DEM display and analysis…',()=>onCloudDEM(layer),{edit:true});
+  if(layer.metadata?.cloud_dem&&onCloudDEM)custom('DEM display…',()=>onCloudDEM(layer),{edit:true});
   custom(layer.visible===false?'Show':'Hide',()=>visibility('toggle'),{key:'H'});
   custom('Show only this',()=>visibility('only'));custom('Show others',()=>visibility('others'));separator();
   if(layer.kind==='vector'){custom('Open table',()=>onTable?onTable(layer):card.querySelector('[data-open-table]')?.click(),{key:'T'});if(onAttributes)custom('Edit attributes…',()=>onAttributes(layer),{edit:true});}
@@ -131,6 +135,7 @@ if(more){const r=more.getBoundingClientRect();open(card,r.left,r.bottom+4,more);
  menu.onkeydown=e=>{const items=[...menu.querySelectorAll('button,summary')].filter(item=>item.tagName==='SUMMARY'||!item.closest('details')||item.closest('details').open),index=items.indexOf(doc.activeElement);if(e.key==='Escape'){e.preventDefault();close(true);}else if(e.key==='ArrowRight'&&doc.activeElement?.tagName==='SUMMARY'){e.preventDefault();doc.activeElement.parentElement.open=true;}else if(e.key==='ArrowLeft'&&doc.activeElement?.closest('details')){e.preventDefault();const group=doc.activeElement.closest('details');group.open=false;group.querySelector('summary').focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(index+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}else if(e.key==='Tab')close();};
  doc.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))close();});doc.defaultView.addEventListener('resize',()=>close());doc.addEventListener('scroll',e=>{if(!menu.contains(e.target))close();},true);
  function refresh(){
+  if(addDEM){addDEM.hidden=!canAddDEM();addDEM.disabled=isBusy();}
   const available=new Set(visibleCards().map(row=>row.dataset.id));selected=new Set([...selected].filter(id=>available.has(id)));if(!available.has(anchor))anchor=null;
   setMode(editView);
   close();

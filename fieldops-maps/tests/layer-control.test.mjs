@@ -44,3 +44,14 @@ test('view mode forces legend and prevents List keyboard access; editing restore
  editing=false;ui.refresh();assert.equal(sidebar.dataset.layerView,'legend');assert.equal(list.hidden,true);
  editing=true;ui.refresh();legend.click();editing=false;ui.refresh();editing=true;ui.refresh();assert.equal(sidebar.dataset.layerView,'legend');dom.window.close();
 });
+test('DEM layer button follows editing permission and saved DEM has an elevation legend',async()=>{
+ const {dom,doc,layer}=setup();layer.metadata={cloud_dem:{url:'https://example.com/dem.json',min:120,max:250}};
+ // A fresh sidebar avoids installing two controls on the same DOM.
+ dom.window.close();
+ const fresh=new JSDOM('<aside id="sidebar"><div class="tabs"><span class="active">Layers <b id="layer-count">1</b></span></div><div id="layers"></div></aside>');
+ let allowed=true,added=0;
+ const ui=installLayerControl({doc:fresh.window.document,getLayers:()=>[],canEdit:()=>true,isBusy:()=>false,canAddDEM:()=>allowed,onAddDEM:()=>added++});
+ const button=fresh.window.document.querySelector('.dem-add-layer');button.click();assert.equal(added,1);
+ allowed=false;ui.refresh();assert.equal(button.hidden,true);button.click();assert.equal(added,1);
+ assert.match(legendContents(layer),/Elevation \(m\)/);assert.match(legendContents(layer),/120/);fresh.window.close();
+});
