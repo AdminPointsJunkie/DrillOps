@@ -1,3 +1,4 @@
+import {restoreTree,serialiseTree} from './layer-tree.js';
 import {isArchiveFile,isLocalGeoTIFF,assertCloudFile} from './data-policy.js';
 import {registerUpload} from './upload-meter.js';
 import {FILES_PROPERTY,locationFiles} from './location-files.js';
@@ -67,7 +68,7 @@ export async function transferProject(local,cloud,project,userId,progress=()=>{}
   }
  }
  const remap=nodes=>nodes.flatMap(n=>typeof n==='string'?(destination.layers[n]?[destination.layers[n]]:[]):[{...n,children:remap(n.children||[])}]);
- const layout=remap(project.layer_layout||layers.map(l=>l.id));
+ const layout=serialiseTree(remap(restoreTree(project.layer_layout||layers.map(l=>l.id))));
  // Only set layout at transfer time; subsequent clicks must not reset cloud edits.
  if(!destination.complete)await checked(cloud.from('maps').update({layer_layout:layout}).eq('id',destination.id));
  destination.complete=true;

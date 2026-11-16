@@ -56,3 +56,12 @@
 #layers .layer-top strong{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 #layers .layer-top small{line-height:1.4}
 .collapse-layer-controls{align-self:flex-end;font-size:10px;color:#6e6e6e;padding:3px 2px 7px}
+/* A persistent map-level signal, including view mode and collapsed sidebars. */
+#map-sync-warning{display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px;width:22px;height:24px;color:#a66300;cursor:help}
+#map-sync-warning[hidden]{display:none}
+#map-sync-warning:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:4px}
+[data-theme=dark] #map-sync-warning{color:#f3bd58}
+#layers .group-contents .layer-group{margin-left:2px}
+#layers .group-heading>[data-group-action=move]{font-size:16px;min-width:24px}
+#layers .group-contents{padding-left:14px}
+#layers .group-collapse{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

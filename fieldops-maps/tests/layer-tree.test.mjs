@@ -5,7 +5,7 @@ import {cachedConversion} from '../src/conversion-cache.js';
 import {pointLabels} from '../src/point-labels.js';
 import {JSDOM} from 'jsdom';
 
-test('drag ordering across groups and root is deterministic and prevents nested groups',()=>{
+test('drag ordering across groups and root is deterministic and prevents cycles',()=>{
  const tree=['points',{id:'survey',name:'Survey',children:['lines','boundary']},'imagery'];
  assert.equal(moveNode(tree,'imagery','points','before'),true);
  assert.deepEqual(flattenTree(tree),['imagery','points','lines','boundary']);
