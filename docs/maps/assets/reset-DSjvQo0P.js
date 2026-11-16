@@ -1,0 +1,1 @@
+import"./modulepreload-polyfill-B5Qt9EMX.js";import{i as e,c as s}from"./password-controls-6A4G8Zm3.js";import{S as t,a as i}from"./config-CQNjMoc1.js";/* empty css              */e(s(i,t,{auth:{persistSession:!1,detectSessionInUrl:!1,flowType:"implicit"}}));

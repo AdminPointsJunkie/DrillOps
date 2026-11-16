@@ -464,3 +464,10 @@ Project switching also removes Leaflet's cached per-pane renderers after removin
 FieldMaps prompts authenticated accounts for full name, verified sign-in email, phone and explicit acceptance of `/fieldmaps-terms.html` (version `2026-11-12`). This includes invited and social-sign-in users; it does not enable unrestricted public email/password registration. Public viewing links remain account-free. Consent events use database timestamps in `maps_private.fieldmaps_consent_events`; auth metadata is not consent evidence or an access grant.
 
 My workspace → Workspace settings controls personal workspace marketing suppression and individual consent. Future campaign senders must use `maps_private.fieldmaps_marketing_recipients`, which requires both switches plus an active verified account. This change does not send marketing or connect an external mailing platform. Campaigns must also implement their email unsubscribe handling. The UI consent step is not a replacement for database access controls.
+
+
+### Password help (17 November 2026)
+
+Sign-in offers **Forgot password?**, and the operator signup page links to `/maps/reset.html`. Sign-in, signup and password setup fields have accessible show/hide controls. Project owners/admins can expand a person under **Project settings → Members** and select **Send password reset link**. This requests the standard recovery email for the stored member address without modifying access, unsaved settings or the sender’s session. No password or recovery token is displayed to the admin. Supabase email limits and error messages still apply. Recovery emails return through the existing `/maps/` recovery router; app-only operators are directed back to FieldMaps for iPhone after saving their password.
+
+Validation: 27 focused authentication/account tests cover request errors, duplicate submissions, visibility, admin controls, account isolation and recovery on a separate device. No operator email was sent during automated tests.

@@ -1,6 +1,8 @@
+import {installPasswordVisibility} from './password-controls.js';
 import {TERMS_VERSION,MARKETING_LABEL,validPhone} from './signup-consent.js';
 export function installOperatorSignup({db,doc=document}){
  const form=doc.querySelector('#operator-signup'),status=doc.querySelector('#operator-status');let working=false;
+ installPasswordVisibility(form);
  doc.querySelector('#marketing-label').textContent=MARKETING_LABEL;
  const showExistingSession=(session)=>{form.reset();form.hidden=true;const appOnly=session?.user?.app_metadata?.fieldmaps_app_only===true;status.textContent=appOnly?'Your account is ready. Open the FieldMaps iPhone app and sign in. Your Argo NR operator access is app-only.':'You’re already signed in. Continue with your existing account.';const link=doc.querySelector('.signin');link.href=appOnly?'https://apps.apple.com/au/app/id6796881116':'/maps/';link.textContent=appOnly?'Download or open FieldMaps':'Open your workspace';};
  // Check before asking an existing user to fill in another registration form.
@@ -8,7 +10,7 @@ export function installOperatorSignup({db,doc=document}){
  form.elements.phone.oninput=()=>form.elements.phone.setCustomValidity('');
  form.onsubmit=async e=>{e.preventDefault();if(working||!form.reportValidity())return;
   const f=form.elements;if(!validPhone(f.phone.value)){f.phone.setCustomValidity('Enter a valid phone number.');f.phone.reportValidity();return;}
-  working=true;const button=form.querySelector('button');button.disabled=true;status.textContent='';
+  working=true;const button=form.querySelector('[type=submit]');button.disabled=true;status.textContent='';
   try{
    const existing=await db.auth.getSession();if(existing.error)throw existing.error;
    if(existing.data.session){showExistingSession(existing.data.session);return;}

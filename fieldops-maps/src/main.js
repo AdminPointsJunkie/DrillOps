@@ -1,3 +1,4 @@
+import './password-controls.css';
 import {editPinLabel} from './pin-label.js';
 import {installLabelFieldControls,readLabelFields} from './label-fields.js';
 import {updatedFieldTypes} from './table-columns.js';
