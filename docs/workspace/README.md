@@ -41,7 +41,7 @@ EOS uses the existing daily-report bundle and approval records to show report co
 
 Design references (reviewed 8 November 2026): CorePlan's public contractor/plod workflow (https://help.coreplan.io/en/articles/12888261-using-the-coreplan-driller-contractor-portal and https://www.coreplan.io/drilling) and Felt's interface (https://felt.com/). EOS retains its own name and assets; the implementation does not embed either vendor's screenshots or branding, nor claim feature parity with their platforms.
 
-Account opens straight into its invoice ledger; Project opens straight into its project dashboard, with the register available from Projects. EOS opens its operational overview. The top bar links directly to EOS, Account and Project, with the current app highlighted. Each link opens its separate app document and retains the shared session. Training Matrix belongs to Project and returns there.
+Account opens straight into its invoice ledger; Project opens straight into its project dashboard, with the register available from Projects. EOS opens its operational overview. The top bar links directly to EOS, Account and Project, using matching plain-text links. Each link opens its separate app document and retains the shared session. Training Matrix belongs to Project and returns there.
 
 All three apps share the approved navigation and base components: a white sidebar and compact header, light panels and consistent tables. Project adds the Mastt-informed dashboard styling described below. Training Matrix preserves its evidence colours and adjustable text sizes.
 

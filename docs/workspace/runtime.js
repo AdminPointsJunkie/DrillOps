@@ -32,6 +32,7 @@ window.fetch=async function(input,options={}){
 };
 
 function showLogin(message=''){
+  document.documentElement.classList.remove('app-session-loading');
   document.getElementById('login-screen').style.display='block';
   document.getElementById('session-retry-panel').hidden=true;
   document.getElementById('login-panel').hidden=!document.getElementById('password-reset-panel').hidden;
@@ -102,6 +103,7 @@ async function doLogin(){
 }
 
 function showSessionRetry(message){
+  document.documentElement.classList.remove('app-session-loading');
   document.getElementById('login-screen').style.display='block';
   document.body.classList.add('workspace-locked');
   document.getElementById('login-panel').hidden=true;

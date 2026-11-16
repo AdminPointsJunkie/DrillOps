@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style>
+#app-session-loading{display:none}html.app-session-loading #login-screen{display:none!important}html.app-session-loading #app-session-loading{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:#fafaf6;color:#26352d;font:600 20px/1.4 Arial,sans-serif}
+</style>
+<script>document.documentElement.classList.add('app-session-loading');</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18535443929"></script>
 <script>
@@ -45,6 +49,7 @@
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 </head>
 <body class="workspace-locked" data-workspace-area="{{area}}">
+<div id="app-session-loading" role="status" aria-live="polite">Opening {{label}}…</div>
 
 <!-- Landing / Login -->
 <div id="login-screen" class="site">
@@ -400,9 +405,9 @@
 <script src="./fortem-estimate.js"></script>
 <script src="./workspace/navigation.js?v=20261110-registers1"></script>
 <script src="./auth/unified-client.bundle.js?v=20261108-account1"></script><script src="./auth-session.js?v=20261108-account1"></script>
-<script src="./workspace/runtime.js?v=20261109-po-closed1"></script>
+<script src="./workspace/runtime.js?v=20261116-app-session1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
-<script src="./workspace/start.js?v=20261108-session1"></script>
+<script src="./workspace/start.js?v=20261116-app-session1"></script>
 </body>
 </html>

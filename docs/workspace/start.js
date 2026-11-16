@@ -1,17 +1,17 @@
 
 (async()=>{
-  if(loadRecoverySessionFromUrl())return;
+  if(loadRecoverySessionFromUrl()){document.documentElement.classList.remove('app-session-loading');return;}
   // A saved session is not a request to leave the public homepage.
   const entryParams=new URLSearchParams(window.location.search);
   const requestedSignIn=entryParams.has('signin')||entryParams.has('return_to')||window.location.hash==='#portal-login';
   if(document.body.dataset.publicHome==='true'&&!requestedSignIn){showLogin();return;}
   authSession=loadStoredAuthSession();
   if(!authSession){showLogin();return;}
-  showSessionRetry('Restoring your sign-in…');
   await resumePortalSession();
 })();
 
 async function resumePortalSession(){
+  document.documentElement.classList.add('app-session-loading');
   const retry=document.getElementById('session-retry-button');
   retry.disabled=true;
   try{
@@ -31,5 +31,5 @@ async function resumePortalSession(){
     console.error('Portal startup error:',error);
     showAppHome();
     toast('Could not finish loading. Refresh to retry.','warn');
-  }
+  }finally{document.documentElement.classList.remove('app-session-loading');}
 }
