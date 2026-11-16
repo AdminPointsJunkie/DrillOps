@@ -1,0 +1,31 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFileSync} from 'node:fs';
+test('library insert returning succeeds without broadening private, archived or operator permissions',async()=>{
+ const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create schema maps_private;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+ create table auth.users(id uuid primary key,email_confirmed_at timestamptz,banned_until timestamptz);
+ create table public.workspace_members(workspace_id uuid,user_id uuid,role text);
+ create table public.workspace_layer_library(id uuid primary key,workspace_id uuid,created_by uuid,visibility text,archived boolean default false);
+ create table public.library_layer_shares(layer_id uuid,user_id uuid);
+ create function maps_private.drillops_has_app(app text) returns boolean language sql stable as $$select coalesce(current_setting('test.enabled',true),'true')='true'$$;
+ create function maps_private.ws_role(w uuid) returns text language sql stable security definer as $$select role from public.workspace_members where workspace_id=w and user_id=auth.uid()$$;
+ create function maps_private.ws_manage(w uuid) returns boolean language sql stable as $$select coalesce(maps_private.ws_role(w) in ('owner','admin'),false)$$;
+ grant usage on schema auth,maps_private to authenticated;
+ alter table public.workspace_layer_library enable row level security;grant select,insert,update on public.workspace_layer_library to authenticated;
+ `);
+ const old=readFileSync(new URL('../supabase/migrations/20261111193825_curated_layer_library.sql',import.meta.url),'utf8');const fn=old.slice(old.indexOf('create function maps_private.library_access('),old.indexOf('revoke all on function maps_private.library_access('));await db.exec(fn);
+ await db.exec(`create policy library_read on public.workspace_layer_library for select to authenticated using(maps_private.library_access(id) and (not archived or maps_private.library_access(id,true)));
+ create policy library_save on public.workspace_layer_library for insert to authenticated with check(created_by=auth.uid() and maps_private.ws_role(workspace_id) in ('owner','admin','editor'));`);
+ const uid=i=>`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,w=uid(10);
+ for(let i=1;i<=4;i++){await db.query('insert into auth.users values($1,now(),null)',[uid(i)]);if(i<4)await db.query('insert into public.workspace_members values($1,$2,$3)',[w,uid(i),['owner','editor','operator'][i-1]]);}
+ const login=async i=>{await db.exec('reset role');await db.query("select set_config('test.uid',$1,false)",[uid(i)]);await db.exec('set role authenticated');};
+ const insert=async(id,visibility='private',creator=uid(1))=>db.query('insert into public.workspace_layer_library(id,workspace_id,created_by,visibility) values($1,$2,$3,$4) returning *',[uid(id),w,creator,visibility]);
+ await login(1);await assert.rejects(insert(20),/row-level security/);await db.exec('reset role');await db.exec(readFileSync(new URL('../supabase/migrations/20261116042301_library_insert_returning_access.sql',import.meta.url),'utf8'));
+ await login(1);assert.equal((await insert(20)).rows.length,1);assert.equal((await insert(21,'project')).rows.length,1);
+ await login(2);assert.equal((await insert(22,'private',uid(2))).rows.length,1);await assert.rejects(insert(23,'project',uid(1)),/row-level security/);assert.deepEqual((await db.query('select id from workspace_layer_library order by id')).rows.map(x=>x.id),[uid(21),uid(22)]);
+ await login(1);assert.equal((await db.query('select * from workspace_layer_library where id=$1',[uid(22)])).rows.length,0);
+ await login(3);await assert.rejects(insert(23,'project',uid(3)),/row-level security/);assert.deepEqual((await db.query('select id from workspace_layer_library')).rows.map(x=>x.id),[uid(21)]);
+ await login(4);assert.equal((await db.query('select * from workspace_layer_library')).rows.length,0);
+ await db.exec('reset role');await db.query('insert into library_layer_shares values($1,$2)',[uid(20),uid(4)]);await login(4);assert.equal((await db.query('select * from workspace_layer_library')).rows.length,1);
+ await db.exec('reset role');await db.query('update workspace_layer_library set archived=true where id=$1',[uid(20)]);await login(4);assert.equal((await db.query('select * from workspace_layer_library')).rows.length,0);await login(1);assert.equal((await db.query('select * from workspace_layer_library where id=$1',[uid(20)])).rows.length,1);
+ await db.query("select set_config('test.enabled','false',false)");assert.equal((await db.query('select * from workspace_layer_library')).rows.length,0);await db.close();
+});
