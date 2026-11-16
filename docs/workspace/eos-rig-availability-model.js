@@ -8,7 +8,7 @@
   const c=code(row);
   if(/(?:^|_)(?:REPAIR\w*|BREAKDOWN|BREAK_DOWN)(?:_|$)/.test(c))return 'repairs';
   if(/(?:^|_)(?:MAINT\w*|SERVICE|SERVICING)(?:_|$)/.test(c))return 'maintenance';
-  if(/(?:^|_)(?:INSP|INSPECT\w*)(?:_|$)/.test(c))return 'inspections';
+  if(production.inspection(row)==='rig')return 'inspections';
   // Notes only classify otherwise generic downtime/work; don't turn productive
   // drilling into downtime because its notes mention a past or future repair.
   if(Number(row.total_metres)>0||c&&!/^(?:ACTIVE|INACTIVE|STAND_?BY(?:_OTHER)?|OTHER)$/.test(c))return '';
@@ -17,7 +17,6 @@
   if(/\b(?:rig|drill|hydraulic|engine|pump|mast|compressor)\b/i.test(notes)){
    if(/\brepair\w*\b|\bbreak[ -]?down\b|\bbroken\b/i.test(notes))return 'repairs';
    if(/\bmaintenance\b|\bservic(?:e|ing)\b/i.test(notes))return 'maintenance';
-   if(/\binspect\w*\b/i.test(notes))return 'inspections';
   }
   return '';
  }
@@ -37,10 +36,10 @@
   const total=rows.reduce((s,r)=>{for(const k of ['hours','repairs','maintenance','inspections','missing'])s[k]+=r[k];return s;},{hours:0,repairs:0,maintenance:0,inspections:0,missing:0});
   return {...finish(total),rigs:rows,entries};
  }
- const groups=[['Drilling','#315d49'],['Rig moves / setup','#7892a3'],['Repairs / maintenance / inspections','#ad7e70'],['Standby','#b8a679'],['Other work','#b9c2bd']];
+ const groups=[['Drilling','#315d49'],['Rig moves / setup','#7892a3'],['Repairs / maintenance / rig inspections','#ad7e70'],['Standby','#b8a679'],['Other work','#b9c2bd']];
  function groupLabel(label){
   if(/drilling$/i.test(label))return 'Drilling';
-  if(/repair|breakdown|servic|maintenance|inspect/i.test(label))return groups[2][0];
+  if(/repair|breakdown|servic|maintenance|rig inspections/i.test(label))return groups[2][0];
   if(label.startsWith('Standby · '))return 'Standby';
   if(/site move|surface setup|setup.*pack/i.test(label))return groups[1][0];
   return 'Other work';

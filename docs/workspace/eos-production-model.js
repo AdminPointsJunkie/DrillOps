@@ -29,6 +29,22 @@
   if(/PCD|BLADE|HAMMER|CHIP|OPEN.?HOLE/.test(b))return 'chip';
   return 'other';
  }
+ // Shared inspection classification keeps standby and availability consistent.
+ function inspection(row){
+  const c=text(row.code).toUpperCase().replace(/[_-]/g,' '),notes=text(row.notes);
+  const inspection=/\b(?:insp|inspect\w*)\b/i;
+  if(!inspection.test(c)&&!inspection.test(notes))return '';
+  const subject=s=>{
+   if(/\b(?:rig|drill rig|support gear|support equipment|rod sloop|rod sled|rod trailer|rod truck|mast|compressor)\b/i.test(s))return 'rig';
+   if(/\b(?:site|worksite|pad|lease|environmental)\b/i.test(s))return 'site';
+   return '';
+  };
+  // A dedicated inspection code is authoritative; general standby codes need notes.
+  if(inspection.test(c)&&subject(c))return subject(c);
+  if(Number(row.total_metres)>0||/\b(?:no|not|planned|tomorrow|scheduled|completed earlier)\b/i.test(notes))return '';
+  if(!inspection.test(c)&&c&&!/\b(?:stand ?by|inactive|active|other)\b/i.test(c))return '';
+  return subject(notes)||'unspecified';
+ }
  function standby(row){
   const c=text(row.code).toUpperCase().replace(/[ -]/g,'_'),notes=text(row.notes).toUpperCase();
   const weatherStop=!(Number(row.total_metres)>0)&&(/^(?:WET WEATHER|RAIN DELAY|RAINED OFF)\b/.test(notes)||/TOO? WET TO (?:WORK|DRILL|MOVE)/.test(notes));
@@ -50,7 +66,7 @@
    if(/MINE[ _-]?SHUT/.test(s))return 'Mine shutdown';
    if(/INCIDENT|INVESTIGATION|ICAM/.test(s))return 'Incidents / investigations';
    if(/SITE[ _-]?PREP/.test(s))return 'Site preparation';
-   if(/INSP/.test(s))return 'Site inspections';
+   if(/INSP/.test(s)){const kind=inspection(row);return kind==='rig'?'Rig inspections':kind==='site'?'Site inspections':'Inspections · unspecified';}
    if(/VAC(?:UUM)?/.test(s))return 'Vacuum truck';
    if(/SUMP/.test(s))return 'Sump preparation';
    if(/TESTING|PERMEAB|PIEZOMETER/.test(s))return 'Testing / piezometer installation';
@@ -192,6 +208,6 @@
   if(scope.program&&!text(row.program).split(',').some(p=>norm(p)===norm(scope.program)))return false;
   return true;
  }
- const api={rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,cleanRows,summarise,scopeMatch};
+ const api={inspection,rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,cleanRows,summarise,scopeMatch};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosProduction=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

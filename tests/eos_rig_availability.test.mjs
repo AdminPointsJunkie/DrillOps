@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const require=createRequire(import.meta.url),m=require('../docs/workspace/eos-rig-availability-model.js'),p=require('../docs/workspace/eos-production-model.js');
 const row=(extra={})=>({contractor:'Drilling contractor',drill_rig:'Rig 1',date:'2026-11-01',code:'Drill_Core',total_time:'2:00',total_metres:20,...extra});
 test('rig availability is weighted from all recorded rig time regardless of standby chargeability',()=>{
- const rows=[row(),row({code:'H_Repairs',total_metres:0,total_time:'1:00'}),row({code:'DEPCO_A_SERVICE_MAINTENANCE_005',total_metres:0,total_time:'0:30'}),row({code:'H_Standby_Insp',total_metres:0,total_time:'0:30',unit_rate:0}),row({code:'H_Standby_Wet_Weath',total_metres:0,total_time:'4:00',unit_rate:0}),row({drill_rig:'Rig 2',total_time:'4:00'})];
+ const rows=[row(),row({code:'H_Repairs',total_metres:0,total_time:'1:00'}),row({code:'DEPCO_A_SERVICE_MAINTENANCE_005',total_metres:0,total_time:'0:30'}),row({code:'H_Standby_Rig_Insp',total_metres:0,total_time:'0:30',unit_rate:0}),row({code:'H_Standby_Wet_Weath',total_metres:0,total_time:'4:00',unit_rate:0}),row({drill_rig:'Rig 2',total_time:'4:00'})];
  const s=m.summarise(rows);assert.equal(s.hours,12);assert.equal(s.downtime,2);assert.ok(Math.abs(s.availability-100*10/12)<1e-10);assert.equal(s.rigs[0].availability,75);assert.equal(s.rigs[1].availability,100);
  for(const includeNonChargeable of [false,true])assert.deepEqual(m.summarise(p.summarise(rows,{includeNonChargeable}).rows),s);
 });
@@ -16,7 +16,7 @@ test('billing top-ups and crew travel are excluded, durations are not invented, 
  assert.equal(s.hours,2);assert.equal(s.repairs,2);assert.equal(s.availability,0);assert.equal(s.missing,1);assert.equal(s.entries.length,2);assert.equal(m.summarise([]).availability,null);assert.equal(m.summarise([row({total_time:''})]).availability,null);
 });
 test('specific activity codes take priority; generic notes require equipment evidence, not future or incidental repairs',()=>{
- assert.equal(m.category(row({code:'H_Repairs'})),'repairs');assert.equal(m.category(row({code:'H_Inspection'})),'inspections');assert.equal(m.category(row({code:'H_Safety_Prestart'})),'');
+ assert.equal(m.category(row({code:'H_Repairs'})),'repairs');assert.equal(m.category(row({code:'H_Rig_Inspection'})),'inspections');assert.equal(m.category(row({code:'H_Safety_Prestart'})),'');
  for(const notes of ['Rig maintenance planned tomorrow','No rig repairs required','Inspecting borehole','Drilling after rig repairs'])assert.equal(m.category(row({code:'H_Active',notes})),'');
  assert.equal(m.category(row({code:'H_Active',notes:'Repair hydraulic pump',total_metres:0})),'repairs');assert.equal(m.category(row({code:'Drill_Core',notes:'Repair hydraulic pump'})),'');
  assert.equal(m.summarise([row(),row({contractor:'Another contractor'})]).rigs.length,2);
@@ -45,4 +45,15 @@ test('rendered report follows date and rig filters, handles empty data and escap
  doc.getElementById('eos-rig-availability-section').remove();delete ctx.EosRigAvailability;
  assert.doesNotThrow(()=>vm.runInContext('renderEosPeriodReport()',ctx),'an older cached report layout must still render');
  dom.window.close();
+});
+
+test('September AAC inspection records reduce availability while site inspections stay separate',()=>{
+ const notes=['Rig mob to Dysart for inspection to go onto Burton mine','Pick rod sloop up take to Dysart for inspection for Burton mine','Inspection on rig and support gear in Dysart','Rig and support gear in Dysart for inspection for Burton coal start moving gear back to Ironbark'];
+ const rows=notes.map((notes,i)=>row({code:'H_Standby_AAC',notes,total_time:[5.5,10.5,12,12][i],total_metres:0,unit_rate:650,date:`2026-09-0${i+4}`}));
+ const site=row({code:'H_Standby_Insp',notes:'Site inspection of drill pad',total_metres:0,total_time:8,unit_rate:650});
+ for(const r of rows){assert.equal(p.standby(r),'Rig inspections');assert.equal(m.category(r),'inspections');}
+ assert.equal(p.standby(site),'Site inspections');assert.equal(m.category(site),'');
+ const s=m.summarise([...rows,site]);assert.equal(s.inspections,40);assert.equal(s.downtime,40);assert.ok(Math.abs(s.availability-100*8/48)<1e-10);
+ assert.equal(p.standby(row({code:'H_Standby_Insp',total_metres:0})),'Inspections · unspecified');
+ const grouped=m.groupedTime(p.summarise([...rows,site]));assert.equal(grouped.timeCategories['Repairs / maintenance / rig inspections'],40);assert.equal(grouped.timeCategories.Standby,8);
 });
