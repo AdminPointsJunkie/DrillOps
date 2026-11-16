@@ -83,9 +83,8 @@ function renderEosOtherActivities(prefix,summary,unavailable=false){
 }
 
 function eosDailyTimeChart(s){
- const fixed={'Cored drilling':'#237a65','Chipped / open-hole drilling':'#60b88d','Other drilling':'#116b47','Site move':'#487fa8','Site move + setup':'#85abc7','Standby · Wet weather':'#e2ad2f','Repairs':'#c65a65','Servicing / maintenance':'#a477aa'};
- const colour=label=>{if(fixed[label])return fixed[label];let hash=0;for(const c of label)hash=(hash*31+c.charCodeAt(0))>>>0;return 'hsl('+(hash%360)+' 48% '+(42+hash%18)+'%)';};
- const totals=s.timeCategories||{},parts=Object.keys(totals).filter(k=>totals[k]>0).sort((a,b)=>totals[b]-totals[a]||a.localeCompare(b)).map(label=>[label,label,colour(label)]),allHours=Object.values(totals).reduce((a,b)=>a+b,0);
+ s=EosRigAvailability.groupedTime(s);
+ const totals=s.timeCategories||{},parts=EosRigAvailability.groups.filter(([label])=>totals[label]>0).map(([label,colour])=>[label,label,colour]),allHours=Object.values(totals).reduce((a,b)=>a+b,0);
  if(!s.daily.length||!parts.length)return '<p class="production-empty">No recorded time for these filters.</p>';
  const legend='<div class="eos-utilisation-legend eos-utilisation-detail-legend">'+parts.map(([key,label,color])=>'<span><i style="background:'+color+'"></i><span>'+esc(label)+'<small>'+productionNumber(totals[key])+' h · '+productionNumber(allHours?totals[key]/allHours*100:0)+'%</small></span></span>').join('')+'</div>';
  const charts=[];

@@ -64,6 +64,7 @@ function renderEosPeriodReport(){
  const undated=eosPeriodRows.filter(r=>!EosProduction.date(r.date)).length;
  productionSet('eos-period-quality',[s.untimedDrillingMetres?n(s.untimedDrillingMetres)+' m without drilling duration are excluded from penetration rates.':'',s.missingTime?s.missingTime+' entries have no usable duration; time totals may be incomplete.':'',s.other?n(s.other)+' m are other or unclassified.':'',s.invalidMetres?s.invalidMetres+' invalid or negative metre values are excluded.':'',undated?undated+' undated entries are excluded.':''].filter(Boolean).join(' '));
  document.getElementById('eos-period-production-chart').hidden=!drilling;document.getElementById('eos-period-performance-section').hidden=!drilling;
+ renderEosRigAvailability(rows,drilling);
  prepareEosWeather(s);
  document.getElementById('eos-period-chart').innerHTML=productionChart(s,'eos-period-chart-status');
  for(const [id,rows,keys,unit] of [['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);
@@ -111,4 +112,14 @@ function renderEosCostTimeInsights(s,rows,charges,drilling){
  const cost=EosShiftCharges.periodCost(rows,charges,s.metres),active=s.drillingHours,inactive=Math.max(0,s.displayedHours-active),pct=s.displayedHours>0?active/s.displayedHours*100:null;
  const money=v=>v==null?'—':v.toLocaleString('en-AU',{style:'currency',currency:'AUD'}),n=productionNumber;
  el.innerHTML='<div class="eos-cost-per-m"><span>Cost per metre'+(cost.partial?' · partial':'')+'</span><strong>'+money(cost.perMetre)+' <small>/ m</small></strong><small>EOS charges + consumables · ex GST</small></div><div class="eos-drilling-time"><div class="eos-time-labels"><strong>Active drilling '+(pct==null?'—':n(pct)+'%')+'</strong><span>Inactive '+(pct==null?'—':n(100-pct)+'%')+'</span></div><div class="eos-utilisation-bar" role="img" aria-label="'+(pct==null?'No recorded activity time':'Active drilling '+n(pct)+' percent; inactive '+n(100-pct)+' percent')+'"><i style="width:'+(pct||0)+'%"></i></div><div class="eos-time-labels"><span>'+n(active)+' h drilling</span><span>'+n(inactive)+' h other included activity</span></div></div>'+(cost.partial?'<p class="eos-document-note">Cost per metre is partial: some charges are missing or cannot be uniquely allocated.</p>':'');
+}
+
+function renderEosRigAvailability(rows,drilling){
+ const section=document.getElementById('eos-rig-availability-section');section.hidden=!drilling;if(!drilling)return;
+ const s=EosRigAvailability.summarise(rows),n=productionNumber,pct=v=>v===null?'—':n(v)+'%',labels={repairs:'Repairs / breakdown',maintenance:'Maintenance / servicing',inspections:'Inspections'};
+ document.getElementById('eos-rig-availability-metrics').innerHTML=[['Recorded availability',pct(s.availability),s.missing?'Partial · missing durations':'Of recorded rig hours'],['Repairs / breakdown',n(s.repairs),'h'],['Maintenance / servicing',n(s.maintenance),'h'],['Inspections',n(s.inspections),'h']].map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+'</strong><small>'+unit+'</small></div>').join('');
+ productionSet('eos-rig-availability-quality',s.missing?s.missing+' entries have no usable duration. Availability is partial; those hours are excluded.':'');
+ document.getElementById('eos-rig-availability-body').innerHTML=s.rigs.map(r=>'<tr><td>'+esc(r.rig)+(r.missing?'<small>Partial · '+r.missing+' missing durations</small>':'')+'</td>'+['hours','repairs','maintenance','inspections','downtime'].map(k=>'<td class="num">'+n(r[k])+'</td>').join('')+'<td class="num"><strong>'+pct(r.availability)+'</strong></td></tr>').join('')||'<tr><td colspan="7">No rig activity recorded for these filters.</td></tr>';
+ productionSet('eos-rig-events-count','('+s.entries.length+')');
+ document.getElementById('eos-rig-events-body').innerHTML=s.entries.sort((a,b)=>EosProduction.date(a.row.date).localeCompare(EosProduction.date(b.row.date))).map(({row:r,category,hours})=>'<tr><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(labels[category])+': '+esc(r.notes||r.code)+'<small>'+esc(r.code||'Uncoded')+' · '+esc(r.source_file||'Manual entry')+'</small></td><td class="num">'+(hours===null?'Not recorded':n(hours))+'</td></tr>').join('')||'<tr><td colspan="3">No repairs, maintenance or inspections recorded.</td></tr>';
 }
