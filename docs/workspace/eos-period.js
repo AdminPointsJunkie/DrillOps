@@ -65,6 +65,7 @@ function renderEosPeriodReport(){
  productionSet('eos-period-quality',[s.untimedDrillingMetres?n(s.untimedDrillingMetres)+' m without drilling duration are excluded from penetration rates.':'',s.missingTime?s.missingTime+' entries have no usable duration; time totals may be incomplete.':'',s.other?n(s.other)+' m are other or unclassified.':'',s.invalidMetres?s.invalidMetres+' invalid or negative metre values are excluded.':'',undated?undated+' undated entries are excluded.':''].filter(Boolean).join(' '));
  document.getElementById('eos-period-production-chart').hidden=!drilling;document.getElementById('eos-period-performance-section').hidden=!drilling;
  renderEosRigAvailability(rows,drilling);
+ s.productionByMonth=!!document.getElementById('eos-period-monthly')?.checked;
  prepareEosWeather(s);
  document.getElementById('eos-period-chart').innerHTML=productionChart(s,'eos-period-chart-status');
  for(const [id,rows,keys,unit] of [['eos-period-project-chart',s.projects,drilling?undefined:['hours'],drilling?'m':'h']])document.getElementById(id).innerHTML=eosBarChart(rows,keys,unit);

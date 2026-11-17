@@ -39,7 +39,7 @@ function eosWeatherIcon(code,rain){
 function renderEosWeather(data,summary){
  const host=document.getElementById('eos-weather-trend');
  if(data.available===false){host.replaceChildren();productionSet('eos-weather-status','Weather unavailable for these dates.');return;}
- const byMonth=summary.daily.length>45,weather=new Map(data.days.map(d=>[d.date,d])),groups=new Map();
+ const byMonth=summary.productionByMonth??(summary.daily.length>45),weather=new Map(data.days.map(d=>[d.date,d])),groups=new Map();
  for(const day of summary.daily){const key=byMonth?day.label.slice(0,7):day.label;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(weather.get(day.label)||{date:day.label});}
  const present=(rows,key)=>rows.map(r=>r[key]).filter(v=>typeof v==='number'&&Number.isFinite(v));
  const points=[...groups].map(([date,rows])=>{

@@ -8,7 +8,7 @@ function setEosStandbyPreference(value){
  if(isPageActive('reports'))renderEosPeriodReport();else if(isPageActive('app-home'))renderEosOverviewTime();
 }
 function productionChart(summary,statusId='production-chart-status'){
- const byMonth=summary.daily.length>45,groups=new Map();
+ const byMonth=summary.productionByMonth??(summary.daily.length>45),groups=new Map();
  for(const day of summary.daily){const key=byMonth?day.label.slice(0,7):day.label;if(!groups.has(key))groups.set(key,{date:key,core:0,chip:0,other:0});const group=groups.get(key);for(const k of ['core','chip','other'])group[k]+=day[k];}
  const data=[...groups.values()],max=Math.max(0,...data.map(d=>d.core+d.chip+d.other));
  productionSet(statusId,byMonth?'Monthly totals':'Daily totals');

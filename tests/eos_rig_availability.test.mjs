@@ -42,6 +42,18 @@ test('rendered report follows date and rig filters, handles empty data and escap
  assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,2);assert.equal(doc.querySelector('#eos-rig-events-body img'),null);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/50.0%/);assert.ok(doc.querySelectorAll('.eos-utilisation-detail-legend>span').length<=5);assert.match(doc.getElementById('eos-period-performance').textContent,/Penetration rate/);
  doc.getElementById('eos-period-rig').value='Rig 2';vm.runInContext('renderEosPeriodReport()',ctx);assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,1);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/Rig 2/);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/0.0%/);
  doc.getElementById('eos-period-to').value='2026-11-01';vm.runInContext('renderEosPeriodReport()',ctx);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/No rig activity/);assert.match(doc.getElementById('eos-rig-availability-metrics').textContent,/—/);
+ // Long reports remain daily until the checkbox is selected, and toggle back.
+ ctx.fixture=Array.from({length:60},(_,i)=>row({date:new Date(Date.UTC(2026,8,1+i)).toISOString().slice(0,10)}));
+ doc.getElementById('eos-period-rig').value='';doc.getElementById('eos-period-to').value='';
+ ctx.prepareEosWeather=summary=>{ctx.weatherMonthly=summary.productionByMonth;};
+ vm.runInContext('eosPeriodRows=fixture;eosPeriodSourceRows=fixture;renderEosPeriodReport()',ctx);
+ assert.equal(doc.getElementById('eos-period-chart-status').textContent,'Daily totals');assert.equal(ctx.weatherMonthly,false);
+ assert.equal(doc.querySelectorAll('#eos-period-chart rect').length,60);
+ doc.getElementById('eos-period-monthly').checked=true;vm.runInContext('renderEosPeriodReport()',ctx);
+ assert.equal(doc.getElementById('eos-period-chart-status').textContent,'Monthly totals');assert.equal(ctx.weatherMonthly,true);
+ assert.equal(doc.querySelectorAll('#eos-period-chart rect').length,2);
+ doc.getElementById('eos-period-monthly').checked=false;vm.runInContext('renderEosPeriodReport()',ctx);
+ assert.equal(doc.getElementById('eos-period-chart-status').textContent,'Daily totals');assert.equal(ctx.weatherMonthly,false);
  doc.getElementById('eos-rig-availability-section').remove();delete ctx.EosRigAvailability;
  assert.doesNotThrow(()=>vm.runInContext('renderEosPeriodReport()',ctx),'an older cached report layout must still render');
  dom.window.close();
