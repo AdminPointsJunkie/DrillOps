@@ -28,6 +28,12 @@
   if(!bar){bar=document.createElement('nav');bar.id='business-context';bar.setAttribute('aria-label','Workspace context');document.querySelector('body > header').append(bar);}
   const project=context.projects.find(p=>p.id===selection.project_id),campaign=context.campaigns.find(c=>c.id===selection.campaign_id);
   bar.innerHTML=`<a href="./workspace.html">Workspace home</a><span>${escape([workspace()?.name,project?.name,campaign?.name].filter(Boolean).join(' / '))}</span><small class="business-role">${context.platform_admin?'Platform Admin':escape(workspace()?.role||'Member')}</small>`;
+  if(project&&!document.body.dataset.workspaceLanding){
+   bar.insertAdjacentHTML('beforeend',`<div class="workspace-campaign-controls"><label>Campaign <select id="business-campaign">${options(campaigns().filter(c=>c.project_id===project.id),selection.campaign_id,'All campaigns')}</select></label></div>`);
+   document.getElementById('business-campaign').onchange=e=>{selection.campaign_id=e.target.value;persist();location.reload();};
+   mountCreator(bar.querySelector('.workspace-campaign-controls'),project,()=>location.reload());
+  }
+
  }
  initializePortal=async function(){
   if(portalInitialized)return;
@@ -50,23 +56,27 @@
  };
  const originalInitialPage=openInitialAppPage;
  openInitialAppPage=function(){if(document.body.dataset.workspaceLanding&&!(new URLSearchParams(location.search).get('view')))return showWorkspaceHome();return originalInitialPage();};
+ function mountCreator(container,project,onSaved){
+  if(canManage()){
+   container.insertAdjacentHTML('beforeend',`<details class="workspace-create"><summary><span aria-hidden="true">＋</span> New ${project?'campaign':'project'}</summary><form id="workspace-create"><label>${project?'Campaign':'Project'} name<input name="name" required maxlength="120"></label>${project?`<label>Year<input name="year" required pattern="[0-9]{4}" value="${new Date().getFullYear()}"></label>`:''}<button>Create ${project?'campaign':'project'}</button><p role="alert"></p></form></details>`);
+   const form=document.getElementById('workspace-create');
+   form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('button');button.disabled=true;form.querySelector('[role=alert]').textContent='';
+    try{const data=Object.fromEntries(new FormData(form));if(project)data.project_id=project.id;await api('/workspaces/'+selection.workspace_id+'/'+(project?'campaigns':'projects'),'POST',data);context=await api('/context');onSaved();}
+    catch(error){form.querySelector('[role=alert]').textContent=error.message;button.disabled=false;}
+   };
+  }
+ }
  function showWorkspaceHome(){
   let page=document.getElementById('page-workspace-home');if(!page){page=document.createElement('section');page.id='page-workspace-home';page.className='page';document.querySelector('.app-local-nav').parentElement.append(page);}
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p===page));updateContractorSwitcherVisibility('workspace-settings');
   const requestedProject=new URLSearchParams(location.search).get('project');
   const project=projects().find(p=>p.id===requestedProject);
+  if(project){selection.project_id=project.id;selection.campaign_id='';persist();location.replace('./'+currentApp()+'.html');return;}
   const visibleProjects=projects().filter(p=>!(selection.workspace_id==='a7ecd88b-8ba9-4c5f-80c8-872fcc50f34f'&&p.name==='SIS'));
   const campaignCards=project?campaigns().filter(c=>c.project_id===project.id).map(c=>`<article><button class="campaign-open" data-open-campaign="${c.id}" data-project="${project.id}"><span>${escape(c.name)}</span><span aria-hidden="true">→</span></button></article>`).join(''):'';
   page.innerHTML=`<div class="eos-page-heading"><div><p>COMPANY WORKSPACE</p><label>Company <select id="workspace-home-company">${options(context.workspaces,selection.workspace_id)}</select></label><h1>${escape(project?.name||workspace().name)}</h1><p>${project?'Choose a campaign.':'Choose a project.'}</p>${project?'<a href="./workspace.html">All projects</a>':''}</div><div class="workspace-home-actions"><button id="workspace-home-settings">Workspace settings</button></div></div><div class="workspace-projects${project?' workspace-campaigns':''}">${project?(campaignCards||'<p>No campaigns yet.</p>'):visibleProjects.map(p=>`<article><h2>${escape(p.name)}</h2><button data-open-project="${p.id}">Open project</button></article>`).join('')||'<p>No projects are available in this workspace.</p>'}</div>`;
-  page.querySelectorAll('[data-open-project]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.openProject;selection.campaign_id='';persist();location.assign('./workspace.html?project='+encodeURIComponent(b.dataset.openProject));});
-  if(canManage()){
-   page.querySelector('.workspace-home-actions').insertAdjacentHTML('beforeend',`<details class="workspace-create"><summary><span aria-hidden="true">＋</span> New ${project?'campaign':'project'}</summary><form id="workspace-create"><label>${project?'Campaign':'Project'} name<input name="name" required maxlength="120"></label>${project?`<label>Year<input name="year" required pattern="[0-9]{4}" value="${new Date().getFullYear()}"></label>`:''}<button>Create ${project?'campaign':'project'}</button><p role="alert"></p></form></details>`);
-   const form=document.getElementById('workspace-create');
-   form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('button');button.disabled=true;form.querySelector('[role=alert]').textContent='';
-    try{const data=Object.fromEntries(new FormData(form));if(project)data.project_id=project.id;await api('/workspaces/'+selection.workspace_id+'/'+(project?'campaigns':'projects'),'POST',data);context=await api('/context');showWorkspaceHome();}
-    catch(error){form.querySelector('[role=alert]').textContent=error.message;button.disabled=false;}
-   };
-  }
+  page.querySelectorAll('[data-open-project]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.openProject;selection.campaign_id='';persist();location.assign('./'+currentApp()+'.html');});
+  mountCreator(page.querySelector('.workspace-home-actions'),project,showWorkspaceHome);
   document.getElementById('workspace-home-company').onchange=e=>{selection.workspace_id=e.target.value;selection.project_id='';selection.campaign_id='';persist();location.assign('./workspace.html');};
   document.getElementById('workspace-home-settings').onclick=()=>openBusinessWorkspaceSettings();
   page.querySelectorAll('[data-open-campaign]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.project;selection.campaign_id=b.dataset.openCampaign;persist();location.assign('./'+currentApp()+'.html');});

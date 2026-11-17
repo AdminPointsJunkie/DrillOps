@@ -47,7 +47,7 @@ with sync_playwright() as p:
   page.locator('#business-context').wait_for()
   assert page.locator('.business-role').inner_text()=='Platform Admin'
   if app=='eos':
-   page.goto('http://localhost:8767/workspace.html');page.locator('[data-open-project]').click();page.locator('[data-open-campaign]').click();page.locator('#business-context').wait_for()
+   page.goto('http://localhost:8767/workspace.html');page.locator('[data-open-project]').click();page.locator('#business-campaign').wait_for();assert page.locator('#business-campaign').input_value()=='';page.locator('#business-campaign').select_option(C);page.wait_for_load_state('domcontentloaded');page.locator('#business-context').wait_for()
   assert page.evaluate("JSON.parse(localStorage.getItem('drillops_business_scope')).campaign_id")==C
   assert page.evaluate("JSON.parse(localStorage.getItem('drillops_business_scope')).project_id")==P
   page.locator('.drawer-nav-item[data-page=workspace-settings]').click(force=True);page.locator('#business-dialog.active').wait_for()
@@ -61,7 +61,7 @@ with sync_playwright() as p:
  page.goto('http://localhost:8767/workspace.html');page.locator('#page-workspace-home.active').wait_for()
  assert 'Exploration' in page.locator('.workspace-projects').inner_text()
  page.screenshot(path=str(ROOT/'workspace-landing-preview.png'),full_page=True)
- page.locator('[data-open-project]').click();page.locator('[data-open-campaign]').click();page.locator('#business-context').wait_for()
+ page.locator('[data-open-project]').click();page.locator('#business-campaign').wait_for();assert page.locator('#business-campaign').input_value()=='';page.locator('#business-campaign').select_option(C);page.wait_for_load_state('domcontentloaded');page.locator('#business-context').wait_for()
  page.evaluate("sessionStorage.setItem('drillops_contractor','Weatherfords')")
  page.goto('http://localhost:8767/eos.html?view=importer');page.locator('#operational-import-title').wait_for()
  page.wait_for_function("document.querySelector('#operational-import-title').textContent.includes('Weatherfords')")
@@ -85,8 +85,8 @@ with sync_playwright() as p:
  page.get_by_role('heading',name='New Project',exact=True).wait_for()
  page.locator('[data-open-project="55555555-5555-4555-8555-555555555555"]').click()
  page.locator('.workspace-create summary').click();page.locator('#workspace-create [name=name]').fill('New Campaign 2027');page.locator('#workspace-create [name=year]').fill('2027');page.locator('#workspace-create button').click()
- page.get_by_role('button',name='New Campaign 2027',exact=True).wait_for()
- page.evaluate("sessionStorage.setItem('business_current_app','account')");page.locator('[data-open-campaign]').click();page.locator('#business-context').wait_for();assert 'New Campaign 2027' in page.locator('#business-context').inner_text()
+ page.locator('#business-campaign option',has_text='New Campaign 2027').wait_for(state='attached')
+ page.locator('#business-campaign').select_option('66666666-6666-4666-8666-666666666666');page.wait_for_load_state('domcontentloaded');page.goto('http://localhost:8767/account.html');page.locator('#business-context').wait_for();assert 'New Campaign 2027' in page.locator('#business-context').inner_text()
  page.goto('http://localhost:8767/project.html');page.locator('#business-context').wait_for();assert 'New Campaign 2027' in page.locator('#business-context').inner_text()
  page.goto('http://localhost:8767/eos.html?view=workspace-settings');page.locator('#business-dialog.active').wait_for()
  page.set_viewport_size({'width':390,'height':844});page.evaluate('closeDrawer()');page.locator('.drawer-nav-item[data-page=workspace-settings]').click(force=True);page.locator('#business-dialog.active').wait_for();page.screenshot(path=str(ROOT/'business-workspace-mobile.png'),full_page=True)
