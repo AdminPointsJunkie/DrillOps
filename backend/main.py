@@ -1457,7 +1457,14 @@ def init_db():
 # Respect the explicit program selected at import.
 
 
-init_db()
+# Workspace installations are maintained by versioned migrations. Replaying the
+# old single-company data repairs on every deploy can overwrite approved history.
+with get_conn(read_only=True) as bootstrap_conn:
+    with bootstrap_conn.cursor() as bootstrap_cur:
+        bootstrap_cur.execute("SELECT to_regclass('public.business_workspaces') IS NULL AS needed")
+        LEGACY_BOOTSTRAP = bootstrap_cur.fetchone()["needed"]
+if LEGACY_BOOTSTRAP:
+    init_db()
 ensure_dar_schema(get_conn)
 ensure_training_schema(get_conn)
 ensure_tracking_schema(get_conn)
@@ -1815,16 +1822,17 @@ def remove_legacy_mcc_earthworks_seed():
         conn.commit()
 
 
-seed_2025_rates()
-seed_mcc_2026_rates()
-remove_legacy_mcc_earthworks_seed()
-repair_mcc_weekly_activity_costs()
-repair_mcc_weekly_workstream_labels()
-repair_mcc_weekly_billing_quantities()
-repair_mcc_weekly_light_vehicle_days()
-migrate_legacy_drilling_bit_labels()
-apply_mitchells_contract_exceptions()
-apply_depco_import_exceptions()
+if LEGACY_BOOTSTRAP:
+    seed_2025_rates()
+    seed_mcc_2026_rates()
+    remove_legacy_mcc_earthworks_seed()
+    repair_mcc_weekly_activity_costs()
+    repair_mcc_weekly_workstream_labels()
+    repair_mcc_weekly_billing_quantities()
+    repair_mcc_weekly_light_vehicle_days()
+    migrate_legacy_drilling_bit_labels()
+    apply_mitchells_contract_exceptions()
+    apply_depco_import_exceptions()
 
 # ── Pricing engine ────────────────────────────────────────────────────────────
 DRILLING_METRE_CODES = {"Drill_Core", "Drill_Chip_or_Open_hole"}
@@ -3418,14 +3426,16 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "multipage-2026-11-18",
-        "business_platform": "workspace-campaign-v2",
+        "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
 
 @app.on_event("startup")
 def ensure_default_contractors():
-    """Ensure shipped defaults once at startup, never on a page read."""
+    """Initialize legacy defaults only before the workspace migration."""
+    if not LEGACY_BOOTSTRAP:
+        return
     with get_conn() as conn:
         with conn.cursor() as cur:
             defaults = [
@@ -5607,6 +5617,8 @@ def repair_minimum_shift_rows_on_startup():
 
 @app.on_event("startup")
 def repair_coreplan_timelines_on_startup():
+    if not LEGACY_BOOTSTRAP:
+        return
     try:
         result = repair_imported_coreplan_timelines()
         print(f"CorePlan timeline repair: {result}")
@@ -10965,7 +10977,9 @@ def ironbark_budget_import_status(source_status: str, hole_id: str = "") -> str:
 
 @app.on_event("startup")
 def sync_ironbark_budget_v5_4():
-    """Refresh the company BH plan from Version 5.4 without overwriting live operations."""
+    """Initialize the legacy company BH plan; migrations preserve live operations."""
+    if not LEGACY_BOOTSTRAP:
+        return
     source = load_ironbark_budget_v5_4()
     with get_conn() as conn:
         with conn.cursor() as cur:
