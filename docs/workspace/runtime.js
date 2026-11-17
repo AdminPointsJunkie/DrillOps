@@ -1610,13 +1610,14 @@ function importRetryDelay(attempt){
 }
 
 async function postOperationalReport(url,formData,retries=2){
+  if(formData.get('contractor')==='Weatherfords')retries=0;
   let lastError=null;
   for(let attempt=0;attempt<=retries;attempt++){
     try{
       const response=await fetch(url,{
         method:'POST',
         body:formData,
-        signal:AbortSignal.timeout(60000)
+        signal:AbortSignal.timeout(formData.get('contractor')==='Weatherfords'?3600000:60000)
       });
       if(response.status>=500&&attempt<retries){
         await importRetryDelay(attempt);

@@ -66,7 +66,7 @@ class ReportImportResilienceTests(unittest.TestCase):
 
     def test_portal_retries_transient_upload_failures(self):
         self.assertIn("async function postOperationalReport(url,formData,retries=2)", self.html)
-        self.assertIn("signal:AbortSignal.timeout(60000)", self.html)
+        self.assertIn("signal:AbortSignal.timeout(formData.get('contractor')==='Weatherfords'?3600000:60000)", self.html)
         self.assertIn("await postOperationalReport(`${API}/import`,fd)", self.html)
         self.assertIn("const apiReady=await apiFetch(API+'/'", self.html)
 

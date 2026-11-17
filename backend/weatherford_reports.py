@@ -112,6 +112,13 @@ def _expected_quote_charges(header: dict, operation_rows: list[dict], filename: 
                             contractor: str) -> tuple[list[dict], list[str]]:
     charges = []
     warnings = []
+    try:
+        report_date = datetime.strptime(header.get("date", ""), "%d/%b/%Y")
+        if report_date >= datetime(2026, 10, 2):
+            warnings.append("Quote 202510022 was valid for 12 months from 2 October 2025; confirm renewed rates for this report. Charges use the old quote as an estimate.")
+    except ValueError:
+        pass
+    warnings.append("Televiewer rentals are estimated from tools run; confirm the full assigned rental period and any additional processing with Weatherford.")
     rentals = WEATHERFORD_CALLOUT_DAY
     charges.append(_quote_charge_row(
         header, filename, contractor, "WFD_Callout_Day", "logging unit callout",

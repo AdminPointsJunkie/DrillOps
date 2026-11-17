@@ -67,6 +67,7 @@ from mcc_personnel import (
     parse_site_log_csv,
 )
 from weatherford_reports import is_weatherford_gdb, parse_weatherford_gdb
+from weatherford_pdf import read_weatherford_pdf
 
 app = FastAPI(title="DrillOps API", version="3.0")
 
@@ -3398,6 +3399,7 @@ def root():
         "status": "ok",
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
+        "weatherford_import": "multipage-2026-11-18",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
@@ -4650,7 +4652,7 @@ async def import_pdf(
     except Exception as e:
         raise HTTPException(400, f"Could not read PDF: {e}")
 
-    weatherford_report = is_weatherford_gdb(text, filename)
+    weatherford_report = is_weatherford_gdb(text, filename) or contractor == "Weatherfords"
     mcc_site_services_report = is_mcc_site_services_report(text, filename)
     source_file_type = (
         "weatherford_gdb" if weatherford_report
@@ -4661,7 +4663,7 @@ async def import_pdf(
     if weatherford_report:
         contractor = "Weatherfords"
         try:
-            header, acts, crew = parse_weatherford_gdb(text, tables, filename, contractor)
+            header, acts, crew, text = await read_weatherford_pdf(content, filename, openai_generate_json)
         except ValueError as e:
             raise HTTPException(400, f"Could not read Weatherford GDB report: {e}")
         cons = []
@@ -4892,7 +4894,7 @@ async def import_pdf(
             import_check = {
                 "status": "needs_review" if pricing_warnings else "ok",
                 "label": "Weatherford import check",
-                "summary": f"Expected cost ${expected_cost:,.2f} ex GST from quote 202510022"
+                "summary": f"{header.get('report_count', 1)} Weatherford report(s). Estimated cost ${expected_cost:,.2f} ex GST from quote 202510022"
                            + ("; review excluded items." if pricing_warnings else "."),
                 "warnings": [{
                     "severity": "warning",
