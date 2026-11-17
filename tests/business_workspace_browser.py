@@ -64,10 +64,22 @@ with sync_playwright() as p:
  page.locator('[data-open-project]').click();page.locator('#business-campaign').wait_for();assert page.locator('#business-campaign').input_value()=='';page.locator('#business-campaign').select_option(C);page.wait_for_load_state('domcontentloaded');page.locator('#business-context').wait_for()
  page.evaluate("sessionStorage.setItem('drillops_contractor','Weatherfords')")
  page.goto('http://localhost:8767/eos.html?view=importer');page.locator('#operational-import-title').wait_for()
- page.wait_for_function("document.querySelector('#operational-import-title').textContent.includes('Weatherfords')")
+ page.wait_for_function("!document.documentElement.classList.contains('app-session-loading') && document.querySelector('#operational-import-title').textContent.includes('Weatherfords')")
  assert page.locator('#handwritten-import-card').is_hidden()
  assert 'ARGO NR / Exploration / Ironbark No1 2026' in page.locator('#report-import-destination').inner_text()
  page.locator('#file-input').set_input_files({'name':'logging.pdf','mimeType':'application/pdf','buffer':b'local-test-only'})
+ # Switching scope during import must not navigate, change contractor or discard the file.
+ import_document=page.evaluate('performance.timeOrigin')
+ page.locator('#business-campaign').select_option('')
+ assert page.locator('#page-importer').is_visible()
+ assert 'top right' in page.locator('#report-import-destination').inner_text()
+ page.locator('#business-campaign').select_option(C)
+ page.wait_for_function("document.querySelector('#operational-import-title').textContent.includes('Weatherfords')")
+ assert page.evaluate('performance.timeOrigin')==import_document
+ assert page.locator('#page-importer').is_visible()
+ assert 'Weatherfords' in page.locator('#operational-import-title').text_content(), page.evaluate('({activeContractor,contractors:CONTRACTORS,page:document.querySelector(".page.active")?.id,title:document.querySelector("#operational-import-title").textContent})')
+ assert page.locator('#file-input').evaluate('(el)=>el.files[0].name')=='logging.pdf'
+ assert 'Ironbark No1 2026' in page.locator('#report-import-destination').inner_text()
  page.locator('#import-btn').click();page.wait_for_function("document.querySelector('#import-log').textContent.includes('1 rows')")
  assert imports and imports[-1][0]['x-campaign-id']==C and imports[-1][0]['x-workspace-id']==W and imports[-1][0]['x-business-project-id']==P
  assert 'Weatherfords' in imports[-1][1] and 'Ironbark' in imports[-1][1] and 'Exploration' in imports[-1][1]
@@ -93,7 +105,7 @@ with sync_playwright() as p:
  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), 'Mobile horizontal overflow'
  scoped=[h for path,h in requests if not path.startswith(('/mobile/','/platform/')) and h.get('x-campaign-id')==C]
  assert scoped and all(h.get('x-workspace-id')==W and h.get('x-business-project-id')==P for h in scoped)
- assert not [e for e in errors if 'business' in e.lower()],errors
+ assert not errors,errors
  browser.close()
 server.shutdown()
 print('PASS shared selection across EOS/Account/Project, scoped requests, protected admin, desktop/mobile settings')

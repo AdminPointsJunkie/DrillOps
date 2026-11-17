@@ -30,7 +30,24 @@
   bar.innerHTML=`<a href="./workspace.html">Workspace home</a><span>${escape([workspace()?.name,project?.name,campaign?.name].filter(Boolean).join(' / '))}</span><small class="business-role">${context.platform_admin?'Platform Admin':escape(workspace()?.role||'Member')}</small>`;
   if(project&&!document.body.dataset.workspaceLanding){
    bar.insertAdjacentHTML('beforeend',`<div class="workspace-campaign-controls"><label>Campaign <select id="business-campaign">${options(campaigns().filter(c=>c.project_id===project.id),selection.campaign_id,'All campaigns')}</select></label></div>`);
-   document.getElementById('business-campaign').onchange=e=>{selection.campaign_id=e.target.value;persist();location.reload();};
+   document.getElementById('business-campaign').onchange=e=>{
+    if((typeof ocrReviewActive!=='undefined'&&ocrReviewActive)||(typeof reportImportBusy!=='undefined'&&reportImportBusy)){e.target.value=selection.campaign_id;toast('Finish the current import or review before changing campaign','warn');return;}
+    const page=document.querySelector('.page.active')?.id?.replace('page-','');
+    selection.campaign_id=e.target.value;persist();apply();
+    if(WORKSPACE_APP==='eos'&&page==='importer'){
+     // Keep the importer, contractor and queued files; only change their destination.
+     render();renderEosScopeControls();syncReportImporter();return;
+    }
+    // Refresh the current view without restarting authentication or contractor selection.
+    if(typeof eosScopeVersion!=='undefined')eosScopeVersion++;
+    activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];periodReportActivitiesData=[];periodReportConsumablesData=[];bhData=[];
+    selectedCostContractId=null;costContractsData=[];costContractRatesData=[];
+    const detail=document.getElementById('cost-contract-detail');if(detail)detail.innerHTML='';
+    productionRawData=[];productionFilteredData=[];filterOpts={dates:[],holes:[],sites:[],codes:[]};
+    for(const id of ['f-dates','f-holes','f-sites','f-codes','f-cost-holes','f-cost-dates'])fillSelect(id,[]);
+    render();if(typeof renderEosScopeControls==='function')renderEosScopeControls();syncContractorReportLabels();
+    triggerPageLoad(page||'app-home');
+   };
    mountCreator(bar.querySelector('.workspace-campaign-controls'),project,()=>location.reload());
   }
 

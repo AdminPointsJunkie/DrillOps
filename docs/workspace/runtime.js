@@ -1530,7 +1530,7 @@ function syncReportImporter(){
   fileInput.accept=weatherford?'.pdf':'.pdf,.csv,.xlsx';
   dropZone.querySelector('p').textContent=weatherford?'Drop Weatherfords logging PDFs or click':'Drop operational PDFs / CSVs / XLSX sheets or click';
   const destination=window.businessImportDestination?.();
-  document.getElementById('report-import-destination').textContent=destination?'Import into: '+destination.label:'Choose a campaign from Workspace home before importing.';
+  document.getElementById('report-import-destination').textContent=destination?'Import into: '+destination.label:'Choose a campaign at the top right before importing.';
 }
 
 function looksLikeInvoice(filename){
