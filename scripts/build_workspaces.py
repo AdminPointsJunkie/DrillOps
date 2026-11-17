@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]; DOCS=ROOT/'docs'; SRC=DOCS/'workspace'
 APPS={
  'eos':{'name':'EOS','tag':'Record the work. Understand the charges.','copy':'Daily reports, production and charges from work completed.','panels':['reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],'nav':[('activities','Drilling Activity Reports'),('report-calendar','Report calendar'),('time-register','People & hours'),('day-rates','Day-rate contractors'),('reports','Production Report'),('costing','Associated charges'),('rates','Rate library'),('cost-contracts','Contracts'),('importer','Import reports'),('settings','Settings')]},
  'account':{'name':'Account','tag':'Your books. Clear and connected.','copy':'Actual invoices, credit notes and purchase orders in one place.','panels':['accounts-overview','invoices','accruals','reconciliation','purchase-orders','contractors','importer'],'nav':[('accounts-overview','Overview'),('invoices','Invoice ledger'),('accruals','Estimated accruals'),('reconciliation','Reconciliation'),('purchase-orders','Purchase orders'),('contractors','Suppliers'),('importer','Import invoices')]},
- 'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-dashboard','project-budgets','budget','boreholes','drilling-schedule','project-registers','labs','reports','admin'],'nav':[('project-dashboard','Dashboard'),('project-budgets','Projects'),('boreholes','Borehole planning & map'),('drilling-schedule','Rig scheduler'),('project-registers','Boreholes & samples'),('labs','Labs'),('budget','Budget planning'),('reports','Hole-by-hole report'),('admin','Users & change log')]}}
+ 'project':{'name':'Project','tag':'Plan the program. Keep it moving.','copy':'Projects, borehole planning, maps and budget allocations.','panels':['project-dashboard','project-budgets','budget','boreholes','drilling-schedule','project-registers','labs','reports','admin'],'nav':[('project-dashboard','Dashboard'),('project-budgets','Campaign register'),('boreholes','Borehole planning & map'),('drilling-schedule','Rig scheduler'),('project-registers','Boreholes & samples'),('labs','Labs'),('budget','Budget planning'),('reports','Hole-by-hole report'),('admin','Users & change log')]}}
 shell=(SRC/'shell.html').read_text()
 shell=re.sub(r'<nav class="site-nav".*?</nav>',navigation(),shell,flags=re.S)
 shell=re.sub(r'<footer class="site-footer".*?</footer>',footer(),shell,flags=re.S)
@@ -35,6 +35,7 @@ for area,cfg in APPS.items():
   if page in settings_pages:continue
   nav+=f'<button class="drawer-nav-item" data-page="{page}" onclick="drawerNav(this)">'+icon(PAGE_ICONS[page])+f'<span>{label}</span></button>'
  if area=='project':nav+='<a class="drawer-nav-item" href="./training.html">'+icon('people')+'<span>Training matrix</span></a>'
+ nav+='<button class="drawer-nav-item" onclick="openBusinessWorkspaceSettings()">'+icon('settings')+'<span>Workspace settings</span></button>'
  nav+='</div>'
  if area=='project':
   nav+='<div class="drawer-section project-settings-section"><div class="drawer-section-title">Settings</div>'
@@ -115,6 +116,7 @@ for area,cfg in APPS.items():
   module='labs' if area=='project' else 'day-rates'
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/tracking.css?v=20261108-tracking3"></head>')
   s=s.replace('<script src="./workspace/start.js','<script src="./workspace/'+module+'-model.js?v=20261108-tracking3"></script>\n<script src="./workspace/'+module+'.js?v=20261108-tracking3"></script>\n<script src="./workspace/start.js')
+ s=s.replace('</head>','<link rel="stylesheet" href="./workspace/business-platform.css?v=20261118-1"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/business-platform.js?v=20261118-1"></script>\n<script src="./workspace/start.js')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')
  if area=='project':

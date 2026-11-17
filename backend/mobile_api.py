@@ -432,7 +432,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
             VALUES
               (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s,
                'approved', %(reason)s, '[]'::jsonb, NOW())
-            ON CONFLICT (contractor, report_date, hole_num, source_file)
+            ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
             DO UPDATE SET status='approved', reason=EXCLUDED.reason, updated_at=NOW()
             """,
             approval_key,
@@ -444,7 +444,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
             VALUES
               (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s,
                TRUE, 'Locked on DAR approval', NOW())
-            ON CONFLICT (contractor, report_date, hole_num, source_file)
+            ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
             DO UPDATE SET locked=TRUE, reason=EXCLUDED.reason, updated_at=NOW()
             """,
             approval_key,
@@ -527,7 +527,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
             "id": auth.user_id,
             "name": user_profile["display_name"] or auth.email.split("@")[0],
             "email": auth.email,
-            "role": ROLE_LABELS[primary],
+            "role": "Platform Admin" if auth.owner else ROLE_LABELS[primary],
             "management_portal_access": bool(set(auth.apps) & {"eos","account","project"}),
             "apps": list(auth.apps),
             "owner": auth.owner,
@@ -1226,7 +1226,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
                       (contractor, report_date, hole_num, source_file, status, reason, log, updated_at)
                     VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s,
                             %(status)s, %(reason)s, %(log)s::jsonb, NOW())
-                    ON CONFLICT (contractor, report_date, hole_num, source_file)
+                    ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
                     DO UPDATE SET status=EXCLUDED.status, reason=EXCLUDED.reason,
                                   log=EXCLUDED.log || report_approvals.log, updated_at=NOW()
                     RETURNING *
@@ -1241,7 +1241,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
                           (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
                         VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s,
                                 TRUE, 'Locked on client approval', NOW())
-                        ON CONFLICT (contractor, report_date, hole_num, source_file)
+                        ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
                         DO UPDATE SET locked=TRUE, reason=EXCLUDED.reason, updated_at=NOW()
                         """,
                         key,
@@ -1279,7 +1279,7 @@ def create_mobile_router(get_conn: Callable) -> APIRouter:
                       (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
                     VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s,
                             %(locked)s, %(reason)s, NOW())
-                    ON CONFLICT (contractor, report_date, hole_num, source_file)
+                    ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
                     DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
                     RETURNING *
                     """,

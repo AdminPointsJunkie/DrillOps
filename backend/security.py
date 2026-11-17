@@ -24,6 +24,7 @@ class AuthUser:
     apps: tuple = ()
     owner: bool = False
     display_name: str = ""
+    workspaces: tuple = ()
 
 
 _access_cache = {}
@@ -49,7 +50,7 @@ def verify_access_token(token: str, fresh: bool = False) -> AuthUser:
             raise HTTPException(403, "Your DrillOps account has no active access")
         response.raise_for_status()
         data = response.json()
-        user = AuthUser(user_id=data['operations_user_id'], email=data['email'], assurance_level='aal1', canonical_id=data['user_id'], apps=tuple(data['apps']), owner=data['owner'], display_name=data.get('name', ''))
+        user = AuthUser(user_id=data['operations_user_id'], email=data['email'], assurance_level='aal1', canonical_id=data['user_id'], apps=tuple(data['apps']), owner=data['owner'], display_name=data.get('name', ''), workspaces=tuple(data.get('workspaces') or ()))
         # These claims only shorten the cache; authentication is performed by the identity service.
         claims = jwt.decode(token, options={"verify_signature": False})
         ttl = min(10, max(0, float(claims.get('exp', 0)) - time()))
@@ -101,6 +102,17 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
         except Exception:
             return self._error(503,"Your account could not be loaded. Please retry.")
 
+        business_token = None
+        path = request.url.path
+        if not path.startswith(("/platform/", "/mobile/", "/admin")):
+            from business_platform import resolve_request_scope, current_business_scope
+            from app_access import route_apps
+            try:
+                scope = await run_in_threadpool(resolve_request_scope, request.state.auth_user,
+                    request.headers, request.method, self.get_conn, route_apps(path, request.method))
+                business_token = current_business_scope.set(scope)
+            except HTTPException as exc:
+                return self._error(exc.status_code, str(exc.detail))
         context_token = request_audit_context.set(
             RequestAuditContext(
                 user_id=request.state.auth_user.user_id,
@@ -113,6 +125,8 @@ class DrillOpsAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         finally:
             request_audit_context.reset(context_token)
+            if business_token is not None:
+                current_business_scope.reset(business_token)
 
     def _ensure_profile(self,auth):
         # Local records retain legacy IDs and foreign keys. Sign-in belongs to canonical Auth.

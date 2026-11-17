@@ -1,0 +1,58 @@
+"""Browser regression: shared hierarchy, admin protection and request scope across all apps."""
+import base64,json,threading,time
+from functools import partial
+from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+ROOT=Path(__file__).resolve().parents[1]
+W='a7ecd88b-8ba9-4c5f-80c8-872fcc50f34f';P='11111111-1111-4111-8111-111111111111';C='22222222-2222-4222-8222-222222222222';U='44444444-4444-4444-8444-444444444444'
+ctxdata={'user_id':U,'platform_admin':True,'workspaces':[{'id':W,'name':'ARGO NR','role':'owner'}],'projects':[{'id':P,'workspace_id':W,'name':'Exploration'}],'campaigns':[{'id':C,'workspace_id':W,'project_id':P,'name':'Ironbark No1 2026','year':'2026','legacy_name':'Ironbark','legacy_program':'Exploration','client_id':1}],'shares':[]}
+class Quiet(SimpleHTTPRequestHandler):
+ def log_message(self,*args):pass
+server=ThreadingHTTPServer(('127.0.0.1',8767),partial(Quiet,directory=str(ROOT/'docs')))
+threading.Thread(target=server.serve_forever,daemon=True).start()
+enc=lambda x:base64.urlsafe_b64encode(json.dumps(x).encode()).decode().rstrip('=')
+session={'access_token':enc({'alg':'HS256'})+'.'+enc({'iss':'https://dzthwvxrltkltfvubvld.supabase.co/auth/v1','sub':U,'exp':int(time.time())+3600})+'.mock','refresh_token':'mock','expires_at':int(time.time())+3600,'user':{'id':U,'email':'admin@example.test'}}
+requests=[];errors=[]
+with sync_playwright() as p:
+ browser=p.chromium.launch(channel='msedge',headless=True)
+ context=browser.new_context(viewport={'width':1440,'height':1000})
+ context.add_init_script('localStorage.setItem("sb-dzthwvxrltkltfvubvld-auth-token",'+json.dumps(json.dumps(session))+');')
+ def route_api(route):
+  req=route.request;path=req.url.split(':8000')[-1].split('?')[0];requests.append((path,req.headers))
+  data=[]
+  if path=='/mobile/me':data={'name':'Admin','email':'admin@example.test','role':'Platform Admin','owner':True,'management_portal_access':True,'apps':['eos','account','project']}
+  elif path=='/platform/context':data=ctxdata
+  elif path.endswith('/settings'):data={'people':[{'id':U,'name':'Admin','email':'admin@example.test','role':'owner','status':'active','platform_admin':True,'apps':['eos','account','project']}],'shares':[],'events':[]}
+  elif path=='/projects':data=[{'id':4,'name':'Ironbark','program':'Exploration','client_id':1,'status':'Active','year':'2026'}]
+  elif path=='/clients':data=[{'id':1,'name':'ARGO NR','status':'Active'}]
+  elif path=='/contractors':data=[{'id':1,'name':'Mitchells Drilling','category':'Drilling','program':'Exploration','sites':'Ironbark','active':True}]
+  elif path=='/filters':data={'dates':[],'holes':[],'sites':[],'codes':[],'total_rows':0}
+  elif path=='/activity-report-data':data={'activities':[],'consumables':[],'crew':[],'daily_reports':[]}
+  elif path=='/invoice-ledger':data={'invoices':[],'purchase_orders':[]}
+  route.fulfill(json=data)
+ context.route('http://localhost:8000/**',route_api)
+ page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
+ for app in ['eos','account','project']:
+  page.goto('http://localhost:8767/'+app+'.html',wait_until='domcontentloaded')
+  page.locator('#business-scope').wait_for()
+  assert page.locator('.business-role').inner_text()=='Platform Admin'
+  if app=='eos':
+   page.locator('#business-project').select_option(P);page.wait_for_load_state('domcontentloaded');page.locator('#business-campaign').select_option(C);page.wait_for_load_state('domcontentloaded')
+  assert page.locator('#business-campaign').input_value()==C
+  assert page.locator('#business-project').input_value()==P
+  page.locator('#business-settings').click();page.locator('#business-dialog[open]').wait_for()
+  assert 'Ironbark No1 2026' in page.locator('#business-settings-body').inner_text()
+  page.locator('[data-tab=sharing]').click()
+  assert page.locator('#business-share button').is_disabled(), 'Protected Platform Admin must not be editable as a share'
+  page.locator('[data-tab=people]').click();assert 'Platform Admin' in page.locator('#business-settings-body').inner_text()
+  page.locator('#business-close').click()
+  if app=='project':page.screenshot(path=str(ROOT/'business-workspace-desktop.png'),full_page=True)
+ page.set_viewport_size({'width':390,'height':844});page.evaluate('closeDrawer()');page.locator('#business-settings').click();page.locator('#business-dialog[open]').wait_for();page.screenshot(path=str(ROOT/'business-workspace-mobile.png'),full_page=True)
+ assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), 'Mobile horizontal overflow'
+ scoped=[h for path,h in requests if not path.startswith(('/mobile/','/platform/')) and h.get('x-campaign-id')==C]
+ assert scoped and all(h.get('x-workspace-id')==W and h.get('x-business-project-id')==P for h in scoped)
+ assert not [e for e in errors if 'business' in e.lower()],errors
+ browser.close()
+server.shutdown()
+print('PASS shared selection across EOS/Account/Project, scoped requests, protected admin, desktop/mobile settings')

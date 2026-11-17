@@ -1,0 +1,18 @@
+CREATE UNIQUE INDEX rig_schedule_source_key_key ON public.rig_schedule USING btree (source_key);
+CREATE UNIQUE INDEX imported_files_pkey ON public.imported_files USING btree (filename);
+CREATE UNIQUE INDEX contractors_name_key ON public.contractors USING btree (name);
+CREATE UNIQUE INDEX idx_mcc_swipe_event ON public.mcc_swipe_history USING btree (contractor, person_key, time_in, logpoint);
+CREATE UNIQUE INDEX projects_contractor_name_program_key ON public.projects USING btree (contractor, lower(btrim(name)), lower(btrim(program)));
+CREATE UNIQUE INDEX boreholes_contractor_hole_id_key ON public.boreholes USING btree (contractor, hole_id);
+CREATE UNIQUE INDEX project_budgets_program_allocation_key ON public.project_budgets USING btree (contractor, project, program, section, vendor);
+CREATE UNIQUE INDEX clients_name_key ON public.clients USING btree (name);
+CREATE UNIQUE INDEX cost_centre_forecasts_site_cost_centre_year_month_category_key ON public.cost_centre_forecasts USING btree (site, cost_centre, year, month, category);
+CREATE UNIQUE INDEX lab_rates_identity ON public.lab_rates USING btree (lower(TRIM(BOTH FROM lab)), category, lower(TRIM(BOTH FROM test_name)), lower(TRIM(BOTH FROM unit)));
+CREATE UNIQUE INDEX ironbark_posted_costs_source_file_po_number_po_item_invoice_key ON public.ironbark_posted_costs USING btree (source_file, po_number, po_item, invoice_reference);
+CREATE UNIQUE INDEX report_approvals_contractor_report_date_hole_num_source_fil_key ON public.report_approvals USING btree (contractor, report_date, hole_num, source_file);
+CREATE UNIQUE INDEX activity_sheet_locks_contractor_report_date_hole_num_source_key ON public.activity_sheet_locks USING btree (contractor, report_date, hole_num, source_file);
+CREATE UNIQUE INDEX minimum_shift_topup_preferenc_contractor_report_date_hole_n_key ON public.minimum_shift_topup_preferences USING btree (contractor, report_date, hole_num, source_file);
+CREATE UNIQUE INDEX source_files_filename_contractor_key ON public.source_files USING btree (filename, contractor);
+CREATE UNIQUE INDEX invoice_imports_pkey ON public.invoice_imports USING btree (filename, contractor);
+ALTER TABLE organizations ADD CONSTRAINT organizations_contractor_name_fkey FOREIGN KEY(contractor_name) REFERENCES contractors(name);
+ALTER TABLE daily_activity_reports ADD CONSTRAINT daily_activity_reports_contractor_fkey FOREIGN KEY(contractor) REFERENCES contractors(name);

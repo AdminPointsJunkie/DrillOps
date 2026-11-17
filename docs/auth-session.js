@@ -90,5 +90,24 @@
  }
  root.DrillOpsSession={load,save,token,authenticate,fetch:apiFetch};
  if(root.DrillOpsUnifiedSession)root.DrillOpsSession=root.DrillOpsUnifiedSession(root.DrillOpsSession);
+ // Apply the same company/project/campaign scope to app and standalone report calls.
+ const scopedFetch=root.DrillOpsSession.fetch;
+ root.DrillOpsSession.fetch=function(input,options={}){
+  const request=new Request(input instanceof Request?input:new URL(input,root.location.href),options);
+  const url=new URL(request.url),headers=new Headers(request.headers);
+  if(url.hostname==='api.drillops.com.au'||(['localhost','127.0.0.1'].includes(url.hostname)&&url.port==='8000')){
+   try{
+    const session=root.DrillOpsSession.load();
+    const subject=session?.user?.id||JSON.parse(atob(session.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).sub;
+    const scope=JSON.parse(root.localStorage.getItem('drillops_business_scope')||'null');
+    if(scope?.subject===subject){
+     for(const [name,value] of Object.entries({'x-workspace-id':scope.workspace_id,'x-business-project-id':scope.project_id,'x-campaign-id':scope.campaign_id}))if(value)headers.set(name,value);
+    }
+   }catch{}
+   const app=root.document.body.dataset.workspaceArea||root.location.pathname.match(/\/(eos|account|project)\.html$/)?.[1];
+   if(app)headers.set('x-drillops-app',app);
+  }
+  return scopedFetch(new Request(request,{headers}),{});
+ };
  root.addEventListener('storage',event=>{if(event.key===key){memory=null;root.dispatchEvent(new Event('drillops-session-change'));}});
 })(window);

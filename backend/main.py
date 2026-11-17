@@ -35,6 +35,7 @@ from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
+from business_platform import current_business_scope, create_business_router, can_read_legacy_campaign
 from training_api import create_training_router, ensure_training_schema
 from rig_schedule import create_schedule_router, ensure_schedule_schema
 from account_accruals import create_accrual_router, ensure_accrual_schema
@@ -339,10 +340,11 @@ def get_conn(*, read_only=False):
     discard = False
     autocommit_before = False
     safe_request = False
+    business_scope = current_business_scope.get()
     try:
         conn = _get_live_connection()
         audit_context = current_request_audit_context()
-        safe_request = read_only
+        safe_request = read_only and business_scope is None
         autocommit_before = conn.autocommit
         if safe_request:
             # Read endpoints do not need trigger audit metadata or a final COMMIT.
@@ -365,6 +367,11 @@ def get_conn(*, read_only=False):
                         audit_context.path,
                     ),
                 )
+        if business_scope is not None:
+            with conn.cursor() as cur:
+                settings = business_scope.settings()
+                settings["app.actor_user_id"] = audit_context.user_id
+                cur.execute("SELECT set_config(k,v,FALSE) FROM unnest(%s::text[],%s::text[]) AS settings(k,v); SET ROLE drillops_business", (list(settings),list(settings.values())))
         yield conn
         if not safe_request:
             conn.commit()
@@ -380,6 +387,16 @@ def get_conn(*, read_only=False):
     finally:
         if conn is not None:
             discard = discard or bool(conn.closed)
+            if not discard and business_scope is not None:
+                try:
+                    conn.rollback()
+                    conn.autocommit = True
+                    with conn.cursor() as cur:
+                        cur.execute("RESET ROLE")
+                        cur.execute("RESET ALL")
+                    conn.autocommit = autocommit_before
+                except Exception:
+                    discard = True
             if not discard and safe_request:
                 conn.autocommit = autocommit_before
             if discard:
@@ -394,6 +411,7 @@ def get_conn(*, read_only=False):
 # routes enforce project/organisation permissions; unscoped legacy routes are
 # restricted to DrillOps system administrators.
 app.include_router(create_eos_weather_router())
+app.include_router(create_business_router(get_conn))
 app.add_middleware(DrillOpsAuthMiddleware, get_conn=get_conn)
 app.add_middleware(
     CORSMiddleware,
@@ -1115,7 +1133,7 @@ def init_db():
             cur.execute("""
                 INSERT INTO clients (name, code, status, notes)
                 VALUES ('Argo NR', 'ARGO', 'Active', 'Initial DrillOps client')
-                ON CONFLICT (name) DO NOTHING
+                ON CONFLICT (workspace_id, name) DO NOTHING
             """)
 
             cur.execute("""
@@ -1301,7 +1319,7 @@ def init_db():
                          baseline_amount, finance_actual, manual_accrual,
                          forecast_override, notes, source_file)
                         VALUES ('IB','TEC','TECEXP','Exploration',2026,%s,%s,%s,%s,0,NULL,'','F07 IB TEC.xlsx')
-                        ON CONFLICT (site, cost_centre, year, month, category) DO UPDATE SET
+                        ON CONFLICT (workspace_id, site, cost_centre, year, month, category) DO UPDATE SET
                             baseline_amount=EXCLUDED.baseline_amount,
                             finance_actual=EXCLUDED.finance_actual,
                             source_file=EXCLUDED.source_file,
@@ -3400,6 +3418,7 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "multipage-2026-11-18",
+        "business_platform": "workspace-campaign-v1",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
@@ -3417,7 +3436,7 @@ def ensure_default_contractors():
             ]
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO contractors (name, short_code, category, program, expense_gl)
-                VALUES %s ON CONFLICT (name) DO NOTHING
+                VALUES %s ON CONFLICT (workspace_id, name) DO NOTHING
             """, defaults)
             cur.execute("""
                 UPDATE contractors
@@ -3488,7 +3507,7 @@ async def add_contractor(request: Request):
                 cur.execute("""
                     INSERT INTO contractors (name, short_code, category, program, sites, expense_gl, active)
                     VALUES (%s, %s, %s, %s, %s, %s, TRUE)
-                    ON CONFLICT (name) DO UPDATE
+                    ON CONFLICT (workspace_id, name) DO UPDATE
                     SET short_code=EXCLUDED.short_code,
                         category=EXCLUDED.category,
                         program=EXCLUDED.program,
@@ -4386,7 +4405,7 @@ def store_mcc_swipe_history(content: bytes, filename: str) -> dict:
                    %(event_date)s, %(time_in)s, %(time_out)s, %(time_out_label)s,
                    %(duration_minutes)s, %(timezone)s, %(site)s, %(logpoint)s,
                    %(activity)s, %(open_shift)s)
-                ON CONFLICT (contractor, person_key, time_in, logpoint) DO UPDATE SET
+                ON CONFLICT (workspace_id, contractor, person_key, time_in, logpoint) DO UPDATE SET
                   source_file=EXCLUDED.source_file,
                   source_company=EXCLUDED.source_company,
                   person_id=EXCLUDED.person_id,
@@ -4416,7 +4435,7 @@ def store_mcc_swipe_history(content: bytes, filename: str) -> dict:
                 """
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
                 VALUES (%s, %s, 'mcc_site_log_csv', %s)
-                ON CONFLICT (filename, contractor) DO UPDATE SET
+                ON CONFLICT (workspace_id, filename, contractor) DO UPDATE SET
                   file_type=EXCLUDED.file_type,
                   pdf_data=EXCLUDED.pdf_data
                 """,
@@ -4530,7 +4549,7 @@ async def import_pdf(
                             (filename, contractor))
                 cur.execute("""
                     INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                    VALUES (%s, %s, 'mcc_weekly_xlsx', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                    VALUES (%s, %s, 'mcc_weekly_xlsx', %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
                 """, (filename, contractor, psycopg2.Binary(content)))
                 record_import_batch(
                     cur,
@@ -4605,7 +4624,7 @@ async def import_pdf(
                                 (filename, contractor))
                     cur.execute("""
                         INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                        VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                        VALUES (%s, %s, 'coreplan_csv', %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
                     """, (filename, contractor, psycopg2.Binary(content)))
                     record_import_batch(
                         cur,
@@ -4933,7 +4952,7 @@ async def import_pdf(
                         (filename, contractor))
             cur.execute("""
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                VALUES (%s, %s, %s, %s) ON CONFLICT (filename, contractor) DO NOTHING
+                VALUES (%s, %s, %s, %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
             """, (filename, contractor, source_file_type, psycopg2.Binary(content)))
             record_import_batch(
                 cur,
@@ -5655,7 +5674,7 @@ async def save_minimum_shift_topup_preference(request: Request):
                     (contractor, report_date, hole_num, source_file, include_topup, reason, updated_at)
                 VALUES
                     (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(include_topup)s, %(reason)s, NOW())
-                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
                 DO UPDATE SET include_topup=EXCLUDED.include_topup, reason=EXCLUDED.reason, updated_at=NOW()
                 RETURNING *
                 """,
@@ -5727,7 +5746,7 @@ def save_activity_sheet_lock_record(cur, key: dict, locked: bool, reason: str):
         """
         INSERT INTO activity_sheet_locks (contractor, report_date, hole_num, source_file, locked, reason, updated_at)
         VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(locked)s, %(reason)s, NOW())
-        ON CONFLICT (contractor, report_date, hole_num, source_file)
+        ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
         DO UPDATE SET locked=EXCLUDED.locked, reason=EXCLUDED.reason, updated_at=NOW()
         RETURNING *
         """,
@@ -5902,7 +5921,7 @@ async def save_report_approval(request: Request):
             cur.execute("""
                 INSERT INTO report_approvals (contractor, report_date, hole_num, source_file, status, reason, log, updated_at)
                 VALUES (%(contractor)s, %(report_date)s, %(hole_num)s, %(source_file)s, %(status)s, %(reason)s, %(log)s::jsonb, NOW())
-                ON CONFLICT (contractor, report_date, hole_num, source_file)
+                ON CONFLICT (workspace_id, contractor, report_date, hole_num, source_file)
                 DO UPDATE SET
                     status=EXCLUDED.status,
                     reason=EXCLUDED.reason,
@@ -9657,7 +9676,7 @@ def get_boreholes(contractor: Optional[str] = Query(None)):
                 # The approved 2026 Ironbark plan must remain visible even if a
                 # legacy import or a contractor/Company merge drops a row.
                 # Match by site OR operating hole to avoid duplicate budgets.
-                if contractor == "Company":
+                if contractor == "Company" and can_read_legacy_campaign(get_conn, 4):
                     present_ids = {
                         str(value or "").strip().upper()
                         for item in rows
@@ -9776,7 +9795,7 @@ async def import_budget(request: Request):
                  seam_tk,lat,lng,status,drilling_budget_total,earthworks_budget_total,
                  geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (contractor,hole_id) DO UPDATE SET
+                ON CONFLICT (workspace_id, contractor,hole_id) DO UPDATE SET
                     project=EXCLUDED.project, program=EXCLUDED.program, planned_year=EXCLUDED.planned_year,
                     site_id=EXCLUDED.site_id, drill_order=EXCLUDED.drill_order,
                     days_budgeted=EXCLUDED.days_budgeted,
@@ -9960,7 +9979,7 @@ async def add_client(request: Request):
             cur.execute("""
                 INSERT INTO clients (name, code, status, notes)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (name) DO UPDATE SET
+                ON CONFLICT (workspace_id, name) DO UPDATE SET
                     code=EXCLUDED.code,
                     status=EXCLUDED.status,
                     notes=EXCLUDED.notes
@@ -10795,7 +10814,7 @@ async def upsert_project_budgets(request: Request):
                     INSERT INTO project_budgets
                     (contractor, program, project, section, vendor, budget_amount, allocation, notes, updated_at)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-                    ON CONFLICT (contractor, project, program, section, vendor)
+                    ON CONFLICT (workspace_id, contractor, project, program, section, vendor)
                     DO UPDATE SET
                         program=EXCLUDED.program,
                         budget_amount=EXCLUDED.budget_amount,
@@ -10971,7 +10990,7 @@ def sync_ironbark_budget_v5_4():
                      seam_tk,lat,lng,status,notes,drilling_budget_total,earthworks_budget_total,
                      geophysical_budget_total,geological_support_budget_total,misc_budget_total,budget_total)
                     VALUES ('Company',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (contractor,hole_id) DO UPDATE SET
+                    ON CONFLICT (workspace_id, contractor,hole_id) DO UPDATE SET
                         project=EXCLUDED.project,
                         program=EXCLUDED.program,
                         planned_year=EXCLUDED.planned_year,
@@ -11042,6 +11061,8 @@ def get_project_budget_source(
     year: int = Query(2026),
 ):
     """Return the audited per-hole contractor budget used by period reports."""
+    if not can_read_legacy_campaign(get_conn, 4):
+        raise HTTPException(403, "This workbook belongs to an inaccessible campaign")
     if project.strip().lower() != "ironbark" or year != 2026:
         raise HTTPException(404, "No audited contractor budget source is available for this project and year.")
     source = load_ironbark_budget_v5_4()
@@ -11067,6 +11088,8 @@ def get_cost_centre_forecast(
     year: int = Query(2026),
 ):
     """Return the Ironbark three-GL Finance baseline, actuals and remaining plan."""
+    if not can_read_legacy_campaign(get_conn, 4):
+        raise HTTPException(403, "This forecast belongs to an inaccessible campaign")
     from datetime import datetime, timedelta, timezone
 
     brisbane_today = datetime.now(timezone(timedelta(hours=10))).date()
@@ -11922,7 +11945,7 @@ async def import_ocr_pdf(
                         (filename, contractor))
             cur.execute("""
                 INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                VALUES (%s, %s, 'ocr', %s) ON CONFLICT (filename, contractor) DO NOTHING
+                VALUES (%s, %s, 'ocr', %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
             """, (filename, contractor, psycopg2.Binary(content)))
             record_import_batch(
                 cur,
