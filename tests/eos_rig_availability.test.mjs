@@ -26,7 +26,7 @@ test('five consistent time groups preserve every included hour and daily total',
  const grouped=m.groupedTime(s),sum=o=>Object.values(o).reduce((a,b)=>a+b,0);assert.equal(Object.keys(grouped.timeCategories).length,5);assert.equal(sum(grouped.timeCategories),sum(s.timeCategories));grouped.daily.forEach((d,i)=>assert.equal(sum(d.timeCategories),sum(s.daily[i].timeCategories)));assert.equal(s.timeCategories['Cored drilling'],2);
 });
 test('report wiring keeps the existing penetration section and always includes rig availability',()=>{
- const html=readFileSync(new URL('../docs/eos.html',import.meta.url),'utf8');assert.equal((html.match(/Penetration &amp; daily averages/g)||[]).length,1);assert.match(html,/id="eos-rig-availability-section"/);assert.match(html,/<details class="eos-other-activities">/);assert.ok(html.indexOf('eos-rig-availability-model.js')<html.indexOf('eos-production.js?'));
+ const html=readFileSync(new URL('../docs/eos.html',import.meta.url),'utf8');assert.equal((html.match(/Penetration &amp; daily averages/g)||[]).length,1);assert.match(html,/id="eos-rig-availability-section"/);assert.match(html,/<div class="eos-other-activities"><h4>Other activity breakdown/);assert.ok(html.indexOf('eos-rig-availability-model.js')<html.indexOf('eos-production.js?'));
  const source=readFileSync(new URL('../docs/workspace/eos-period.js',import.meta.url),'utf8');assert.match(source,/renderEosRigAvailability\(rows,drilling\)/);
 });
 test('rendered report follows date and rig filters, handles empty data and escapes downtime evidence',()=>{
@@ -39,6 +39,7 @@ test('rendered report follows date and rig filters, handles empty data and escap
  doc.getElementById('eos-period-rig').innerHTML='<option value="">All rigs</option><option>Rig 1</option><option>Rig 2</option>';
  vm.runInContext(readFileSync(new URL('../docs/workspace/eos-sections.js',import.meta.url),'utf8'),ctx);
  vm.runInContext('eosPeriodRows=fixture;eosPeriodSourceRows=fixture;renderEosPeriodReport()',ctx);
+ assert.ok(doc.querySelector('#eos-period-rate-chart svg'));assert.equal(doc.getElementById('eos-period-rate-chart').closest('[hidden]'),null);assert.ok(doc.querySelector('#eos-period-other-chart .eos-bar-row'));assert.equal(doc.getElementById('eos-period-other-chart').closest('details,[hidden]'),null);
  assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,2);assert.equal(doc.querySelector('#eos-rig-events-body img'),null);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/50.0%/);assert.ok(doc.querySelectorAll('.eos-utilisation-detail-legend>span').length<=5);assert.match(doc.getElementById('eos-period-performance').textContent,/Penetration rate/);
  doc.getElementById('eos-period-rig').value='Rig 2';vm.runInContext('renderEosPeriodReport()',ctx);assert.equal(doc.querySelectorAll('#eos-rig-availability-body tr').length,1);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/Rig 2/);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/0.0%/);
  doc.getElementById('eos-period-to').value='2026-11-01';vm.runInContext('renderEosPeriodReport()',ctx);assert.match(doc.getElementById('eos-rig-availability-body').textContent,/No rig activity/);assert.match(doc.getElementById('eos-rig-availability-metrics').textContent,/—/);
