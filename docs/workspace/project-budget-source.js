@@ -15,7 +15,7 @@ async function loadProjectBudgetPanel(){
  const request=++projectBudgetRequest,scope=projectBudgetScope();
  projectWorkbookData=null;projectWorkbookError='';projectBudgetsData=[];projectBudgetPlannerRows=null;
  renderProjectBudgets();
- const host=document.getElementById('project-workbook-budget');host.hidden=false;host.textContent=scope.project?'Loading budget…':'Choose a project using the bottom-left sidebar selector.';
+ const host=document.getElementById('project-workbook-budget');host.hidden=false;host.textContent=scope.project?'Loading budget…':'Choose a campaign in the workspace selector above.';
  ['total','drilling','support','rows'].forEach(k=>setPeriodText('budget-kpi-'+k,'—'));
  if(!scope.project)return;
  const results=await Promise.allSettled([fetch(API+'/project-budgets?contractor=Company',{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error('Allocations unavailable');const rows=await r.json();if(!Array.isArray(rows))throw new Error('Invalid allocations');return rows;}),loadProjectWorkbook(scope),fetch(API+'/boreholes?contractor=Company',{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error('Planner unavailable');const rows=await r.json();if(!Array.isArray(rows))throw new Error('Invalid planner response');return rows;})]);
