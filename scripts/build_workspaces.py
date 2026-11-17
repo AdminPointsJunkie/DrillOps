@@ -116,7 +116,7 @@ for area,cfg in APPS.items():
   module='labs' if area=='project' else 'day-rates'
   s=s.replace('</head>','<link rel="stylesheet" href="./workspace/tracking.css?v=20261108-tracking3"></head>')
   s=s.replace('<script src="./workspace/start.js','<script src="./workspace/'+module+'-model.js?v=20261108-tracking3"></script>\n<script src="./workspace/'+module+'.js?v=20261108-tracking3"></script>\n<script src="./workspace/start.js')
- s=s.replace('</head>','<link rel="stylesheet" href="./workspace/business-platform.css?v=20261118-4"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/business-platform.js?v=20261118-4"></script>\n<script src="./workspace/start.js')
+ s=s.replace('</head>','<link rel="stylesheet" href="./workspace/business-platform.css?v=20261118-5"></head>').replace('<script src="./workspace/start.js','<script src="./workspace/business-platform.js?v=20261118-5"></script>\n<script src="./workspace/start.js')
  if area=='eos':s=s.replace('<script src="./workspace/start.js','<script src="./workspace/geophysical-model.js?v=20261118-1"></script>\n<script src="./workspace/geophysical.js?v=20261118-1"></script>\n<script src="./workspace/start.js')
  s=re.sub(r'<title>.*?</title>',f'<title>{title} · DrillOps</title>',s,count=1)
  if area!='account':s=s.replace('<script src="./invoice-ledger.js?v=20261108"></script>','').replace('<link rel="stylesheet" href="./invoice-ledger.css?v=20261108">','')

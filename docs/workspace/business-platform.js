@@ -2,11 +2,13 @@
 (()=>{
  const key='drillops_business_scope';let context,selection,settings,tab='projects';
  const originalInitialize=initializePortal;
+ if(!document.body.dataset.workspaceLanding)sessionStorage.setItem('business_current_app',WORKSPACE_APP);
+ const currentApp=()=>{const app=sessionStorage.getItem('business_current_app')||'eos';return (authenticatedUser?.apps||[]).includes(app)?app:(authenticatedUser?.apps||[])[0];};
  const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const options=(rows,value,all)=>`${all?`<option value="">${all}</option>`:''}`+rows.map(r=>`<option value="${escape(r.id)}" ${r.id===value?'selected':''}>${escape(r.name)}</option>`).join('');
  const workspace=()=>context.workspaces.find(w=>w.id===selection.workspace_id);
  const canManage=()=>context.platform_admin||['owner','admin'].includes(workspace()?.role);
- const appShares=()=>context.shares.filter(s=>document.body.dataset.workspaceLanding?s.apps.some(a=>(authenticatedUser?.apps||[]).includes(a)):s.apps.includes(WORKSPACE_APP));
+ const appShares=()=>context.shares.filter(s=>s.apps.includes(document.body.dataset.workspaceLanding?currentApp():WORKSPACE_APP));
  const campaigns=()=>context.campaigns.filter(c=>c.workspace_id===selection.workspace_id&&(canManage()||appShares().some(s=>s.project_id===c.project_id||s.campaign_id===c.id)));
  const projects=()=>context.projects.filter(p=>p.workspace_id===selection.workspace_id&&(canManage()||appShares().some(s=>s.project_id===p.id)||campaigns().some(c=>c.project_id===p.id)));
  async function api(path,method='GET',data){
@@ -54,11 +56,11 @@
   const requestedProject=new URLSearchParams(location.search).get('project');
   const project=projects().find(p=>p.id===requestedProject);
   const visibleProjects=projects().filter(p=>!(selection.workspace_id==='a7ecd88b-8ba9-4c5f-80c8-872fcc50f34f'&&p.name==='SIS'));
-  const campaignCards=project?campaigns().filter(c=>c.project_id===project.id).map(c=>`<article><h2>${escape(c.name)}</h2>${['eos','account','project'].filter(a=>(authenticatedUser?.apps||[]).includes(a)).map(a=>`<button data-open-app="${a}" data-campaign="${c.id}" data-project="${project.id}">${{eos:'EOS',account:'Account',project:'Project'}[a]}</button>`).join('')}</article>`).join(''):'';
-  page.innerHTML=`<div class="eos-page-heading"><div><p>COMPANY WORKSPACE</p><label>Company <select id="workspace-home-company">${options(context.workspaces,selection.workspace_id)}</select></label><h1>${escape(project?.name||workspace().name)}</h1><p>${project?'Choose a campaign to open its reports, accounts or planning.':'Choose a project.'}</p>${project?'<a href="./workspace.html">All projects</a>':''}</div><button id="workspace-home-settings">Workspace settings</button></div><div class="workspace-projects">${project?(campaignCards||'<p>No campaigns yet. Create one in Workspace Settings.</p>'):visibleProjects.map(p=>`<article><h2>${escape(p.name)}</h2><button data-open-project="${p.id}">Open project</button></article>`).join('')||'<p>No projects are available in this workspace.</p>'}</div>`;
+  const campaignCards=project?campaigns().filter(c=>c.project_id===project.id).map(c=>`<article><button class="campaign-open" data-open-campaign="${c.id}" data-project="${project.id}"><span>${escape(c.name)}</span><span aria-hidden="true">→</span></button></article>`).join(''):'';
+  page.innerHTML=`<div class="eos-page-heading"><div><p>COMPANY WORKSPACE</p><label>Company <select id="workspace-home-company">${options(context.workspaces,selection.workspace_id)}</select></label><h1>${escape(project?.name||workspace().name)}</h1><p>${project?'Choose a campaign.':'Choose a project.'}</p>${project?'<a href="./workspace.html">All projects</a>':''}</div><div class="workspace-home-actions"><button id="workspace-home-settings">Workspace settings</button></div></div><div class="workspace-projects${project?' workspace-campaigns':''}">${project?(campaignCards||'<p>No campaigns yet.</p>'):visibleProjects.map(p=>`<article><h2>${escape(p.name)}</h2><button data-open-project="${p.id}">Open project</button></article>`).join('')||'<p>No projects are available in this workspace.</p>'}</div>`;
   page.querySelectorAll('[data-open-project]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.openProject;selection.campaign_id='';persist();location.assign('./workspace.html?project='+encodeURIComponent(b.dataset.openProject));});
   if(canManage()){
-   page.insertAdjacentHTML('beforeend',`<details class="workspace-create"><summary>New ${project?'campaign':'project'}</summary><form id="workspace-create"><label>${project?'Campaign':'Project'} name<input name="name" required maxlength="120"></label>${project?`<label>Year<input name="year" required pattern="[0-9]{4}" value="${new Date().getFullYear()}"></label>`:''}<button>Create ${project?'campaign':'project'}</button><p role="alert"></p></form></details>`);
+   page.querySelector('.workspace-home-actions').insertAdjacentHTML('beforeend',`<details class="workspace-create"><summary><span aria-hidden="true">＋</span> New ${project?'campaign':'project'}</summary><form id="workspace-create"><label>${project?'Campaign':'Project'} name<input name="name" required maxlength="120"></label>${project?`<label>Year<input name="year" required pattern="[0-9]{4}" value="${new Date().getFullYear()}"></label>`:''}<button>Create ${project?'campaign':'project'}</button><p role="alert"></p></form></details>`);
    const form=document.getElementById('workspace-create');
    form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('button');button.disabled=true;form.querySelector('[role=alert]').textContent='';
     try{const data=Object.fromEntries(new FormData(form));if(project)data.project_id=project.id;await api('/workspaces/'+selection.workspace_id+'/'+(project?'campaigns':'projects'),'POST',data);context=await api('/context');showWorkspaceHome();}
@@ -67,7 +69,8 @@
   }
   document.getElementById('workspace-home-company').onchange=e=>{selection.workspace_id=e.target.value;selection.project_id='';selection.campaign_id='';persist();location.assign('./workspace.html');};
   document.getElementById('workspace-home-settings').onclick=()=>openBusinessWorkspaceSettings();
-  page.querySelectorAll('[data-open-app]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.project;selection.campaign_id=b.dataset.campaign;persist();location.assign('./'+b.dataset.openApp+'.html');});
+  page.querySelectorAll('[data-open-campaign]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.project;selection.campaign_id=b.dataset.openCampaign;persist();location.assign('./'+currentApp()+'.html');});
+  const appNav=document.querySelector('.suite-app-links');if(appNav)appNav.innerHTML=`<span class="workspace-current-app">${{eos:'EOS',account:'Account',project:'Project'}[currentApp()]||'Workspace'}</span>`;
  }
  window.businessImportDestination=()=>{
   const campaign=context?.campaigns.find(c=>c.id===selection?.campaign_id);
