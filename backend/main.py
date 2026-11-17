@@ -35,6 +35,7 @@ from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
+from db_scope import ScopedConnection
 from business_platform import current_business_scope, create_business_router, can_read_legacy_campaign, import_destination, require_contractor_admin
 from training_api import create_training_router, ensure_training_schema
 from rig_schedule import create_schedule_router, ensure_schedule_schema
@@ -332,53 +333,21 @@ def _get_live_connection():
 
 @contextmanager
 def get_conn(*, read_only=False):
-    """Borrow a PostgreSQL connection and return it to the shared pool."""
+    """Keep authorization transaction-local, including handlers with internal commits."""
     if not _db_pool_slots.acquire(timeout=DB_POOL_ACQUIRE_TIMEOUT):
         raise RuntimeError("Database connection pool is busy; please retry")
-
     conn = None
     discard = False
-    autocommit_before = False
-    safe_request = False
-    business_scope = current_business_scope.get()
     try:
         conn = _get_live_connection()
-        audit_context = current_request_audit_context()
-        safe_request = read_only and business_scope is None
-        autocommit_before = conn.autocommit
-        if safe_request:
-            # Read endpoints do not need trigger audit metadata or a final COMMIT.
-            # Autocommit reduces a normal report read to one database round trip.
-            conn.autocommit = True
-        else:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        set_config('app.actor_user_id', %s, TRUE),
-                        set_config('app.request_id', %s, TRUE),
-                        set_config('app.request_method', %s, TRUE),
-                        set_config('app.request_path', %s, TRUE)
-                    """,
-                    (
-                        audit_context.user_id,
-                        audit_context.request_id,
-                        audit_context.method,
-                        audit_context.path,
-                    ),
-                )
-        if business_scope is not None:
-            with conn.cursor() as cur:
-                settings = business_scope.settings()
-                settings["app.actor_user_id"] = audit_context.user_id
-                cur.execute("SELECT set_config(k,v,FALSE) FROM unnest(%s::text[],%s::text[]) AS settings(k,v); SET ROLE drillops_business", (list(settings),list(settings.values())))
-        yield conn
-        if not safe_request:
-            conn.commit()
+        conn.autocommit = False
+        scoped = ScopedConnection(conn, current_business_scope.get(), current_request_audit_context())
+        yield scoped
+        conn.commit()
     except Exception as exc:
         if conn is not None:
             discard = _connection_failed(exc, conn)
-            if not discard and not safe_request:
+            if not discard:
                 try:
                     conn.rollback()
                 except psycopg2.Error:
@@ -387,18 +356,6 @@ def get_conn(*, read_only=False):
     finally:
         if conn is not None:
             discard = discard or bool(conn.closed)
-            if not discard and business_scope is not None:
-                try:
-                    conn.rollback()
-                    conn.autocommit = True
-                    with conn.cursor() as cur:
-                        cur.execute("RESET ROLE")
-                        cur.execute("RESET ALL")
-                    conn.autocommit = autocommit_before
-                except Exception:
-                    discard = True
-            if not discard and safe_request:
-                conn.autocommit = autocommit_before
             if discard:
                 _forget_pool_connection(conn)
             else:

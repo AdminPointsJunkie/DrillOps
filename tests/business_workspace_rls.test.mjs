@@ -42,4 +42,14 @@ await db.exec("insert into contractors(name) values('Same Supplier')");
 await db.exec("insert into source_files(filename,contractor) values('same.pdf','Same Supplier')");
 assert.equal((await db.query("select count(*)::int n from contractors where name='Same Supplier'")).rows[0].n,1);
 assert.equal((await db.query("select count(*)::int n from source_files where filename='same.pdf'")).rows[0].n,1);
+// Transaction poolers can switch physical backends after COMMIT. Local roles and
+// scope values must end with their transaction, including when a session starts restricted.
+await db.exec('RESET ROLE; BEGIN; SET LOCAL ROLE NONE;');
+await db.exec(`SELECT set_config('app.workspace_id','${argo}',true),set_config('app.workspace_admin','true',true); SET LOCAL ROLE drillops_business;`);
+assert.equal((await db.query('select current_user as role')).rows[0].role,'drillops_business');
+await db.exec('COMMIT');
+assert.notEqual((await db.query('select current_user as role')).rows[0].role,'drillops_business');
+await db.exec('SET ROLE drillops_business; BEGIN; SET LOCAL ROLE NONE');
+assert.notEqual((await db.query('select current_user as role')).rows[0].role,'drillops_business');
+await db.exec('ROLLBACK; RESET ROLE');
 await db.close();console.log('Business workspace migration, preserved totals, tenant isolation and viewer/editor RLS passed');
