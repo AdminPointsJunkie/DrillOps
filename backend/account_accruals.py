@@ -58,7 +58,7 @@ def create_accrual_router(get_conn):
                   (SELECT count(*) FROM invoices i WHERE lower(trim(i.project))=lower(trim(p.name)) AND lower(trim(i.program))=lower(trim(p.program)) AND i.subtotal IS NULL) missing_amounts
                   FROM projects p WHERE p.id=%s""",(project_id,));row=cur.fetchone()
                 if not row:raise HTTPException(404,'Project not found.')
-                return dict(row,combined=row['invoiced']+row['accruals'])
+                return dict(row,combined=Decimal(str(row['invoiced']))+Decimal(str(row['accruals'])))
     @router.get('')
     def read(request:Request):
         """Read accruals and purchase order descriptions for monthly planning."""

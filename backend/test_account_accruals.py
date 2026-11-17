@@ -53,3 +53,9 @@ def test_po_descriptions_are_returned_for_cards():
     assert result.status_code==200 and result.json()['pos'][0]['description']=='Geological support'
     query=next(call.args[0] for call in cur.execute.call_args_list if 'FROM purchase_orders ORDER BY' in call.args[0])
     assert 'po_value,description' in query
+
+
+def test_project_summary_combines_legacy_float_invoices_with_decimal_accruals():
+    c,_=client([{'id':4,'invoiced':100.10,'accruals':Decimal('20.25'),'missing_amounts':0}],apps=('project',))
+    r=c.get('/account-accruals/project-summary?project_id=4')
+    assert r.status_code==200 and r.json()['combined']==120.35
