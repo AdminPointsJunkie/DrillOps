@@ -69,3 +69,19 @@ test('September AAC inspection records reduce availability while site inspection
  assert.equal(p.standby(row({code:'H_Standby_Insp',total_metres:0})),'Inspections · unspecified');
  const grouped=m.groupedTime(p.summarise([...rows,site]));assert.equal(grouped.timeCategories['Repairs / maintenance / rig inspections'],40);assert.equal(grouped.timeCategories.Standby,8);
 });
+
+test('period presets use inclusive Brisbane dates across month, year and leap-day boundaries',()=>{
+ const fields=Object.fromEntries(['eos-period-preset','eos-period-from','eos-period-to'].map(id=>[id,{value:''}]));
+ const ctx=vm.createContext({window:{addEventListener(){}},document:{getElementById:id=>fields[id]},EosProduction:p});
+ vm.runInContext(readFileSync(new URL('../docs/workspace/eos-period.js',import.meta.url),'utf8')+';renderEosPeriodReport=()=>{};',ctx);
+ const range=(preset,now)=>{ctx.preset=preset;ctx.now=new Date(now);vm.runInContext('setEosPeriodRange(preset,now)',ctx);return [fields['eos-period-from'].value,fields['eos-period-to'].value];};
+ assert.deepEqual(range('30','2026-11-16T15:00:00Z'),['2026-10-19','2026-11-17']);
+ assert.deepEqual(range('60','2026-11-16T15:00:00Z'),['2026-09-19','2026-11-17']);
+ assert.deepEqual(range('90','2026-11-16T15:00:00Z'),['2026-08-20','2026-11-17']);
+ assert.deepEqual(range('this-month','2026-11-16T15:00:00Z'),['2026-11-01','2026-11-17']);
+ assert.deepEqual(range('last-month','2027-01-01T00:00:00Z'),['2026-12-01','2026-12-31']);
+ assert.deepEqual(range('last-month','2024-03-01T00:00:00Z'),['2024-02-01','2024-02-29']);
+ assert.deepEqual(range('custom','2026-11-17T00:00:00Z'),['2024-02-01','2024-02-29']);
+ vm.runInContext("eosPeriodRows=[{date:'2026-09-04'},{date:'2026-11-16'}]",ctx);
+ assert.deepEqual(range('all','2026-11-17T00:00:00Z'),['2026-09-04','2026-11-16']);
+});

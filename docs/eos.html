@@ -512,7 +512,7 @@
     <section class="page eos-period" id="page-reports">
  <div class="production-head eos-period-toolbar"><div><div class="eos-breadcrumb">EOS <span>/</span> Production Report</div><h1>Production Report</h1></div><div class="production-actions"><button class="btn-secondary" type="button" onclick="refreshEosPage('reports')">Refresh</button><button class="btn-primary" id="eos-period-print" type="button" onclick="printPeriodReport()">Print / save PDF</button></div></div>
  <div class="production-filters eos-period-controls">
-  <label>Period<select id="eos-period-preset" onchange="setEosPeriodRange(this.value)"><option value="month">Latest month</option><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
+  <label>Period<select id="eos-period-preset" onchange="setEosPeriodRange(this.value)"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="this-month" selected>This month</option><option value="last-month">Last month</option><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
   <label>From<input id="eos-period-from" type="date" onchange="setEosPeriodRange('custom')"></label>
   <label>To<input id="eos-period-to" type="date" onchange="setEosPeriodRange('custom')"></label>
   <label>Rig<select id="eos-period-rig" onchange="renderEosPeriodReport()"><option value="">All rigs</option></select></label>
@@ -894,7 +894,7 @@
 <script src="./workspace/eos-production.js?v=20261117-chartperiod1"></script>
 <script src="./workspace/eos-shift-charges.js?v=20261108-insights1"></script>
 <script src="./workspace/eos-weather.js?v=20261117-chartperiod1"></script>
-<script src="./workspace/eos-period.js?v=20261117-chartperiod1"></script>
+<script src="./workspace/eos-period.js?v=20261117-ranges1"></script>
 <script src="./workspace/eos-overview.js?v=20261108-plods1"></script>
 <script src="./workspace/eos-standby-details.js?v=20261108-standby1"></script>
 <script src="./workspace/eos-calendar-model.js?v=20261108-calendar1"></script>

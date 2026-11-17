@@ -17,12 +17,25 @@ loadReportsPage=async function(){
   eosPeriodLoading=false;setEosPeriodRange(document.getElementById('eos-period-preset').value);
  }catch(error){if(request!==eosPeriodRequest||version!==eosScopeVersion)return;eosPeriodLoading=false;eosPeriodError=error.message;renderEosPeriodReport();}
 };
-function setEosPeriodRange(preset){
+function setEosPeriodRange(preset,now=new Date()){
  document.getElementById('eos-period-preset').value=preset;
  if(preset!=='custom'){
-  const dates=eosPeriodRows.map(r=>EosProduction.date(r.date)).filter(Boolean).sort();
-  document.getElementById('eos-period-from').value=dates.length?(preset==='month'?dates.at(-1).slice(0,7)+'-01':dates[0]):'';
-  document.getElementById('eos-period-to').value=dates.at(-1)||'';
+  let from='',to='';
+  if(preset==='all'||preset==='month'){
+   const dates=eosPeriodRows.map(r=>EosProduction.date(r.date)).filter(Boolean).sort();
+   from=dates.length?(preset==='month'?dates.at(-1).slice(0,7)+'-01':dates[0]):'';to=dates.at(-1)||'';
+  }else{
+   // Brisbane calendar dates, independent of the viewer's device timezone.
+   const parts=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Brisbane',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+   const part=type=>Number(parts.find(p=>p.type===type).value),year=part('year'),month=part('month')-1,day=part('day');
+   const date=(y,m,d)=>new Date(Date.UTC(y,m,d)).toISOString().slice(0,10);
+   to=date(year,month,day);
+   if(['30','60','90'].includes(preset))from=date(year,month,day-Number(preset)+1);
+   else if(preset==='this-month')from=date(year,month,1);
+   else if(preset==='last-month'){from=date(year,month-1,1);to=date(year,month,0);}
+  }
+  document.getElementById('eos-period-from').value=from;
+  document.getElementById('eos-period-to').value=to;
  }
  renderEosPeriodReport();
 }
