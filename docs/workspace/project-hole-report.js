@@ -54,7 +54,7 @@
  async function load(preserveRange){
   const token=++request,scope=currentScope(),key=scopeKey(scope);data=null;model=null;
   el('page-reports').querySelector('.phr-content').hidden=true;el('project-hole-print').disabled=true;
-  el('period-report-meta').textContent=scope.project?'Loading budget, EOS production and Accounts invoices…':'Choose a campaign in the workspace selector above.';
+  el('period-report-meta').textContent=scope.project?'Loading budget, EOS production and Accounts invoices…':'Choose a campaign from Workspace home.';
   if(!scope.project)return;
   if(!preserveRange||loadedScope!==key){el('period-range-from').value=scope.year+'-01-01';el('period-range-to').value=scope.year+'-12-31';}
   const read=async path=>{const r=await fetch(API+path,{cache:'no-store'});if(!r.ok)throw new Error('Report source could not load');return r.json();};
