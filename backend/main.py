@@ -3418,7 +3418,7 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "multipage-2026-11-18",
-        "business_platform": "workspace-campaign-v1",
+        "business_platform": "workspace-campaign-v2",
         "contractors": [c[0] for c in CONTRACTORS],
     }
 
@@ -5595,7 +5595,8 @@ def sync_allianz_minimum_shift_topups(contractor: str):
     return {"deleted": len(existing_topups), "inserted": len(topups), "adjusted": adjusted, "restored_coreplan_rows": restored_coreplan_rows}
 
 
-@app.on_event("startup")
+# Historic charge recalculation is explicit through /reprice or report import.
+# Deployment must not regenerate IDs or change approved shift amounts.
 def repair_minimum_shift_rows_on_startup():
     for contractor in MINIMUM_SHIFT_RULES:
         try:

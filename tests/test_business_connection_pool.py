@@ -38,3 +38,9 @@ def test_pool_returns_connection_without_workspace_role(fail):
  finally:current_business_scope.reset(token)
  assert conn.role=='postgres' and conn.resets==1 and not conn.autocommit
  assert 'RESET ALL' in conn.commands and returned==[False]
+
+
+def test_deployment_does_not_recalculate_existing_minimum_shift_charges():
+ tree=ast.parse((Path(__file__).resolve().parents[1]/'backend/main.py').read_text(encoding='utf8'))
+ repair=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='repair_minimum_shift_rows_on_startup')
+ assert not repair.decorator_list
