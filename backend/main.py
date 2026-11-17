@@ -35,7 +35,7 @@ from audit import record_audit_event, record_import_batch
 from dar_workflow import ensure_dar_schema
 from request_context import current_request_audit_context
 from security import DrillOpsAuthMiddleware
-from business_platform import current_business_scope, create_business_router, can_read_legacy_campaign
+from business_platform import current_business_scope, create_business_router, can_read_legacy_campaign, import_destination, require_contractor_admin
 from training_api import create_training_router, ensure_training_schema
 from rig_schedule import create_schedule_router, ensure_schedule_schema
 from account_accruals import create_accrual_router, ensure_accrual_schema
@@ -185,7 +185,7 @@ CONTRACTORS = [
     ("Earth Works",        "EW"),
 ]
 
-CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geological Support", "Lab Testing", "Misc"]
+CONTRACTOR_CATEGORIES = ["Drilling", "Earthworks", "Labour", "Geophysical Logging", "Geological Support", "Lab Testing", "Misc"]
 DEFAULT_CONTRACTOR_CATEGORIES = {
     "Allianz Drilling": "Drilling",
     "Mitchells Drilling": "Drilling",
@@ -193,7 +193,7 @@ DEFAULT_CONTRACTOR_CATEGORIES = {
     "MCC Group": "Labour",
     "CHMS": "Earthworks",
     "King Konstruct": "Earthworks",
-    "Weatherfords": "Geological Support",
+    "Weatherfords": "Geophysical Logging",
     "Epiroc": "Geological Support",
     "Fortem": "Geological Support",
     "GEOGAS": "Lab Testing",
@@ -3487,6 +3487,7 @@ def get_contractors():
 
 @app.post("/contractors")
 async def add_contractor(request: Request):
+    require_contractor_admin()
     try:
         payload = await request.json()
     except Exception:
@@ -3542,6 +3543,7 @@ def rename_contractor_references(cur, old_name: str, new_name: str):
 
 @app.patch("/contractors/{name}")
 async def update_contractor(name: str, request: Request):
+    require_contractor_admin()
     try:
         payload = await request.json()
     except Exception:
@@ -3598,6 +3600,7 @@ async def update_contractor(name: str, request: Request):
 
 @app.delete("/contractors/{name}")
 def remove_contractor(name: str):
+    require_contractor_admin()
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM contractors WHERE name=%s", (name,))
@@ -4513,6 +4516,9 @@ async def import_pdf(
 ):
     """Import reports with source prices preserved and Mitchells weather standby classified explicitly."""
     filename = file.filename
+    if contractor == "Weatherfords" and not filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Weatherfords imports accept logging PDFs only")
+    program, project, client = import_destination(get_conn, program, project, client)
     content = await file.read()
     if filename.lower().endswith(".csv") and looks_like_site_log_csv(content):
         try:
@@ -11850,6 +11856,9 @@ async def import_ocr_pdf(
 ):
     """Import OCR with per-activity holes and source completion evidence, including multi-hole shifts."""
     filename = file.filename
+    if contractor == "Weatherfords" and not filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Weatherfords imports accept logging PDFs only")
+    program, project, client = import_destination(get_conn, program, project, client)
     content = await file.read()
     if is_depco_report(filename):
         contractor = "DEPCO Drilling"
@@ -12016,6 +12025,7 @@ async def preview_ocr_pdf(
     program: str = Form(default=""),
 ):
     """Preview OCR results without saving — for testing."""
+    program, project, client = import_destination(get_conn, program, project, '')
     content = await file.read()
     data = await ocr_with_openai(content)
     date_warning = None

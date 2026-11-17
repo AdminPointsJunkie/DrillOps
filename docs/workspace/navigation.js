@@ -4,12 +4,12 @@ let eosRawLogsEnabled=false;
 const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling','Weatherfords']);
 function contractorsForApp(rows, field='name'){
  const list=Array.isArray(rows)?rows:[];
- return WORKSPACE_APP==='eos'?list.filter(row=>EOS_CONTRACTOR_NAMES.has(row[field])):list;
+ return WORKSPACE_APP==='eos'?list.filter(row=>row.active!==false&&row[field]!=='Company'):list;
 }
 const WORKSPACE_PAGES = {
- eos:['reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],
- account:['accounts-overview','invoices','accruals','reconciliation','purchase-orders','contractors','importer'],
- project:['project-dashboard','project-budgets','budget','boreholes','drilling-schedule','project-registers','labs','reports','admin']
+ eos:['workspace-settings','reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],
+ account:['workspace-settings','accounts-overview','invoices','accruals','reconciliation','purchase-orders','contractors','importer'],
+ project:['workspace-settings','project-dashboard','project-budgets','budget','boreholes','drilling-schedule','project-registers','labs','reports','admin']
 };
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}
 function routeWorkspacePage(page){

@@ -2,10 +2,11 @@
       <h2 class="section-title">Import Data</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
         <!-- EOS Daily Reports -->
-        <div class="chart-card" style="padding:24px;">
-          <div class="chart-title">Daily Operational Reports</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Drilling report PDFs, CorePlan CSV exports and Weatherford GDB logging reports. Select Weatherfords for scanned PDFs; each page is imported separately. Scans can take several minutes.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <p id="report-import-destination" role="status" style="grid-column:1/-1;margin:0;"></p>
+        <div class="chart-card" id="operational-import-card" style="padding:24px;">
+          <div class="chart-title" id="operational-import-title">Daily Operational Reports</div>
+          <p id="operational-import-help" style="font-size:12px;color:var(--muted);margin-bottom:14px;">Drilling report PDFs, CorePlan CSV exports and Weatherford GDB logging reports. Select Weatherfords for scanned PDFs; each page is imported separately. Scans can take several minutes.</p>
+          <div hidden style="display:none;">
             <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Workspace client
               <select id="import-client-select" disabled style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text);font-family:var(--font);">
                 <option value="">Select client</option>
@@ -26,7 +27,7 @@
           <div id="import-log" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;line-height:1.8;color:var(--muted);max-height:120px;overflow-y:auto;"></div>
         </div>
         <!-- Handwritten OCR -->
-        <div class="chart-card" style="padding:24px;border:1.5px solid var(--accent);">
+        <div class="chart-card" id="handwritten-import-card" style="padding:24px;border:1.5px solid var(--accent);">
           <div class="chart-title" style="color:var(--accent);">Handwritten Drill Logs (AI OCR)</div>
           <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Scanned handwritten logs (DEPCO etc). Uses OpenAI vision to read handwriting.</p>
           <div class="upload-zone" id="ocr-drop-zone" style="margin-bottom:10px;border-color:var(--accent);position:relative;">

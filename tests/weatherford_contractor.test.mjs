@@ -7,7 +7,7 @@ for(const app of ['eos','account','project']){
  vm.createContext(context);vm.runInContext(source,context);
  const rows=['DEPCO Drilling','Mitchells Drilling','Weatherfords','Epiroc'].map(name=>({name}));
  const actual=context.contractorsForApp(rows).map(row=>row.name);
- assert.deepEqual(Array.from(actual),app==='eos'?rows.slice(0,3).map(row=>row.name):rows.map(row=>row.name));
+ assert.deepEqual(Array.from(actual),rows.map(row=>row.name));
  assert.equal(context.contractorsForApp([{contractor:'Weatherfords'}],'contractor').length,1);
 }
 console.log('Weatherfords remains a separate selectable EOS contractor');

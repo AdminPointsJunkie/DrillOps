@@ -57,7 +57,7 @@ async function verifyPortalAccount(){
   const response=await apiFetch(API+'/mobile/me',{cache:'no-store'},2);
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.detail||'Your account is not active in DrillOps.');
-  if(Array.isArray(data.apps)&&typeof WORKSPACE_APP!=='undefined'&&!data.apps.includes(WORKSPACE_APP)){window.location.replace('./drillops-account.html');return false;}
+  if(Array.isArray(data.apps)&&typeof WORKSPACE_APP!=='undefined'&&!(document.body.dataset.workspaceLanding?data.apps.some(a=>['eos','account','project'].includes(a)):data.apps.includes(WORKSPACE_APP))){window.location.replace('./drillops-account.html');return false;}
   const returnTo=safeReturnTo();
   const hasManagementAccess=data.management_portal_access===true||data.role==='System Administrator';
   const returnPage=returnTo?new URL(returnTo,window.location.href).pathname.split('/').pop():'';
@@ -233,7 +233,7 @@ let CONTRACTORS = JSON.parse(sessionStorage.getItem('drillops_contractors') || '
    {name:'DEPCO Drilling',short_code:'DEP',category:'Drilling',program:'Exploration,Gas Riser,SIS'},
    {name:'MCC Group',short_code:'MCC',category:'Labour',program:'Exploration,Gas Riser,SIS'},{name:'King Konstruct',short_code:'KK',category:'Earthworks'},
    {name:'CHMS',short_code:'CHMS',category:'Earthworks'},
-   {name:'Weatherfords',short_code:'WFD',category:'Geological Support'},
+   {name:'Weatherfords',short_code:'WFD',category:'Geophysical Logging'},
    {name:'Epiroc',short_code:'EPI',category:'Geological Support'},{name:'Fortem',short_code:'FOR',category:'Geological Support'},
    {name:'GEOGAS',short_code:'GEO',category:'Lab Testing'},{name:'Geochempet',short_code:'GCP',category:'Lab Testing'},
    {name:'STANTEC',short_code:'STN',category:'Lab Testing'},{name:'SIGRA',short_code:'SIG',category:'Lab Testing'},
@@ -242,7 +242,7 @@ CONTRACTORS=contractorsForApp(CONTRACTORS);
 
 const PROJECT_PROGRAMS = ['Exploration','Gas Riser','SIS'];
 const CONTRACTOR_SITES = ['Ironbark','Carborough Downs'];
-const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geological Support','Lab Testing','Misc'];
+const CONTRACTOR_CATEGORIES = ['Drilling','Earthworks','Labour','Geophysical Logging','Geological Support','Lab Testing','Misc'];
 const CONTRACTOR_GL_LABELS = {
   '4200':'Consulting Services',
   '4250':'Contractors',
@@ -387,7 +387,7 @@ async function loadProjectContractors(){
 async function fetchContractors(){
   try{
     const data=await fetch(`${API}/contractors`).then(r=>r.json());
-    if(data&&data.length){
+    if(Array.isArray(data)){
       CONTRACTORS=contractorsForApp(data);
       sessionStorage.setItem('drillops_contractors',JSON.stringify(data));
     }
@@ -598,6 +598,7 @@ function closeDrawer(){
 }
 function drawerNav(btn){
   const page=btn.dataset.page;
+  if(page==='workspace-settings'){openBusinessWorkspaceSettings();return;}
   if(routeWorkspacePage(page))return;
   const pageEl=document.getElementById(`page-${page}`);
   if(!pageEl){toast('Page not found: '+page,'err');closeDrawer();return;}
@@ -1068,6 +1069,7 @@ async function switchProgram(program){
   await loadProjectBudgets();
   await updateDbCount();
   const activePage=document.querySelector('.page.active')?.id?.replace('page-','');
+  if(WORKSPACE_APP==='eos')syncContractorReportLabels();
   if(activePage) triggerPageLoad(activePage);
   toast('Workspace: '+activeProgramLabel());
 }
@@ -1391,6 +1393,11 @@ function buildContractorSwitcher(){
 }
 
 async function switchContractor(name){
+  if(typeof ocrReviewActive!=='undefined'&&ocrReviewActive){toast('Finish the current report review before changing contractor','warn');return;}
+  pendingFiles=[];if(fileInput)fileInput.value='';if(importBtn)importBtn.disabled=true;
+  if(typeof ocrPendingFiles!=='undefined')ocrPendingFiles=[];
+  if(typeof ocrFileInput!=='undefined'&&ocrFileInput)ocrFileInput.value='';
+  if(typeof ocrImportBtn!=='undefined'&&ocrImportBtn)ocrImportBtn.disabled=true;
   projects = [];
   activeContractor=name;
   sessionStorage.setItem('drillops_contractor',name);
@@ -1459,9 +1466,11 @@ function triggerPageLoad(page){
   if(routeWorkspacePage(page))return;
   document.querySelectorAll('.app-local-nav a').forEach(a=>{if(new URL(a.href).searchParams.get('view')===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   updateContractorSwitcherVisibility(page);
+  if(WORKSPACE_APP==='eos')syncContractorReportLabels();
   // Always reload fresh data when switching tabs — no caching
   if(page==='settings'&&WORKSPACE_APP==='eos')updateEosSettings();
-  if(page==='importer'&&WORKSPACE_APP==='account')loadInvoiceImportOptions();
+  if(page==='workspace-settings'){openBusinessWorkspaceSettings();return;}
+  if(page==='importer'){if(WORKSPACE_APP==='account')loadInvoiceImportOptions();else syncReportImporter();}
   if(page==='contractors')  { renderContractorsPage(); }
   if(page==='admin')        loadAdminPage();
   if(page==='boreholes')    loadBoreholes();
@@ -1501,6 +1510,28 @@ function triggerPageLoad(page){
 const dropZone=document.getElementById('drop-zone');
 const fileInput=document.getElementById('file-input');
 const importBtn=document.getElementById('import-btn');
+let reportImportBusy=false;
+
+function syncContractorReportLabels(){
+ const category=activeContractorCategory(),drilling=category==='Drilling',logging=category==='Geophysical Logging';
+ document.querySelectorAll('.drawer-nav-item[data-page="reports"] span,.app-local-nav a[href$="view=reports"]').forEach(el=>el.textContent=logging?'Logging Report':drilling?'Production Report':'Service Report');
+ document.querySelectorAll('.drawer-nav-item[data-page="activities"] span,.app-local-nav a[href$="view=activities"]').forEach(el=>el.textContent=drilling?'Drilling Activity Reports':logging?'Logging Activity Reports':'Service Activity Reports');
+}
+
+function syncReportImporter(){
+  if(WORKSPACE_APP!=='eos')return;
+  const weatherford=activeContractor==='Weatherfords';
+  const title=document.getElementById('operational-import-title');
+  if(!title)return;
+  title.textContent=weatherford?'Weatherfords logging reports':activeContractor+' operational reports';
+  document.getElementById('operational-import-help').textContent=weatherford?'Upload Weatherford GDB logging PDFs, including scanned reports. Each page is read separately; scans can take several minutes.':'Upload operational PDFs or CorePlan CSV exports for the selected contractor.';
+  document.getElementById('handwritten-import-card').hidden=weatherford;
+  document.getElementById('ocr-preview-panel').hidden=weatherford;
+  fileInput.accept=weatherford?'.pdf':'.pdf,.csv,.xlsx';
+  dropZone.querySelector('p').textContent=weatherford?'Drop Weatherfords logging PDFs or click':'Drop operational PDFs / CSVs / XLSX sheets or click';
+  const destination=window.businessImportDestination?.();
+  document.getElementById('report-import-destination').textContent=destination?'Import into: '+destination.label:'Choose a campaign from Workspace home before importing.';
+}
 
 function looksLikeInvoice(filename){
   return /INV[-_]\d+/i.test(filename) || /invoice/i.test(filename) || /tax.invoice/i.test(filename);
@@ -1554,6 +1585,7 @@ fileInput?.addEventListener('change',e=>{
     toast(`⚠ "${invoices[0].name}" looks like an invoice — use the 🧾 Invoice import below`,'warn');
     fileInput.value='';pendingFiles=[];importBtn.disabled=true;importBtn.textContent='Import Reports';return;
   }
+  if(activeContractor==='Weatherfords'&&files.some(f=>!/\.pdf$/i.test(f.name))){toast('Weatherfords imports accept logging PDFs only','warn');fileInput.value='';pendingFiles=[];importBtn.disabled=true;return;}
   pendingFiles=files;
   importBtn.disabled=pendingFiles.length===0;
   importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} report(s)`:'Import Reports';
@@ -1562,7 +1594,7 @@ dropZone?.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.
 dropZone?.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
 dropZone?.addEventListener('drop',e=>{
   e.preventDefault();dropZone.classList.remove('drag-over');
-  pendingFiles=[...e.dataTransfer.files].filter(f=>/\.(pdf|csv|xlsx)$/i.test(f.name));
+  pendingFiles=[...e.dataTransfer.files].filter(f=>(activeContractor==='Weatherfords'?/\.pdf$/i:/\.(pdf|csv|xlsx)$/i).test(f.name));
   importBtn.disabled=pendingFiles.length===0;
   importBtn.textContent=pendingFiles.length>0?`Import ${pendingFiles.length} file(s)`:'Import to Database';
 });
@@ -1668,9 +1700,10 @@ importBtn?.addEventListener('click',async()=>{
   const hasOperationalReports=classifiedFiles.some(function(item){return !item.isMccSiteLog;});
   const importScope=selectedImportScope();
   if(hasOperationalReports&&(!importScope.client||!importScope.project)){
-    toast('Select the client and project for these reports','err');
+    toast('Choose a campaign from Workspace home for these reports','err');
     return;
   }
+  reportImportBusy=true;
   importBtn.disabled=true;
   importBtn.innerHTML='<span class="spinner"></span>Importing…';
   const log=document.getElementById('import-log');log.innerHTML='';
@@ -1684,7 +1717,7 @@ importBtn?.addEventListener('click',async()=>{
   }catch(error){
     log.innerHTML='<div class="err">✗ The DrillOps API is unavailable. The selected files have been kept for retry.</div>';
     importBtn.textContent=`Retry ${pendingFiles.length} report(s)`;
-    importBtn.disabled=false;
+    importBtn.disabled=false;reportImportBusy=false;
     return;
   }
   for(const item of classifiedFiles){
@@ -1722,6 +1755,7 @@ importBtn?.addEventListener('click',async()=>{
       else{log.innerHTML+=`<div class="skip">⚠ ${file.name} (already imported)</div>`;}
     }catch(e){failedFiles.push(file);log.innerHTML+=`<div class="err">✗ ${esc(file.name)}: ${esc(e.message||'Import failed')}</div>`;}
   }
+  reportImportBusy=false;
   pendingFiles=failedFiles;
   importBtn.textContent=failedFiles.length?`Retry ${failedFiles.length} failed report(s)`:'Import to Database';
   importBtn.disabled=failedFiles.length===0;
@@ -6155,7 +6189,7 @@ if(ocrImportBtn) {
   ocrImportBtn.addEventListener('click', function() {
     if (!ocrPendingFiles.length) return;
     const scope=selectedImportScope();
-    if(!scope.client||!scope.project){toast('Select the client and project for these DDRs','err');return;}
+    if(!scope.client||!scope.project){toast('Choose a campaign from Workspace home for these reports','err');return;}
     ocrImportScope={project:scope.project.name,client:scope.client.name,program:projectProgram(scope.project),contractor:activeContractor};
     ocrReviewActive = true;
     ocrImportBtn.disabled = true;
@@ -10188,7 +10222,8 @@ async function initializePortal(){
   if(WORKSPACE_APP==='eos'){
     // Open the requested view immediately after authentication. Registry metadata
     // fills in alongside the report; no filter-count or project-link gate.
-    initializeEosScope();workspaceStarted=true;ensureActiveContractorInProgram();buildContractorSwitcher();
+    CONTRACTORS=[];await fetchContractors();
+    initializeEosScope();workspaceStarted=true;ensureActiveContractorInProgram();buildContractorSwitcher();syncContractorReportLabels();
     openInitialAppPage();
     Promise.all([fetchContractors(),fetchProjects()]).then(()=>{
       const previous=activeContractor;ensureActiveContractorInProgram();

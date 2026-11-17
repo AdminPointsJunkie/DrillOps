@@ -8,6 +8,7 @@ from security import current_auth_user
 
 ARGO = "a7ecd88b-8ba9-4c5f-80c8-872fcc50f34f"
 APPS = {"eos", "account", "project"}
+CONTRACTOR_TYPES = ("Drilling", "Geophysical Logging", "Earthworks", "Labour", "Geological Support", "Lab Testing", "Misc")
 current_business_scope = ContextVar("business_scope", default=None)
 
 
@@ -120,6 +121,32 @@ def can_read_legacy_campaign(get_conn, legacy_id):
             return bool(cur.fetchone())
 
 
+def require_contractor_admin():
+    scope=current_business_scope.get()
+    if scope is not None and not scope.admin:
+        raise HTTPException(403, "A workspace admin must configure contractors")
+
+
+def import_destination(get_conn, program='', project='', client=''):
+    """Resolve upload labels from the authorized campaign, never from report text."""
+    scope = current_business_scope.get()
+    if scope is None:
+        return program, project, client
+    if not scope.project_id or not scope.campaign_id:
+        raise HTTPException(409, 'Select a company workspace, project and campaign before importing reports')
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''SELECT p.program, p.name, w.name AS client
+                FROM business_campaigns c JOIN projects p ON p.id=c.legacy_project_id
+                JOIN business_workspaces w ON w.id=c.workspace_id
+                WHERE c.id=%s AND c.project_id=%s AND c.workspace_id=%s''',
+                (scope.campaign_id, scope.project_id, scope.workspace_id))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(403, 'The selected import campaign is unavailable')
+    return row['program'], row['name'], row['client']
+
+
 def create_business_router(get_conn):
     router = APIRouter(prefix="/platform", tags=["workspaces"])
 
@@ -162,7 +189,39 @@ def create_business_router(get_conn):
                 shares=[dict(r) for r in cur.fetchall()]
                 cur.execute("SELECT action,detail,created_at FROM business_access_events WHERE workspace_id=%s ORDER BY id DESC LIMIT 50",(workspace_id,))
                 events=[dict(r) for r in cur.fetchall()]
-        return {"workspace":{k:w[k] for k in ("id","name","role")},"people":w.get("people",[]),"shares":shares,"events":events}
+                cur.execute("SELECT name,category,short_code,active FROM contractors WHERE workspace_id=%s ORDER BY name",(workspace_id,))
+                contractors=[dict(r) for r in cur.fetchall()]
+        return {"workspace":{k:w[k] for k in ("id","name","role")},"people":w.get("people",[]),"shares":shares,"events":events,"contractors":contractors,"contractor_types":CONTRACTOR_TYPES}
+
+    @router.post("/workspaces/{workspace_id}/contractors")
+    async def create_contractor(workspace_id: str, request: Request):
+        auth=current_auth_user(request);require_workspace(auth,uuid_value(workspace_id),True)
+        data=await request.json();name=str(data.get('name') or '').strip();category=data.get('category')
+        if not name or len(name)>120 or category not in CONTRACTOR_TYPES:
+            raise HTTPException(400,'Enter a contractor name and supported service type')
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO contractors(workspace_id,name,short_code,category,program,sites,active) VALUES(%s,%s,%s,%s,'','',true) ON CONFLICT(workspace_id,name) DO NOTHING RETURNING name,category",(workspace_id,name,name[:3].upper(),category))
+                row=cur.fetchone()
+                if not row:raise HTTPException(409,'This contractor already exists in the workspace')
+                audit(cur,auth,workspace_id,'contractor.created',{'name':name,'category':category})
+        return dict(row)
+
+    @router.patch("/workspaces/{workspace_id}/contractors/{name}")
+    async def configure_contractor(workspace_id: str, name: str, request: Request):
+        auth=current_auth_user(request)
+        require_workspace(auth,uuid_value(workspace_id),True)
+        data=await request.json()
+        category=data.get('category')
+        if category not in CONTRACTOR_TYPES:
+            raise HTTPException(400,'Choose a supported contractor type')
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('UPDATE contractors SET category=%s WHERE workspace_id=%s AND name=%s RETURNING name,category',(category,workspace_id,name))
+                row=cur.fetchone()
+                if not row:raise HTTPException(404,'Contractor not found in this workspace')
+                audit(cur,auth,workspace_id,'contractor.type_updated',{'name':name,'category':category})
+        return dict(row)
 
     @router.post("/workspaces/{workspace_id}/projects")
     async def create_project(workspace_id: str, request: Request):

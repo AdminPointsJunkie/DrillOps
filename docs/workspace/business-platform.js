@@ -6,7 +6,7 @@
  const options=(rows,value,all)=>`${all?`<option value="">${all}</option>`:''}`+rows.map(r=>`<option value="${escape(r.id)}" ${r.id===value?'selected':''}>${escape(r.name)}</option>`).join('');
  const workspace=()=>context.workspaces.find(w=>w.id===selection.workspace_id);
  const canManage=()=>context.platform_admin||['owner','admin'].includes(workspace()?.role);
- const appShares=()=>context.shares.filter(s=>s.apps.includes(WORKSPACE_APP));
+ const appShares=()=>context.shares.filter(s=>document.body.dataset.workspaceLanding?s.apps.some(a=>(authenticatedUser?.apps||[]).includes(a)):s.apps.includes(WORKSPACE_APP));
  const campaigns=()=>context.campaigns.filter(c=>c.workspace_id===selection.workspace_id&&(canManage()||appShares().some(s=>s.project_id===c.project_id||s.campaign_id===c.id)));
  const projects=()=>context.projects.filter(p=>p.workspace_id===selection.workspace_id&&(canManage()||appShares().some(s=>s.project_id===p.id)||campaigns().some(c=>c.project_id===p.id)));
  async function api(path,method='GET',data){
@@ -22,14 +22,10 @@
   document.getElementById('workspace-gate')?.classList.remove('open');document.body.classList.remove('workspace-locked');return true;
  }
  function render(){
-  let bar=document.getElementById('business-scope');
-  if(!bar){bar=document.createElement('section');bar.id='business-scope';bar.setAttribute('aria-label','Company, project and campaign');document.querySelector('body > header').after(bar);}
-  bar.innerHTML=`<label>Company workspace<select id="business-workspace">${options(context.workspaces,selection.workspace_id)}</select></label><label>Project<select id="business-project">${options(projects(),selection.project_id,'All projects')}</select></label><label>Campaign<select id="business-campaign">${options(campaigns().filter(c=>!selection.project_id||c.project_id===selection.project_id),selection.campaign_id,'All campaigns')}</select></label><span class="business-role">${context.platform_admin?'Platform Admin':escape(workspace()?.role||'Member')}</span><button type="button" id="business-settings">Workspace settings</button>`;
-  for(const [id,field] of [['workspace','workspace_id'],['project','project_id'],['campaign','campaign_id']])document.getElementById('business-'+id).onchange=e=>{
-   selection[field]=e.target.value;if(id==='workspace'){selection.project_id='';selection.campaign_id='';}if(id==='project')selection.campaign_id='';if(id==='campaign'&&selection.campaign_id)selection.project_id=context.campaigns.find(c=>c.id===selection.campaign_id).project_id;
-   persist();location.reload();
-  };
-  document.getElementById('business-settings').onclick=open;
+  let bar=document.getElementById('business-context');
+  if(!bar){bar=document.createElement('nav');bar.id='business-context';bar.setAttribute('aria-label','Workspace context');document.querySelector('body > header').append(bar);}
+  const project=context.projects.find(p=>p.id===selection.project_id),campaign=context.campaigns.find(c=>c.id===selection.campaign_id);
+  bar.innerHTML=`<a href="./workspace.html">Workspace home</a><span>${escape([workspace()?.name,project?.name,campaign?.name].filter(Boolean).join(' / '))}</span><small class="business-role">${context.platform_admin?'Platform Admin':escape(workspace()?.role||'Member')}</small>`;
  }
  initializePortal=async function(){
   if(portalInitialized)return;
@@ -41,30 +37,63 @@
   if(!selection.workspace_id)throw new Error('Your account needs membership of a company workspace in FieldMaps.');
   if(!projects().some(p=>p.id===selection.project_id)){selection.project_id='';selection.campaign_id='';}
   if(!campaigns().some(c=>c.id===selection.campaign_id))selection.campaign_id='';
-  persist();apply();render();await originalInitialize();apply();
+  persist();apply();render();
+  if(document.body.dataset.workspaceLanding){
+   document.querySelectorAll('#drawer .drawer-section').forEach(n=>n.remove());
+   const nav=document.createElement('div');nav.className='drawer-section';nav.innerHTML='<div class="drawer-section-title">Company workspace</div><a class="drawer-nav-item" href="./workspace.html">Projects & campaigns</a><button class="drawer-nav-item" data-page="workspace-settings" onclick="openBusinessWorkspaceSettings()">Workspace settings</button>';
+   document.getElementById('drawer').append(nav);document.querySelectorAll('.do-product').forEach(n=>n.textContent='Workspace');
+   portalInitialized=true;workspaceStarted=true;openInitialAppPage();return;
+  }
+  await originalInitialize();apply();
  };
+ const originalInitialPage=openInitialAppPage;
+ openInitialAppPage=function(){if(document.body.dataset.workspaceLanding&&!(new URLSearchParams(location.search).get('view')))return showWorkspaceHome();return originalInitialPage();};
+ function showWorkspaceHome(){
+  let page=document.getElementById('page-workspace-home');if(!page){page=document.createElement('section');page.id='page-workspace-home';page.className='page';document.querySelector('.app-local-nav').parentElement.append(page);}
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p===page));updateContractorSwitcherVisibility('workspace-settings');
+  page.innerHTML=`<div class="eos-page-heading"><div><p>COMPANY WORKSPACE</p><label>Company <select id="workspace-home-company">${options(context.workspaces,selection.workspace_id)}</select></label><h1>${escape(workspace().name)}</h1><p>Choose a project and campaign to open its reports, accounts or planning.</p></div><button id="workspace-home-settings">Workspace settings</button></div><div class="workspace-projects">${projects().map(p=>`<article><h2>${escape(p.name)}</h2>${(authenticatedUser?.apps||[]).includes("project")?`<button data-open-app="project" data-project="${p.id}" data-campaign="">Open project</button>`:""}<ul>${campaigns().filter(c=>c.project_id===p.id).map(c=>`<li><strong>${escape(c.name)}</strong><div>${['eos','account','project'].filter(a=>(authenticatedUser?.apps||[]).includes(a)).map(a=>`<button data-open-app="${a}" data-campaign="${c.id}" data-project="${p.id}">${{eos:'EOS',account:'Account',project:'Project'}[a]}</button>`).join('')}</div></li>`).join('')||'<li>No campaigns yet. Create one in Workspace Settings.</li>'}</ul></article>`).join('')||'<p>No projects are available in this workspace.</p>'}</div>`;
+  document.getElementById('workspace-home-company').onchange=e=>{selection.workspace_id=e.target.value;selection.project_id='';selection.campaign_id='';persist();location.reload();};
+  document.getElementById('workspace-home-settings').onclick=()=>openBusinessWorkspaceSettings();
+  page.querySelectorAll('[data-open-app]').forEach(b=>b.onclick=()=>{selection.project_id=b.dataset.project;selection.campaign_id=b.dataset.campaign;persist();location.assign('./'+b.dataset.openApp+'.html');});
+ }
+ window.businessImportDestination=()=>{
+  const campaign=context?.campaigns.find(c=>c.id===selection?.campaign_id);
+  const project=context?.projects.find(p=>p.id===selection?.project_id);
+  if(!campaign||!project)return null;
+  return {client:{id:campaign.client_id,name:workspace().name},project:{name:campaign.legacy_name,program:campaign.legacy_program},label:[workspace().name,project.name,campaign.name].join(' / ')};
+ };
+ selectedImportScope=()=>window.businessImportDestination()||{};
  restoreWorkspaceSelection=apply;
  if(typeof initializeEosScope==='function')initializeEosScope=apply;
  showNewProjectDialog=()=>{tab='projects';open();};
  showNewClientDialog=()=>{tab='people';open();};
- showWorkspaceGate=async()=>{document.getElementById('business-campaign')?.focus();return null;};
+ showWorkspaceGate=async()=>{location.assign('./workspace.html');return null;};
  window.addEventListener('storage',event=>{if(event.key===key&&context)location.reload();});
  window.openBusinessWorkspaceSettings=()=>{tab='projects';open();};
  async function open(){
   try{
    settings=canManage()?await api('/workspaces/'+selection.workspace_id+'/settings'):{people:[],shares:[],events:[]};
-   let dialog=document.getElementById('business-dialog');if(!dialog){dialog=document.createElement('dialog');dialog.id='business-dialog';document.body.append(dialog);dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});}
-   draw();dialog.showModal();
+   let dialog=document.getElementById('business-dialog');if(!dialog){dialog=document.createElement('section');dialog.id='business-dialog';dialog.className='page';document.querySelector('.app-local-nav').parentElement.append(dialog);}
+   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p===dialog));
+   closeDrawer();updateContractorSwitcherVisibility('workspace-settings');
+   const url=new URL(location.href);url.searchParams.set('view','workspace-settings');history.replaceState({},'',url);
+   draw();
   }catch(error){toast(error.message,'warn');}
  }
  function draw(){
   const dialog=document.getElementById('business-dialog');
-  dialog.innerHTML=`<div class="business-settings-head"><div><small>WORKSPACE SETTINGS</small><h2>${escape(workspace().name)}</h2></div><button id="business-close" type="button">Close</button></div><div class="business-settings-layout"><nav aria-label="Workspace settings">${['projects','people','sharing','activity'].map(t=>`<button type="button" data-tab="${t}" aria-current="${t===tab?'page':'false'}">${{projects:'Projects & campaigns',people:'People & permissions',sharing:'Sharing',activity:'Activity'}[t]}</button>`).join('')}</nav><section id="business-settings-body"></section></div><p id="business-error" role="alert"></p>`;
-  document.getElementById('business-close').onclick=()=>dialog.close();dialog.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;draw();});
+  dialog.innerHTML=`<div class="business-settings-head"><div><small>WORKSPACE SETTINGS</small><h2>${escape(workspace().name)}</h2></div><button id="business-close" type="button">Workspace home</button></div><div class="business-settings-layout"><nav aria-label="Workspace settings">${['projects','contractors','people','sharing','activity'].map(t=>`<button type="button" data-tab="${t}" aria-current="${t===tab?'page':'false'}">${{projects:'Projects & campaigns',contractors:'Contractors',people:'People & permissions',sharing:'Sharing',activity:'Activity'}[t]}</button>`).join('')}</nav><section id="business-settings-body"></section></div><p id="business-error" role="alert"></p>`;
+  document.getElementById('business-close').onclick=()=>location.assign('./workspace.html');dialog.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;draw();});
   const body=document.getElementById('business-settings-body');
   if(tab==='projects'){
    body.innerHTML=`<h3>Projects & campaigns</h3><p>Each company workspace contains projects. Each project contains its own campaigns.</p>${projects().map(p=>`<article><h4>${escape(p.name)}</h4><ul>${campaigns().filter(c=>c.project_id===p.id).map(c=>`<li>${escape(c.name)} <small>${escape(c.year)}</small></li>`).join('')||'<li>No campaigns yet</li>'}</ul></article>`).join('')||'<p>No projects are available.</p>'}${canManage()?`<form id="business-add-project"><h4>Add project</h4><label>Project name<input name="name" required maxlength="120" placeholder="Exploration"></label><button>Create project</button></form><form id="business-add-campaign"><h4>Add campaign</h4><label>Project<select name="project_id" required>${options(projects(),'')}</select></label><label>Campaign name<input name="name" required maxlength="120" placeholder="Ironbark No1 2026"></label><label>Year<input name="year" required pattern="[0-9]{4}" value="${new Date().getFullYear()}"></label><button>Create campaign</button></form>`:''}`;
    bindForm('business-add-project','projects');bindForm('business-add-campaign','campaigns');
+  }
+  if(tab==='contractors'){
+   const descriptions={'Drilling':'Drilled metres, core and chip metres, completed holes, drilling hours and charges.','Geophysical Logging':'Logging reports, holes logged, logged interval metres, logging hours and charges.','Earthworks':'Work reports, equipment hours and charges.','Labour':'Work reports, recorded hours and charges.','Geological Support':'Service reports, recorded hours and charges.','Lab Testing':'Service reports and charges; assay and turnaround KPIs require laboratory results.','Misc':'Service reports, recorded hours and charges.'};
+   body.innerHTML='<h3>Contractors</h3><p>Contractor type determines the EOS overview, KPI set and production report. Contractors belong to this company workspace and can be used across its projects and campaigns.</p>'+(canManage()?(settings.contractors||[]).map(c=>`<form data-contractor="${escape(c.name)}"><h4>${escape(c.name)}</h4><label>Contractor type<select name="category">${(settings.contractor_types||[]).map(t=>`<option ${t===c.category?'selected':''}>${escape(t)}</option>`).join('')}</select></label><button>Save type</button><p style="flex-basis:100%">${escape(descriptions[c.category]||descriptions.Misc)}</p></form>`).join('')||'<p>No contractors are configured in this workspace.</p>':'<p>A workspace admin can configure contractor types.</p>');
+   if(canManage()){body.insertAdjacentHTML('beforeend',`<form id="business-add-contractor"><h4>Add company contractor</h4><label>Name<input name="name" required maxlength="120"></label><label>Contractor type<select name="category">${(settings.contractor_types||[]).map(t=>`<option>${escape(t)}</option>`).join('')}</select></label><button>Add contractor</button></form>`);bindForm('business-add-contractor','contractors');}
+   body.querySelectorAll('[data-contractor]').forEach(f=>f.onsubmit=async e=>{e.preventDefault();await save('contractors/'+encodeURIComponent(f.dataset.contractor),'PATCH',{category:f.elements.category.value});await fetchContractors();});
   }
   if(tab==='people')body.innerHTML=`<h3>People & permissions</h3><p>Accounts, workspace membership and invitations are shared with FieldMaps. Platform Admins retain all permissions. Workspace owners and admins manage projects, campaigns and sharing.</p><a href="/maps/" target="_blank" rel="noopener">Open FieldMaps account and workspace settings ↗</a>${canManage()?`<table><thead><tr><th>Member</th><th>Workspace role</th><th>App access</th></tr></thead><tbody>${settings.people.map(p=>`<tr><td>${escape(p.name||p.email)}<br><small>${escape(p.status)}</small></td><td>${p.platform_admin?'Platform Admin':escape(p.role)}</td><td>${escape((p.apps||[]).join(', '))}</td></tr>`).join('')}</tbody></table>`:'<p>Your workspace admin can manage membership and sharing.</p>'}`;
   if(tab==='sharing'){

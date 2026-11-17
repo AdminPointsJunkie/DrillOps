@@ -82,7 +82,12 @@ document.getElementById('eos-clear-scope')?.addEventListener('click',()=>changeE
 
 // Changing a project must never silently switch contractors. All EOS pages share this selection.
 switchContractor=async function(name){
- if(!EOS_CONTRACTOR_NAMES.has(name)||!CONTRACTORS.some(c=>c.name===name))return;
+ if(!CONTRACTORS.some(c=>c.name===name))return;
+ if(ocrReviewActive||reportImportBusy){toast('Finish the current import before changing contractor','warn');return;}
+ pendingFiles=[];fileInput.value='';importBtn.disabled=true;importBtn.textContent='Import Reports';
+ ocrPendingFiles=[];ocrFileInput.value='';ocrImportBtn.disabled=true;
+ document.getElementById('import-log').innerHTML='';document.getElementById('ocr-import-log').innerHTML='';
+
  activeContractor=name;sessionStorage.setItem('drillops_contractor',name);eosScopeVersion++;
  activitiesData=[];consumablesData=[];reportConsumablesData=[];crewData=[];dailyReportsData=[];costingHolesData=[];costingDatesData=[];costingLinesData=[];productionRawData=[];productionFilteredData=[];
  filterOpts={dates:[],holes:[],sites:[],codes:[]};eosKnownProjects.clear();

@@ -50,3 +50,29 @@ def test_platform_admin_and_existing_workspace_admin_preserved():
   assert resolve(Database(),auth).admin
   assert require_workspace(auth,ARGO,True)
  with pytest.raises(HTTPException):require_workspace(BASE,ARGO,True)
+
+
+from business_platform import BusinessScope, current_business_scope, import_destination, require_contractor_admin
+
+def test_import_requires_selected_campaign_even_for_admin():
+ token=current_business_scope.set(BusinessScope(ARGO,admin=True))
+ try:
+  with pytest.raises(HTTPException) as exc:import_destination(None,'Spoof','Spoof','Spoof')
+  assert exc.value.status_code==409
+ finally:current_business_scope.reset(token)
+
+def test_import_uses_authorized_campaign_labels_not_upload_labels():
+ class ImportDatabase(Database):
+  def execute(self,sql,args):
+   assert args==(C,P,ARGO)
+   self.result=[{'program':'Exploration','name':'Ironbark','client':'ARGO NR'}]
+ token=current_business_scope.set(BusinessScope(ARGO,P,C,True))
+ try:assert import_destination(ImportDatabase().connect,'Wrong','Wrong','Wrong')==('Exploration','Ironbark','ARGO NR')
+ finally:current_business_scope.reset(token)
+
+def test_contractor_types_require_workspace_admin_even_for_editors():
+ token=current_business_scope.set(BusinessScope(ARGO,P,C,False,write_campaigns=(C,)))
+ try:
+  with pytest.raises(HTTPException) as exc:require_contractor_admin()
+  assert exc.value.status_code==403
+ finally:current_business_scope.reset(token)
