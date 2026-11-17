@@ -25,6 +25,11 @@ with sync_playwright() as p:
   if path=='/mobile/me':data={'name':'Admin','email':'admin@example.test','role':'Platform Admin','owner':True,'management_portal_access':True,'apps':['eos','account','project']}
   elif path=='/platform/context':data=ctxdata
   elif path.endswith('/settings'):data={'people':[{'id':U,'name':'Admin','email':'admin@example.test','role':'owner','status':'active','platform_admin':True,'apps':['eos','account','project']}],'shares':[],'events':[],'contractors':[{'name':'Weatherfords','category':'Geophysical Logging'}],'contractor_types':['Drilling','Geophysical Logging']}
+  elif path==f'/platform/workspaces/{W}/projects' and req.method=='POST':
+   data={'id':'55555555-5555-4555-8555-555555555555'};ctxdata['projects'].append({'id':data['id'],'workspace_id':W,'name':req.post_data_json['name']})
+  elif path==f'/platform/workspaces/{W}/campaigns' and req.method=='POST':
+   payload=req.post_data_json;assert payload['project_id']=='55555555-5555-4555-8555-555555555555'
+   data={'id':'66666666-6666-4666-8666-666666666666'};ctxdata['campaigns'].append({'id':data['id'],'workspace_id':W,**payload,'legacy_name':payload['name'],'legacy_program':'New Project','client_id':1})
   elif path=='/projects':data=[{'id':4,'name':'Ironbark','program':'Exploration','client_id':1,'status':'Active','year':'2026'}]
   elif path=='/clients':data=[{'id':1,'name':'ARGO NR','status':'Active'}]
   elif path=='/import':data={'status':'imported','contractor':'Weatherfords','rows':1}
@@ -42,7 +47,7 @@ with sync_playwright() as p:
   page.locator('#business-context').wait_for()
   assert page.locator('.business-role').inner_text()=='Platform Admin'
   if app=='eos':
-   page.goto('http://localhost:8767/workspace.html');page.locator('[data-open-app=eos]').click();page.locator('#business-context').wait_for()
+   page.goto('http://localhost:8767/workspace.html');page.locator('[data-open-project]').click();page.locator('[data-open-app=eos]').click();page.locator('#business-context').wait_for()
   assert page.evaluate("JSON.parse(localStorage.getItem('drillops_business_scope')).campaign_id")==C
   assert page.evaluate("JSON.parse(localStorage.getItem('drillops_business_scope')).project_id")==P
   page.locator('.drawer-nav-item[data-page=workspace-settings]').click(force=True);page.locator('#business-dialog.active').wait_for()
@@ -56,7 +61,7 @@ with sync_playwright() as p:
  page.goto('http://localhost:8767/workspace.html');page.locator('#page-workspace-home.active').wait_for()
  assert 'Exploration' in page.locator('.workspace-projects').inner_text()
  page.screenshot(path=str(ROOT/'workspace-landing-preview.png'),full_page=True)
- page.locator('[data-open-app=eos]').click();page.locator('#business-context').wait_for()
+ page.locator('[data-open-project]').click();page.locator('[data-open-app=eos]').click();page.locator('#business-context').wait_for()
  page.evaluate("sessionStorage.setItem('drillops_contractor','Weatherfords')")
  page.goto('http://localhost:8767/eos.html?view=importer');page.locator('#operational-import-title').wait_for()
  page.wait_for_function("document.querySelector('#operational-import-title').textContent.includes('Weatherfords')")
@@ -74,6 +79,16 @@ with sync_playwright() as p:
  page.goto('http://localhost:8767/eos.html?view=workspace-settings');page.locator('#business-dialog.active').wait_for()
  assert page.locator('#business-dialog').evaluate('(el)=>el.tagName')=='SECTION'
  page.locator('[data-tab=contractors]').click();assert 'Geophysical Logging' in page.locator('#business-settings-body').inner_text()
+ page.goto('http://localhost:8767/workspace.html');page.locator('#page-workspace-home.active').wait_for()
+ assert page.locator('.workspace-projects [data-open-app]').count()==0
+ page.get_by_text('New project',exact=True).click();page.locator('#workspace-create [name=name]').fill('New Project');page.locator('#workspace-create button').click()
+ page.get_by_role('heading',name='New Project',exact=True).wait_for()
+ page.locator('[data-open-project="55555555-5555-4555-8555-555555555555"]').click()
+ page.get_by_text('New campaign',exact=True).click();page.locator('#workspace-create [name=name]').fill('New Campaign 2027');page.locator('#workspace-create [name=year]').fill('2027');page.locator('#workspace-create button').click()
+ page.get_by_role('heading',name='New Campaign 2027',exact=True).wait_for()
+ page.locator('[data-open-app=account]').click();page.locator('#business-context').wait_for();assert 'New Campaign 2027' in page.locator('#business-context').inner_text()
+ page.goto('http://localhost:8767/project.html');page.locator('#business-context').wait_for();assert 'New Campaign 2027' in page.locator('#business-context').inner_text()
+ page.goto('http://localhost:8767/eos.html?view=workspace-settings');page.locator('#business-dialog.active').wait_for()
  page.set_viewport_size({'width':390,'height':844});page.evaluate('closeDrawer()');page.locator('.drawer-nav-item[data-page=workspace-settings]').click(force=True);page.locator('#business-dialog.active').wait_for();page.screenshot(path=str(ROOT/'business-workspace-mobile.png'),full_page=True)
  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), 'Mobile horizontal overflow'
  scoped=[h for path,h in requests if not path.startswith(('/mobile/','/platform/')) and h.get('x-campaign-id')==C]
