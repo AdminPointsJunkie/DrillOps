@@ -18,3 +18,5 @@ test('two logging days remain one hole and hole hours reconcile without counting
  assert.equal(s.attendanceDays.reduce((n,d)=>n+d.hours,0),s.recordedHours);
  assert.equal(m.summarise([...rows,row({id:7,date:'25/Aug/2026'})]).holeRows[0].overTwoDays,true);
 });
+
+test('training against an explicitly named site induction task establishes attendance',()=>{const s=m.summarise([row({code:'L300',notes:'Training',hole_num:'SITE INDUCTION'})]);assert.equal(s.onsiteDays,1);assert.equal(s.holes,0);});

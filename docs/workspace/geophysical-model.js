@@ -27,7 +27,7 @@
  }
  function onSiteEvidence(r){
   const c=category(r),d=description(r);
-  return ['Logging','Dummy / clearance','Setup / pack-up'].includes(c)||/travel on site|standby driller|site induction|safety meeting/i.test(d);
+  return ['Logging','Dummy / clearance','Setup / pack-up'].includes(c)||(c==='Training / induction'&&/induction/i.test(text(r.hole_num)))||/travel on site|standby driller|site induction|safety meeting/i.test(d);
  }
  function attendance(operations){
   const days=new Map(),byHole=new Map(),activities=new Map();
