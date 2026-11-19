@@ -25,6 +25,28 @@
   if(/prestart|safety|sign source/i.test(d))return 'Safety / source handling';
   return 'Other recorded activity';
  }
+ function onSiteEvidence(r){
+  const c=category(r),d=description(r);
+  return ['Logging','Dummy / clearance','Setup / pack-up'].includes(c)||/travel on site|standby driller|site induction|safety meeting/i.test(d);
+ }
+ function attendance(operations){
+  const days=new Map(),byHole=new Map(),activities=new Map();
+  for(const r of operations){
+   const d=date(r.date),h=hours(r),c=category(r),hk=holeKey(r);
+   if(!activities.has(description(r)||r.code||'Uncoded'))activities.set(description(r)||r.code||'Uncoded',{label:description(r)||r.code||'Uncoded',category:c,hours:0,rows:0,missing:0,dates:new Set()});
+   const a=activities.get(description(r)||r.code||'Uncoded');a.hours+=h||0;a.rows++;if(h===null)a.missing++;if(d)a.dates.add(d);
+   if(d){if(!days.has(d))days.set(d,{date:d,onsite:false,travelOnly:true,hours:0,logging:0,travel:0,standby:0,setup:0,dummy:0,other:0});
+    const day=days.get(d);day.onsite ||= onSiteEvidence(r);day.travelOnly &&= c==='Travel / mobilisation';day.hours+=h||0;
+    const bucket=({'Logging':'logging','Travel / mobilisation':'travel','Standby / waiting':'standby','Setup / pack-up':'setup','Dummy / clearance':'dummy'})[c]||'other';day[bucket]+=h||0;
+   }
+   if(!byHole.has(hk))byHole.set(hk,{dates:new Set(),loggingDates:new Set(),onsiteDates:new Set(),totalHours:0,travelHours:0,standbyHours:0,setupHours:0,dummyHours:0,otherHours:0,missingHours:0});
+   const hole=byHole.get(hk);if(d){hole.dates.add(d);if(c==='Logging')hole.loggingDates.add(d);if(onSiteEvidence(r))hole.onsiteDates.add(d);}
+   hole.totalHours+=h||0;if(h===null)hole.missingHours++;
+   const bucket=({'Travel / mobilisation':'travelHours','Standby / waiting':'standbyHours','Setup / pack-up':'setupHours','Dummy / clearance':'dummyHours'})[c];
+   if(bucket)hole[bucket]+=h||0;else if(c!=='Logging')hole.otherHours+=h||0;
+  }
+  return {days:[...days.values()].sort((a,b)=>a.date.localeCompare(b.date)),byHole,activities:[...activities.values()].map(a=>({...a,days:a.dates.size})).sort((a,b)=>b.hours-a.hours)};
+ }
  function interval(r){const a=number(r.metres_from),b=number(r.metres_to);return a!==null&&b!==null&&a>=0&&b>=0&&a!==b?[Math.min(a,b),Math.max(a,b)]:null;}
  function union(intervals){let total=0,end=-Infinity;for(const [a,b] of [...intervals].sort((a,b)=>a[0]-b[0])){total+=Math.max(0,b-Math.max(a,end));end=Math.max(end,b);}return total;}
  function reportKey(r){const t=(text(r.notes).match(/\bE-ticket ([A-Za-z0-9-]+)/)||[])[1];return [r.workspace_id||'',r.contractor||'',t||[r.source_file||'Manual entry',(text(r.notes).match(/Source page (\d+)/)||[])[1]||r.date||'Undated'].join('|')].join('|');}
@@ -50,18 +72,20 @@
    if(c!=='Logging')continue;
    loggingHours+=h||0;report.runs++;
    const tk=tool(r);if(!tools.has(tk))tools.set(tk,{label:tk,runs:0,hours:0,metres:0,missingIntervals:0});const t=tools.get(tk);t.runs++;t.hours+=h||0;
-   let hole=null;if(text(r.hole_num)){const hk=holeKey(r);if(!holes.has(hk))holes.set(hk,{label:r.hole_num,project:r.project||'Unassigned',program:r.program||'',runs:0,hours:0,metres:0,intervals:[],tools:new Set()});hole=holes.get(hk);hole.runs++;hole.hours+=h||0;hole.tools.add(tk);if(day)day.holes.add(hk);}
+   let hole=null;if(text(r.hole_num)){const hk=holeKey(r);if(!holes.has(hk))holes.set(hk,{key:hk,label:r.hole_num,project:r.project||'Unassigned',program:r.program||'',runs:0,hours:0,metres:0,intervals:[],tools:new Set()});hole=holes.get(hk);hole.runs++;hole.hours+=h||0;hole.tools.add(tk);if(day)day.holes.add(hk);}
    else issues.push({row:r,issue:'Logging run has no hole identifier'});
    if(day){day.loggingHours+=h||0;day.runs++;}
    if(iv){const m=iv[1]-iv[0];metres+=m;t.metres+=m;report.metres+=m;if(day)day.metres+=m;if(hole){hole.metres+=m;hole.intervals.push(iv);}if(h>0){pairedMetres+=m;pairedHours+=h;}}
    else{missingIntervals++;t.missingIntervals++;issues.push({row:r,issue:'Logging interval missing, zero-length or invalid; excluded from metres'});}
   }
-  const holeRows=[...holes.values()].map(h=>({...h,coverage:union(h.intervals),tools:[...h.tools].sort()}));
+  const attendanceData=attendance(operations);
+  const holeRows=[...holes.values()].map(h=>{const a=attendanceData.byHole.get(h.key);const dates=[...a.loggingDates].sort();return {...h,...a,loggingDates:dates,loggingDays:dates.length,activityDays:a.dates.size,onsiteDays:a.onsiteDates.size,firstLogged:dates[0]||'',lastLogged:dates.at(-1)||'',overTwoDays:dates.length>2,coverage:union(h.intervals),tools:[...h.tools].sort()};});
   const reviewReports=new Set(operations.filter(r=>/REVIEW:/.test(r.notes||'')).map(reportKey));
   const unitDays=new Set(operations.filter(r=>date(r.date)&&text(r.drill_rig)&&!text(r.drill_rig).includes('/')).map(r=>[r.contractor,date(r.date),text(r.drill_rig).replace(/^WV/i,'')].join('|')));
   const estimate=charges.reduce((s,r)=>s+(number(r.line_cost)||0),0),recordedCharges=operations.reduce((s,r)=>s+(number(r.line_cost)||0),0);
   const withheldReports=new Set(operations.filter(r=>/charge estimate withheld/i.test(r.notes||'')).map(reportKey));
-  return {reports:reports.size,holes:holes.size,runs:logging.length,dummyRuns:dummy.length,metres,hours:type==='Geophysical Logging'?loggingHours:recordedHours,recordedHours,loggingHours,
+  return {recordedDays:attendanceData.days.length,onsiteDays:attendanceData.days.filter(d=>d.onsite).length,travelOnlyDays:attendanceData.days.filter(d=>d.travelOnly).length,unconfirmedSiteDays:attendanceData.days.filter(d=>!d.onsite&&!d.travelOnly).length,attendanceDays:attendanceData.days,activityBreakdown:attendanceData.activities,
+   reports:reports.size,holes:holes.size,runs:logging.length,dummyRuns:dummy.length,metres,hours:type==='Geophysical Logging'?loggingHours:recordedHours,recordedHours,loggingHours,
    utilisation:recordedHours>0?loggingHours/recordedHours*100:null,rate:pairedHours>0?pairedMetres/pairedHours:null,pairedRuns:logging.filter(r=>interval(r)&&hours(r)>0).length,
    coverage:holeRows.reduce((s,h)=>s+h.coverage,0),intervalCompleteness:logging.length?(logging.length-missingIntervals)/logging.length*100:null,
    missingIntervals,missingTimes,duplicates,unitDays:unitDays.size,reviewReports:reviewReports.size,withheldReports:withheldReports.size,
