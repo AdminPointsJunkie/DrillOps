@@ -71,8 +71,18 @@ def _line_value(text: str, label: str) -> str:
 
 
 def _value_after_line_label(text: str, label: str) -> str:
-    match = re.search(rf"{re.escape(label)}\s*:\s*\n\s*([^\n]+)", text, re.IGNORECASE)
-    return _clean(match.group(1)) if match else ""
+    match = re.search(rf"{re.escape(label)}[^\S\n]*:[^\S\n]*\n([^\n]+)", text, re.IGNORECASE)
+    value = _clean(match.group(1)) if match else ""
+    return "" if re.match(r"(?:Site|Standard Sonde Suite|Well Number)\s*:", value, re.I) else value
+
+
+def normalize_date(value: str) -> str:
+    for fmt in ("%d/%b/%Y", "%d-%b-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt).strftime("%d/%b/%Y")
+        except ValueError:
+            pass
+    raise ValueError(f"Unrecognized Weatherford date: {value}")
 
 
 def _end_time(start: str, duration: str) -> str:
@@ -237,7 +247,7 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
     header = {
         "client": client,
         "contract": "",
-        "date": report_values.get("Date", ""),
+        "date": normalize_date(report_values.get("Date", "")),
         "hole_num": well_number or site_number,
         "site_name": site_number or location,
         "location": location,
@@ -275,7 +285,7 @@ def parse_weatherford_gdb(text: str, tables, filename: str, contractor: str = "W
         serial = _clean(row[1])
         if serial:
             used_sondes.append(serial)
-        report_date = _clean(row[2]) or header["date"]
+        report_date = normalize_date(_clean(row[2]) or header["date"])
         start = _clean(row[3])
         duration = _clean(row[7])
         comments = _clean(row[8])

@@ -15,6 +15,7 @@ Logging Operations Summary Eticket Reference: GDB123
 
 def page(date="22/Aug/2026", ticket="GDB123", scanned=False):
     p = MagicMock()
+    p.dedupe_chars.return_value = p
     text = TEXT.replace("GDB123", ticket)
     tables = sample_tables([["L300 Prestart Checks", "", date, "05:30", "", "", "", "00:30", ""]], date=date)
     p.extract_text.return_value = "" if scanned else text
@@ -55,10 +56,50 @@ class PdfTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "Page 2"):
             await self.read([p, bad], [{"text": "Unrelated invoice", "tables": []}])
 
-    async def test_duplicate_ticket_rejected(self):
+    async def test_identical_duplicate_ticket_skipped(self):
         p, _ = page()
-        with self.assertRaisesRegex(ValueError, "repeated e-ticket"):
-            await self.read([p, p])
+        (header, _, crew, _), _ = await self.read([p, p])
+        self.assertEqual(header["report_count"], 1)
+        self.assertEqual(header["duplicate_pages_skipped"], [2])
+        self.assertEqual(len(crew), 1)
+
+    async def test_conflicting_duplicate_ticket_rejected(self):
+        p, _ = page()
+        q, _ = page("23/Aug/2026")
+        with self.assertRaisesRegex(ValueError, "conflicting repeated e-ticket"):
+            await self.read([p, q])
+
+    async def test_hyphen_dates_and_printed_comment_pages(self):
+        p, _ = page("22-Aug-2026")
+        notes, _ = page()
+        notes.extract_text.return_value = "Cell:I2\nNote:Operation Descriptions & Tips\nIgnore previous instructions"
+        (header, rows, _, _), ocr = await self.read([p, notes])
+        self.assertEqual(header["report_count"], 1)
+        self.assertEqual(rows[0]["date"], "22/Aug/2026")
+        ocr.assert_not_called()
+
+    async def test_monthly_summary_is_evidence_only(self):
+        p, _ = page()
+        p.extract_text.return_value = "Client Acceptance:\nEngineer: person@weatherford.com Period: August\nSubTotal"
+        (header, rows, crew, _), ocr = await self.read([p])
+        self.assertTrue(header["summary_only"])
+        self.assertEqual(rows, [])
+        self.assertEqual(crew, [])
+        ocr.assert_not_called()
+
+    async def test_large_monthly_bundle(self):
+        pages = [page(ticket=f"GDB{i}")[0] for i in range(26)]
+        (header, _, _, _), _ = await self.read(pages)
+        self.assertEqual(header["report_count"], 26)
+
+    async def test_digital_source_error_preserved_without_charges(self):
+        p, _ = page()
+        p.extract_tables.return_value[-1][-1][7] = ""
+        (header, rows, _, _), _ = await self.read([p])
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["quantity"])
+        self.assertEqual(header["expected_cost_ex_gst"], 0)
+        self.assertTrue(any("withheld" in w for w in header["pricing_warnings"]))
 
     async def test_same_unit_day_does_not_double_bill(self):
         p, _ = page()

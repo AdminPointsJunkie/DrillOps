@@ -3382,7 +3382,7 @@ def root():
         "status": "ok",
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
-        "weatherford_import": "multipage-2026-11-18",
+        "weatherford_import": "monthly-bundles-2026-11-20",
         "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],
     }
@@ -4334,6 +4334,9 @@ def import_marker_blocks_reimport(cur, filename: str, contractor: str) -> bool:
           SELECT 1 FROM activities WHERE contractor=%(contractor)s AND source_file=%(filename)s
           UNION ALL
           SELECT 1 FROM consumables WHERE contractor=%(contractor)s AND source_file=%(filename)s
+          UNION ALL
+          SELECT 1 FROM source_files WHERE contractor=%(contractor)s AND filename=%(filename)s
+            AND file_type='weatherford_summary'
         ) AS has_report_data
         """,
         {"contractor": contractor, "filename": filename},
@@ -4656,6 +4659,8 @@ async def import_pdf(
         contractor = "Weatherfords"
         try:
             header, acts, crew, text = await read_weatherford_pdf(content, filename, openai_generate_json)
+            if header.get("summary_only"):
+                source_file_type = "weatherford_summary"
         except ValueError as e:
             raise HTTPException(400, f"Could not read Weatherford GDB report: {e}")
         cons = []
@@ -4893,10 +4898,25 @@ async def import_pdf(
                     "issue": warning,
                 } for warning in pricing_warnings],
             }
+            if header.get("summary_only"):
+                import_check["summary"] = "Monthly summary saved as supporting evidence; no duplicate operations or charges created."
         elif contractor == "Allianz Drilling":
             import_check = await openai_import_qa(filename, contractor, header, text, acts, cons, crew, rate_context)
 
         with conn.cursor() as cur:
+            if weatherford_report:
+                # Serialize the duplicate check and inserts, including renamed PDFs.
+                cur.execute("SELECT pg_advisory_xact_lock(hashtext('weatherford-import'))")
+                if import_marker_blocks_reimport(cur, filename, contractor):
+                    return {"status": "skipped", "filename": filename, "rows": 0, "contractor": contractor}
+                tickets = [h["eticket"] for h in header.get("reports", [])]
+                if tickets:
+                    cur.execute("""SELECT DISTINCT source_file FROM activities
+                        WHERE contractor=%s AND substring(notes from 'E-ticket ([A-Za-z0-9-]+)') = ANY(%s)
+                        """, (contractor, tickets))
+                    duplicates = [r["source_file"] for r in cur.fetchall()]
+                    if duplicates:
+                        raise HTTPException(409, "E-tickets already imported in: " + ", ".join(duplicates))
             if acts:
                 psycopg2.extras.execute_batch(cur, """
                     INSERT INTO activities
@@ -4939,7 +4959,8 @@ async def import_pdf(
                     "consumables": len(cons),
                     "crew": len(crew),
                 },
-                details={"cost_contract_id": applied_contract["id"] if applied_contract else None},
+                details={"cost_contract_id": applied_contract["id"] if applied_contract else None,
+                         "import_check": import_check},
             )
         conn.commit()
 

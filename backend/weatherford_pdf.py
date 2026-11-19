@@ -1,5 +1,7 @@
 """Read each Weatherford report independently, including image-only pages."""
 import base64
+import copy
+import re
 from datetime import datetime
 from io import BytesIO
 
@@ -35,13 +37,28 @@ and an empty tables array. Do not transcribe signatures or acceptance boilerplat
 async def read_weatherford_pdf(content, filename, generate_json):
     """All pages must parse before the caller writes anything to the database."""
     headers, activities, crew, texts = [], [], [], []
-    tickets = set()
+    tickets = {}
+    skipped_pages = []
     groups = {}
     with pdfplumber.open(BytesIO(content)) as pdf:
-        if not pdf.pages or len(pdf.pages) > 20:
-            raise ValueError("Weatherford uploads must contain 1 to 20 report pages")
+        if not pdf.pages or len(pdf.pages) > 100:
+            raise ValueError("Weatherford uploads must contain 1 to 100 report pages")
+        first_text = pdf.pages[0].extract_text() or ""
+        if is_weatherford_summary(first_text):
+            summary_texts = [p.extract_text() or "" for p in pdf.pages]
+            if not all(is_weatherford_summary(t) for t in summary_texts):
+                raise ValueError("Mixed summary and individual report pages; upload separately")
+            return ({"report_count": 0, "summary_only": True, "expected_cost_ex_gst": 0,
+                     "pricing_warnings": ["Monthly summary saved as supporting evidence only; import the individual e-tickets for operations and charges."]},
+                    [], [], "\n".join(summary_texts))
         for number, page in enumerate(pdf.pages, 1):
+            page = page.dedupe_chars()
             text = page.extract_text() or ""
+            if ("Operation Descriptions & Tips" in text and "Cell:I2" in text
+                    and "Eticket Reference:" not in text):
+                # Printed spreadsheet comments are reference material, not instructions
+                # to the importer and not an additional shift.
+                continue
             scanned = not is_weatherford_gdb(text, filename)
             if scanned:
                 buffer = BytesIO()
@@ -65,8 +82,10 @@ async def read_weatherford_pdf(content, filename, generate_json):
                 tables = page.extract_tables() or []
             try:
                 header, rows, people = parse_weatherford_gdb(text, tables, filename)
-                if not all(header.get(key) for key in ("date", "drill_rig", "hole_num", "eticket")):
-                    raise ValueError("date, unit, well or e-ticket is missing")
+                if not all(header.get(key) for key in ("date", "hole_num", "eticket")):
+                    raise ValueError("date, well/task or e-ticket is missing")
+                if not header.get("drill_rig"):
+                    header["pricing_warnings"].append("Unit is blank in the source; daily charges withheld for review.")
                 datetime.strptime(header["date"], "%d/%b/%Y")
                 for row in rows:
                     if row["code"].startswith("WFD_"):
@@ -74,22 +93,32 @@ async def read_weatherford_pdf(content, filename, generate_json):
                     datetime.strptime(row["date"], "%d/%b/%Y")
                     datetime.strptime(row["time_from"], "%H:%M")
                     if not row["time_to"] or row["quantity"] is None or row["quantity"] <= 0:
-                        raise ValueError("an operation has unreadable time or duration")
+                        if scanned:
+                            raise ValueError("an operation has unreadable time or duration")
+                        header["pricing_warnings"].append(f"{row['code']} at {row['time_from']}: missing or invalid source duration; retained without inferred hours.")
+                        row["notes"] += " | REVIEW: missing or invalid source duration"
+                    if row["date"] != header["date"]:
+                        header["pricing_warnings"].append("Operation date differs from the report date; source dates preserved and daily charges withheld.")
                 reported_hours = _duration_hours(header["total_time"])
-                operation_hours = sum(r["quantity"] for r in rows if not r["code"].startswith("WFD_"))
+                operation_hours = sum(r["quantity"] or 0 for r in rows if not r["code"].startswith("WFD_"))
                 if reported_hours is None or abs(operation_hours - reported_hours) > 0.1:
                     header["pricing_warnings"].append("Operation durations do not reconcile to the printed total time; verify the source and estimated additional hours.")
             except (ValueError, TypeError, IndexError) as exc:
                 raise ValueError(f"Page {number}: {exc}; nothing imported") from exc
             if header["eticket"] in tickets:
-                raise ValueError(f"Page {number}: repeated e-ticket {header['eticket']}; remove duplicate pages")
-            unit_day = (header["date"], header["drill_rig"])
+                if tickets[header["eticket"]] != (header, rows, people):
+                    raise ValueError(f"Page {number}: conflicting repeated e-ticket {header['eticket']}; review duplicate pages")
+                skipped_pages.append(number)
+                continue
+            tickets[header["eticket"]] = copy.deepcopy((header, rows, people))
+            unit_day = (header["date"], header["drill_rig"] or header["eticket"])
             groups.setdefault(unit_day, []).append((header, rows, people, number))
-            tickets.add(header["eticket"])
             if scanned:
                 header["pricing_warnings"].append("Scanned report read with AI; compare dates, times, intervals and charges with the source PDF.")
             for row in rows:
                 row["notes"] += f" | Source page {number}"
+                if header["pricing_warnings"]:
+                    row["notes"] += " | REVIEW: " + "; ".join(dict.fromkeys(header["pricing_warnings"]))
             header["source_page"] = number
             for person in people:
                 person["hours"] = _duration_hours(header["total_time"])
@@ -103,6 +132,12 @@ async def read_weatherford_pdf(content, filename, generate_json):
         first, _, _, number = entries[0]
         daily = dict(first)
         operations = [r for _, rows, _, _ in entries for r in rows if not r["code"].startswith("WFD_")]
+        if (not daily["drill_rig"] or "/" in daily["drill_rig"] or any(r["date"] != h["date"] or not r["quantity"] or r["quantity"] < 0
+                for h, rows, _, _ in entries for r in rows if not r["code"].startswith("WFD_"))):
+            first["pricing_warnings"].append("Daily charge estimate withheld because the source unit, dates or durations need review.")
+            for row in operations:
+                row["notes"] += " | REVIEW: daily charge estimate withheld; unit, dates or durations need review"
+            continue
         if len(entries) > 1:
             hours = [_duration_hours(h["total_time"]) for h, _, _, _ in entries]
             minutes = round(sum(hours) * 60) if all(h is not None for h in hours) else None
@@ -123,9 +158,21 @@ async def read_weatherford_pdf(content, filename, generate_json):
                     charge["line_cost"] = len(holes) * WEATHERFORD_PROCESSING_HOLE
         for charge in charges:
             charge["notes"] += f" | Daily unit {daily['drill_rig']} | Source page {number}"
+            charge["notes"] += " | E-tickets " + ", ".join(h["eticket"] for h, _, _, _ in entries)
+            charge["notes"] += " | Estimate only; review source totals, rental period and quote validity"
         activities.extend(charges)
     combined = dict(headers[0])
     combined["report_count"] = len(headers)
+    combined["reports"] = headers
+    combined["duplicate_pages_skipped"] = skipped_pages
     combined["expected_cost_ex_gst"] = round(sum(r["line_cost"] for r in activities if r["code"].startswith("WFD_")), 2)
     combined["pricing_warnings"] = [f"Page {h['source_page']}: {w}" for h in headers for w in h["pricing_warnings"]]
+    if skipped_pages:
+        combined["pricing_warnings"].append(f"Identical duplicate e-ticket pages skipped: {skipped_pages}")
     return combined, activities, crew, "\n".join(texts)
+
+
+def is_weatherford_summary(text):
+    """Summary evidence must never create a second set of operational charges."""
+    return bool(re.search(r"Engineer:.*@weatherford\.com", text, re.I) and
+                "Period:" in text and "SubTotal" in text and "Client Acceptance:" in text)
