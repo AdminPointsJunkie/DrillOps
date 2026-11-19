@@ -43,6 +43,7 @@ from account_accruals import create_accrual_router, ensure_accrual_schema
 from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from project_registers import create_register_router, ensure_register_schema
 from exploration_metres import summarize_exploration_metres
+from geophysical_reconciliation import read_reconciliation
 from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
@@ -3383,6 +3384,7 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
+        "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],
     }
@@ -6005,6 +6007,14 @@ def get_activities(
         with conn.cursor() as cur:
             cur.execute(q, params)
             return [dict(r) for r in cur.fetchall()]
+
+
+@app.get("/activities/geophysical-reconciliation")
+def get_geophysical_reconciliation(contractor: str = Query(...)):
+    """Logging evidence and drilling baseline, constrained by the caller's RLS scope."""
+    with get_conn(read_only=True) as conn:
+        with conn.cursor() as cur:
+            return read_reconciliation(cur, contractor)
 
 
 @app.get("/activity-report-data")

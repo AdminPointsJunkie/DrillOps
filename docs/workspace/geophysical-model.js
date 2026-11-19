@@ -50,7 +50,22 @@
  function interval(r){const a=number(r.metres_from),b=number(r.metres_to);return a!==null&&b!==null&&a>=0&&b>=0&&a!==b?[Math.min(a,b),Math.max(a,b)]:null;}
  function union(intervals){let total=0,end=-Infinity;for(const [a,b] of [...intervals].sort((a,b)=>a[0]-b[0])){total+=Math.max(0,b-Math.max(a,end));end=Math.max(end,b);}return total;}
  function reportKey(r){const t=(text(r.notes).match(/\bE-ticket ([A-Za-z0-9-]+)/)||[])[1];return [r.workspace_id||'',r.contractor||'',t||[r.source_file||'Manual entry',(text(r.notes).match(/Source page (\d+)/)||[])[1]||r.date||'Undated'].join('|')].join('|');}
- function holeKey(r){return [r.workspace_id,r.campaign_id||r.program+'|'+r.project,text(r.hole_num).toUpperCase()].join('|');}
+ function holeKey(r){return [r.workspace_id,r.campaign_id||r.program+'|'+r.project,text(r.canonical_hole_num||r.hole_num).toUpperCase()].join('|');}
+ function reconcile(drilling,logging,from='',to=''){
+  const within=r=>{const d=date(r.date);return !!d&&(!from||d>=from)&&(!to||d<=to);},holes=new Map();
+  for(const r of drilling||[]){if(!text(r.hole_num)||!(Number(r.total_metres)>0)||!within(r))continue;const key=holeKey(r);if(!holes.has(key))holes.set(key,{key,label:r.canonical_hole_num||r.hole_num,project:r.project,dates:new Set(),tickets:new Set(),loggingDates:new Set(),outsideDates:new Set(),continues:false});holes.get(key).dates.add(date(r.date));}
+  for(const r of drilling||[]){const h=holes.get(holeKey(r));if(h&&to&&date(r.date)>to)h.continues=true;}
+  const aliases=new Map(),unmatched=new Map();
+  for(const r of logging||[]){if(/^WFD_/.test(text(r.code)))continue;const key=holeKey(r),h=holes.get(key),ticket=(text(r.notes).match(/\bE-ticket ([A-Za-z0-9-]+)/)||[])[1];
+   if(within(r)&&r.hole_match_reason)aliases.set([key,r.hole_num,r.source_file].join('|'),{source:r.hole_num,canonical:r.canonical_hole_num,project:r.project,file:r.source_file,reason:r.hole_match_reason});
+   if(within(r)&&category(r)==='Logging'&&r.hole_match_status==='unmatched')unmatched.set(key,{hole:r.hole_num,project:r.project});
+   if(!h||!ticket)continue;
+   if(within(r))h.tickets.add(ticket);
+   if(category(r)==='Logging'&&date(r.date)){if(within(r))h.loggingDates.add(date(r.date));else h.outsideDates.add(date(r.date));}
+  }
+  const rows=[...holes.values()].map(h=>({...h,dates:[...h.dates].sort(),tickets:[...h.tickets].sort(),loggingDates:[...h.loggingDates].sort(),outsideDates:[...h.outsideDates].sort(),status:h.loggingDates.size?'Logging e-ticket matched':h.outsideDates.size?'Logging e-ticket outside period':h.tickets.size?'Activity e-ticket only':'No imported e-ticket'})).sort((a,b)=>(a.project+' '+a.label).localeCompare(b.project+' '+b.label));
+  return {rows,total:rows.length,matched:rows.filter(h=>h.loggingDates.length).length,missing:rows.filter(h=>h.status==='No imported e-ticket'),outside:rows.filter(h=>h.status==='Logging e-ticket outside period'),activityOnly:rows.filter(h=>h.status==='Activity e-ticket only'),aliases:[...aliases.values()],unmatched:[...unmatched.values()]};
+ }
  function summarise(input,type='Geophysical Logging'){
   const seen=new Set(),rows=[];let duplicates=0;
   for(const r of input||[]){const key=r.id==null?null:[r.workspace_id,r.contractor,r.id].join('|');if(key&&seen.has(key)){duplicates++;continue;}if(key)seen.add(key);rows.push(r);}
@@ -72,7 +87,7 @@
    if(c!=='Logging')continue;
    loggingHours+=h||0;report.runs++;
    const tk=tool(r);if(!tools.has(tk))tools.set(tk,{label:tk,runs:0,hours:0,metres:0,missingIntervals:0});const t=tools.get(tk);t.runs++;t.hours+=h||0;
-   let hole=null;if(text(r.hole_num)){const hk=holeKey(r);if(!holes.has(hk))holes.set(hk,{key:hk,label:r.hole_num,project:r.project||'Unassigned',program:r.program||'',runs:0,hours:0,metres:0,intervals:[],tools:new Set()});hole=holes.get(hk);hole.runs++;hole.hours+=h||0;hole.tools.add(tk);if(day)day.holes.add(hk);}
+   let hole=null;if(text(r.hole_num)){const hk=holeKey(r);if(!holes.has(hk))holes.set(hk,{key:hk,label:r.canonical_hole_num||r.hole_num,project:r.project||'Unassigned',program:r.program||'',runs:0,hours:0,metres:0,intervals:[],tools:new Set()});hole=holes.get(hk);hole.runs++;hole.hours+=h||0;hole.tools.add(tk);if(day)day.holes.add(hk);}
    else issues.push({row:r,issue:'Logging run has no hole identifier'});
    if(day){day.loggingHours+=h||0;day.runs++;}
    if(iv){const m=iv[1]-iv[0];metres+=m;t.metres+=m;report.metres+=m;if(day)day.metres+=m;if(hole){hole.metres+=m;hole.intervals.push(iv);}if(h>0){pairedMetres+=m;pairedHours+=h;}}
@@ -93,5 +108,5 @@
    categories:[...categories].map(([label,hours])=>({label,hours})).sort((a,b)=>b.hours-a.hours),tools:[...tools.values()].sort((a,b)=>b.metres-a.metres),holeRows,
    daily:[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(d=>({...d,holes:d.holes.size})),register:[...reports.values()].sort((a,b)=>a.date.localeCompare(b.date)),issues,operations,logging};
  }
- const api={summarise,date,hours,category,interval,union,sonde,tool};root.ServiceProduction=api;if(typeof module!=='undefined')module.exports=api;
+ const api={summarise,reconcile,date,hours,category,interval,union,sonde,tool};root.ServiceProduction=api;if(typeof module!=='undefined')module.exports=api;
 })(globalThis);

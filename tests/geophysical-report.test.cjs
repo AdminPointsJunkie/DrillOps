@@ -20,3 +20,19 @@ test('two logging days remain one hole and hole hours reconcile without counting
 });
 
 test('training against an explicitly named site induction task establishes attendance',()=>{const s=m.summarise([row({code:'L300',notes:'Training',hole_num:'SITE INDUCTION'})]);assert.equal(s.onsiteDays,1);assert.equal(s.holes,0);});
+
+test('reviewed canonical identities merge visits, hours and overlapping coverage',()=>{
+ const s=m.summarise([row({hole_num:'IB669C',canonical_hole_num:'IB669C'}),row({id:2,hole_num:'IB699C',canonical_hole_num:'IB669C',date:'23/Aug/2026'})]);
+ assert.equal(s.holes,1);assert.equal(s.holeRows[0].label,'IB669C');assert.equal(s.holeRows[0].loggingDays,2);assert.equal(s.coverage,100);assert.equal(s.recordedHours,2);
+});
+test('reconciliation preserves redrills and campaigns, excludes plans, distinguishes evidence',()=>{
+ const drill=(hole,date='2026-08-22',extra={})=>row({hole_num:hole,total_metres:10,date,...extra});
+ const drilled=[drill('H1'),drill('H1'),drill('H2'),drill('H3'),drill('H4'),drill('H4A'),drill('PLAN','2026-08-22',{total_metres:0}),drill('H4A','2026-09-02')];
+ const tickets=[row({hole_num:'H1'}),row({hole_num:'H2',date:'02/Sep/2026'}),row({hole_num:'H3',code:'N100',notes:'Travel | E-ticket TRAVEL1'}),row({hole_num:'H4',campaign_id:'another'})];
+ const r=m.reconcile(drilled,tickets,'2026-08-01','2026-08-31');
+ assert.equal(r.total,5);assert.equal(r.matched,1);assert.equal(r.outside.length,1);assert.equal(r.activityOnly.length,1);assert.deepEqual(r.missing.map(h=>h.label),['H4','H4A']);assert.equal(r.missing[1].continues,true);
+});
+test('manual logging and quote rows cannot satisfy missing e-ticket evidence',()=>{
+ const d=[row({total_metres:10})],r=m.reconcile(d,[row({notes:'Logging Run'}),row({code:'WFD_Callout_Day'})]);assert.equal(r.missing.length,1);
+ assert.equal(m.reconcile([row({total_metres:10,date:'bad'})],[]).total,0);
+});

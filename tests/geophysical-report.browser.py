@@ -40,6 +40,7 @@ with sync_playwright() as p:
   elif path=='/import':data={'status':'imported','contractor':'Weatherfords','rows':1}
   elif path=='/contractors':data=[{'id':2,'name':'Weatherfords','category':'Geophysical Logging','active':True},{'id':1,'name':'Mitchells Drilling','category':'Drilling','program':'Exploration','sites':'Ironbark','active':True}]
   elif path=='/filters':data={'dates':[],'holes':[],'sites':[],'codes':[],'total_rows':0}
+  elif path=='/activities/geophysical-reconciliation':data={'activities':logging_rows,'drilling_reference':[{'project':'Ironbark','program':'Exploration','hole_num':'IB1','date':'22/08/2026','total_metres':100},{'project':'Ironbark','program':'Exploration','hole_num':'IB3','date':'22/08/2026','total_metres':100},{'project':'Other','program':'Exploration','hole_num':'HIDDEN-DRILL','date':'22/08/2026','total_metres':100}]}
   elif path=='/activity-report-data':data={'activities':logging_rows if 'Weatherfords' in req.url else [],'consumables':[],'crew':[],'daily_reports':[]}
   elif path=='/invoice-ledger':data={'invoices':[],'purchase_orders':[]}
   route.fulfill(json=data)
@@ -51,6 +52,8 @@ with sync_playwright() as p:
  page.evaluate("sessionStorage.setItem('drillops_contractor','Weatherfords')")
  page.goto('http://localhost:8767/eos.html?view=reports');page.locator('.geo-cover').wait_for()
  assert '2 e-tickets' in page.locator('.geo-intro').inner_text()
+ assert 'IB3' in page.locator('[data-reconciliation]').inner_text()
+ assert 'No imported e-ticket' in page.locator('[data-reconciliation]').inner_text()
  assert 'Days on site' in page.locator('.geo-primary').inner_text()
  assert 'Logging days and activity hours by hole' in page.locator('.geo-document').inner_text()
  assert 'Each recorded activity' in page.locator('.geo-document').inner_text()
