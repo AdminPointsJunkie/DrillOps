@@ -6,7 +6,7 @@ body{background:var(--bg);color:var(--text);font-size:13px}
 .report-brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#243c34;font-weight:750;font-size:18px;letter-spacing:-.6px}
 .report-brand span{font-size:inherit;font-weight:inherit;letter-spacing:inherit;border-left:1px solid #dce3df;padding-left:12px;color:#73827b}
 .report-appbar>a:last-child{font-size:12px;text-decoration:none;color:#53675d}
-main{max-width:none;width:100%;box-sizing:border-box;padding:26px 32px 56px}
+main{max-width:1560px;width:100%;box-sizing:border-box;margin:0 auto;padding:26px 32px 56px}
 .report-detail{border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
 .report-head{padding:0 0 22px;background:transparent;border:0;gap:24px}
 .report-kicker{font-size:10px;letter-spacing:1.5px;font-weight:650;color:#7b8983;text-transform:uppercase;margin-bottom:10px}
