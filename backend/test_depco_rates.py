@@ -13,6 +13,18 @@ from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity
 
 
 class DepcoRigTests(unittest.TestCase):
+    def test_gas_riser_ocr_uses_the_selected_site_and_keeps_unknown_rows_blank(self):
+        from report_holes import format_gas_riser_ocr_holes
+        for site, source, expected in [('Ironbark', 'IB-GR7', 'IBGR-07'),
+                                       ('Carborough Downs', 'CDGR119', 'GR-119')]:
+            data = {'hole_num': source, 'activities': [{'hole_num': 'GR7'}, {'hole_num': ''}, {}]}
+            format_gas_riser_ocr_holes(data, site, 'Gas Riser')
+            self.assertEqual(data['hole_num'], expected)
+            self.assertEqual(data['activities'], [{'hole_num': 'IBGR-07' if site == 'Ironbark' else 'GR-07'}, {'hole_num': ''}, {}])
+        other = {'hole_num': 'GR7'}
+        format_gas_riser_ocr_holes(other, 'Ironbark', 'Exploration')
+        self.assertEqual(other['hole_num'], 'GR7')
+
     def test_confirmed_programs_override_missing_or_misread_rigs(self):
         for program, expected in [('Exploration','DR17'),('Gas Riser','DR28'),(' gas  RISER ','DR28')]:
             for rig in [None,'','11','17','20','23','25','26','28','33','38','DR17','DR28']:
@@ -447,6 +459,7 @@ class DepcoOcrImportTests(unittest.TestCase):
              'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
              'import_destination':lambda conn,program,project,client:(program,project,client),
              'ironbark_ocr_rules':__import__('report_holes').ironbark_ocr_rules,
+             'format_gas_riser_ocr_holes':__import__('report_holes').format_gas_riser_ocr_holes,
              'ocr_activity_hole':ocr_activity_hole,'ocr_activity_notes':ocr_activity_notes,'ocr_hole_warnings':ocr_hole_warnings,
              'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
              'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),

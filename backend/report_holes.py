@@ -3,6 +3,26 @@ import re
 from datetime import datetime, timedelta, timezone
 
 
+def format_gas_riser_ocr_holes(data, project, program):
+    if str(program or '').strip().lower() != 'gas riser':
+        return
+    places = {'ironbark': 'IBGR-', 'carborough downs': 'GR-'}
+    prefix = places.get(str(project or '').strip().lower())
+    if not prefix:
+        return
+    for row in [data, *(data.get('activities') or [])]:
+        value = row.get('hole_num')
+        if not isinstance(value, str):
+            continue
+        match = re.fullmatch(r'(?:(IB|CD)[ _-]*)?GR[ _-]*([0-9]+)', value.strip(), re.I)
+        if not match:
+            continue
+        supplied_site = (match[1] or '').upper()
+        if supplied_site and supplied_site != ('IB' if prefix == 'IBGR-' else 'CD'):
+            continue
+        row['hole_num'] = prefix + match[2].zfill(2)
+
+
 def ironbark_ocr_rules(data, project, filename='', today=None):
     """Validate current Ironbark imports without guessing hole identities or dates."""
     if str(project or '').strip().lower() != 'ironbark':

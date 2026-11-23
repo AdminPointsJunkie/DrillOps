@@ -47,7 +47,7 @@ from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from project_registers import create_register_router, ensure_register_schema
 from exploration_metres import summarize_exploration_metres
 from geophysical_reconciliation import read_reconciliation
-from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings, ironbark_ocr_rules
+from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings, ironbark_ocr_rules, format_gas_riser_ocr_holes
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
@@ -3387,6 +3387,7 @@ def root():
         "weatherford_import": "monthly-bundles-2026-11-20",
         "depco_exploration_import": "claim-xlsx-2026-11-23-v2",
         "depco_code_suggestions": "shared-program-schedule-v2-net-metres",
+        "gas_riser_hole_names": "site-prefix-v1",
         "account_claim_reconciliation": "activity-validation-2026-11-23",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
@@ -11951,6 +11952,7 @@ async def import_ocr_pdf(
         except Exception as e:
             raise HTTPException(422, f"OCR failed: {str(e)}")
 
+    format_gas_riser_ocr_holes(data, project, program)
     rule_warnings = ironbark_ocr_rules(data, project, filename)
     blocking_warnings = [w for w in rule_warnings if w.get('blocking', True)]
     if blocking_warnings:
@@ -12097,6 +12099,7 @@ async def preview_ocr_pdf(
     program, project, client = import_destination(get_conn, program, project, '')
     content = await file.read()
     data = await ocr_with_openai(content, project, file.filename)
+    format_gas_riser_ocr_holes(data, project, program)
     date_warning = None
     try:
         data['date'] = normalise_ocr_date(data.get('date'))
