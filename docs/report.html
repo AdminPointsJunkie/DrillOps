@@ -166,12 +166,15 @@ tr.saving td{background:#fff7e6;}
 @media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-cost-hours-head{flex-direction:column}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <link rel="stylesheet" href="./drillops-theme.css"/>
+<link rel="stylesheet" href="./report-detail.css?v=20261123-layout1"/>
 </head>
 <body>
+<header class="report-appbar"><a class="report-brand" href="./eos.html">DrillOps <span>EOS</span></a><a href="./eos.html?view=activities">← Activity reports</a></header>
 <main>
   <div class="report-detail">
     <div class="report-head">
       <div>
+        <div class="report-kicker">Operations / Daily activity report</div>
         <div class="title" id="title">Daily report</div>
         <div class="meta" id="meta"></div>
         <div id="flags"></div>
@@ -183,11 +186,12 @@ tr.saving td{background:#fff7e6;}
         <button id="report-next-btn" type="button" disabled>Next &rarr;</button>
         <button id="pdf-btn" type="button">PDF</button>
         <button id="lock-btn" type="button">Lock sheet</button>
-        <a class="btn" href="index.html">Reports list</a>
+        <a class="btn" href="./eos.html?view=activities">Reports list</a>
         <button type="button" onclick="window.close()">Close tab</button>
       </div>
     </div>
-    <div class="body">
+    <nav class="report-section-nav" aria-label="Report sections"><a href="#report-summary">Overview</a><a href="#timeline-title">Shift timeline</a><a href="#activities-title">Activities</a><a href="#equipment-title">Equipment</a><a href="#support-detail-grid">People &amp; consumables</a></nav>
+    <div class="body" id="report-summary">
       <div class="weekly-overview" id="weekly-overview">
         <div class="weekly-hero review" id="weekly-hero">
           <div>
@@ -236,8 +240,7 @@ tr.saving td{background:#fff7e6;}
           </div>
           <button type="button" id="approval-save" style="margin-top:18px;">Save</button>
         </div>
-        <div class="subtitle">Log</div>
-        <div class="log-list" id="approval-log"></div>
+        <details class="approval-history"><summary>Decision history</summary><div class="log-list" id="approval-log"></div></details>
       </div>
       <div class="kpis" id="report-kpis">
         <div class="kpi"><div class="label" id="kpi-depth-label">Depth</div><div class="value" id="kpi-depth">--</div></div>
@@ -317,7 +320,7 @@ const MCC_WORK_GROUPS=[
 const approvalKey=['drillops-report-approval',contractor,reportDate,hole,source].join('|');
 const lockKey=['drillops-activity-sheet-lock',contractor,reportDate,hole,source].join('|');
 const minimumShiftKey=['drillops-minimum-shift-topup',contractor,reportDate,hole,source].join('|');
-const CAT_COLORS={'Productive Drilling':'#27ae60','Tripping Rods':'#3498db','Circulation':'#9b59b6','Repairs':'#e74c3c','Standby / Delays':'#f39c12','Travel':'#7f8c8d','Safety & Admin':'#1abc9c','Other':'#555e6b'};
+const CAT_COLORS={'Productive Drilling':'#39846b','Tripping Rods':'#6087a4','Circulation':'#8c7b9e','Repairs':'#ba7061','Standby / Delays':'#b78d47','Travel':'#87978e','Safety & Admin':'#5b9b91','Other':'#697b72'};
 let reportRows=[],reportConsumables=[],reportCrew=[],drillingRates=[],hourlyRates=[],reportPlannedHoles=[],plannedHolesState='idle',sheetLock={locked:false,reason:''},approvalRecord={status:'',reason:'',log:[]},minimumShiftPreference={include_topup:true,reason:''};
 let weeklyAuditRows=[],weeklyAuditShowAll=false,weeklyOverviewContext=null;
 const activityBroadcast=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('drillops-activity-updates');
@@ -1630,13 +1633,13 @@ function renderTimeline(rows,totalHours){
   let min=Math.min(...starts),max=Math.max(...ends);
   if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
   const span=Math.max(60,max-min);
-  const timelineWidth=Math.max(1400,Math.ceil(span/60)*170);
+  const timelineWidth=Math.max(900,Math.ceil(span/60)*90);
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
   const laneMap=new Map();
   sorted.forEach(r=>{const lane=rowHoleLabel(r);if(!laneMap.has(lane))laneMap.set(lane,[]);laneMap.get(lane).push(r);});
   const lanes=[...laneMap.entries()].map(([lane,laneRows])=>{
-    const blocks=laneRows.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';return '<div class="timeline-block" title="'+esc(lane+' | '+label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(label)+'</div>';}).join('');
+    const blocks=laneRows.map(r=>{const start=parseClockMinutes(r.time_from);if(start==null)return '';const end=parseClockMinutes(r.time_to);const duration=parseDurationHours(r.total_time)*60;const finish=end!=null?end:start+Math.max(10,duration||30);const left=Math.max(0,((start-min)/span)*100);const width=Math.max(2,((finish-start)/span)*100);const cat=activityCategory(r);const color=CAT_COLORS[cat]||'#555e6b';const label=r.code||'No code';const displayLabel=(r.notes||cat).replace(/\s+/g,' ').trim();return '<div class="timeline-block" title="'+esc(lane+' | '+label+': '+(r.notes||''))+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';">'+esc(displayLabel)+'</div>';}).join('');
     return '<div class="timeline-lane"><div class="timeline-lane-label" title="'+attr(lane)+'">'+esc(lane)+'</div><div class="timeline-track">'+blocks+'</div></div>';
   }).join('');
   const hasMinimumShiftOption=['Allianz Drilling','Mitchells Drilling'].includes(contractor);

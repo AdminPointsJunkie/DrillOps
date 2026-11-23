@@ -1,0 +1,67 @@
+/* EOS report workspace: compact operational detail with FieldMaps surfaces. */
+:root{--bg:#f4f5f4;--panel:#fff;--border:#e1e5e3;--text:#263632;--muted:#74817c;--accent:#287665;--shadow:none}
+html{scroll-behavior:smooth;scroll-padding-top:90px}
+body{background:var(--bg);color:var(--text);font-size:13px}
+.report-appbar{height:58px;padding:0 32px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--border)}
+.report-brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#243c34;font-weight:750;font-size:18px;letter-spacing:-.6px}
+.report-brand span{font-size:11px;font-weight:600;letter-spacing:1.4px;border-left:1px solid #dce3df;padding-left:12px;color:#73827b}
+.report-appbar>a:last-child{font-size:12px;text-decoration:none;color:#53675d}
+main{max-width:1560px;padding:26px 32px 56px}
+.report-detail{border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+.report-head{padding:0 0 22px;background:transparent;border:0;gap:24px}
+.report-kicker{font-size:10px;letter-spacing:1.5px;font-weight:650;color:#7b8983;text-transform:uppercase;margin-bottom:10px}
+.title{font-size:24px;font-weight:650;letter-spacing:-.8px;line-height:1.3;margin-bottom:12px;overflow-wrap:anywhere}
+.meta{align-items:center;gap:12px;font-size:12px;color:#62736b}
+.meta>span:not(.report-date-editor){padding-left:12px;border-left:1px solid #d6dfd9}
+.actions{gap:6px;max-width:550px;padding-top:22px}
+button,.btn{border-color:#d8e0db;background:#fff;color:#40594c;border-radius:6px;font-weight:550;min-height:34px;box-shadow:none}
+button:hover,.btn:hover{background:#edf4ef;border-color:#adc5b7;color:#225f4b}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #287665;outline-offset:3px}
+#pdf-btn,#approval-save{background:#2e6d5c;color:#fff;border-color:#2e6d5c}
+#pdf-btn:hover,#approval-save:hover{background:#245746}
+.report-date-editor input{max-width:125px;background:#fff;font-weight:500;border-color:#d8e0db;min-height:32px}
+.report-date-editor button{min-height:32px}
+.flag{font-size:10px;font-weight:550;border-radius:4px;padding:4px 7px;margin:10px 5px 0 0;background:#fbf5e9;color:#92672b;border-color:#ebdfc6}
+.report-section-nav{display:flex;gap:26px;border-bottom:1px solid #dce3de;margin-bottom:20px;overflow-x:auto;white-space:nowrap}
+.report-section-nav a{padding:12px 0;color:#6a7c72;font-size:12px;font-weight:550;text-decoration:none;border-bottom:2px solid transparent}
+.report-section-nav a:hover{color:#286d57;border-color:#286d57}
+.report-section-nav a:first-child{color:#286d57;border-color:#286d57}
+.body{padding:0}
+.approval-panel{padding:14px 18px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:18px}
+.approval-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.approval-row>div:first-child{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.approval-row .subtitle{margin:0!important;color:#566c60;font-size:10px}
+.approval-lock-option{margin:0;font-size:11px;font-weight:400}
+.approval-reason.open{flex:1;min-width:220px;display:flex;align-items:center;gap:10px}
+.approval-reason textarea{min-height:40px;height:40px}
+#approval-save{margin:0 0 0 auto!important;min-width:100px}
+.approval-history{border-top:1px solid #edf0ed;margin-top:12px;padding-top:10px}
+.approval-history summary{font-size:11px;color:#7c8982;cursor:pointer}
+.log-list{margin-top:8px}
+.kpis{grid-template-columns:repeat(8,minmax(0,1fr));gap:0;background:#fff;border:1px solid var(--border);border-radius:8px;margin:0 0 28px;overflow:hidden}
+.kpi{border:0;border-right:1px solid #edf0ed;border-radius:0;padding:20px 16px;background:transparent;min-width:0;box-shadow:none}
+.kpi:last-child{border-right:0}
+.kpi .label{font-size:9px;font-weight:600;letter-spacing:.7px;color:#849087}
+.kpi .value{font-size:21px;font-weight:600;letter-spacing:-.7px;white-space:nowrap;font-variant-numeric:tabular-nums;color:#2c4036;margin-top:10px}
+.kpi:nth-child(3){background:#f0f6f2}
+.subtitle{font-size:11px;font-weight:600;letter-spacing:.5px;color:#4f6559;margin:24px 0 11px;scroll-margin-top:20px}
+.table-wrap,.timeline,.notes{border:1px solid var(--border);border-radius:8px;box-shadow:none;background:#fff}
+thead th{background:#f5f7f5;font-size:9px;font-weight:600;letter-spacing:.6px;color:#809086;padding:12px 16px}
+tbody td{padding:12px 16px;border-color:#edf0ed;color:#42574b;font-size:12px;line-height:1.5}
+tbody tr:hover{background:#f8faf8}
+.empty{padding:18px 16px;color:#8a958e;font-size:12px}
+.notes{padding:5px 18px;max-height:220px;font-size:12px;line-height:1.7}
+.notes p{padding:9px 0;margin:0;border-bottom:1px solid #f0f2ef}
+.notes p:last-child{border:0}
+.timeline{padding:16px 18px;margin-bottom:24px}
+.timeline-inner{min-width:760px;max-width:none}
+.timeline-track{height:52px;border-color:#e2e8e2;background:repeating-linear-gradient(90deg,#f6f8f6 0,#f6f8f6 79px,#e7ece7 80px)}
+.timeline-block{top:8px;height:34px;font-weight:500;box-shadow:none;border-radius:4px;font-size:10px;border:1px solid #ffffff50}
+.timeline-tools button{min-height:26px;border-color:#e1e7e2}
+.timeline-lane-label{color:#607567;font-weight:550}
+.code{color:#4b7060;font-size:10px;font-weight:500}
+.scroll{max-height:480px}
+@media(min-width:1100px){.report-head>div:first-child{min-width:0;flex:1}.actions{flex-shrink:0}}
+@media(max-width:1200px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi:nth-child(-n+4){border-bottom:1px solid #edf0ed}.report-head{flex-wrap:wrap}.actions{padding-top:0}}
+@media(max-width:650px){.report-appbar{padding:0 16px}main{padding:20px 14px}.title{font-size:20px}.report-head{gap:16px}.actions{justify-content:flex-start}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi{padding:15px;border-bottom:1px solid #edf0ed}.report-section-nav{gap:20px}.approval-row{align-items:stretch}.approval-row>div:first-child{gap:10px}#approval-save{margin-left:0!important}.grid{grid-template-columns:1fr}.table-wrap{overflow-x:auto}.report-appbar>a:last-child{font-size:11px}}
+@media print{.report-appbar,.report-section-nav,.actions,.approval-row{display:none!important}main{padding:0;max-width:none}.report-head{padding:0 0 14px}.kpis{grid-template-columns:repeat(4,1fr)}.scroll,.notes{max-height:none;overflow:visible}.table-wrap{overflow:visible}.timeline-inner{min-width:0!important;width:100%!important}.report-detail{border:0}.kpi{break-inside:avoid}}
