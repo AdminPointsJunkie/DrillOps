@@ -11853,7 +11853,12 @@ async def import_ocr_pdf(
     client: str = Form(default=""),
     ocr_data: Optional[str] = Form(default=None),
 ):
-    """Import OCR with per-activity holes and source completion evidence, including multi-hole shifts."""
+    """Import reviewed OCR with per-activity holes and source completion evidence.
+
+    Ironbark reports must be within the last 14 Brisbane calendar days, agree
+    with any explicit filename date, and use IB hole prefixes / C core suffixes.
+    Invalid review fields are rejected before any activity rows are saved.
+    """
     filename = file.filename
     if contractor == "Weatherfords" and not filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Weatherfords imports accept logging PDFs only")
