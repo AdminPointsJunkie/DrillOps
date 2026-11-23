@@ -1,6 +1,6 @@
 """Validation Sheet rates, preserved zero-charge exceptions and explicit line matching."""
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 import re
 from openpyxl import load_workbook
@@ -185,7 +185,8 @@ def reconcile_activities(claim, eos):
         if effective_rate is not None and e.get('unit_rate') != effective_rate:
             issues.append('DrillOps rate differs from Validation Sheet')
         expected, recorded = c['expected_cost'], e.get('line_cost')
-        delta = None if expected is None or recorded is None else round(expected - recorded, 2)
+        cents = lambda value: Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        delta = None if expected is None or recorded is None else float(cents(expected) - cents(recorded))
         if delta not in (None, 0):
             issues.append('Amount differs')
         entries.append({'claim': c, 'eos': e, 'status': 'Matched' if not issues else 'Review', 'issues': issues, 'reason': reason, 'difference': delta})
