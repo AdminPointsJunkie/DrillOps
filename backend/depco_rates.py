@@ -371,6 +371,11 @@ def price_depco_activity(row, lines):
         return pending('map this activity to a contract code')
     # One drill code identifies a size; pricing spans every depth band for that size.
     first = selected[0]
+    excluded = number(row.get('nonbillable_metres'))
+    if row.get('nonbillable_metres') is not None and excluded is None:
+        return pending('check the nonbillable metres on this DAR')
+    if excluded and (first.get('section') != 'Drilling Rates' or first.get('unit') != 'metre' or first.get('depth_from') is not None):
+        return pending('reconcile the excluded drilling interval against the selected rate')
     if first.get('section') == 'Drilling Rates' and first.get('depth_from') is not None:
         bands = [r for r in lines if r.get('section') == 'Drilling Rates' and r.get('name') == first['name']]
         start, end, metres = (number(row.get(k)) for k in ('metres_from','metres_to','total_metres'))
@@ -406,9 +411,15 @@ def price_depco_activity(row, lines):
     quantity = hours(row.get('total_time')) if unit == 'hour' else number(row.get('total_metres')) if unit == 'metre' else number(row.get('quantity'))
     if quantity is None:
         return pending('enter ' + ('duration' if unit == 'hour' else 'metres' if unit == 'metre' else f'quantity in {unit}'))
+    exclusion_note = ''
+    if excluded:
+        if excluded > quantity:
+            return pending('excluded metres exceed the reported drilling metres')
+        exclusion_note = f' ({quantity:g} m recorded less {excluded:g} m already charged)'
+        quantity = float(Decimal(str(quantity)) - Decimal(str(excluded)))
     if unit == 'hour' and '15 min increments' in str(rate.get('category')) and abs(quantity*4-round(quantity*4)) > .00001:
         return pending('confirm billable duration in 15-minute increments')
     result.update(unit_rate=number(rate['charge']), quantity=quantity,
                   line_cost=money(Decimal(str(rate['charge']))*Decimal(str(quantity))),
-                  rate_basis=f"DEPCO 26038 ex GST: {quantity:g} {unit} × ${rate['charge']:g}; {rate.get('reference_name') or rate['name']}")
+                  rate_basis=f"DEPCO 26038 ex GST: {quantity:g} {unit}{exclusion_note} × ${rate['charge']:g}; {rate.get('reference_name') or rate['name']}")
     return result

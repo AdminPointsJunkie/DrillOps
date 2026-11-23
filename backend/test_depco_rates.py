@@ -36,6 +36,18 @@ class DepcoRigTests(unittest.TestCase):
 
 
 class DepcoRatesTests(unittest.TestCase):
+    def test_reprice_excludes_only_the_confirmed_overlapping_metres(self):
+        rate = {'cost_code': 'TEST_PCD', 'name': '13 1/2 inch PCD', 'section': 'Drilling Rates',
+                'status': 'Active', 'unit': 'metre', 'charge': 100}
+        row = {'notes': 'Chip 13 1/2 PCD', 'metres_from': 10, 'metres_to': 30.75,
+               'total_metres': 20.75, 'nonbillable_metres': 5.25}
+        suggested = suggest_depco_activity(row, [rate])
+        repriced = price_depco_activity({**row, **suggested}, [rate])
+        for result in (suggested, repriced):
+            self.assertEqual((result['quantity'], result['line_cost']), (15.5, 1550))
+        invalid = {**row, 'code': rate['cost_code'], 'nonbillable_metres': 21}
+        self.assertIsNone(price_depco_activity(invalid, [rate])['line_cost'])
+
     def test_user_confirmed_travel_to_site(self):
         rates=catalogue('A')
         for notes in ('Travel to site','Travel to the site','TRAVEL TO SITE.'):

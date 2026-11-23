@@ -756,6 +756,7 @@ def init_db():
                 ("quantity",   "FLOAT"),
                 ("line_cost",  "FLOAT"),
                 ("allocation_percent", "FLOAT DEFAULT 100"),
+                ("nonbillable_metres", "NUMERIC"),
                 ("rate_basis", "TEXT"),
             ]:
                 try:
