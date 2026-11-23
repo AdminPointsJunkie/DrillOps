@@ -3385,7 +3385,7 @@ def root():
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
         "depco_exploration_import": "claim-xlsx-2026-11-23-v2",
-        "depco_code_suggestions": "shared-program-schedule-v1",
+        "depco_code_suggestions": "shared-program-schedule-v2-net-metres",
         "account_claim_reconciliation": "activity-validation-2026-11-23",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
