@@ -1495,6 +1495,7 @@ function triggerPageLoad(page){
   if(page==='accounts-overview')loadAccountsOverview();
   if(page==='invoices')     loadInvoices();
   if(page==='reconciliation') loadMonthlyReconciliation();
+  if(page==='claim-reconciliation') loadClaimReconciliation();
   if(page==='rates')        initRatesTab();
 }
 
@@ -8794,7 +8795,7 @@ function renderRateLibrarySummary(){
   const linkedNames=new Set(filteredContractors().map(function(item){return item.name;}));
   const visibleRows=rateLibrarySummaryData.filter(function(row){return WORKSPACE_APP==='eos'?row.contractor===activeContractor:linkedNames.has(row.contractor);});
   const totalLines=visibleRows.reduce(function(sum,row){
-    return sum+Number(row.drilling_rates||0)+Number(row.hourly_rates||0)+Number(row.consumable_rates||0);
+    return sum+(row.total_lines!=null?Number(row.total_lines):Number(row.drilling_rates||0)+Number(row.hourly_rates||0)+Number(row.consumable_rates||0));
   },0);
   const contractors=new Set(visibleRows.map(function(row){return row.contractor;}));
   const setText=function(id,value){const node=document.getElementById(id);if(node)node.textContent=Number(value||0).toLocaleString('en-AU');};
@@ -8810,7 +8811,7 @@ function renderRateLibrarySummary(){
       +'<td>'+Number(row.hourly_rates||0).toLocaleString('en-AU')+'</td>'
       +'<td>'+Number(row.consumable_rates||0).toLocaleString('en-AU')+'</td>'
       +'<td><span style="font-weight:700;">'+linked+'</span><div style="font-size:10px;color:var(--muted);">'+Number(row.active_contract_count||0)+' active</div></td>'
-      +'<td><button class="btn-primary" type="button" onclick="createContractFromLibrary(decodeURIComponent(&apos;'+attr(encodeURIComponent(row.contractor))+'&apos;),decodeURIComponent(&apos;'+attr(encodeURIComponent(row.year))+'&apos;))">Use for project</button></td>'
+      +(row.rate_schedule_id?'<td><button class="btn-primary" type="button" onclick="openCostContract('+Number(row.first_contract_id)+')">Open shared schedule</button></td>':'<td><button class="btn-primary" type="button" onclick="createContractFromLibrary(decodeURIComponent(&apos;'+attr(encodeURIComponent(row.contractor))+'&apos;),decodeURIComponent(&apos;'+attr(encodeURIComponent(row.year))+'&apos;))">Use for project</button></td>')
       +'</tr>';
   }).join('')||'<tr><td colspan="7" class="contract-empty">No reusable rate schedules are linked to '+esc(activeProjectName||'this project')+'. Open Manage rate library to add one.</td></tr>';
 }
@@ -8938,7 +8939,7 @@ async function saveCostContract(event){
     const saved=await response.json();
     let copiedRates=0;
     let copyWarning='';
-    if(document.getElementById('cost-contract-copy-library').checked&&payload.rate_year){
+    if(!saved.rate_schedule_id&&document.getElementById('cost-contract-copy-library').checked&&payload.rate_year){
       const copyResponse=await fetch(API+'/cost-contracts/'+encodeURIComponent(saved.id)+'/import-schedule',{method:'POST'});
       const copyResult=await copyResponse.json().catch(function(){return {};});
       if(copyResponse.ok){
@@ -8957,7 +8958,7 @@ async function saveCostContract(event){
     await loadCostContracts();
     await openCostContract(selectedCostContractId);
     if(copyWarning)toast(copyWarning,'warn');
-    else toast('Cost contract created'+(copiedRates?' with '+copiedRates+' Rate Library lines':''));
+    else toast('Cost contract created'+(saved.rate_schedule_id?' using the shared Validation Sheet schedule':copiedRates?' with '+copiedRates+' Rate Library lines':''));
   }catch(error){
     toast('Cost contract creation failed','err');
   }finally{
@@ -9003,11 +9004,16 @@ function renderCostContractDetail(contract){
       +(contract.notes?'<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+esc(contract.notes)+'</div>':'')
     +'</div>'
     +'<aside class="contract-side">'+sections.map(function(section){return '<button type="button" class="'+(section===activeCostContractSection?'active':'')+'" onclick="setCostContractSection(&apos;'+attr(section)+'&apos;)">'+esc(section)+'</button>';}).join('')+'</aside>'
-    +'<div class="contract-main"><div class="contract-main-head"><div><div style="font-size:16px;font-weight:780;">'+esc(activeCostContractSection)+'</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">Rates in this section belong only to this cost contract.</div></div>'
+    +'<div class="contract-main"><div class="contract-main-head"><div><div style="font-size:16px;font-weight:780;">'+esc(activeCostContractSection)+'</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">'+(contract.rate_schedule_id?'One shared DEPCO Exploration schedule · Validation Sheet rates · used by all linked contracts.':'Rates in this section belong only to this cost contract.')+'</div></div>'
       +'<div style="display:flex;gap:8px;">'+(contract.contractor==='DEPCO Drilling'?'<select id="depco-scope" aria-label="DEPCO schedule"><option value="A"'+(contract.program==='Exploration'?' selected':'')+'>Exploration — revised</option><option value="C"'+(contract.program==='Gas Riser'?' selected':'')+'>Service Casing</option><option value="B"'+(contract.program==='SIS'?' selected':'')+'>SIS</option></select><button class="btn-secondary" type="button" onclick="importDepcoSchedule()">Add DEPCO codes</button>':'<button class="btn-secondary" type="button" onclick="importCostContractSchedule()">Refresh from Rate Library</button>')+'<button class="btn-primary" type="button" onclick="addCostContractRate()">Add rate</button></div>'
     +'</div><div class="contract-rate-table">'+costContractRateTable()+'</div></div>'
     +'</div>';
-  attachCostContractRateEdits();
+  if(contract.rate_schedule_id){
+    host.querySelector('.contract-main-head > div:last-child').innerHTML='<span>'+esc(contract.schedule_name||'Shared Validation Sheet schedule')+'</span>';
+    host.querySelectorAll('[contenteditable]').forEach(n=>n.removeAttribute('contenteditable'));
+    host.querySelectorAll('.contract-rate-table select').forEach(n=>n.disabled=true);
+    host.querySelectorAll('.contract-rate-table button').forEach(n=>n.remove());
+  }else attachCostContractRateEdits();
 }
 
 async function importDepcoSchedule(){

@@ -7,6 +7,7 @@ from typing import Optional
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from shared_rates import require_individual_schedule
 from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
 from depco_rates import CATALOG, catalogue, contract_rates, price_depco_activity, suggest_depco_activity, suggest_depco_rows, preview_depco_ocr, is_depco_report, normalise_ocr_date, normalise_depco_rig
 
@@ -328,7 +329,7 @@ class DepcoRouteTests(unittest.TestCase):
         self.cur=MagicMock(); self.conn=MagicMock()
         self.conn.cursor.return_value.__enter__.return_value=self.cur
         get_conn=MagicMock();get_conn.return_value.__enter__.return_value=self.conn
-        self.env={'Request':object,'get_conn':get_conn,'HTTPException':HTTPException,
+        self.env={'Request':object,'get_conn':get_conn,'HTTPException':HTTPException,'require_individual_schedule':require_individual_schedule,
                   'depco_catalogue':catalogue,'DEPCO_SCOPES':SCOPES,
                   'price_depco_activity':price_depco_activity,
                   'depco_contract_rates':MagicMock(return_value=catalogue('A')),

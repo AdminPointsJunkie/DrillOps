@@ -16,7 +16,7 @@ function contractorsForApp(rows, field='name',listing='any'){
 }
 const WORKSPACE_PAGES = {
  eos:['workspace-settings','reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],
- account:['workspace-settings','accounts-overview','invoices','accruals','reconciliation','purchase-orders','contractors','importer'],
+ account:['workspace-settings','accounts-overview','invoices','accruals','reconciliation','claim-reconciliation','purchase-orders','contractors','importer'],
  project:['workspace-settings','project-dashboard','project-budgets','budget','boreholes','drilling-schedule','project-registers','labs','reports','admin']
 };
 function workspacePageStorageKey(){return 'drillops_'+WORKSPACE_APP+'_page';}

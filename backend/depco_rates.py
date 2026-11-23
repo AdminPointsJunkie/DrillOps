@@ -7,6 +7,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
 from pathlib import Path
 from report_holes import ocr_activity_hole
+from shared_rates import rates_for_contract
 
 CATALOG = json.loads((Path(__file__).parent / 'data' / 'depco_26038_rates.json').read_text(encoding='utf-8'))
 BY_CODE = {r['cost_code']: r for r in CATALOG['rates']}
@@ -81,8 +82,7 @@ def contract_rates(cur, contractor, project, program=''):
     contracts = [dict(r) for r in cur.fetchall()]
     if len(contracts) != 1:
         return []
-    cur.execute('SELECT * FROM cost_contract_rates WHERE contract_id=%s ORDER BY sort_order, id', (contracts[0]['id'],))
-    lines = [{**dict(r), '_start_date':contracts[0].get('start_date'), '_end_date':contracts[0].get('end_date')} for r in cur.fetchall()]
+    lines = [{**r, '_start_date':contracts[0].get('start_date'), '_end_date':contracts[0].get('end_date')} for r in rates_for_contract(cur, contracts[0])]
     return lines
 
 

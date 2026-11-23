@@ -4,6 +4,8 @@ Database: Supabase (PostgreSQL)
 Multi-contractor: every query is filtered by contractor
 """
 
+from shared_rates import rates_for_contract, require_individual_schedule
+
 import re
 import os
 import base64
@@ -40,6 +42,7 @@ from business_platform import current_business_scope, create_business_router, ca
 from training_api import create_training_router, ensure_training_schema
 from rig_schedule import create_schedule_router, ensure_schedule_schema
 from account_accruals import create_accrual_router, ensure_accrual_schema
+from claim_reconciliation import create_claim_reconciliation_router
 from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from project_registers import create_register_router, ensure_register_schema
 from exploration_metres import summarize_exploration_metres
@@ -2273,12 +2276,7 @@ def effective_rate_rows(cur, contractor: str, project: str = ""):
         """, (contractor, project))
         contract = cur.fetchone()
     if contract:
-        cur.execute("""
-            SELECT * FROM cost_contract_rates
-            WHERE contract_id=%s AND status='Active'
-            ORDER BY section, sort_order, id
-        """, (contract["id"],))
-        lines = [dict(row) for row in cur.fetchall()]
+        lines = [r for r in rates_for_contract(cur, contract) if r.get('status') == 'Active']
         year = str(contract.get("rate_year") or "2025")
         drilling = [
             {
@@ -3386,6 +3384,7 @@ def root():
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
         "depco_exploration_import": "claim-xlsx-2026-11-23-v2",
+        "account_claim_reconciliation": "activity-validation-2026-11-23",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],
@@ -10339,7 +10338,17 @@ def get_rate_library_summary():
                          schedules.drilling_rates, schedules.hourly_rates, schedules.consumable_rates
                 ORDER BY schedules.contractor, schedules.year DESC
             """)
-            return [dict(row) for row in cur.fetchall()]
+            summaries = [dict(row) for row in cur.fetchall()]
+            cur.execute("""SELECT s.id AS rate_schedule_id,s.contractor,s.name AS year,s.program,
+                jsonb_array_length(s.rates) AS total_lines,
+                (SELECT count(*) FROM jsonb_array_elements(s.rates) r WHERE r->>'section'='Drilling Rates') AS drilling_rates,
+                (SELECT count(*) FROM jsonb_array_elements(s.rates) r WHERE r->>'section'='Time Activities') AS hourly_rates,
+                (SELECT count(*) FROM jsonb_array_elements(s.rates) r WHERE r->>'section'='Consumables') AS consumable_rates,
+                count(cc.id) AS contract_count,count(cc.id) FILTER(WHERE cc.status='Active') AS active_contract_count,
+                min(cc.id) AS first_contract_id
+                FROM shared_rate_schedules s JOIN cost_contracts cc ON cc.rate_schedule_id=s.id AND cc.workspace_id=s.workspace_id
+                GROUP BY s.id ORDER BY s.name""")
+            return summaries + [dict(row) for row in cur.fetchall()]
 
 
 def clean_cost_contract_payload(payload: dict, partial: bool = False) -> dict:
@@ -10385,13 +10394,14 @@ def get_cost_contracts(
             cur.execute(f"""
                 SELECT cc.*, p.name AS project_name, p.program, p.year AS project_year,
                        c.name AS client_name, c.code AS client_code,
-                       COUNT(cr.id) AS rate_count
+                       COALESCE(jsonb_array_length(rs.rates), COUNT(cr.id)) AS rate_count, rs.name AS schedule_name
                 FROM cost_contracts cc
                 JOIN projects p ON p.id=cc.project_id
                 LEFT JOIN clients c ON c.id=cc.client_id
                 LEFT JOIN cost_contract_rates cr ON cr.contract_id=cc.id
+                LEFT JOIN shared_rate_schedules rs ON rs.id=cc.rate_schedule_id AND rs.workspace_id=cc.workspace_id
                 {clause}
-                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code
+                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code, rs.id
                 ORDER BY CASE cc.status
                     WHEN 'Active' THEN 0 WHEN 'Pending Approval' THEN 1
                     WHEN 'Draft' THEN 2 ELSE 3 END,
@@ -10407,13 +10417,14 @@ def get_cost_contract(contract_id: int):
             cur.execute("""
                 SELECT cc.*, p.name AS project_name, p.program, p.year AS project_year,
                        c.name AS client_name, c.code AS client_code,
-                       COUNT(cr.id) AS rate_count
+                       COALESCE(jsonb_array_length(rs.rates), COUNT(cr.id)) AS rate_count, rs.name AS schedule_name
                 FROM cost_contracts cc
                 JOIN projects p ON p.id=cc.project_id
                 LEFT JOIN clients c ON c.id=cc.client_id
                 LEFT JOIN cost_contract_rates cr ON cr.contract_id=cc.id
+                LEFT JOIN shared_rate_schedules rs ON rs.id=cc.rate_schedule_id AND rs.workspace_id=cc.workspace_id
                 WHERE cc.id=%s
-                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code
+                GROUP BY cc.id, p.name, p.program, p.year, c.name, c.code, rs.id
             """, (contract_id,))
             row = cur.fetchone()
             if not row:
@@ -10457,14 +10468,15 @@ async def add_cost_contract(request: Request):
                     rate_year=EXCLUDED.rate_year,
                     notes=EXCLUDED.notes,
                     updated_at=NOW()
-                RETURNING id
+                RETURNING id, rate_schedule_id
             """, {
                 **{"client_id": None, "start_date": "", "end_date": "", "rate_year": "", "notes": ""},
                 **payload,
             })
-            contract_id = cur.fetchone()["id"]
+            saved_contract = cur.fetchone()
+            contract_id = saved_contract["id"]
         conn.commit()
-    return {"status": "created", "id": contract_id}
+    return {"status": "created", "id": contract_id, "rate_schedule_id": saved_contract.get("rate_schedule_id")}
 
 
 @app.patch("/cost-contracts/{contract_id}")
@@ -10505,6 +10517,7 @@ async def update_cost_contract(contract_id: int, request: Request):
 def delete_cost_contract(contract_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            require_individual_schedule(cur, contract_id)
             cur.execute("SELECT COUNT(*) AS count FROM cost_contract_rates WHERE contract_id=%s", (contract_id,))
             if int((cur.fetchone() or {}).get("count") or 0):
                 raise HTTPException(409, "End this contract instead of deleting it because it contains rate lines")
@@ -10550,16 +10563,13 @@ def clean_cost_contract_rate(payload: dict, partial: bool = False) -> dict:
 
 @app.get("/cost-contract-rates")
 def get_cost_contract_rates(contract_id: int = Query(...), section: Optional[str] = Query(None)):
-    query = "SELECT * FROM cost_contract_rates WHERE contract_id=%s"
-    params = [contract_id]
-    if section:
-        query += " AND section=%s"
-        params.append(section)
-    query += " ORDER BY section, sort_order, name, depth_from NULLS FIRST"
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(query, params)
-            return [dict(row) for row in cur.fetchall()]
+            cur.execute('SELECT * FROM cost_contracts WHERE id=%s', (contract_id,))
+            contract = cur.fetchone()
+            if not contract:
+                raise HTTPException(404, 'Cost contract not found')
+            return [r for r in rates_for_contract(cur, contract) if not section or r['section'] == section]
 
 
 @app.post("/cost-contract-rates")
@@ -10573,6 +10583,7 @@ async def add_cost_contract_rate(request: Request):
     }
     with get_conn() as conn:
         with conn.cursor() as cur:
+            require_individual_schedule(cur, payload["contract_id"])
             cur.execute("""
                 INSERT INTO cost_contract_rates
                     (contract_id, section, name, rig_type, category, depth_from, depth_to,
@@ -10680,6 +10691,7 @@ async def import_depco_contract(contract_id: int, request: Request):
         raise HTTPException(400, str(exc))
     with get_conn() as conn:
         with conn.cursor() as cur:
+            require_individual_schedule(cur, contract_id)
             cur.execute("SELECT cc.*, p.program FROM cost_contracts cc JOIN projects p ON p.id=cc.project_id WHERE cc.id=%s FOR UPDATE OF cc", (contract_id,))
             contract = cur.fetchone()
             if not contract:
@@ -10714,6 +10726,7 @@ async def import_depco_contract(contract_id: int, request: Request):
 def import_schedule_to_cost_contract(contract_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            require_individual_schedule(cur, contract_id)
             cur.execute("SELECT contractor, rate_year FROM cost_contracts WHERE id=%s", (contract_id,))
             contract = cur.fetchone()
             if not contract:
@@ -12151,4 +12164,5 @@ app.include_router(create_training_router(get_conn))
 app.include_router(create_tracking_router(get_conn))
 app.include_router(create_register_router(get_conn))
 app.include_router(create_accrual_router(get_conn))
+app.include_router(create_claim_reconciliation_router(get_conn))
 app.include_router(create_schedule_router(get_conn))

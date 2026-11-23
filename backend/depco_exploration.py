@@ -29,7 +29,7 @@ def _number(value, label, optional=False):
 
 def parse_depco_exploration_xlsx(content, filename):
     workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
-    activities, warnings, crews = [], [], {}
+    activities, warnings, crews, periods = [], [], {}, []
     try:
         for sheet in workbook:
             if not re.fullmatch(r'DR\s*\d+', sheet.title, re.I):
@@ -50,6 +50,8 @@ def parse_depco_exploration_xlsx(content, filename):
                     if label in ('date from', 'date to') and isinstance(row[position + 1], (date, datetime)):
                         bounds[label] = row[position + 1].strftime('%Y-%m-%d')
             outside_period = set()
+            if bounds.get('date from') and bounds.get('date to'):
+                periods.append((bounds['date from'], bounds['date to']))
             totals, checks, dar_numbers = defaultdict(Decimal), defaultdict(Decimal), defaultdict(set)
             rig = re.sub(r'\s+', '', sheet.title).upper()
             for index, raw in enumerate(rows[header_index + 1:], header_index + 2):
@@ -123,6 +125,9 @@ def parse_depco_exploration_xlsx(content, filename):
                 warnings.append({'severity': 'warning', 'issue': f'{sheet.title}: {report_date} is outside the workbook claim period; the source date is preserved and needs review.'})
         if not activities:
             raise ValueError('No DEPCO Exploration claim rows found; expected a DR rig sheet with Claim / Date / DAR # / Activity Charge columns')
-        return {'warnings': warnings}, activities, [], list(crews.values()), ''
+        header = {'warnings': warnings}
+        if periods:
+            header.update(period_start=min(p[0] for p in periods), period_end=max(p[1] for p in periods))
+        return header, activities, [], list(crews.values()), ''
     finally:
         workbook.close()

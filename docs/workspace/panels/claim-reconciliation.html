@@ -1,0 +1,17 @@
+<section class="page" id="page-claim-reconciliation">
+ <header class="claim-heading"><div><div class="claim-eyebrow">Accounts / Reconciliation</div><h2>Depco claim reconciliation</h2><p>Every activity and daily total must match the Validation Sheet charges. AUD, ex GST.</p></div><div class="claim-actions"><button id="claim-refresh" type="button">Refresh live costs</button><button id="claim-export" type="button" disabled>Export activity CSV</button><button id="claim-print" type="button" disabled>Print daily summary</button></div></header>
+ <div class="claim-controls"><label>Saved claim<select id="claim-select"><option value="">Loading saved claims…</option></select></label><label class="claim-upload">Save another claim for comparison<input type="file" id="claim-file" accept=".xlsx"></label><button id="claim-save" type="button" disabled>Save claim</button></div>
+ <p class="claim-scope" id="claim-scope">Compares all campaigns in the selected project. Full project access is required.</p>
+ <p id="claim-message" role="status">Loading reconciliation…</p>
+ <div id="claim-report" hidden>
+  <div class="claim-verdict" id="claim-verdict" role="status"></div>
+  <div class="claim-cards" id="claim-totals"></div>
+  <div class="claim-source"><span id="claim-source-label"></span><button type="button" id="claim-download">Download source workbook</button></div>
+  <p class="claim-note">Each activity must match in quantity, rate and amount, with every line paired. Equal daily totals cannot conceal activity differences. Validation Sheet prices take precedence; explicit $0 exceptions are retained and flagged. Blank validation prices remain unresolved. This report does not post charges, approve the claim or change existing costs.</p>
+  <details class="claim-issues" open><summary id="claim-issues-title">Items to review</summary><ul id="claim-issues-list"></ul></details>
+  <div class="claim-viewbar"><h3>Daily totals</h3><div><label>Show<select id="claim-status"><option value="all">All days</option><option value="review">Days needing review</option><option value="matched">Matched days</option></select></label><label>Find date or hole<input id="claim-search" type="search" placeholder="e.g. 07/11 or IB673C"></label></div></div>
+  <div id="claim-days"></div>
+  <details class="claim-hole-section"><summary>Hole totals and identifier checks</summary><p>Hole totals provide context. They do not replace matching each activity and daily total. Unmatched identifiers are kept separate.</p><div class="claim-table-scroll" id="claim-holes"></div></details>
+  <section id="claim-outside" hidden><h3>Outside the stated claim period</h3><p>These source entries are excluded from the daily comparison and must be reviewed before reconciliation is complete.</p><div class="claim-table-scroll" id="claim-outside-table"></div></section>
+ </div>
+</section>

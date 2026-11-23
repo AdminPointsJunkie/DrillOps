@@ -67,6 +67,7 @@
       "invoices",
       "accruals",
       "reconciliation",
+      "claim-reconciliation",
       "purchase-orders",
       "contractors",
       "importer"
@@ -86,7 +87,11 @@
       ],
       [
         "reconciliation",
-        "Reconciliation"
+        "Monthly reconciliation"
+      ],
+      [
+        "claim-reconciliation",
+        "Claim reconciliation"
       ],
       [
         "purchase-orders",

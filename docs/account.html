@@ -49,7 +49,7 @@
 <link rel="stylesheet" href="./invoice-ledger.css?v=20261108-edit1">
 <link rel="stylesheet" href="./workspace/navigation.css?v=20261108">
 <link rel="stylesheet" href="./workspace/app-style.css?v=20261108">
-<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-close3"><link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261109-total1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./workspace/business-platform.css?v=20261123-contractors1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
+<link rel="stylesheet" href="./workspace/accruals.css?v=20261109-po-close3"><link rel="stylesheet" href="./workspace/accounts-overview.css?v=20261109-total1"><link rel="stylesheet" href="./workspace/reconciliation.css?v=20261108-1"><link rel="stylesheet" href="./workspace/claim-reconciliation.css?v=20261123-daily1"><link rel="stylesheet" href="./workspace/business-platform.css?v=20261123-contractors1"><link rel="stylesheet" href="./brand.css?v=20261108-fieldmaps1">
 <link rel="stylesheet" href="./workspace/suite-style.css?v=20261116-text-links2"><script src="./workspace/report-design.js?v=20261108-suite1"></script></head>
 <body class="workspace-locked" data-workspace-area="account">
 <div id="app-session-loading" role="status" aria-live="polite">Opening Account…</div>
@@ -123,7 +123,7 @@
   </div>
   <div class="drawer-body">
 
-    <div class="drawer-section"><div class="drawer-section-title">Accounting</div><button class="drawer-nav-item" data-page="accounts-overview" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Overview</span></button><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Invoice ledger</span></button><button class="drawer-nav-item" data-page="accruals" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Estimated accruals</span></button><button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Reconciliation</span></button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6"/></svg><span>Purchase orders</span></button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Suppliers</span></button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3M7 8l5-5 5 5M4 15v6h16v-6"/></svg><span>Import invoices</span></button><button class="drawer-nav-item" data-page="workspace-settings" onclick="openBusinessWorkspaceSettings()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Workspace settings</span></button></div>
+    <div class="drawer-section"><div class="drawer-section-title">Accounting</div><button class="drawer-nav-item" data-page="accounts-overview" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3zM14 13h7v8h-7z"/></svg><span>Overview</span></button><button class="drawer-nav-item" data-page="invoices" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Invoice ledger</span></button><button class="drawer-nav-item" data-page="accruals" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Estimated accruals</span></button><button class="drawer-nav-item" data-page="reconciliation" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4"/></svg><span>Monthly reconciliation</span></button><button class="drawer-nav-item" data-page="claim-reconciliation" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 9h18M9 9v11M15 9v11"/></svg><span>Claim reconciliation</span></button><button class="drawer-nav-item" data-page="purchase-orders" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v13l-5 5H5zM14 21v-5h5M8 7h8M8 11h6"/></svg><span>Purchase orders</span></button><button class="drawer-nav-item" data-page="contractors" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 4a4 4 0 0 1 0 7M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Suppliers</span></button><button class="drawer-nav-item" data-page="importer" onclick="drawerNav(this)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3M7 8l5-5 5 5M4 15v6h16v-6"/></svg><span>Import invoices</span></button><button class="drawer-nav-item" data-page="workspace-settings" onclick="openBusinessWorkspaceSettings()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><span>Workspace settings</span></button></div>
 
   </div>
 </div>
@@ -314,7 +314,7 @@
 
 
   <main>
-<nav class="app-local-nav" aria-label="Account navigation"><a class="app-nav-link" href="./account.html?view=accounts-overview">Overview<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=accruals">Estimated accruals<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=reconciliation">Reconciliation<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
+<nav class="app-local-nav" aria-label="Account navigation"><a class="app-nav-link" href="./account.html?view=accounts-overview">Overview<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=invoices">Invoice ledger<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=accruals">Estimated accruals<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=reconciliation">Monthly reconciliation<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=claim-reconciliation">Claim reconciliation<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=purchase-orders">Purchase orders<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=contractors">Suppliers<span aria-hidden="true">↗</span></a><a class="app-nav-link" href="./account.html?view=importer">Import invoices<span aria-hidden="true">↗</span></a></nav>
 
 
     <!-- Importer -->
@@ -506,6 +506,24 @@
  <div id="recon-results"></div>
 </section>
 
+    <section class="page" id="page-claim-reconciliation">
+ <header class="claim-heading"><div><div class="claim-eyebrow">Accounts / Reconciliation</div><h2>Depco claim reconciliation</h2><p>Every activity and daily total must match the Validation Sheet charges. AUD, ex GST.</p></div><div class="claim-actions"><button id="claim-refresh" type="button">Refresh live costs</button><button id="claim-export" type="button" disabled>Export activity CSV</button><button id="claim-print" type="button" disabled>Print daily summary</button></div></header>
+ <div class="claim-controls"><label>Saved claim<select id="claim-select"><option value="">Loading saved claims…</option></select></label><label class="claim-upload">Save another claim for comparison<input type="file" id="claim-file" accept=".xlsx"></label><button id="claim-save" type="button" disabled>Save claim</button></div>
+ <p class="claim-scope" id="claim-scope">Compares all campaigns in the selected project. Full project access is required.</p>
+ <p id="claim-message" role="status">Loading reconciliation…</p>
+ <div id="claim-report" hidden>
+  <div class="claim-verdict" id="claim-verdict" role="status"></div>
+  <div class="claim-cards" id="claim-totals"></div>
+  <div class="claim-source"><span id="claim-source-label"></span><button type="button" id="claim-download">Download source workbook</button></div>
+  <p class="claim-note">Each activity must match in quantity, rate and amount, with every line paired. Equal daily totals cannot conceal activity differences. Validation Sheet prices take precedence; explicit $0 exceptions are retained and flagged. Blank validation prices remain unresolved. This report does not post charges, approve the claim or change existing costs.</p>
+  <details class="claim-issues" open><summary id="claim-issues-title">Items to review</summary><ul id="claim-issues-list"></ul></details>
+  <div class="claim-viewbar"><h3>Daily totals</h3><div><label>Show<select id="claim-status"><option value="all">All days</option><option value="review">Days needing review</option><option value="matched">Matched days</option></select></label><label>Find date or hole<input id="claim-search" type="search" placeholder="e.g. 07/11 or IB673C"></label></div></div>
+  <div id="claim-days"></div>
+  <details class="claim-hole-section"><summary>Hole totals and identifier checks</summary><p>Hole totals provide context. They do not replace matching each activity and daily total. Unmatched identifiers are kept separate.</p><div class="claim-table-scroll" id="claim-holes"></div></details>
+  <section id="claim-outside" hidden><h3>Outside the stated claim period</h3><p>These source entries are excluded from the daily comparison and must be reviewed before reconciliation is complete.</p><div class="claim-table-scroll" id="claim-outside-table"></div></section>
+ </div>
+</section>
+
 
     <!-- Tenement Management -->
 
@@ -514,7 +532,7 @@
 
     <!-- Invoices -->
     <section class="page" id="page-accounts-overview">
- <header class="ao-heading"><div><div class="ledger-eyebrow">Account</div><h2>Invoice overview</h2><p id="ao-updated">Loading invoice records…</p></div><div class="ledger-actions"><a class="ledger-button" href="./account.html?view=importer">Import invoices</a><a class="ledger-button" href="./account.html?view=invoices">Open ledger</a><button class="ledger-button" id="ao-print" disabled>Print report</button><button class="ledger-button" onclick="loadAccountsOverview()">Refresh</button></div></header>
+ <header class="ao-heading"><div><div class="ledger-eyebrow">Account</div><h2>Invoice overview</h2><p id="ao-updated">Loading invoice records…</p></div><div class="ledger-actions"><a class="ledger-button" href="./account.html?view=importer">Import invoices</a><a class="ledger-button" href="./account.html?view=invoices">Open ledger</a><button class="ledger-button" id="ao-print" disabled>Print daily summary</button><button class="ledger-button" onclick="loadAccountsOverview()">Refresh</button></div></header>
  <div class="ledger-filters"><label>Year<select id="ao-year"></select></label><label>Project<select id="ao-project"><option value="">All projects</option></select></label></div>
  <p id="ao-message" class="ledger-notice" role="status"></p>
  <div id="ao-content" hidden>
@@ -661,9 +679,9 @@
 
 <script src="./config.js?v=20261108-account1"></script>
 <script src="./fortem-estimate.js"></script>
-<script src="./workspace/navigation.js?v=20261123-contractors1"></script>
+<script src="./workspace/navigation.js?v=20261123-claim-recon1"></script>
 <script src="./auth/unified-client.bundle.js?v=20261108-account1"></script><script src="./auth-session.js?v=20261118-workspaces1"></script>
-<script src="./workspace/runtime.js?v=20261123-depco-claim1"></script>
+<script src="./workspace/runtime.js?v=20261123-claim-recon1"></script>
 <script src="./invoice-ledger.js?v=20261108-edit1"></script>
 <script src="./invoice-import.js?v=20261108-import1"></script>
 <script src="./workspace/accruals.js?v=20261109-po-close3"></script>
@@ -671,6 +689,7 @@
 <script src="./workspace/accounts-overview.js?v=20261109-total1"></script>
 <script src="./workspace/reconciliation-model.js?v=20261108-1"></script>
 <script src="./workspace/reconciliation.js?v=20261108-fortem1"></script>
+<script src="./workspace/claim-reconciliation.js?v=20261123-daily1"></script>
 <script src="./workspace/business-platform.js?v=20261123-contractors1"></script>
 <script src="./workspace/start.js?v=20261116-app-session1"></script>
 </body>
