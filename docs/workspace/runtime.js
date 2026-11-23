@@ -2534,7 +2534,7 @@ function renderActivities(rows){
       <td contenteditable="true" data-col="quantity" data-numeric="true" data-cost-trigger="true" style="color:var(--yellow)">${r.quantity!=null?r.quantity.toFixed(2):''}</td>
       <td contenteditable="true" data-col="line_cost" data-numeric="true" style="color:var(--accent);font-weight:600">${r.line_cost!=null?r.line_cost.toFixed(2):''}</td>
       <td contenteditable="true" data-col="rate_basis" style="color:var(--muted);font-size:10px">${esc(r.rate_basis||'')}</td>
-      <td>${r.contractor==='DEPCO Drilling'?'<button class="btn-secondary" onclick="chooseDepcoCode('+Number(r.id)+')">Contract code</button>':''}${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">'+(/\.xlsx$/i.test(r.source_file)?'XLSX':'PDF')+'</button>':''}</td>
+      <td>${r.contractor==='DEPCO Drilling'?'<button class="btn-secondary" onclick="chooseDepcoCode('+Number(r.id)+')">'+(historicalDepcoReview(r)?.codes?.length?'Review suggested codes':'Contract code')+'</button>':''}${r.source_file?'<button onclick="viewSourcePdf(\''+esc(r.source_file).replace(/'/g,'')+'\')" style="background:transparent;border:1.5px solid var(--accent);color:var(--accent);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:4px;font-family:var(--font);">'+(/\.xlsx$/i.test(r.source_file)?'XLSX':'PDF')+'</button>':''}</td>
     </tr>`).join('');
 
   function setCellValue(row,col,value){
@@ -9027,6 +9027,11 @@ async function importDepcoSchedule(){
   }catch(error){toast(error.message,'err');}
 }
 
+function historicalDepcoReview(row){
+  const review=row?.contract_code_suggestions;
+  return !row?.code&&review&&review.notes===row.notes&&review.program===row.program?review:null;
+}
+
 async function chooseDepcoCode(id){
   try{
     const response=await fetch(API+'/activities/'+id+'/contract-codes');
@@ -9039,14 +9044,27 @@ async function chooseDepcoCode(id){
     dialog.style.cssText='margin:auto;max-height:85vh;overflow:auto;width:min(800px,calc(100vw - 32px));';
     dialog.innerHTML='<div style="padding:24px"><h2>Choose contract activity</h2><p>Select the drilling size or activity. Drilling prices split across depth bands. Daily and item charges use the activity quantity.</p><input id="depco-code-search" class="management-search" placeholder="Search activity or code" aria-label="Search contract codes"><select id="depco-code-choice" size="12" style="display:block;width:100%;margin:12px 0"></select><label id="depco-quantity-label" hidden>Quantity <input id="depco-code-quantity" type="number" min="0" step="any"></label><p id="depco-code-note" style="white-space:pre-wrap"></p><button class="btn-secondary" id="depco-code-cancel">Cancel</button> <button class="btn-primary" id="depco-code-save">Apply code and price</button></div>';
     document.body.appendChild(dialog);
+    const row=activitiesData.find(item=>String(item.id)===String(id));
+    const review=historicalDepcoReview(row);
+    const suggested=(review?.codes||[]).map(code=>rates.find(rate=>rate.cost_code===code&&rate.status!=='Inactive')).filter(Boolean);
+    if(review?.reason){
+      const explanation=document.createElement('p');
+      explanation.textContent=review.reason;
+      dialog.querySelector('#depco-code-search').before(explanation);
+    }
     const choice=dialog.querySelector('#depco-code-choice');
     choice.style.cssText='display:block;width:100%;margin:12px 0;padding:8px;font:inherit;font-size:14px;border:1px solid #cbd5e1;border-radius:6px;';
     function render(){
       const search=dialog.querySelector('#depco-code-search').value.toLowerCase();
-      choice.innerHTML=rates.filter(r=>[r.name,r.cost_code,r.reference_name].join(' ').toLowerCase().includes(search)).map(r=>'<option value="'+Number(r.id)+'">'+esc(r.name)+(r.depth_from!=null?' ('+r.depth_from+'–'+r.depth_to+'m)':'')+' — '+(r.charge==null?'Needs price':cur(r.charge)+'/'+esc(r.unit))+(r.status!=='Active'?' — '+esc(r.status):'')+'</option>').join('');
+      const matches=r=>[r.name,r.cost_code,r.reference_name].join(' ').toLowerCase().includes(search);
+      const option=r=>'<option value="'+Number(r.id)+'">'+esc(r.name)+(r.depth_from!=null?' ('+esc(r.depth_from)+'–'+esc(r.depth_to)+'m)':'')+' ['+esc(r.cost_code)+'] — '+(r.charge==null?'Needs price':cur(r.charge)+'/'+esc(r.unit))+'</option>';
+      const recommended=suggested.filter(matches);
+      const other=rates.filter(r=>matches(r)&&!suggested.includes(r));
+      choice.innerHTML=(recommended.length?'<optgroup label="Suggested codes">'+recommended.map(option).join('')+'</optgroup>':'')+other.map(option).join('');
+      choice.selectedIndex=-1;
       note();
     }
-    function note(){const rate=rates.find(r=>Number(r.id)===Number(choice.value));dialog.querySelector('#depco-code-note').textContent=rate?rate.reference_name||'':'';dialog.querySelector('#depco-quantity-label').hidden=!rate||['hour','metre'].includes(rate.unit);}
+    function note(){const rate=rates.find(r=>choice.value!==''&&Number(r.id)===Number(choice.value));dialog.querySelector('#depco-code-save').disabled=!rate;dialog.querySelector('#depco-code-note').textContent=rate?rate.reference_name||'':'';dialog.querySelector('#depco-quantity-label').hidden=!rate||['hour','metre'].includes(rate.unit);}
     dialog.querySelector('#depco-code-search').oninput=render;choice.onchange=note;
     dialog.querySelector('#depco-code-cancel').onclick=()=>dialog.close();
     dialog.querySelector('#depco-code-save').onclick=async()=>{

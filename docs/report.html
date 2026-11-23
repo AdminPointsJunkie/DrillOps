@@ -472,10 +472,15 @@ function reportCodeCell(row){
   const rates=reportContractCodes.get(contractCodeKey(row));
   const disabled=sheetLock.locked||savingReportCodes.size>0||!rates||!rates.length;
   const current=String(row.code||'');
-  let options='<option value="" disabled'+(!current?' selected':'')+'>Choose contract code</option>';
+  const saved=row.contract_code_suggestions;
+  const review=!current&&saved&&saved.notes===row.notes&&saved.program===row.program?saved:null;
+  const suggested=(review?.codes||[]).map(code=>(rates||[]).find(r=>r.cost_code===code&&r.status!=='Inactive')).filter(Boolean);
+  const prompt=suggested.length?'Suggested — '+suggested.map(r=>r.name).join(' / '):'Choose contract code';
+  let options='<option value="" disabled'+(!current?' selected':'')+'>'+esc(prompt)+'</option>';
+  if(suggested.length)options+='<optgroup label="Suggested codes">'+suggested.map(r=>'<option value="'+attr(r.cost_code)+'">'+esc(r.name)+' ['+esc(r.cost_code)+']</option>').join('')+'</optgroup>';
   if(current&&!(rates||[]).some(r=>r.cost_code===current))options+='<option selected value="'+attr(current)+'">'+esc(current)+'</option>';
-  options+=groupedReportCodeOptions(rates||[],current);
-  return '<td class="code"><select class="report-code-select" aria-label="Activity '+attr(row.id)+' contract code" style="width:100%;min-width:220px;max-width:360px"'+(disabled?' disabled':'')+'>'+options+'</select>'+(!rates?'<small>Could not load contract codes. Reload to retry.</small>':!rates.length?'<small>No contract codes available.</small>':'')+'</td>';
+  options+=groupedReportCodeOptions((rates||[]).filter(r=>!suggested.includes(r)),current);
+  return '<td class="code"><select class="report-code-select" aria-label="Activity '+attr(row.id)+' contract code" style="width:100%;min-width:220px;max-width:360px"'+(disabled?' disabled':'')+'>'+options+'</select>'+(review?.reason?'<small style="display:block">'+esc(review.reason)+'</small>':'')+(!rates?'<small>Could not load contract codes. Reload to retry.</small>':!rates.length?'<small>No contract codes available.</small>':'')+'</td>';
 }
 async function saveReportCode(control){
   const id=control.closest('tr').dataset.id;
