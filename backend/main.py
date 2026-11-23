@@ -3385,7 +3385,7 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
-        "depco_exploration_import": "claim-xlsx-2026-11-23",
+        "depco_exploration_import": "claim-xlsx-2026-11-23-v2",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],

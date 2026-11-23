@@ -43,6 +43,13 @@ def parse_depco_exploration_xlsx(content, filename):
             if not re.search(r'PACKAGE\s+A\b.*EXPLORATION', context, re.I):
                 raise ValueError(f'{sheet.title}: expected Package A Exploration Drilling')
             po = re.search(r'\bPO\s+([A-Z0-9-]+)', context, re.I)
+            bounds = {}
+            for row in rows[:header_index]:
+                for position, value in enumerate(row[:-1]):
+                    label = str(value or '').strip().rstrip(':').lower()
+                    if label in ('date from', 'date to') and isinstance(row[position + 1], (date, datetime)):
+                        bounds[label] = row[position + 1].strftime('%Y-%m-%d')
+            outside_period = set()
             totals, checks, dar_numbers = defaultdict(Decimal), defaultdict(Decimal), defaultdict(set)
             rig = re.sub(r'\s+', '', sheet.title).upper()
             for index, raw in enumerate(rows[header_index + 1:], header_index + 2):
@@ -57,6 +64,9 @@ def parse_depco_exploration_xlsx(content, filename):
                 if not activity or not dar:
                     raise ValueError(f'{where}: activity and DAR number are required')
                 report_date = day.strftime('%d/%m/%Y')
+                iso_date = day.strftime('%Y-%m-%d')
+                if (bounds.get('date from') and iso_date < bounds['date from']) or (bounds.get('date to') and iso_date > bounds['date to']):
+                    outside_period.add(report_date)
                 key = report_date
                 dar_numbers[key].add(str(dar))
                 activity = str(activity).strip()
@@ -109,6 +119,8 @@ def parse_depco_exploration_xlsx(content, filename):
             for key, numbers in dar_numbers.items():
                 if len(numbers) > 1:
                     warnings.append({'severity': 'warning', 'issue': f'{sheet.title} {key}: multiple DAR numbers ({", ".join(sorted(numbers))}); source identifiers preserved.'})
+            for report_date in sorted(outside_period):
+                warnings.append({'severity': 'warning', 'issue': f'{sheet.title}: {report_date} is outside the workbook claim period; the source date is preserved and needs review.'})
         if not activities:
             raise ValueError('No DEPCO Exploration claim rows found; expected a DR rig sheet with Claim / Date / DAR # / Activity Charge columns')
         return {'warnings': warnings}, activities, [], list(crews.values()), ''

@@ -16,6 +16,7 @@ def claim_bytes(rows=None, heading='PO C123 | PACKAGE A EXPLORATION DRILLING'):
     sheet = workbook.active
     sheet.title = 'DR17'
     sheet.append([heading])
+    sheet.append(['Date From', datetime(2026, 9, 15), 'Date To:', datetime(2026, 11, 10)])
     sheet.append(HEADERS)
     for row in rows if rows is not None else sample_rows():
         sheet.append(row)
@@ -73,6 +74,14 @@ class DepcoExplorationTests(unittest.TestCase):
             parse_depco_exploration_xlsx(claim_bytes(source), 'claim.xlsx')
         with self.assertRaisesRegex(ValueError, 'Package A'):
             parse_depco_exploration_xlsx(claim_bytes(heading='PACKAGE C GAS RISER'), 'claim.xlsx')
+
+    def test_out_of_period_source_date_is_preserved_and_flagged(self):
+        source = sample_rows()
+        for row in source:
+            row[1] = datetime(2026, 6, 21)
+        header, rows, *_ = parse_depco_exploration_xlsx(claim_bytes(source), 'claim.xlsx')
+        self.assertEqual(rows[0]['date'], '21/06/2026')
+        self.assertTrue(any('outside the workbook claim period' in w['issue'] for w in header['warnings']))
 
     def endpoint(self, overlap=False, imported=False):
         self.saved, self.queries, self.batches = [], [], []
