@@ -195,12 +195,18 @@
  }
  // All-time overview only: a planning confirmation has no reliable completion
  // date, so it must not be assigned to a day in a period production report.
- function completedHoleCount(rows,confirmed=[]){
+ function undatedCompletionRows(rows,confirmed=[],recorded=completionEvents(rows)){
   const key=r=>JSON.stringify([r.workspace_id,r.contractor,r.project,r.program,r.hole_num].map(v=>text(v).toUpperCase()));
-  const recorded=new Set(completionEvents(rows).map(key));
+  const known=new Set(recorded.map(key)),additional=[];
   const drilled=new Set(rows.filter(r=>Number(r.total_metres)>0&&text(r.hole_num)).map(key));
-  for(const hole of confirmed)if(drilled.has(key(hole)))recorded.add(key(hole));
-  return recorded.size;
+  for(const hole of confirmed)if(drilled.has(key(hole))&&!known.has(key(hole))){
+   known.add(key(hole));additional.push({...hole,date:'',source_file:'Planning confirmation'});
+  }
+  return additional;
+ }
+ function completedHoleCount(rows,confirmed=[]){
+  const recorded=completionEvents(rows);
+  return recorded.length+undatedCompletionRows(rows,confirmed,recorded).length;
  }
  function rigShiftCounts(rows){
   const rigs=new Map();
@@ -217,6 +223,6 @@
   if(scope.program&&!text(row.program).split(',').some(p=>norm(p)===norm(scope.program)))return false;
   return true;
  }
- const api={inspection,rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,completedHoleCount,cleanRows,summarise,scopeMatch};
+ const api={inspection,rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,undatedCompletionRows,completedHoleCount,cleanRows,summarise,scopeMatch};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosProduction=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

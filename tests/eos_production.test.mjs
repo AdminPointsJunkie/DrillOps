@@ -9,6 +9,7 @@ test('overview reconciles confirmed completions without duplicates or invented c
  const confirmed=rows.map(r=>({...r,notes:'Confirmed by administrator'}));
  assert.equal(m.completedHoleCount(rows,confirmed),4);
  assert.equal(m.completedHoleCount(rows,[...confirmed,...confirmed]),4);
+ assert.deepEqual(m.undatedCompletionRows(rows,confirmed).map(r=>[r.hole_num,r.date,r.source_file]),[['IB671C','','Planning confirmation']]);
  assert.equal(m.summarise(rows).completedHoles,3); // Confirmation date was not supplied.
  for(const change of [{workspace_id:'other'},{contractor:'Other'},{project:'Carborough Downs'},{program:'Gas Riser'},{hole_num:'IB999'}]){
   assert.equal(m.completedHoleCount(rows,[{...confirmed[3],...change}]),3);

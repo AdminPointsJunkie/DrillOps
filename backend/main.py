@@ -6105,7 +6105,7 @@ def get_activity_report_data(
             SELECT jsonb_agg(jsonb_build_object(
               'hole_num', b.hole_id, 'project', b.project, 'program', b.program,
               'contractor', %(contractor)s, 'site_id', b.site_id,
-              'notes', b.notes, 'workspace_id', b.workspace_id
+              'notes', b.notes, 'workspace_id', b.workspace_id, 'drill_rig', b.assigned_rig
             ))
             FROM boreholes b
             WHERE b.status='Complete' AND b.contractor IN ('Company', %(contractor)s)

@@ -1,5 +1,6 @@
 /* A contractor operations document, independent of Project's budget and planning report. */
 let eosPeriodSourceRows=[],eosPeriodConsumables=[],eosPeriodRows=[],eosPeriodRequest=0,eosPeriodLoading=false,eosPeriodError='',eosPeriodSummary=null;
+let eosPeriodCompletedBoreholes=[];
 loadReportsPage=async function(){
  const request=++eosPeriodRequest,version=eosScopeVersion,contractor=activeContractor;
  eosPeriodLoading=true;eosPeriodError='';eosPeriodRows=[];eosPeriodSourceRows=[];eosPeriodConsumables=[];renderEosPeriodReport();
@@ -11,6 +12,7 @@ loadReportsPage=async function(){
   if(request!==eosPeriodRequest||version!==eosScopeVersion)return;
   const rows=bundle.activities.filter(r=>(!r.contractor||r.contractor===contractor)&&!isMccWeeklyReportRow(r)).map(r=>({...r,contractor:r.contractor||contractor}));
   eosPeriodSourceRows=EosProduction.cleanRows(rows).rows;eosPeriodConsumables=bundle.consumables||[];
+  eosPeriodCompletedBoreholes=bundle.completed_boreholes||[];
   rememberEosProjects(rows);eosPeriodRows=EosProduction.cleanRows(rows.filter(r=>EosProduction.scopeMatch(r,eosScope))).rows;
   const select=document.getElementById('eos-period-rig'),previous=select.value;
   select.innerHTML='<option value="">All rigs</option>'+[...new Set(eosPeriodRows.map(r=>String(r.drill_rig||'Not recorded').trim()))].sort().map(r=>'<option value="'+attr(r)+'">'+esc(r)+'</option>').join('');select.value=previous;if(select.selectedIndex<0)select.value='';
@@ -58,6 +60,12 @@ function renderEosPeriodReport(){
  const rows=eosPeriodRows.filter(r=>{const date=EosProduction.date(r.date);return date&&(!from||date>=from)&&(!to||date<=to)&&(!rig||String(r.drill_rig||'Not recorded').trim()===rig);});
  const options={...eosStandbyOptions(eosPeriodRows),completionEvents:EosProduction.completionEvents(eosPeriodRows)};
  const s=EosProduction.summarise(rows,options);eosPeriodSummary=s;
+ const allDates=document.getElementById('eos-period-preset').value==='all';
+ const undatedCompletions=EosProduction.undatedCompletionRows(eosPeriodRows.filter(r=>!rig||String(r.drill_rig||'Not recorded').trim()===rig),eosPeriodCompletedBoreholes,options.completionEvents);
+ if(allDates){
+  s.completedRows=s.completedRows.concat(undatedCompletions);s.completedHoles=s.completedRows.length;
+  for(const project of s.projects)project.completedHoles+=undatedCompletions.filter(r=>String(r.project||'Unassigned project').toLowerCase()===project.label.toLowerCase()).length;
+ }
  const n=productionNumber,showTables=document.getElementById('eos-period-show-tables').checked,showCharges=document.getElementById('eos-period-show-charges').checked;
  const charges=EosShiftCharges.summarise(eosPeriodSourceRows,eosPeriodConsumables);
  document.getElementById('eos-period-charges-heading').hidden=!showCharges;document.getElementById('eos-period-charges-note').hidden=!showCharges;
@@ -73,9 +81,10 @@ function renderEosPeriodReport(){
  document.getElementById('eos-period-metrics').innerHTML=metrics.map(([label,value,unit])=>'<div><span>'+label+'</span><strong>'+value+' <small>'+unit+'</small></strong></div>').join('');
  document.getElementById('eos-completed-holes').hidden=!drilling;
  productionSet('eos-completed-holes-count',String(s.completedHoles));
- document.getElementById('eos-completed-holes-body').innerHTML=s.completedRows.slice().sort((a,b)=>EosProduction.date(a.date).localeCompare(EosProduction.date(b.date))).map(r=>'<tr><td>'+esc(r.hole_num)+'<small>'+esc(r.project||'Unassigned project')+'</small></td><td>'+esc(productionDisplayDate(r.date,true))+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.notes||'')+'<small>'+esc(r.source_file||'Manual entry')+'</small></td></tr>').join('')||'<tr><td colspan="3">No confirmed completions in this selection.</td></tr>';
+ document.getElementById('eos-completed-holes-body').innerHTML=s.completedRows.slice().sort((a,b)=>EosProduction.date(a.date).localeCompare(EosProduction.date(b.date))).map(r=>'<tr><td>'+esc(r.hole_num)+'<small>'+esc(r.project||'Unassigned project')+'</small></td><td>'+esc(r.date?productionDisplayDate(r.date,true):'Date not recorded')+'<small>'+esc(r.drill_rig||'Rig not recorded')+'</small></td><td>'+esc(r.notes||'')+'<small>'+esc(r.source_file||'Manual entry')+'</small></td></tr>').join('')||'<tr><td colspan="3">No confirmed completions in this selection.</td></tr>';
  const undated=eosPeriodRows.filter(r=>!EosProduction.date(r.date)).length;
  productionSet('eos-period-quality',[s.untimedDrillingMetres?n(s.untimedDrillingMetres)+' m without drilling duration are excluded from penetration rates.':'',s.missingTime?s.missingTime+' entries have no usable duration; time totals may be incomplete.':'',s.other?n(s.other)+' m are other or unclassified.':'',s.invalidMetres?s.invalidMetres+' invalid or negative metre values are excluded.':'',undated?undated+' undated entries are excluded.':''].filter(Boolean).join(' '));
+ if(drilling&&undatedCompletions.length)document.getElementById('eos-period-quality').textContent+=' '+undatedCompletions.length+' confirmed completions have no completion date; '+(allDates?'included in this All dates total, but excluded from dated totals.':'select All dates to include them.');
  document.getElementById('eos-period-production-chart').hidden=!drilling;document.getElementById('eos-period-performance-section').hidden=!drilling;
  renderEosRigAvailability(rows,drilling);
  s.productionByMonth=!!document.getElementById('eos-period-monthly')?.checked;
