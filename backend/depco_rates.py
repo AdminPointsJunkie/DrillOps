@@ -70,20 +70,42 @@ def catalogue(scope):
 
 
 def contract_rates(cur, contractor, project, program=''):
-    """Resolve DEPCO by project AND program, refusing ambiguous project names."""
-    if contractor != 'DEPCO Drilling' or not project:
+    """Use the project's active contract, or its program's shared schedule."""
+    project = (project or '').strip()
+    program = (program or '').strip()
+    if contractor != 'DEPCO Drilling' or not (project or program):
         return None
-    cur.execute("""
-        SELECT cc.*, p.program FROM cost_contracts cc
-        JOIN projects p ON p.id=cc.project_id
-        WHERE cc.contractor=%s AND LOWER(p.name)=LOWER(%s) AND cc.status='Active'
-          AND (%s='' OR LOWER(p.program)=LOWER(%s))
-    """, (contractor, project, program or '', program or ''))
-    contracts = [dict(r) for r in cur.fetchall()]
+    contracts = []
+    if project:
+        cur.execute("""
+            SELECT cc.*, p.program FROM cost_contracts cc
+            JOIN projects p ON p.id=cc.project_id AND p.workspace_id=cc.workspace_id
+            WHERE cc.contractor=%s AND LOWER(p.name)=LOWER(%s)
+              AND (%s='' OR LOWER(p.program)=LOWER(%s))
+        """, (contractor, project, program, program))
+        configured = cur.fetchall()
+        if configured:
+            contracts = [r for r in configured if r['status'] == 'Active']
+            if not contracts:
+                return []
+    if not contracts and program:
+        # Some imported DARs have a program but no legacy project. Never pick
+        # another campaign's individual contract or extend its effective dates.
+        cur.execute("""
+            SELECT DISTINCT s.id AS rate_schedule_id, s.workspace_id, NULL::int AS id,
+                            cc.start_date, cc.end_date
+            FROM shared_rate_schedules s
+            JOIN cost_contracts cc ON cc.rate_schedule_id=s.id AND cc.workspace_id=s.workspace_id
+            WHERE s.workspace_id=NULLIF(current_setting('app.workspace_id', true), '')::uuid
+              AND s.contractor=%s AND LOWER(s.program)=LOWER(%s)
+              AND cc.contractor=s.contractor AND cc.status='Active'
+        """, (contractor, program))
+        contracts = cur.fetchall()
     if len(contracts) != 1:
         return []
-    lines = [{**r, '_start_date':contracts[0].get('start_date'), '_end_date':contracts[0].get('end_date')} for r in rates_for_contract(cur, contracts[0])]
-    return lines
+    contract = contracts[0]
+    return [{**r, '_start_date':contract.get('start_date'), '_end_date':contract.get('end_date')}
+            for r in rates_for_contract(cur, contract)]
 
 
 LEGACY = {

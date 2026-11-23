@@ -3384,6 +3384,7 @@ def root():
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
         "depco_exploration_import": "claim-xlsx-2026-11-23-v2",
+        "depco_code_suggestions": "shared-program-schedule-v1",
         "account_claim_reconciliation": "activity-validation-2026-11-23",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
@@ -12070,9 +12071,14 @@ async def preview_depco_suggestions(request: Request):
         data['date'] = normalise_ocr_date(data.get('date'))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    program = str(payload.get("program") or "")
+    project = str(payload.get("project") or "")
+    scope = current_business_scope.get()
+    if scope and scope.campaign_id:
+        program, project, _ = import_destination(get_conn, program, project, '')
     with get_conn() as conn:
         with conn.cursor() as cur:
-            data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", str(payload.get("project") or ""), str(payload.get("program") or ""))
+            data, rates = preview_depco_ocr(cur, data, "DEPCO Drilling", project, program)
     if OPENAI_API_KEY:
         data = await enrich_depco_preview(data, rates, openai_generate_json)
     return {"ocr_data":data,"contract_rates":rates}
