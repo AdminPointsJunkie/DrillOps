@@ -166,7 +166,7 @@ tr.saving td{background:#fff7e6;}
 @media(max-width:650px){.kpis{grid-template-columns:1fr}.report-head{flex-direction:column}.actions{justify-content:flex-start}.weekly-hero{grid-template-columns:1fr}.weekly-hero-total{text-align:left}.weekly-cost-hours-head{flex-direction:column}.weekly-mode .approval-row{grid-template-columns:1fr}.week-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <link rel="stylesheet" href="./drillops-theme.css"/>
-<link rel="stylesheet" href="./report-detail.css?v=20261123-layout1"/>
+<link rel="stylesheet" href="./report-detail.css?v=20261123-layout2"/>
 </head>
 <body>
 <header class="report-appbar"><a class="report-brand" href="./eos.html">DrillOps <span>EOS</span></a><a href="./eos.html?view=activities">← Activity reports</a></header>
@@ -1633,7 +1633,6 @@ function renderTimeline(rows,totalHours){
   let min=Math.min(...starts),max=Math.max(...ends);
   if(max<=min)max=min+Math.max(60,Math.round(totalHours*60));
   const span=Math.max(60,max-min);
-  const timelineWidth=Math.max(900,Math.ceil(span/60)*90);
   const ticks=[];for(let t=Math.ceil(min/60)*60;t<=max;t+=60)ticks.push(t);
   const scale='<div class="timeline-scale">'+ticks.map(t=>'<span class="timeline-tick" style="left:'+(((t-min)/span)*100).toFixed(2)+'%">'+clockLabel(t)+'</span>').join('')+'</div>';
   const laneMap=new Map();
@@ -1647,7 +1646,7 @@ function renderTimeline(rows,totalHours){
     ? '<label class="minimum-shift-toggle" title="Untick this when the daily minimum shift top-up is not appropriate for this report."><input id="minimum-shift-toggle" type="checkbox" '+(minimumShiftPreference.include_topup!==false?'checked':'')+' onchange="toggleMinimumShiftTopup(this)">Include daily minimum top-up <small>review option</small></label>'
     : '<span></span>';
   target.innerHTML='<div class="timeline-tools">'+toggle+'<div><button type="button" onclick="scrollTimelineBy(-520)">←</button><button type="button" onclick="scrollTimelineBy(520)">→</button></div></div>'
-    +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner" style="width:'+timelineWidth+'px;">'
+    +'<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-inner">'
     +scale+'<div class="timeline-lanes">'+lanes+'</div></div></div>';
 }
 function scrollTimelineBy(amount){
