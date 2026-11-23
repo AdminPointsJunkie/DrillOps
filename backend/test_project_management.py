@@ -141,11 +141,13 @@ class ProjectManagementTests(unittest.TestCase):
         self.assertIn("function renderBoreholeCompletionChart", INDEX_HTML)
         self.assertIn("AS completion_date", MAIN_PY)
 
-    def test_user_confirmed_statuses_have_all_18_completed_holes(self):
+    def test_user_confirmed_statuses_include_four_depco_completions(self):
         start = MAIN_PY.index("IRONBARK_2026_STATUS_OVERRIDES = {")
         end = MAIN_PY.index("\n}\n\n\ndef is_visible_borehole_plan_row", start)
         overrides = MAIN_PY[start:end]
-        self.assertEqual(overrides.count('"Complete"'), 18)
+        self.assertEqual(overrides.count('"Complete"'), 22)
+        for site in ('26-032', '26-016', '26-030', '26-009'):
+            self.assertIn(f'"{site}": "Complete"', overrides)
         self.assertIn('"26-021": "Complete"', overrides)
         self.assertIn('"26-021R": "Complete"', overrides)
         self.assertIn('"26-026": "Complete"', overrides)

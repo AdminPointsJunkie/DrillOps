@@ -193,6 +193,15 @@
   const displayedHours=Math.max(0,total.hours-total.excludedStandbyHours);
   return {...finish(total),displayedHours,includeNonChargeable:options.includeNonChargeable===true,rows,moves,otherActivities:[...otherActivities.values()].sort((a,b)=>b.hours-a.hours),completedRows:rows.filter(r=>completed.has(r)),projects:[...projects.values()].sort((a,b)=>a.label.localeCompare(b.label)).map(finish),rigs:[...rigs.values()].sort((a,b)=>a.contractor.localeCompare(b.contractor)||a.label.localeCompare(b.label)).map(finish),reasons:[...reasons.values()].sort((a,b)=>b.hours-a.hours),daily,recordedDays:daily.length,productionDays:productionDays.length,productionRigDays:productionRigDays.size,average:productionDays.length?total.metres/productionDays.length:0,averageCore:productionDays.length?total.core/productionDays.length:0,averageChip:productionDays.length?total.chip/productionDays.length:0,averagePerRigDay:productionRigDays.size?total.metres/productionRigDays.size:0,standbyPerDay:daily.length?total.standbyHours/daily.length:0,movingPerDay:daily.length?total.movingHours/daily.length:0,best,reportCount:reports.size,holeCount:holes.size,standbyPercent:displayedHours?total.standbyHours/displayedHours*100:null};
  }
+ // All-time overview only: a planning confirmation has no reliable completion
+ // date, so it must not be assigned to a day in a period production report.
+ function completedHoleCount(rows,confirmed=[]){
+  const key=r=>JSON.stringify([r.workspace_id,r.contractor,r.project,r.program,r.hole_num].map(v=>text(v).toUpperCase()));
+  const recorded=new Set(completionEvents(rows).map(key));
+  const drilled=new Set(rows.filter(r=>Number(r.total_metres)>0&&text(r.hole_num)).map(key));
+  for(const hole of confirmed)if(drilled.has(key(hole)))recorded.add(key(hole));
+  return recorded.size;
+ }
  function rigShiftCounts(rows){
   const rigs=new Map();
   for(const r of cleanRows(rows).rows){const rig=text(r.drill_rig)||'Not recorded',contractor=text(r.contractor)||'Not recorded',key=JSON.stringify([contractor,rig]);
@@ -208,6 +217,6 @@
   if(scope.program&&!text(row.program).split(',').some(p=>norm(p)===norm(scope.program)))return false;
   return true;
  }
- const api={inspection,rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,cleanRows,summarise,scopeMatch};
+ const api={inspection,rigShiftCounts,date,duration,hours,method,standby,standbyChargeability,standbyIncluded,siteMove,otherActivity,completionEvents,completedHoleCount,cleanRows,summarise,scopeMatch};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EosProduction=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

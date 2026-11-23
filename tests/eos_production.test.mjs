@@ -3,6 +3,19 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),m=require('../docs/workspace/eos-production-model.js');
 const row=(data={})=>({contractor:'Mitchells Drilling',project:'Alpha',date:'2026-10-01',source_file:'shift.pdf',drill_rig:'Rig 1',hole_num:'A1',...data});
+
+test('overview reconciles confirmed completions without duplicates or invented completion dates',()=>{
+ const rows=['IB674','IB675','IB673C','IB671C'].map((hole_num,i)=>row({id:i+1,workspace_id:'argo',contractor:'DEPCO Drilling',project:'Ironbark',program:'Exploration',hole_num,total_metres:10,notes:i<3?'EOH':''}));
+ const confirmed=rows.map(r=>({...r,notes:'Confirmed by administrator'}));
+ assert.equal(m.completedHoleCount(rows,confirmed),4);
+ assert.equal(m.completedHoleCount(rows,[...confirmed,...confirmed]),4);
+ assert.equal(m.summarise(rows).completedHoles,3); // Confirmation date was not supplied.
+ for(const change of [{workspace_id:'other'},{contractor:'Other'},{project:'Carborough Downs'},{program:'Gas Riser'},{hole_num:'IB999'}]){
+  assert.equal(m.completedHoleCount(rows,[{...confirmed[3],...change}]),3);
+ }
+ assert.equal(m.completedHoleCount(rows.slice(0,3),confirmed),3);
+ assert.equal(m.completedHoleCount([],confirmed),0);
+});
 test('core, chip and unclassified reconcile without guessing uncoded metres',()=>{
  const s=m.summarise([row({id:1,code:'Drill_Core',total_metres:30,total_time:'02:30'}),row({id:2,code:'DEPCO_A_PCD_001',total_metres:50,total_time:'3'}),row({id:3,total_metres:12,total_time:'01:00'})]);
  assert.equal(s.core,30);assert.equal(s.chip,50);assert.equal(s.other,12);assert.equal(s.metres,s.core+s.chip+s.other);assert.equal(s.hours,6.5);

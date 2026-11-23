@@ -1,11 +1,11 @@
 /* CorePlan-informed plod workflow; independent EOS presentation and existing API data. */
-let eosOverviewActivityRows=[],eosOverviewReady=false;
+let eosOverviewActivityRows=[],eosOverviewCompletedBoreholes=[],eosOverviewReady=false;
 function renderEosOverviewTime(){
  if(!eosOverviewReady)return;
  const summary=EosProduction.summarise(eosOverviewActivityRows,eosStandbyOptions());
  document.getElementById('eos-time-usage').innerHTML=eosTimeChart(summary);document.getElementById('eos-overview-standby').innerHTML=eosStandbyChart(summary);
  document.getElementById('eos-overview-production').innerHTML=productionChart(summary,'eos-overview-chart-status');document.getElementById('eos-overview-rigs').innerHTML=eosBarChart(summary.rigs);
- renderEosOtherActivities('eos-overview',summary);productionSet('eos-overview-standby-note',eosStandbyNote(summary));productionSet('eos-completed',summary.completedHoles);
+ renderEosOtherActivities('eos-overview',summary);productionSet('eos-overview-standby-note',eosStandbyNote(summary));productionSet('eos-completed',EosProduction.completedHoleCount(eosOverviewActivityRows,eosOverviewCompletedBoreholes));
 }
 let eosOverviewRows=[],eosOverviewStatus='all',eosOverviewRequest=0;
 function eosApproval(report){return (getStoredReportApproval(report.date,reportRecordHole(report),report.sourceFile,report.contractor)||{}).status||'pending';}
@@ -23,6 +23,7 @@ async function loadEosOverview(){
   const bundle=await response.json();if(current!==eosOverviewRequest||scopeVersion!==eosScopeVersion)return;
   if(!bundle||!Array.isArray(bundle.activities))throw new Error('The report response could not be read. Refresh to try again.');
   applyActivityReportBundle(bundle);rememberEosProjects(bundle.activities);
+  eosOverviewCompletedBoreholes=bundle.completed_boreholes||[];
   const activities=filterWorkspaceActivities(activitiesData).filter(r=>!isMccWeeklyReportRow(r));
   eosOverviewRows=groupDailyReports(activities,filterRowsForActiveProgram(consumablesData)).sort((a,b)=>reportIso(b.date).localeCompare(reportIso(a.date)));
 

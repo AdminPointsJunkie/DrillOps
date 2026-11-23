@@ -6100,7 +6100,23 @@ def get_activity_report_data(
             SELECT jsonb_agg(to_jsonb(al) ORDER BY al.updated_at DESC)
             FROM activity_sheet_locks al
             WHERE {' AND '.join('al.' + condition if condition.startswith('contractor') or condition.startswith('report_date') else condition for condition in approval_conds)}
-          ), '[]'::jsonb) AS activity_sheet_locks
+          ), '[]'::jsonb) AS activity_sheet_locks,
+          COALESCE((
+            SELECT jsonb_agg(jsonb_build_object(
+              'hole_num', b.hole_id, 'project', b.project, 'program', b.program,
+              'contractor', %(contractor)s, 'site_id', b.site_id,
+              'notes', b.notes, 'workspace_id', b.workspace_id
+            ))
+            FROM boreholes b
+            WHERE b.status='Complete' AND b.contractor IN ('Company', %(contractor)s)
+              AND EXISTS (
+                SELECT 1 FROM activities a
+                WHERE a.contractor=%(contractor)s AND a.total_metres>0
+                  AND a.workspace_id=b.workspace_id
+                  AND a.project=b.project AND a.program=b.program
+                  AND a.hole_num=b.hole_id
+              )
+          ), '[]'::jsonb) AS completed_boreholes
     """
 
     with get_conn(read_only=True) as conn:
@@ -10904,16 +10920,16 @@ def current_ironbark_plan_site_ids():
 IRONBARK_2026_STATUS_OVERRIDES = {
     "26-001": "Cancelled", "26-002": "Complete", "26-003": "Cancelled",
     "26-004": "Cancelled", "26-005": "Planned", "26-006": "Cancelled",
-    "26-007": "Planned", "26-008": "Cancelled", "26-009": "Planned",
+    "26-007": "Planned", "26-008": "Cancelled", "26-009": "Complete",
     "26-010": "Cancelled", "26-011": "Planned", "26-012": "Complete",
     "26-013": "Cancelled", "26-014": "Complete", "26-015": "Complete",
-    "26-016": "Planned", "26-017": "Complete", "26-018": "Complete",
+    "26-016": "Complete", "26-017": "Complete", "26-018": "Complete",
     "26-019": "Complete", "26-020": "Complete", "26-022": "Complete",
     "26-021": "Complete", "26-021R": "Complete", "26-023": "Planned",
     "26-024": "Planned", "26-025": "In Progress", "26-026": "Complete",
     "26-027": "Cancelled", "26-028": "Complete",
-    "26-029": "Planned", "26-030": "Planned", "26-031": "Planned",
-    "26-032": "Planned", "26-033": "Planned", "26-034": "Complete",
+    "26-029": "Planned", "26-030": "Complete", "26-031": "Planned",
+    "26-032": "Complete", "26-033": "Planned", "26-034": "Complete",
     "26-035": "Complete", "26-036": "Complete", "26-041": "Planned",
     "26-042": "Planned", "26-043": "Planned", "26-044": "Planned",
     "26-045": "Planned", "26-048": "Cancelled", "26-049": "Planned",
