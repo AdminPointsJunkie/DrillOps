@@ -1,0 +1,17 @@
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../docs/workspace/eos-overview.js',import.meta.url),'utf8');
+const context=vm.createContext({Intl,Date});
+vm.runInContext(source.slice(source.indexOf('function eosImportDay'),source.indexOf('const importFilter=')),context);
+const report={sourceFile:'DEPCO DR17 DAR 20261122.pdf',date:'22/11/2018',rows:[{created_at:'2026-11-22T14:01:00Z'},{created_at:'2026-11-22T14:02:00Z',updated_at:'2026-11-24T00:00:00Z'}]};
+const now=new Date('2026-11-23T03:00:00Z');
+assert.equal(context.eosMatchesImportDate(report,'today','',now),true);
+assert.equal(context.eosMatchesImportDate(report,'yesterday','',now),false);
+assert.equal(context.eosMatchesImportDate(report,'date','2026-11-23',now),true);
+assert.equal(context.eosImportDay('2026-11-22T13:59:59Z'),'2026-11-22');
+assert.equal(context.eosMatchesImportDate({...report,rows:[{created_at:null}]},'today','',now),false);
+assert.equal(context.eosMatchesImportDate({...report,sourceFile:'Manual entry'},'today','',now),false);
+assert.equal(context.eosMatchesImportDate(report,'','',now),true);
+assert.equal(context.eosReportImportedAt(report),'2026-11-22T14:01:00.000Z');
+console.log('Import date filters use creation time and Brisbane day boundaries, independent of report date and edits.');

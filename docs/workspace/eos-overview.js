@@ -44,6 +44,29 @@ eosPlodFilters.forEach(([label,id])=>{
  const select=document.createElement('select');select.id=id;select.className='filter-chip';select.setAttribute('aria-label',label);select.innerHTML='<option value="">All '+label.toLowerCase()+'s</option>';select.addEventListener('change',()=>filterDailyReportRows());old.replaceWith(select);
 });
 const originalEosSummary=renderDailyReportSummary;
+// Import time is independent of the handwritten operational date.
+function eosImportDay(value){
+ const date=new Date(value);if(!value||Number.isNaN(date.getTime()))return '';
+ return new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Brisbane',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+}
+function eosReportImportedAt(report){
+ if(!report.sourceFile||report.sourceFile==='Manual entry')return null;
+ const times=(report.rows||[]).map(r=>r.created_at?Date.parse(r.created_at):NaN).filter(Number.isFinite);
+ return times.length?new Date(Math.min(...times)).toISOString():null;
+}
+function eosMatchesImportDate(report,period,date,now=new Date()){
+ if(!period)return true;
+ const day=eosImportDay(eosReportImportedAt(report));if(!day)return false;
+ const target=period==='date'?date:eosImportDay(new Date(now.getTime()-(period==='yesterday'?86400000:0)));
+ return !!target&&day===target;
+}
+const importFilter=document.createElement('label');
+importFilter.innerHTML='Imported <select id="eos-import-period" aria-label="Imported"><option value="">Any time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="date">Choose date</option></select> <input id="eos-import-date" aria-label="Import date" type="date" hidden> <small title="Import dates use Australia/Brisbane time">AEST</small>';
+document.querySelector('#page-activities .report-register-filters').append(importFilter);
+document.getElementById('eos-import-period').addEventListener('change',()=>{document.getElementById('eos-import-date').hidden=document.getElementById('eos-import-period').value!=='date';filterDailyReportRows();});
+document.getElementById('eos-import-date').addEventListener('change',()=>filterDailyReportRows());
+const importResults=document.createElement('p');importResults.id='eos-import-results';importResults.setAttribute('role','status');importResults.hidden=true;
+importFilter.parentElement.after(importResults);
 renderDailyReportSummary=function(rows){
  if(!isPageActive('activities'))return;
  originalEosSummary(rows);
@@ -58,8 +81,18 @@ filterDailyReportRows=function(){
  const search=(document.getElementById('report-search')?.value||'').trim().toLowerCase();
  const status=document.getElementById('eos-plod-status')?.value||'',shift=document.getElementById('eos-plod-shift')?.value||'',rig=document.getElementById('eos-plod-rig')?.value||'';
  const reports=new Map(dailyReportsData.map(r=>[r.key,r]));
- document.querySelectorAll('#report-body tr.report-row').forEach(row=>{const report=reports.get(row.dataset.reportKey);row.style.display=report&&(!search||row.dataset.search.includes(search))&&(!status||eosApproval(report)===status)&&(!shift||report.shift===shift)&&(!rig||report.rig===rig)?'':'none';});
+ const period=document.getElementById('eos-import-period')?.value||'',date=document.getElementById('eos-import-date')?.value||'';
+ let visible=0;
+ document.querySelectorAll('#report-body tr.report-row').forEach(row=>{
+  const report=reports.get(row.dataset.reportKey);
+  const matches=report&&(!search||row.dataset.search.includes(search))&&(!status||eosApproval(report)===status)&&(!shift||report.shift===shift)&&(!rig||report.rig===rig)&&eosMatchesImportDate(report,period,date);
+  row.style.display=matches?'':'none';if(matches)visible++;else {const check=row.querySelector('.row-check');if(check)check.checked=false;}
+  const cell=row.querySelector('.plod-cell');
+  if(cell&&!cell.querySelector('.report-import-time')){const stamp=eosReportImportedAt(report);const small=document.createElement('small');small.className='report-import-time';small.style.cssText='display:block;flex-basis:100%;color:var(--muted);font-weight:400';cell.style.flexWrap='wrap';small.textContent=stamp?'Imported '+new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Brisbane',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(stamp))+' AEST':'Import date unavailable';cell.append(small);}
+ });
+ const feedback=document.getElementById('eos-import-results');if(feedback){feedback.hidden=!period;feedback.textContent=visible+' report'+(visible===1?'':'s')+' match the selected filters. Import dates use Brisbane time.';}
+ updateBulkReportSelection();
 };
 
 const originalEosClearFilters=clearDarReportFilters;
-clearDarReportFilters=function(){for(const [,id] of eosPlodFilters)document.getElementById(id).value='';return originalEosClearFilters();};
+clearDarReportFilters=function(){for(const [,id] of eosPlodFilters)document.getElementById(id).value='';document.getElementById('eos-import-period').value='';document.getElementById('eos-import-date').value='';document.getElementById('eos-import-date').hidden=true;return originalEosClearFilters();};

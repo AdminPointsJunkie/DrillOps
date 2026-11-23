@@ -405,6 +405,8 @@ class DepcoOcrImportTests(unittest.TestCase):
         env={'UploadFile':object,'File':lambda *a,**k:None,'Form':lambda *a,**k:None,'Optional':Optional,
              'HTTPException':HTTPException,'json':json,'get_conn':get_conn,'import_marker_blocks_reimport':lambda *a:False,
              'canonical_site_name':lambda s:s,'activity_integrity_qa':lambda *a:[],
+             'import_destination':lambda conn,program,project,client:(program,project,client),
+             'ironbark_ocr_rules':__import__('report_holes').ironbark_ocr_rules,
              'ocr_activity_hole':ocr_activity_hole,'ocr_activity_notes':ocr_activity_notes,'ocr_hole_warnings':ocr_hole_warnings,
              'apply_import_activity_scope':scope,'suggest_depco_rows':suggest,
              'psycopg2':SimpleNamespace(extras=SimpleNamespace(execute_batch=batch),Binary=lambda x:x),

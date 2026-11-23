@@ -1,5 +1,42 @@
 """Keep row-level hole identity and source completion notes through OCR review."""
 import re
+from datetime import datetime, timedelta, timezone
+
+
+def ironbark_ocr_rules(data, project, filename='', today=None):
+    """Validate current Ironbark imports without guessing hole identities or dates."""
+    if str(project or '').strip().lower() != 'ironbark':
+        return []
+    data['client'] = 'Argo'
+    today = today or datetime.now(timezone(timedelta(hours=10))).date()
+    warnings = []
+    def warn(issue):
+        warnings.append({'issue': issue, 'recommendation': 'Check the source PDF and correct the review fields before importing.'})
+    parsed = None
+    for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
+        try:
+            parsed = datetime.strptime(str(data.get('date') or ''), fmt).date()
+            break
+        except ValueError:
+            pass
+    if parsed is None or not 0 <= (today - parsed).days <= 14:
+        warn('Ironbark report date must be today or within the preceding 14 days (Brisbane time).')
+    match = re.search(r'(?<!\d)(20\d{6})(?!\d)', str(filename))
+    if match and parsed:
+        try:
+            expected = datetime.strptime(match[1], '%Y%m%d').date()
+            if expected != parsed:
+                warn('Report date conflicts with filename date ' + expected.strftime('%d/%m/%Y') + '.')
+        except ValueError:
+            pass
+    for i, row in enumerate(data.get('activities') or [], 1):
+        hole = ocr_activity_hole(row, data).upper().strip()
+        if hole and not hole.startswith('IB'):
+            warn(f'Activity {i}: Ironbark hole {hole} must begin with IB.')
+        bit = str(row.get('bit_type') or '')
+        if hole and re.search(r'\b(core|coring|[HNP]Q3?)\b', bit, re.I) and not hole.endswith('C'):
+            warn(f'Activity {i}: core hole {hole} must end with C.')
+    return warnings
 
 
 def single_hole(value):

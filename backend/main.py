@@ -44,7 +44,7 @@ from project_tracking_api import create_tracking_router, ensure_tracking_schema
 from project_registers import create_register_router, ensure_register_schema
 from exploration_metres import summarize_exploration_metres
 from geophysical_reconciliation import read_reconciliation
-from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings
+from report_holes import ocr_activity_hole, ocr_activity_notes, ocr_hole_warnings, ironbark_ocr_rules
 from depco_rates import catalogue as depco_catalogue, contract_rates as depco_contract_rates, price_depco_activity, suggest_depco_rows, preview_depco_ocr, enrich_depco_preview, is_depco_report, normalise_ocr_date, normalise_depco_rig, SCOPES as DEPCO_SCOPES
 from mcc_rates import (
     MCC_CUSTOM_RATE_CODES,
@@ -11793,7 +11793,7 @@ OPENAI_OCR_RESPONSE_SCHEMA = {
 }
 
 
-async def ocr_with_openai(pdf_bytes: bytes) -> dict:
+async def ocr_with_openai(pdf_bytes: bytes, project: str = '', filename: str = '') -> dict:
     """Send a PDF page image to OpenAI vision and extract structured data."""
     if not OPENAI_API_KEY:
         raise HTTPException(500, "OPENAI_API_KEY not configured on server")
@@ -11815,10 +11815,21 @@ async def ocr_with_openai(pdf_bytes: bytes) -> dict:
     b64_image = base64.b64encode(img_bytes).decode('utf-8')
 
     image_data_url = f"data:image/png;base64,{b64_image}"
+    prompt = OPENAI_OCR_PROMPT
+    if project.strip().lower() == 'ironbark':
+        from datetime import datetime, timedelta, timezone
+        today = datetime.now(timezone(timedelta(hours=10))).date()
+        prompt += (f'\nConfirmed project: Ironbark. Client: Argo. Today in Brisbane is {today.isoformat()}. '
+                   'These are recent daily reports, normally within the last 14 days. '
+                   'Check the handwritten year carefully; do not misread 2026 as 2018. '
+                   'Ironbark hole identifiers begin with IB (letters I and B, not 1B). '
+                   'Core holes end with C. Preserve the hole number and do not invent missing digits. '
+                   'If the date or hole identity remains uncertain, return null for review. '
+                   'The source filename is supporting evidence only: ' + json.dumps(filename))
     for attempt, token_limit in enumerate((16000, 32000)):
         try:
             data, _ = await openai_generate_json(
-                OPENAI_OCR_PROMPT,
+                prompt,
                 schema=OPENAI_OCR_RESPONSE_SCHEMA,
                 image_data_url=image_data_url,
                 max_output_tokens=token_limit,
@@ -11874,11 +11885,15 @@ async def import_ocr_pdf(
     else:
         # Keep direct API compatibility, but the UI normally previews and reviews first.
         try:
-            data = await ocr_with_openai(content)
+            data = await ocr_with_openai(content, project, filename)
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(422, f"OCR failed: {str(e)}")
+
+    rule_warnings = ironbark_ocr_rules(data, project, filename)
+    if rule_warnings:
+        raise HTTPException(400, ' '.join(w['issue'] for w in rule_warnings))
 
     # Convert to activity rows
     try:
@@ -12015,7 +12030,7 @@ async def preview_ocr_pdf(
     """Preview OCR results without saving — for testing."""
     program, project, client = import_destination(get_conn, program, project, '')
     content = await file.read()
-    data = await ocr_with_openai(content)
+    data = await ocr_with_openai(content, project, file.filename)
     date_warning = None
     try:
         data['date'] = normalise_ocr_date(data.get('date'))
@@ -12025,7 +12040,7 @@ async def preview_ocr_pdf(
         {**activity, "date": data.get("date", ""), "site_name": data.get("location", ""), "location": data.get("location", "")}
         for activity in data.get("activities", [])
     ]
-    warnings = activity_integrity_qa(preview_rows, file.filename) + ocr_hole_warnings(data)
+    warnings = activity_integrity_qa(preview_rows, file.filename) + ocr_hole_warnings(data) + ironbark_ocr_rules(data, project, file.filename)
     if date_warning:
         warnings.append(date_warning)
     rates = []
