@@ -1528,14 +1528,15 @@ function syncContractorReportLabels(){
 function syncReportImporter(){
   if(WORKSPACE_APP!=='eos')return;
   const weatherford=activeContractor==='Weatherfords';
+  const depco=activeContractor==='DEPCO Drilling';
   const title=document.getElementById('operational-import-title');
   if(!title)return;
-  title.textContent=weatherford?'Weatherfords logging reports':activeContractor+' operational reports';
-  document.getElementById('operational-import-help').textContent=weatherford?'Upload Weatherford GDB logging PDFs, including scanned reports. Each page is read separately; scans can take several minutes.':'Upload operational PDFs or CorePlan CSV exports for the selected contractor.';
+  title.textContent=weatherford?'Weatherfords logging reports':depco?'Depco Exploration':activeContractor+' operational reports';
+  document.getElementById('operational-import-help').textContent=weatherford?'Upload Weatherford GDB logging PDFs, including scanned reports. Each page is read separately; scans can take several minutes.':depco?'Upload a Package A Exploration claim workbook (.xlsx) into the selected Exploration campaign. Source rates and charges are preserved; shift totals are excluded. Existing reports for the same rig and dates must be reviewed before importing a claim. Use the handwritten report card for scanned daily PDFs.':'Upload operational PDFs or CorePlan CSV exports for the selected contractor.';
   document.getElementById('handwritten-import-card').hidden=weatherford;
   document.getElementById('ocr-preview-panel').hidden=weatherford;
   fileInput.accept=weatherford?'.pdf':'.pdf,.csv,.xlsx';
-  dropZone.querySelector('p').textContent=weatherford?'Drop Weatherfords logging PDFs or click':'Drop operational PDFs / CSVs / XLSX sheets or click';
+  dropZone.querySelector('p').textContent=weatherford?'Drop Weatherfords logging PDFs or click':depco?'Drop a Depco Exploration claim XLSX or PDF, or click':'Drop operational PDFs / CSVs / XLSX sheets or click';
   const destination=window.businessImportDestination?.();
   document.getElementById('report-import-destination').textContent=destination?'Import into: '+destination.label:'Choose a campaign at the top right before importing.';
 }

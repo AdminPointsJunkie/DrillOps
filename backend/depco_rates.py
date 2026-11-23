@@ -313,6 +313,8 @@ def preview_depco_ocr(cur, data, contractor, project, program):
 
 def price_depco_activity(row, lines):
     """No fuzzy fallback, implicit one-day quantity, or missing-price-as-zero."""
+    if str(row.get('rate_basis') or '').startswith('DEPCO Exploration claim XLSX:'):
+        return {key: row.get(key) for key in ('rate_year', 'unit_rate', 'quantity', 'line_cost', 'rate_basis')}
     result = {k: None for k in ('unit_rate', 'quantity', 'line_cost')}
     year = re.search(r'\b(\d{4})\b', str(row.get('date') or ''))
     result['rate_year'] = year.group(1) if year else None

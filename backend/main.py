@@ -56,6 +56,7 @@ from mcc_rates import (
 )
 from mcc_site_services import is_mcc_site_services_report, parse_mcc_site_services
 from mcc_weekly import MCC_WORKSTREAM_LABELS, build_mcc_daily_weekly_audit, parse_mcc_weekly_xlsx
+from depco_exploration import parse_depco_exploration_xlsx
 from mcc_invoice import (
     mcc_rate_by_code,
     mcc_service_dates,
@@ -3384,6 +3385,7 @@ def root():
         "app": "DrillOps API v3",
         "release": "training-shared-roles",
         "weatherford_import": "monthly-bundles-2026-11-20",
+        "depco_exploration_import": "claim-xlsx-2026-11-23",
         "geophysical_reconciliation": "hole-reconciliation-2026-11-20",
         "business_platform": "workspace-campaign-v3",
         "contractors": [c[0] for c in CONTRACTORS],
@@ -4488,22 +4490,42 @@ async def import_pdf(
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
     if filename.lower().endswith(".xlsx"):
+        depco_claim = contractor == "DEPCO Drilling"
+        xlsx_kind = "depco_exploration_xlsx" if depco_claim else "mcc_weekly_xlsx"
+        xlsx_label = "Depco Exploration claim" if depco_claim else "MCC weekly XLSX"
         try:
-            contractor = "MCC Group"
-            header, acts, cons, crew, source_text = parse_mcc_weekly_xlsx(content, filename, contractor)
+            if depco_claim:
+                if program != "Exploration":
+                    raise ValueError("Select an Exploration campaign for this Package A claim")
+                header, acts, cons, crew, source_text = parse_depco_exploration_xlsx(content, filename)
+            else:
+                contractor = "MCC Group"
+                header, acts, cons, crew, source_text = parse_mcc_weekly_xlsx(content, filename, contractor)
             extracted_programs = [row.get("program") for row in acts]
             acts = apply_import_activity_scope(acts, contractor, program, project, client)
             for row, extracted_program in zip(acts, extracted_programs):
-                if extracted_program:
+                if extracted_program and not depco_claim:
                     row["program"] = extracted_program
             weekly_unpriced = sum(row.get("line_cost") is None for row in acts)
         except Exception as e:
-            raise HTTPException(400, f"Could not read MCC weekly XLSX: {e}")
+            raise HTTPException(400, f"Could not read {xlsx_label}: {e}")
 
         with get_conn() as conn:
             with conn.cursor() as cur:
+                if depco_claim:
+                    cur.execute("SELECT pg_advisory_xact_lock(hashtext('depco-exploration-import'))")
                 if import_marker_blocks_reimport(cur, filename, contractor):
                     return {"status":"skipped","filename":filename,"rows":0,"contractor":contractor}
+                if depco_claim:
+                    cur.execute("""
+                        SELECT source_file FROM activities
+                        WHERE contractor=%s AND COALESCE(project,'')=%s AND COALESCE(program,'')=%s
+                          AND date=ANY(%s) AND drill_rig=ANY(%s)
+                        LIMIT 1
+                    """, (contractor, project, program, sorted({a['date'] for a in acts}), sorted({a['drill_rig'] for a in acts})))
+                    overlap = cur.fetchone()
+                    if overlap:
+                        raise HTTPException(409, "Existing DEPCO reports overlap this claim's rig and dates. Review the existing reports before importing to avoid duplicate activity and cost.")
                 if acts:
                     psycopg2.extras.execute_batch(cur, """
                         INSERT INTO activities
@@ -4527,12 +4549,12 @@ async def import_pdf(
                             (filename, contractor))
                 cur.execute("""
                     INSERT INTO source_files (filename, contractor, file_type, pdf_data)
-                    VALUES (%s, %s, 'mcc_weekly_xlsx', %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
-                """, (filename, contractor, psycopg2.Binary(content)))
+                    VALUES (%s, %s, %s, %s) ON CONFLICT (workspace_id, filename, contractor) DO NOTHING
+                """, (filename, contractor, xlsx_kind, psycopg2.Binary(content)))
                 record_import_batch(
                     cur,
                     filename=filename,
-                    import_kind="mcc_weekly_xlsx",
+                    import_kind=xlsx_kind,
                     contractor=contractor,
                     client=client,
                     project=project,
@@ -4540,7 +4562,7 @@ async def import_pdf(
                 )
             conn.commit()
 
-        weekly_warnings = []
+        weekly_warnings = list(header.get("warnings", [])) if depco_claim else []
         if weekly_unpriced:
             weekly_warnings.append({
                 "severity": "warning",
@@ -4551,7 +4573,7 @@ async def import_pdf(
                 "client":client,"project":project,
                 "total_cost":round(sum(float(a.get("line_cost") or 0) for a in acts), 2),
                 "consumables":0,"crew":len(crew),
-                "import_check":{"status":"needs_review" if weekly_warnings else "ok","summary":"MCC Group weekly timesheet imported as the authoritative invoice and costing source. Labour and equipment rows are priced from the MCC schedule where matched; daily Site Services reports remain available for audit comparison.","warnings":weekly_warnings}}
+                "import_check":{"status":"needs_review" if weekly_warnings else "ok","summary":("Depco Exploration claim imported with source quantities, rates and charges preserved. Shift totals and unused template rows are excluded. Hole identifiers are retained as supplied; review them before using production totals." if depco_claim else "MCC Group weekly timesheet imported as the authoritative invoice and costing source. Labour and equipment rows are priced from the MCC schedule where matched; daily Site Services reports remain available for audit comparison."),"warnings":weekly_warnings}}
 
     if filename.lower().endswith(".csv"):
         try:
