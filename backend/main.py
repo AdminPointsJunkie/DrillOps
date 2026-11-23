@@ -11820,7 +11820,8 @@ async def ocr_with_openai(pdf_bytes: bytes, project: str = '', filename: str = '
         from datetime import datetime, timedelta, timezone
         today = datetime.now(timezone(timedelta(hours=10))).date()
         prompt += (f'\nConfirmed project: Ironbark. Client: Argo. Today in Brisbane is {today.isoformat()}. '
-                   'These are recent daily reports, normally within the last 14 days. '
+                   'These are normally recent daily reports within the last 14 days, but older reports are allowed. '
+                   'Preserve a clearly written date even when older; never change it to fit the usual window. '
                    'Check the handwritten year carefully; do not misread 2026 as 2018. '
                    'Ironbark hole identifiers begin with IB (letters I and B, not 1B). '
                    'Core holes end with C. Preserve the hole number and do not invent missing digits. '
@@ -11855,9 +11856,9 @@ async def import_ocr_pdf(
 ):
     """Import reviewed OCR with per-activity holes and source completion evidence.
 
-    Ironbark reports must be within the last 14 Brisbane calendar days, agree
-    with any explicit filename date, and use IB hole prefixes / C core suffixes.
-    Invalid review fields are rejected before any activity rows are saved.
+    Dates outside the last 14 Brisbane calendar days are flagged, not blocked.
+    Ironbark reports must agree with any explicit filename date and use IB
+    hole prefixes / C core suffixes. Invalid review fields are rejected before saving.
     """
     filename = file.filename
     if contractor == "Weatherfords" and not filename.lower().endswith(".pdf"):
@@ -11897,8 +11898,9 @@ async def import_ocr_pdf(
             raise HTTPException(422, f"OCR failed: {str(e)}")
 
     rule_warnings = ironbark_ocr_rules(data, project, filename)
-    if rule_warnings:
-        raise HTTPException(400, ' '.join(w['issue'] for w in rule_warnings))
+    blocking_warnings = [w for w in rule_warnings if w.get('blocking', True)]
+    if blocking_warnings:
+        raise HTTPException(400, ' '.join(w['issue'] for w in blocking_warnings))
 
     # Convert to activity rows
     try:
@@ -11917,7 +11919,7 @@ async def import_ocr_pdf(
         {**activity, "date": date_str, "site_name": data.get("location", ""), "location": data.get("location", "")}
         for activity in activities
     ]
-    integrity_warnings = activity_integrity_qa(integrity_rows, filename) + ocr_hole_warnings(data)
+    integrity_warnings = activity_integrity_qa(integrity_rows, filename) + ocr_hole_warnings(data) + rule_warnings
 
     rows = []
     for act in activities:

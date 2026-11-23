@@ -429,6 +429,17 @@ class DepcoOcrImportTests(unittest.TestCase):
         self.assertEqual([r['hole_num'] for r in persisted],['TEST-A','TEST-B'])
         self.assertEqual(persisted[1]['notes'],'Drill 120mm PCD\nSource completion note: Hole completed')
 
+        # An old but valid date may be saved; the advisory survives in the result.
+        file.filename='DEPCO DR17 DAR 20180926.pdf'
+        data['date']='26/09/2018'
+        for activity in data['activities']:
+            activity['hole_num']='IB671C'
+        result=asyncio.run(env['import_ocr_pdf'](file,'DEPCO Drilling','Exploration','Ironbark','Argo',json.dumps(data)))
+        self.assertEqual(result['status'],'imported')
+        self.assertEqual(result['date'],'26/09/2018')
+        self.assertEqual(result['integrity_check']['status'],'needs_review')
+        self.assertFalse(result['integrity_check']['warnings'][0]['blocking'])
+
 
 if __name__ == '__main__':
     unittest.main()

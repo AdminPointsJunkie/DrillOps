@@ -26,6 +26,14 @@ class IronbarkImportRules(unittest.TestCase):
             self.assertEqual(data['activities'][0]['hole_num'], hole)
         self.assertFalse(self.check(hole='IB671', bit='PCD')[1])
 
+    def test_date_window_is_advisory(self):
+        for day in ['22/11/2018', '24/11/2026', '01/11/2026']:
+            data, warnings = self.check(day=day, filename='scan.pdf')
+            self.assertTrue(warnings)
+            self.assertTrue(all(w['blocking'] is False for w in warnings))
+            self.assertEqual(data['date'], day)
+        self.assertTrue(self.check(day='', filename='scan.pdf')[1][0]['blocking'])
+
     def test_other_projects_unchanged(self):
         data = {'date': '22/11/2018', 'client': 'Other'}
         self.assertEqual(ironbark_ocr_rules(data, 'Other'), [])

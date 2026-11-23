@@ -10,8 +10,10 @@ def ironbark_ocr_rules(data, project, filename='', today=None):
     data['client'] = 'Argo'
     today = today or datetime.now(timezone(timedelta(hours=10))).date()
     warnings = []
-    def warn(issue):
-        warnings.append({'issue': issue, 'recommendation': 'Check the source PDF and correct the review fields before importing.'})
+    def warn(issue, blocking=True):
+        warnings.append({'issue': issue, 'blocking': blocking, 'recommendation':
+                         'Check the source PDF and correct the review fields before importing.' if blocking else
+                         'Check the date against the source PDF. If correct, you can still import this report.'})
     parsed = None
     for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
         try:
@@ -19,8 +21,10 @@ def ironbark_ocr_rules(data, project, filename='', today=None):
             break
         except ValueError:
             pass
-    if parsed is None or not 0 <= (today - parsed).days <= 14:
-        warn('Ironbark report date must be today or within the preceding 14 days (Brisbane time).')
+    if parsed is None:
+        warn('Enter a valid Ironbark report date.')
+    elif not 0 <= (today - parsed).days <= 14:
+        warn('Report date is outside the usual last 14 days (Brisbane time). Please check it.', blocking=False)
     match = re.search(r'(?<!\d)(20\d{6})(?!\d)', str(filename))
     if match and parsed:
         try:
