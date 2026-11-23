@@ -68,3 +68,9 @@ body[data-workspace-area]:not([data-workspace-landing]) #business-context{displa
 #business-context .workspace-campaign-controls{grid-column:2;grid-row:1 / 4}
 #business-context .workspace-create span{overflow:visible}
 @media(max-width:900px){body[data-workspace-area]:not([data-workspace-landing]) #business-context{display:flex!important;max-width:100%}.workspace-campaign-controls{flex-wrap:wrap;justify-content:flex-end}#business-campaign{max-width:220px}}
+#business-dialog form[hidden]{display:none}
+#business-dialog .contractor-eos-options{display:flex;flex-direction:column;gap:8px;min-width:240px}
+#business-dialog .contractor-eos-options legend{font-size:12px;font-weight:600;margin-bottom:8px}
+#business-dialog .contractor-eos-options label{display:flex;align-items:center;gap:8px}
+#business-dialog .contractor-eos-options input{width:16px;height:16px;accent-color:#393939}
+#business-dialog .contractor-type-description{flex-basis:100%;margin:0;font-size:12px;color:#666}

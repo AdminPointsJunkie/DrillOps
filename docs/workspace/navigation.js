@@ -1,10 +1,18 @@
 /* App boundaries and navigation. Authentication and project selection stay shared. */
 const WORKSPACE_APP = document.body.dataset.workspaceArea || 'eos';
 let eosRawLogsEnabled=false;
-const EOS_CONTRACTOR_NAMES = new Set(['Mitchells Drilling','DEPCO Drilling','Weatherfords']);
-function contractorsForApp(rows, field='name'){
+let eosContractorPage='app-home';
+function eosContractorListing(page){
+ if(page==='day-rates')return 'day-rates';
+ return ['importer','activities','report-calendar'].includes(page)?'imports':['app-home','reports','production'].includes(page)?'reports':'any';
+}
+function contractorsForApp(rows, field='name',listing='any'){
  const list=Array.isArray(rows)?rows:[];
- return WORKSPACE_APP==='eos'?list.filter(row=>row.active!==false&&row[field]!=='Company'):list;
+ return WORKSPACE_APP==='eos'?list.filter(row=>{
+  if(row.active===false||row[field]==='Company')return false;
+  const imports=row.eos_imports_enabled!==false,reports=row.eos_reports_enabled!==false,dayRates=row.eos_day_rates_enabled===true;
+  return listing==='imports'?imports:listing==='reports'?reports:listing==='day-rates'?dayRates:imports||reports||dayRates;
+ }):list;
 }
 const WORKSPACE_PAGES = {
  eos:['workspace-settings','reports','activities','report-calendar','time-register','day-rates','costing','rates','cost-contracts','importer','settings'],
@@ -24,7 +32,7 @@ function showAppHome(){
  document.getElementById('workspace-gate').classList.remove('open');
  document.body.classList.remove('workspace-locked');
  updateContractorSwitcherVisibility('app-home');
- if(WORKSPACE_APP==='eos'){syncEosRoute('app-home');loadEosOverview();}
+ if(WORKSPACE_APP==='eos'){syncEosRoute('app-home');triggerPageLoad('app-home');}
 }
 function openInitialAppPage(){
  let requested=new URLSearchParams(location.search).get('view');

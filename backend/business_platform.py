@@ -12,6 +12,17 @@ CONTRACTOR_TYPES = ("Drilling", "Geophysical Logging", "Earthworks", "Labour", "
 current_business_scope = ContextVar("business_scope", default=None)
 
 
+def contractor_eos_settings(data):
+    """Listing preferences are independent of service type and account access."""
+    result = {}
+    for field in ('eos_imports_enabled', 'eos_reports_enabled', 'eos_day_rates_enabled'):
+        if field in data:
+            if type(data[field]) is not bool:
+                raise HTTPException(400, 'EOS listing options must be true or false')
+            result[field] = data[field]
+    return result
+
+
 def uuid_value(value):
     if not value:
         return ""
@@ -189,7 +200,7 @@ def create_business_router(get_conn):
                 shares=[dict(r) for r in cur.fetchall()]
                 cur.execute("SELECT action,detail,created_at FROM business_access_events WHERE workspace_id=%s ORDER BY id DESC LIMIT 50",(workspace_id,))
                 events=[dict(r) for r in cur.fetchall()]
-                cur.execute("SELECT name,category,short_code,active FROM contractors WHERE workspace_id=%s ORDER BY name",(workspace_id,))
+                cur.execute("SELECT name,category,short_code,active,eos_imports_enabled,eos_reports_enabled,eos_day_rates_enabled FROM contractors WHERE workspace_id=%s ORDER BY name",(workspace_id,))
                 contractors=[dict(r) for r in cur.fetchall()]
         return {"workspace":{k:w[k] for k in ("id","name","role")},"people":w.get("people",[]),"shares":shares,"events":events,"contractors":contractors,"contractor_types":CONTRACTOR_TYPES}
 
@@ -199,12 +210,13 @@ def create_business_router(get_conn):
         data=await request.json();name=str(data.get('name') or '').strip();category=data.get('category')
         if not name or len(name)>120 or category not in CONTRACTOR_TYPES:
             raise HTTPException(400,'Enter a contractor name and supported service type')
+        visibility=contractor_eos_settings(data)
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("INSERT INTO contractors(workspace_id,name,short_code,category,program,sites,active) VALUES(%s,%s,%s,%s,'','',true) ON CONFLICT(workspace_id,name) DO NOTHING RETURNING name,category",(workspace_id,name,name[:3].upper(),category))
+                cur.execute("INSERT INTO contractors(workspace_id,name,short_code,category,program,sites,active,eos_imports_enabled,eos_reports_enabled,eos_day_rates_enabled) VALUES(%s,%s,%s,%s,'','',true,%s,%s,%s) ON CONFLICT(workspace_id,name) DO NOTHING RETURNING name,category,eos_imports_enabled,eos_reports_enabled,eos_day_rates_enabled",(workspace_id,name,name[:3].upper(),category,visibility.get('eos_imports_enabled',False),visibility.get('eos_reports_enabled',False),visibility.get('eos_day_rates_enabled',False)))
                 row=cur.fetchone()
                 if not row:raise HTTPException(409,'This contractor already exists in the workspace')
-                audit(cur,auth,workspace_id,'contractor.created',{'name':name,'category':category})
+                audit(cur,auth,workspace_id,'contractor.created',dict(row))
         return dict(row)
 
     @router.patch("/workspaces/{workspace_id}/contractors/{name}")
@@ -212,15 +224,18 @@ def create_business_router(get_conn):
         auth=current_auth_user(request)
         require_workspace(auth,uuid_value(workspace_id),True)
         data=await request.json()
-        category=data.get('category')
-        if category not in CONTRACTOR_TYPES:
+        changes=contractor_eos_settings(data)
+        if 'category' in data and data['category'] not in CONTRACTOR_TYPES:
             raise HTTPException(400,'Choose a supported contractor type')
+        if 'category' in data:changes['category']=data['category']
+        if not changes:raise HTTPException(400,'Choose contractor settings to update')
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute('UPDATE contractors SET category=%s WHERE workspace_id=%s AND name=%s RETURNING name,category',(category,workspace_id,name))
+                assignments=','.join(key+'=%s' for key in changes)
+                cur.execute('UPDATE contractors SET '+assignments+' WHERE workspace_id=%s AND name=%s RETURNING name,category,eos_imports_enabled,eos_reports_enabled,eos_day_rates_enabled',(*changes.values(),workspace_id,name))
                 row=cur.fetchone()
                 if not row:raise HTTPException(404,'Contractor not found in this workspace')
-                audit(cur,auth,workspace_id,'contractor.type_updated',{'name':name,'category':category})
+                audit(cur,auth,workspace_id,'contractor.settings_updated',{'name':name,**changes})
         return dict(row)
 
     @router.post("/workspaces/{workspace_id}/projects")

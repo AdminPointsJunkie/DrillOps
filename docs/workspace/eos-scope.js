@@ -14,7 +14,7 @@ function rememberEosProjects(rows,complete=true){
  for(const row of rows||[])if(row.project)eosKnownProjects.add(String(row.project));renderEosScopeControls();}
 function renderEosScopeControls(){
  const name=document.getElementById('eos-scope-contractor-label'),selection=document.getElementById('eos-scope-selection-label');if(name)name.textContent=activeContractor;if(selection)selection.textContent=eosScopeLabel();
- const contractor=document.getElementById('eos-contractor-filter');if(contractor){contractor.innerHTML=contractorsForApp(CONTRACTORS).map(c=>'<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>').join('');contractor.value=activeContractor;}
+ const contractor=document.getElementById('eos-contractor-filter');if(contractor){contractor.innerHTML=filteredContractors().map(c=>'<option value="'+attr(c.name)+'">'+esc(c.name)+'</option>').join('')||'<option value="">No contractors enabled for this view</option>';contractor.value=activeContractor;}
  const project=document.getElementById('eos-project-filter'),program=document.getElementById('eos-program-filter');if(!project)return;
  const names=[...new Set([...projects.map(p=>p.name),...eosKnownProjects,...(eosScope.project&&eosScope.project!=='__unassigned__'?[eosScope.project]:[])])].filter(Boolean).sort();
  project.innerHTML='<option value="">All projects</option>'+names.map(p=>'<option value="'+attr(p)+'">'+esc(p)+'</option>').join('')+'<option value="__unassigned__">Unassigned project</option>';
@@ -82,7 +82,7 @@ document.getElementById('eos-clear-scope')?.addEventListener('click',()=>changeE
 
 // Changing a project must never silently switch contractors. All EOS pages share this selection.
 switchContractor=async function(name){
- if(!CONTRACTORS.some(c=>c.name===name))return;
+ if(!filteredContractors().some(c=>c.name===name))return;
  if(ocrReviewActive||reportImportBusy){toast('Finish the current import before changing contractor','warn');return;}
  pendingFiles=[];fileInput.value='';importBtn.disabled=true;importBtn.textContent='Import Reports';
  ocrPendingFiles=[];ocrFileInput.value='';ocrImportBtn.disabled=true;

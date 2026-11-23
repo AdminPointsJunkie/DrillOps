@@ -331,7 +331,7 @@ function contractorInProgram(c, program) {
 }
 
 function filteredContractors() {
-  if(WORKSPACE_APP==='eos')return contractorsForApp(CONTRACTORS);
+  if(WORKSPACE_APP==='eos')return contractorsForApp(CONTRACTORS,'name',eosContractorListing(eosContractorPage));
   const programContractors=CONTRACTORS.filter(function(c){ return contractorInProgram(c, activeProgram); });
   if(!activeProjectName||!projectContractorsData.length)return programContractors;
   const linkedNames=new Set(projectContractorsData.map(function(row){return String(row.contractor||'').toLowerCase();}));
@@ -1462,6 +1462,13 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 });
 
 function triggerPageLoad(page){
+  if(WORKSPACE_APP==='eos'){
+    eosContractorPage=page;
+    const previous=activeContractor;
+    ensureActiveContractorInProgram();
+    if(previous!==activeContractor)eosScopeVersion++;
+    buildContractorSwitcher();renderEosScopeControls();
+  }
   if(page==='app-home'&&WORKSPACE_APP==='eos'){loadEosOverview();return;}
   if(routeWorkspacePage(page))return;
   document.querySelectorAll('.app-local-nav a').forEach(a=>{if(new URL(a.href).searchParams.get('view')===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
