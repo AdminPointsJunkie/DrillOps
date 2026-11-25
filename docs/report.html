@@ -100,6 +100,9 @@ tr.saving td{background:#fff7e6;}
 .mcc-workgroup-select{min-width:285px;}
 .mcc-allocation{display:flex;align-items:center;gap:5px;white-space:nowrap;}
 .mcc-allocation input{width:68px;padding:6px 7px;text-align:right;font-weight:750;}
+.mcc-service-heading th{background:#e7eee9;color:#243e32;text-align:left;padding:14px 10px;font-size:14px;}
+.mcc-service-heading small{font-weight:400;margin-left:10px;}
+.mcc-service-subtotal th,.mcc-service-subtotal td{background:#f3f6f3;font-weight:800;text-align:right;}
 .mcc-allocation span{color:var(--muted);font-weight:750;}
 .allocated-cost{font-weight:800;color:#19201d;white-space:nowrap;}
 .allocated-cost small{display:block;margin-top:3px;color:var(--muted);font-size:9px;font-weight:650;}
@@ -659,16 +662,28 @@ function saveMccAllocation(control){
   if(!Number.isFinite(value)||value<0||value>100){alert('Allocation must be between 0% and 100%.');renderReport(reportRows,reportConsumables,reportCrew);return;}
   saveMccAssignmentPatch(control,{allocation_percent:value});
 }
+function mccServiceSection(row){
+  const contract=[row.location,row.contract,row.project].join(' ');
+  const equipment=[row.code,mccEquipment(row),noteField(row,'Schedule item')].join(' ').replace(/_/g,' ');
+  return /\bARG-004\b/i.test(contract)||/\bwater[ -]*(?:cart|truck)\b|\bWT0*1\b/i.test(equipment)?'Water Cart':'Earthworks';
+}
 function renderMccSiteServiceLineItems(rows){
   rows=(rows||[]).slice().sort((a,b)=>(a.program||'').localeCompare(b.program||'')||(a.site_name||'').localeCompare(b.site_name||'')||(parseClockMinutes(a.time_from)||0)-(parseClockMinutes(b.time_from)||0));
   const activityBody=document.getElementById('activity-body');
   const activityTable=activityBody.closest('table');
   activityTable.querySelector('thead').innerHTML='<tr><th>Work Group / ARG Contract</th><th>Planned Hole</th><th>Equipment / Person</th><th>Hours / Qty</th><th>Allocation</th><th>Work Performed</th><th>Rate</th><th>Allocated Cost</th></tr>';
-  activityBody.innerHTML=rows.map(row=>{
+  activityBody.innerHTML=['Water Cart','Earthworks'].map(section=>{
+    const items=rows.filter(row=>mccServiceSection(row)===section);
+    const cost=items.reduce((sum,row)=>sum+mccAllocatedCost(row),0);
+    const unpriced=items.filter(row=>row.line_cost==null||row.line_cost==='').length;
+    const heading='<tr class="mcc-service-heading"><th colspan="8" scope="rowgroup">'+esc(section)+' <small>'+items.length+' service line(s)</small></th></tr>';
+    const lines=items.map(row=>{
     const percent=mccAllocationPercent(row),gross=num(row.line_cost),allocated=mccAllocatedCost(row);
     const allocationNote=percent<100?'<small>'+percent.toFixed(0)+'% of '+cur(gross)+'</small>':'';
     return '<tr data-id="'+attr(row.id)+'"><td>'+mccWorkGroupSelect(row)+'</td><td>'+mccPlannedHoleSelect(row)+'</td><td>'+esc(mccEquipment(row)||mccPerson(row)||'')+'</td><td>'+mccQuantityDisplay(row)+'</td><td><label class="mcc-allocation"><input class="mcc-allocation-input" type="number" min="0" max="100" step="1" value="'+attr(percent)+'" aria-label="Work group allocation percent"><span>%</span></label></td><td class="work-note">'+esc(workDescription(row))+'</td><td>'+(row.unit_rate!=null?cur(row.unit_rate):'--')+'</td><td class="allocated-cost">'+(row.line_cost!=null?cur(allocated):'--')+allocationNote+'</td></tr>';
-  }).join('')||'<tr><td colspan="8" class="empty">No site-services activities found.</td></tr>';
+    }).join('')||'<tr><td colspan="8" class="empty">No '+esc(section.toLowerCase())+' activities recorded.</td></tr>';
+    return heading+lines+'<tr class="mcc-service-subtotal"><th colspan="7" scope="row">'+esc(section)+' subtotal'+(unpriced?' · '+unpriced+' unpriced line(s)':'')+'</th><td>'+cur(cost)+'</td></tr>';
+  }).join('');
   activityBody.querySelectorAll('.mcc-workgroup-select').forEach(control=>control.addEventListener('change',()=>saveMccWorkGroup(control)));
   activityBody.querySelectorAll('.mcc-hole-select:not(:disabled)').forEach(control=>control.addEventListener('change',()=>saveMccPlannedHole(control)));
   activityBody.querySelectorAll('.mcc-allocation-input').forEach(control=>{
