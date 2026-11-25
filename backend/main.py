@@ -374,6 +374,8 @@ def get_conn(*, read_only=False):
 # restricted to DrillOps system administrators.
 app.include_router(create_eos_weather_router())
 app.include_router(create_business_router(get_conn))
+from earthworks_api import create_earthworks_router
+app.include_router(create_earthworks_router(get_conn))
 app.add_middleware(DrillOpsAuthMiddleware, get_conn=get_conn)
 app.add_middleware(
     CORSMiddleware,

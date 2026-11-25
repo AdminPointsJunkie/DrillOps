@@ -2,6 +2,7 @@
 ALL_APPS=frozenset({'eos','account','project'})
 READ_SHARED={'/clients','/projects','/contractors','/project-contractors'}
 def route_apps(path,method):
+    if path.startswith('/eos/earthworks/'):return frozenset({'eos'})
     if path.startswith("/platform/"):return ALL_APPS
     if path=='/account-accruals/project-summary' and method in {'GET','HEAD'}:return frozenset({'account','project'})
     if path in READ_SHARED and method in {'GET','HEAD'}:return ALL_APPS
